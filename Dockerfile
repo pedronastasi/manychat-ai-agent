@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # tini reaps zombies and forwards signals, so SIGTERM reaches the graceful
 # shutdown path instead of the container being killed outright.
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/main.js"]

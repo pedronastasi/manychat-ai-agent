@@ -13,19 +13,16 @@ import {
 import { ManyChatInbound, ManyChatResponse } from './contracts/manychat.ts';
 import { capabilitiesFor } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
-import { ConfigStore, loadEnv } from './config/loader.ts';
-import { createDatabase, createEmbeddedDatabase, isEmbedded } from './db/client.ts';
-import { runMigrations } from './db/migrate.ts';
 import type { Database } from './db/client.ts';
 import { resolveModel } from './agent/registry.ts';
 import { createAgentRunner } from './agent/runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
 import { createManyChatAdapter } from './channels/manychat/adapter.ts';
 import { createManyChatClient } from './channels/manychat/client.ts';
+import type { ConfigStore } from './config/loader.ts';
 import { handleTurn } from './routes/turn.ts';
 import { createSharedSecretGuard } from './routes/auth.ts';
 import { REDACT_PATHS, pseudonymize } from './observability/redact.ts';
-import { startWorker } from './outbox/worker.ts';
 
 export interface BuildOptions {
   env: Env;
@@ -166,60 +163,4 @@ export function buildServer(opts: BuildOptions) {
   );
 
   return { app, registerPlugins, runner };
-}
-
-/** Process entrypoint. Kept separate so tests can build the app without it. */
-export async function main() {
-  const env = loadEnv();
-  const configStore = new ConfigStore();
-
-  let db: Database;
-  if (isEmbedded(env.DATABASE_URL)) {
-    const embedded = await createEmbeddedDatabase(env.DATABASE_URL);
-    db = embedded.db as unknown as Database;
-  } else {
-    db = createDatabase(env.DATABASE_URL);
-  }
-
-  const { app, registerPlugins } = buildServer({ env, db, configStore });
-  await registerPlugins();
-
-  const migrated = await runMigrations(db);
-  if (migrated.length > 0) app.log.info({ migrations: migrated }, 'migrations applied');
-
-  const stopWorker = startWorker({
-    db,
-    client: createManyChatClient({
-      apiToken: env.MANYCHAT_API_TOKEN ?? '',
-      baseUrl: env.MANYCHAT_API_BASE,
-    }),
-    logger: app.log,
-  });
-
-  // Prompt edits dominate the first weeks; a restart per wording tweak is the
-  // friction that ends with people editing prompts in production (specs/003).
-  process.on('SIGHUP', () => {
-    const result = configStore.reload();
-    if (result.ok) app.log.info('config reloaded');
-    else app.log.error({ error: result.error }, 'config reload failed; keeping previous config');
-  });
-
-  const shutdown = async (signal: string) => {
-    app.log.info({ signal }, 'shutting down');
-    await stopWorker();
-    await app.close();
-    process.exit(0);
-  };
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-
-  await app.listen({ port: env.PORT, host: '0.0.0.0' });
-}
-
-const isEntrypoint = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()!);
-if (isEntrypoint) {
-  main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
-  });
 }

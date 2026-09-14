@@ -239,3 +239,96 @@ describe('environment loading', () => {
     expect(env.MANYCHAT_API_TOKEN).toBe('real-token');
   });
 });
+
+describe('runner failure branches (specs/004 P2)', () => {
+  const runnerFor = (model: Parameters<typeof createAgentRunner>[0]['model']) =>
+    createAgentRunner({
+      model,
+      modelSpec: 'mock:test',
+      persona: 'P.',
+      catalog,
+      rules,
+      maxOutputTokens: 400,
+      temperature: 0.3,
+    });
+
+  it('rethrows an abort so the caller can tell "too slow" from "misbehaved"', async () => {
+    // turn.ts distinguishes these: an abort is an error outcome, while a schema
+    // violation is a low-confidence escalation. Collapsing them loses that.
+    const { MockLanguageModelV4 } = await import('ai/test');
+    const hanging = new MockLanguageModelV4({
+      doGenerate: options =>
+        new Promise((_resolve, reject) => {
+          options.abortSignal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          );
+        }),
+    });
+
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 20);
+    await expect(
+      runnerFor(hanging).run({ text: 'hola', history: [], signal: controller.signal }),
+    ).rejects.toThrow(/abort/i);
+  });
+
+  it('escalates on a provider error without charging for it', async () => {
+    const { MockLanguageModelV4 } = await import('ai/test');
+    const broken = new MockLanguageModelV4({
+      doGenerate: () => Promise.reject(new Error('provider exploded')),
+    });
+    const r = await runnerFor(broken).run({ text: 'hola', history: [] });
+
+    expect(r.reply.escalate).toBe(true);
+    expect(r.reply.escalation_reason).toBe('low_confidence');
+    expect(r.usage.costUsd).toBe(0);
+    expect(r.usage.inputTokens).toBeUndefined();
+    expect(r.interventions[0]).toContain('model_error');
+  });
+
+  it('sends prior turns as alternating roles, fencing only the user side', async () => {
+    const { model, calls } = mockModel(good);
+    await runnerFor(model).run({
+      text: 'y el avanzado?',
+      history: [
+        { role: 'user', text: 'cuanto sale el inicial?' },
+        { role: 'agent', text: 'Sale $45.000.' },
+      ],
+    });
+    const prompt = calls[0]!.prompt;
+    const assistant = prompt.filter(p => p.role === 'assistant');
+    expect(JSON.stringify(assistant)).toContain('Sale $45.000.');
+    // The agent's own words are trusted; only contact text is fenced.
+    expect(JSON.stringify(assistant)).not.toContain(FENCE);
+  });
+});
+
+describe('guardrail clamps', () => {
+  it('truncates a message that exceeds the platform limit', () => {
+    const long = 'x'.repeat(1200);
+    const g = applyGuardrails(
+      { messages: [long], escalate: false, escalation_reason: null, confidence: 0.9 },
+      rules,
+    );
+    // The schema bounds this, so reaching the clamp means something upstream
+    // changed - record it rather than failing the turn.
+    expect(g.interventions.length).toBeGreaterThan(0);
+  });
+
+  it('passes a reply that needs no intervention through untouched', () => {
+    const g = applyGuardrails(good, rules);
+    expect(g.interventions).toEqual([]);
+    expect(g.reply).toEqual(good);
+  });
+
+  it('keeps a low-confidence reply that already escalates', () => {
+    const escalating = {
+      messages: ['te paso con alguien'],
+      escalate: true,
+      escalation_reason: 'complaint' as const,
+      confidence: 0.1,
+    };
+    const g = applyGuardrails(escalating, rules);
+    expect(g.reply.escalation_reason).toBe('complaint');
+  });
+});

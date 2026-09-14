@@ -28,9 +28,10 @@ jobs:
         run: pnpm format:check
 
       # Integration tests run against PGlite (real Postgres, in-process), so no
-      # service container is needed.
-      - name: Test
-        run: pnpm test
+      # service container is needed. Coverage thresholds are enforced here
+      # (specs/004-testing.md); the run fails if they regress.
+      - name: Test + coverage gate
+        run: pnpm test:coverage
 
       - name: Eval (offline baseline)
         # The golden set runs against the mock provider: deterministic, free, and
