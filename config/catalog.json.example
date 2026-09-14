@@ -1,0 +1,45 @@
+{
+  "businessName": "Demo Academy",
+  "currency": "ARS",
+  "courses": [
+    {
+      "id": "inicial",
+      "name": "Curso Inicial",
+      "description": "Formacion desde cero. No requiere experiencia previa.",
+      "price": { "amount": 4500000, "currency": "ARS" },
+      "durationHours": 24,
+      "schedule": "Martes y jueves de 18 a 21h, 4 semanas",
+      "enrollmentUrl": "https://example.com/inscripcion/inicial"
+    },
+    {
+      "id": "avanzado",
+      "name": "Curso Avanzado",
+      "description": "Para quienes ya completaron el inicial o tienen experiencia.",
+      "price": { "amount": 6800000, "currency": "ARS" },
+      "durationHours": 32,
+      "schedule": "Sabados de 10 a 16h, 5 semanas",
+      "enrollmentUrl": "https://example.com/inscripcion/avanzado"
+    },
+    {
+      "id": "intensivo",
+      "name": "Intensivo de Fin de Semana",
+      "description": "Version condensada del inicial en dos jornadas completas.",
+      "price": { "amount": 3200000, "currency": "ARS" },
+      "durationHours": 12,
+      "schedule": "Un fin de semana al mes, sabado y domingo de 10 a 16h",
+      "enrollmentUrl": "https://example.com/inscripcion/intensivo"
+    }
+  ],
+  "faq": [
+    {
+      "question": "Dan certificado?",
+      "answer": "Si, al finalizar recibis un certificado de asistencia."
+    },
+    {
+      "question": "Incluye materiales?",
+      "answer": "El kit de practica esta incluido en todos los cursos."
+    },
+    { "question": "Donde quedan?", "answer": "Las clases son presenciales en la sede central." },
+    { "question": "Hay clases online?", "answer": "Por ahora todos los cursos son presenciales." }
+  ]
+}

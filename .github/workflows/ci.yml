@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
+      # Integration tests run against PGlite (real Postgres, in-process), so no
+      # service container is needed.
+      - name: Test
+        run: pnpm test
+
+      - name: Eval (offline baseline)
+        # The golden set runs against the mock provider: deterministic, free, and
+        # it catches pipeline regressions without spending on a real model.
+        run: pnpm eval:mock
+        env:
+          AGENT_MODEL: mock:demo
+          PUBLIC_BASE_URL: https://ci.example.com
+          MANYCHAT_SHARED_SECRET: ci-secret-ci-secret-ci-secret-xx
+          DATABASE_URL: pglite
+          CONFIG_DIR: test/fixtures/config
+
+      - name: Build
+        run: pnpm build
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      # Constitution C1: no tenant data or credentials may enter git history.
+      - name: Scan for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions: { security-events: write, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with: { languages: javascript-typescript }
+      - uses: github/codeql-action/analyze@v3
