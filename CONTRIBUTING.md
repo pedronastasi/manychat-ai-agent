@@ -22,6 +22,8 @@ decisions are recorded in [`docs/adr/`](docs/adr/).
 
 - [`specs/000-constitution.md`](specs/000-constitution.md) holds non-negotiables.
   A change there needs an ADR that supersedes the clause.
+- [`specs/004-testing.md`](specs/004-testing.md) defines what must be tested,
+  what deliberately is not, and the rules a test here follows.
 - Tests cite the spec clause they enforce. If a spec change breaks a test, that
   is a real finding — not a test to update mechanically.
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
