@@ -24,6 +24,9 @@ decisions are recorded in [`docs/adr/`](docs/adr/).
   A change there needs an ADR that supersedes the clause.
 - [`specs/004-testing.md`](specs/004-testing.md) defines what must be tested,
   what deliberately is not, and the rules a test here follows.
+- [`specs/005-language.md`](specs/005-language.md) requires English throughout,
+  and that no customer-facing copy lives in source at all - it belongs to the
+  tenant, in configuration.
 - Tests cite the spec clause they enforce. If a spec change breaks a test, that
   is a real finding — not a test to update mechanically.
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
