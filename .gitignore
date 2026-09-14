@@ -1,0 +1,36 @@
+# --- Secrets and tenant data -------------------------------------------------
+# The repo is public-shaped: no tenant prompt, catalog, pricing or credentials
+# may ever enter git history. Only the *.example scaffolds are tracked.
+.env
+.env.*
+!.env.example
+config/*
+!config/*.example
+!config/README.md
+
+# --- Build / deps ------------------------------------------------------------
+node_modules/
+dist/
+*.tsbuildinfo
+
+# --- Test / tooling ----------------------------------------------------------
+coverage/
+.vitest/
+*.log
+npm-debug.log*
+.eslintcache
+
+# --- Local scratch -----------------------------------------------------------
+.smoke.mjs
+.t.ts
+tmp/
+
+# --- Editors / OS ------------------------------------------------------------
+# Local editor workspace files carry the on-disk folder name, which is tenant
+# identifying even when the file's contents are not.
+*.code-workspace
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

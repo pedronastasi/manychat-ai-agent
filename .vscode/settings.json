@@ -1,0 +1,27 @@
+{
+  // .gitignore governs git only. VS Code's Explorer, Search and file watcher are
+  // separate, so node_modules must be excluded here as well - with pnpm it is a
+  // symlink farm of tens of thousands of entries and will otherwise be watched.
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/coverage/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/pnpm-lock.yaml": true
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/dist": true
+  },
+
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": { "source.fixAll.eslint": "explicit" },
+  "eslint.useFlatConfig": true
+}
