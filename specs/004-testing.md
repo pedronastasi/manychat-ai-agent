@@ -13,9 +13,13 @@ with reasons.
 What replaces "every file" is a **risk tier**: the closer code sits to money,
 customer-visible output, or message delivery, the higher the bar.
 
-## Current state (measured 2026-09-15)
+## Current state (measured 2026-09-15, after closing P0-P3)
 
-Overall: **61.18% statements, 51.24% branches**, 61 tests.
+Overall: **95.75% statements, 86.34% branches**, 141 tests. The gate below is
+live in CI.
+
+Before this work the figure was 61.18% / 51.24% across 61 tests, with the outbox
+worker at 0%.
 
 | Area                                                     | Stmts             | Assessment                                 |
 | -------------------------------------------------------- | ----------------- | ------------------------------------------ |
@@ -129,7 +133,7 @@ A change is adequately tested when:
 
 ## CI gate
 
-Once P0–P2 are closed, `vitest.config.ts` enforces global thresholds:
+`vitest.config.ts` enforces global thresholds, run in CI as `pnpm test:coverage`:
 
 ```ts
 coverage: {
@@ -141,6 +145,7 @@ coverage: {
     'src/db/client.ts',
     'src/db/schema.ts',
     'src/channels/port.ts',
+    'src/main.ts',
   ],
   thresholds: { statements: 85, branches: 75, functions: 85, lines: 85 },
 }
