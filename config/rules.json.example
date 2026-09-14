@@ -1,0 +1,20 @@
+{
+  "confidenceThreshold": 0.6,
+  "maxTurnsPerConversation": 25,
+  "escalationKeywords": [
+    "hablar con una persona",
+    "hablar con alguien",
+    "queja",
+    "reclamo",
+    "reembolso",
+    "devolucion",
+    "estafa"
+  ],
+  "budget": {
+    "dailyTokenCap": 1000000,
+    "dailyCostCapUsd": 5
+  },
+  "rateLimit": {
+    "turnsPerSubscriberPerHour": 60
+  }
+}

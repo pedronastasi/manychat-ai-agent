@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: agent
+    ports: ['5432:5432']
+    volumes: ['pgdata:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U agent']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  agent:
+    build: .
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://agent:agent@postgres:5432/agent
+      PORT: 3000
+    # Secrets come from a local .env, never from this file.
+    env_file: [.env]
+    ports: ['3000:3000']
+    restart: unless-stopped
+
+volumes:
+  pgdata:

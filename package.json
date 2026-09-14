@@ -1,0 +1,57 @@
+{
+  "name": "manychat-ai-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A provider-agnostic conversational AI agent gateway that bridges no-code chat platforms to any LLM.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.14.2",
+  "scripts": {
+    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env --watch src/server.ts",
+    "bootstrap": "node scripts/setup.mjs",
+    "build": "tsc --project tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "simulate": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env src/channels/manychat/simulator.ts",
+    "eval": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env evals/run.ts",
+    "eval:mock": "node --experimental-strip-types --disable-warning=ExperimentalWarning evals/run.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "worker": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env src/outbox/worker.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.53",
+    "@ai-sdk/google": "^4.0.69",
+    "@ai-sdk/openai": "^4.0.66",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/swagger": "^9.8.1",
+    "@fastify/under-pressure": "^9.1.0",
+    "ai": "^7.0.100",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.12.4",
+    "fastify-type-provider-zod": "^7.0.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "4.0.14",
+    "@electric-sql/pglite": "^0.5.8",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.2",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}
