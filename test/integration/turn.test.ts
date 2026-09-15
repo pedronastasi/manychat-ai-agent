@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
-import { handleTurn } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/routes/turn.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import { RulesSchema } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
-import { claimBatch } from '../../src/outbox/queue.ts';
-import { recordSpend } from '../../src/conversation/budget.ts';
+import { OutboxQueue } from '../../src/outbox/queue.ts';
+import { BudgetGuard } from '../../src/conversation/budget.ts';
 
 /** specs/004-testing.md P2 — the untested branches of the race. */
 
@@ -79,7 +79,7 @@ const slow = (ms: number): AgentRunner => ({
 
 describe('race won', () => {
   it('answers inline and records usage', async () => {
-    const out = await handleTurn(deps(fast), inbound('hello'));
+    const out = await new TurnHandler(deps(fast)).handle(inbound('hello'));
     expect(out.outcome).toBe('answered_inline');
     expect(out.reply.messages).toEqual(['done']);
 
@@ -92,13 +92,13 @@ describe('race won', () => {
     const escalating: AgentRunner = {
       run: () => Promise.resolve(result(['passing you over'], true)),
     };
-    const out = await handleTurn(deps(escalating), inbound('something odd'));
+    const out = await new TurnHandler(deps(escalating)).handle(inbound('something odd'));
     expect(out.outcome).toBe('escalated_model');
     expect((await db.query.conversations.findFirst())!.escalatedAt).toBeInstanceOf(Date);
   });
 
   it('accumulates spend so the budget cap can see it', async () => {
-    await handleTurn(deps(fast), inbound('hello'));
+    await new TurnHandler(deps(fast)).handle(inbound('hello'));
     const counter = await db.query.budgetCounters.findFirst();
     expect(counter!.tokens).toBe(120);
     expect(Number(counter!.costUsd)).toBeCloseTo(0.001, 6);
@@ -107,11 +107,11 @@ describe('race won', () => {
 
 describe('race lost', () => {
   it('acknowledges, then delivers the real answer via the outbox', async () => {
-    const out = await handleTurn(deps(slow(600)), inbound('slow'));
+    const out = await new TurnHandler(deps(slow(600))).handle(inbound('slow'));
     expect(out.outcome).toBe('deferred');
     expect(out.reply.messages).toEqual([rules.messages.acknowledgement]);
 
-    await vi.waitFor(async () => expect(await claimBatch(db, 10)).toHaveLength(1), {
+    await vi.waitFor(async () => expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(1), {
       timeout: 3000,
     });
   });
@@ -129,12 +129,12 @@ describe('race lost', () => {
           }, 500),
         ),
     };
-    await handleTurn(deps(runner), inbound('slow'));
+    await new TurnHandler(deps(runner)).handle(inbound('slow'));
     await vi.waitFor(() => expect(completed).toBe(true), { timeout: 3000 });
   });
 
   it('records the deferred turn and its spend once the model finishes', async () => {
-    await handleTurn(deps(slow(500)), inbound('slow'));
+    await new TurnHandler(deps(slow(500))).handle(inbound('slow'));
     await vi.waitFor(
       async () => {
         const agentTurn = (await db.query.turns.findMany()).find(t => t.role === 'agent');
@@ -148,55 +148,54 @@ describe('race lost', () => {
     const failing: AgentRunner = {
       run: () => new Promise((_r, reject) => setTimeout(() => reject(new Error('late boom')), 400)),
     };
-    const out = await handleTurn(deps(failing), inbound('slow'));
+    const out = await new TurnHandler(deps(failing)).handle(inbound('slow'));
     expect(out.outcome).toBe('deferred');
 
     await vi.waitFor(() => expect(logger.error).toHaveBeenCalled(), { timeout: 3000 });
-    expect(await claimBatch(db, 10)).toHaveLength(0);
+    expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(0);
   });
 });
 
 describe('failing closed', () => {
   it('escalates before the model on a keyword, without calling it', async () => {
     const spy = vi.fn();
-    const out = await handleTurn(
+    const out = await new TurnHandler(
       deps({
         run: () => {
           spy();
           return Promise.resolve(result(['no']));
         },
       }),
-      inbound('i want to speak to a human'),
-    );
+    ).handle(inbound('i want to speak to a human'));
     expect(out.outcome).toBe('escalated_precheck');
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('escalates when the conversation exceeds its turn cap', async () => {
-    for (let i = 0; i < 5; i++) await handleTurn(deps(fast), inbound(`m${i}`, 'capped'));
-    const out = await handleTurn(deps(fast), inbound('one too many', 'capped'));
+    for (let i = 0; i < 5; i++)
+      await new TurnHandler(deps(fast)).handle(inbound(`m${i}`, 'capped'));
+    const out = await new TurnHandler(deps(fast)).handle(inbound('one too many', 'capped'));
     expect(out.outcome).toBe('escalated_precheck');
   });
 
   it('escalates when the daily budget is already spent', async () => {
-    await recordSpend(db, 'demo', 0, 2);
-    const out = await handleTurn(deps(fast), inbound('hello', 'broke'));
+    await new BudgetGuard(db).recordSpend('demo', 0, 2);
+    const out = await new TurnHandler(deps(fast)).handle(inbound('hello', 'broke'));
     expect(out.outcome).toBe('escalated_precheck');
   });
 
   it('escalates to a human when the model throws immediately', async () => {
     const boom: AgentRunner = { run: () => Promise.reject(new Error('provider down')) };
-    const out = await handleTurn(deps(boom), inbound('hello'));
+    const out = await new TurnHandler(deps(boom)).handle(inbound('hello'));
     expect(out.outcome).toBe('error');
     expect(out.reply.escalate).toBe(true);
     expect((await db.query.conversations.findFirst())!.escalatedAt).toBeInstanceOf(Date);
   });
 
   it('treats an abort as an error rather than a silent success', async () => {
-    const out = await handleTurn(
+    const out = await new TurnHandler(
       deps(slow(10_000), { raceDeadlineMs: 5000, modelAbortMs: 100 }),
-      inbound('hello'),
-    );
+    ).handle(inbound('hello'));
     expect(out.outcome).toBe('error');
     expect(out.reply.escalate).toBe(true);
   });
@@ -211,8 +210,8 @@ describe('history', () => {
         return Promise.resolve(result(['ok']));
       },
     };
-    await handleTurn(deps(recording), inbound('first', 'hist'));
-    await handleTurn(deps(recording), inbound('second', 'hist'));
+    await new TurnHandler(deps(recording)).handle(inbound('first', 'hist'));
+    await new TurnHandler(deps(recording)).handle(inbound('second', 'hist'));
 
     expect(seen[0]).toEqual([]);
     expect(seen[1]!.map(h => h.text)).toEqual(['first', 'ok']);

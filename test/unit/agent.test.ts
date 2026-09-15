@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAgentRunner } from '../../src/agent/runner.ts';
+import { GenerateObjectRunner } from '../../src/agent/runner.ts';
 import {
   applyGuardrails,
   escalationReply,
@@ -50,7 +50,7 @@ const rules = RulesSchema.parse({
 
 const run = (object: unknown, usage = {}) => {
   const { model, calls } = mockModel(object, usage);
-  const runner = createAgentRunner({
+  const runner = new GenerateObjectRunner({
     model,
     modelSpec: 'anthropic:claude-haiku-4-5',
     persona: 'Sos el front desk.',
@@ -275,8 +275,8 @@ describe('environment loading', () => {
 });
 
 describe('runner failure branches (specs/004 P2)', () => {
-  const runnerFor = (model: Parameters<typeof createAgentRunner>[0]['model']) =>
-    createAgentRunner({
+  const runnerFor = (model: ConstructorParameters<typeof GenerateObjectRunner>[0]['model']) =>
+    new GenerateObjectRunner({
       model,
       modelSpec: 'mock:test',
       persona: 'P.',
