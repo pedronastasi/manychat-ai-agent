@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Write a specification in specs/ using this repository's conventions. Use when the user asks for a spec, says "let's specify" or "spec this out", wants behaviour defined before it is implemented, or is about to implement something non-trivial that no spec covers yet.
+description: Write a specification in specs/ using this repository's conventions, starting with an interview so the developer makes the decisions the spec records. Use when the user asks for a spec, says "let's specify" or "spec this out", wants behaviour defined before it is implemented, or is about to implement something non-trivial that no spec covers yet.
 ---
 
 # Writing a spec
@@ -31,7 +31,59 @@ A position spec whose default nobody would have chosen anyway is a summary. If
 you cannot name the reflexive approach you are rejecting, you are writing a
 contract spec — or nothing.
 
-## Steps
+## Step 0 — Interview before writing anything
+
+**Write no spec file until the developer has answered.** A spec records
+decisions that are theirs to make; guessing at them produces a document that
+reads like a spec and commits the repository to choices nobody chose.
+
+### First, read — so the questions are informed
+
+Ask nothing until you have read `specs/000-constitution.md`, run `ls specs/`,
+and skimmed any existing spec that overlaps. Questions you could have answered
+yourself waste the developer's turn, and the most useful question — "this
+contradicts `004`, which wins?" — is one you can only ask after reading.
+
+If that reading shows the work is already specified, say so and stop. Editing
+an existing spec beats adding a near-duplicate.
+
+### Then ask
+
+Put these to the developer with `AskUserQuestion`, batched into one round.
+Skip any the prompt already answers unambiguously — and say which you skipped
+and what you assumed, so a wrong assumption gets corrected rather than
+silently baked in.
+
+1. **What behaviour are we specifying?** If the brief is vague ("spec out
+   caching"), propose a concrete scope and have them confirm it. Do not
+   proceed on the vague version.
+2. **Contract or position?** Offer both with the distinction restated:
+   _contract_ is reference material read while coding; _position_ argues a
+   rule someone would get wrong by default. If they are unsure, ask what the
+   obvious approach is that this rejects — an answer means position, no
+   answer means contract.
+3. **What does this deliberately leave out?** This is the second half of the
+   opening paragraph, and asking now is what stops the draft sprawling.
+4. **Position specs only: what default are we rejecting, and why is it
+   wrong?** This is the thesis. If they cannot name it, the spec is not ready
+   — tell them so rather than writing something that fills the shape.
+5. **Which numbers are load-bearing, and where did they come from?**
+   Timeouts, limits, thresholds, costs. Every one needs a source, and a
+   measurement date if measured.
+6. **Which Constitution clauses does this touch?** Name the candidates from
+   your reading (C1–C9) and have them confirm — do not ask them to recall
+   clause numbers.
+
+### Then confirm the outline
+
+Play the answers back as a short outline — title, kind, opening paragraph,
+and the headings as claims — and get an explicit go-ahead. Once they approve,
+write the whole spec without stopping again.
+
+If a spec turns out to need a decision nobody has made yet, that decision is
+an ADR, not a paragraph you improvise here. Use `/adr` first.
+
+## Steps — after the outline is approved
 
 1. **Number it.** `ls specs/` — next integer, **three digits**. (ADRs are four.
    Do not mix them.)
