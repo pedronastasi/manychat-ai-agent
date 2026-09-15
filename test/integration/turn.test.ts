@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
-import { handleTurn, ACK_MESSAGE } from '../../src/routes/turn.ts';
+import { handleTurn } from '../../src/routes/turn.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import { RulesSchema } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
@@ -20,7 +20,8 @@ afterEach(async () => {
 });
 
 const rules = RulesSchema.parse({
-  escalationKeywords: ['hablar con una persona'],
+  messages: { acknowledgement: 'One moment.', escalation: 'Passing you to a person.' },
+  escalationKeywords: ['speak to a human'],
   maxTurnsPerConversation: 5,
   budget: { dailyTokenCap: 10_000, dailyCostCapUsd: 1 },
   rateLimit: { turnsPerSubscriberPerHour: 3 },
@@ -62,13 +63,13 @@ const deps = (
   modelAbortMs: over.modelAbortMs ?? 5000,
 });
 
-const fast: AgentRunner = { run: () => Promise.resolve(result(['listo'])) };
+const fast: AgentRunner = { run: () => Promise.resolve(result(['done'])) };
 
 /** Honours the abort signal, as a real runner does (specs/004). */
 const slow = (ms: number): AgentRunner => ({
   run: ({ signal }) =>
     new Promise((resolve, reject) => {
-      const t = setTimeout(() => resolve(result(['tarde pero llego'])), ms);
+      const t = setTimeout(() => resolve(result(['late but delivered'])), ms);
       signal?.addEventListener('abort', () => {
         clearTimeout(t);
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
@@ -78,9 +79,9 @@ const slow = (ms: number): AgentRunner => ({
 
 describe('race won', () => {
   it('answers inline and records usage', async () => {
-    const out = await handleTurn(deps(fast), inbound('hola'));
+    const out = await handleTurn(deps(fast), inbound('hello'));
     expect(out.outcome).toBe('answered_inline');
-    expect(out.reply.messages).toEqual(['listo']);
+    expect(out.reply.messages).toEqual(['done']);
 
     const turns = await db.query.turns.findMany();
     expect(turns.map(t => t.role)).toEqual(['user', 'agent']);
@@ -88,14 +89,16 @@ describe('race won', () => {
   });
 
   it('marks the conversation escalated when the model escalates', async () => {
-    const escalating: AgentRunner = { run: () => Promise.resolve(result(['te paso'], true)) };
-    const out = await handleTurn(deps(escalating), inbound('algo raro'));
+    const escalating: AgentRunner = {
+      run: () => Promise.resolve(result(['passing you over'], true)),
+    };
+    const out = await handleTurn(deps(escalating), inbound('something odd'));
     expect(out.outcome).toBe('escalated_model');
     expect((await db.query.conversations.findFirst())!.escalatedAt).toBeInstanceOf(Date);
   });
 
   it('accumulates spend so the budget cap can see it', async () => {
-    await handleTurn(deps(fast), inbound('hola'));
+    await handleTurn(deps(fast), inbound('hello'));
     const counter = await db.query.budgetCounters.findFirst();
     expect(counter!.tokens).toBe(120);
     expect(Number(counter!.costUsd)).toBeCloseTo(0.001, 6);
@@ -104,9 +107,9 @@ describe('race won', () => {
 
 describe('race lost', () => {
   it('acknowledges, then delivers the real answer via the outbox', async () => {
-    const out = await handleTurn(deps(slow(600)), inbound('lento'));
+    const out = await handleTurn(deps(slow(600)), inbound('slow'));
     expect(out.outcome).toBe('deferred');
-    expect(out.reply.messages).toEqual([ACK_MESSAGE]);
+    expect(out.reply.messages).toEqual([rules.messages.acknowledgement]);
 
     await vi.waitFor(async () => expect(await claimBatch(db, 10)).toHaveLength(1), {
       timeout: 3000,
@@ -126,12 +129,12 @@ describe('race lost', () => {
           }, 500),
         ),
     };
-    await handleTurn(deps(runner), inbound('lento'));
+    await handleTurn(deps(runner), inbound('slow'));
     await vi.waitFor(() => expect(completed).toBe(true), { timeout: 3000 });
   });
 
   it('records the deferred turn and its spend once the model finishes', async () => {
-    await handleTurn(deps(slow(500)), inbound('lento'));
+    await handleTurn(deps(slow(500)), inbound('slow'));
     await vi.waitFor(
       async () => {
         const agentTurn = (await db.query.turns.findMany()).find(t => t.role === 'agent');
@@ -145,7 +148,7 @@ describe('race lost', () => {
     const failing: AgentRunner = {
       run: () => new Promise((_r, reject) => setTimeout(() => reject(new Error('late boom')), 400)),
     };
-    const out = await handleTurn(deps(failing), inbound('lento'));
+    const out = await handleTurn(deps(failing), inbound('slow'));
     expect(out.outcome).toBe('deferred');
 
     await vi.waitFor(() => expect(logger.error).toHaveBeenCalled(), { timeout: 3000 });
@@ -163,7 +166,7 @@ describe('failing closed', () => {
           return Promise.resolve(result(['no']));
         },
       }),
-      inbound('quiero hablar con una persona'),
+      inbound('i want to speak to a human'),
     );
     expect(out.outcome).toBe('escalated_precheck');
     expect(spy).not.toHaveBeenCalled();
@@ -177,13 +180,13 @@ describe('failing closed', () => {
 
   it('escalates when the daily budget is already spent', async () => {
     await recordSpend(db, 'demo', 0, 2);
-    const out = await handleTurn(deps(fast), inbound('hola', 'broke'));
+    const out = await handleTurn(deps(fast), inbound('hello', 'broke'));
     expect(out.outcome).toBe('escalated_precheck');
   });
 
   it('escalates to a human when the model throws immediately', async () => {
     const boom: AgentRunner = { run: () => Promise.reject(new Error('provider down')) };
-    const out = await handleTurn(deps(boom), inbound('hola'));
+    const out = await handleTurn(deps(boom), inbound('hello'));
     expect(out.outcome).toBe('error');
     expect(out.reply.escalate).toBe(true);
     expect((await db.query.conversations.findFirst())!.escalatedAt).toBeInstanceOf(Date);
@@ -192,7 +195,7 @@ describe('failing closed', () => {
   it('treats an abort as an error rather than a silent success', async () => {
     const out = await handleTurn(
       deps(slow(10_000), { raceDeadlineMs: 5000, modelAbortMs: 100 }),
-      inbound('hola'),
+      inbound('hello'),
     );
     expect(out.outcome).toBe('error');
     expect(out.reply.escalate).toBe(true);
@@ -208,10 +211,10 @@ describe('history', () => {
         return Promise.resolve(result(['ok']));
       },
     };
-    await handleTurn(deps(recording), inbound('primera', 'hist'));
-    await handleTurn(deps(recording), inbound('segunda', 'hist'));
+    await handleTurn(deps(recording), inbound('first', 'hist'));
+    await handleTurn(deps(recording), inbound('second', 'hist'));
 
     expect(seen[0]).toEqual([]);
-    expect(seen[1]!.map(h => h.text)).toEqual(['primera', 'ok']);
+    expect(seen[1]!.map(h => h.text)).toEqual(['first', 'ok']);
   });
 });

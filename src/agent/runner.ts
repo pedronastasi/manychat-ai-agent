@@ -100,7 +100,7 @@ export function createAgentRunner(opts: RunnerOptions): AgentRunner {
         if (error instanceof Error && error.name === 'AbortError') throw error;
         if (signal?.aborted) throw error;
         return {
-          reply: escalationReply('low_confidence'),
+          reply: escalationReply('low_confidence', opts.rules.messages.escalation),
           interventions: [`model_error: ${error instanceof Error ? error.name : 'unknown'}`],
           latencyMs: Date.now() - started,
           usage: {

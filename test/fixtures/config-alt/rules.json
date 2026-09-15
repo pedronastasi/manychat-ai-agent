@@ -1,0 +1,16 @@
+{
+  "messages": {
+    "acknowledgement": "Please hold on a moment while I verify that for you.",
+    "escalation": "I will transfer you to a member of staff who can confirm the details."
+  },
+  "confidenceThreshold": 0.6,
+  "maxTurnsPerConversation": 25,
+  "escalationKeywords": ["transfer me", "formal complaint"],
+  "budget": {
+    "dailyTokenCap": 1000000,
+    "dailyCostCapUsd": 5
+  },
+  "rateLimit": {
+    "turnsPerSubscriberPerHour": 60
+  }
+}

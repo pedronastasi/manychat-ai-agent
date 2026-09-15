@@ -5,8 +5,8 @@
  * Dev Tools require a paid ManyChat plan, so without this the agent could not be
  * developed or demonstrated at all before upgrading (ADR-0005).
  *
- *   pnpm simulate "cuanto sale el curso inicial?"
- *   pnpm simulate --subscriber 42 "quiero un descuento"
+ *   pnpm simulate "how much is the foundation course?"
+ *   pnpm simulate --subscriber 42 "can you give me a discount?"
  */
 import { loadEnv } from '../../config/loader.ts';
 import { ManyChatResponse } from '../../contracts/manychat.ts';
@@ -48,7 +48,7 @@ async function main() {
   const elapsed = Date.now() - started;
   const raw: unknown = await res.json();
 
-  console.log(`\n  contacto  ${text}`);
+  console.log(`\n  contact   ${text}`);
   console.log(`  ${'-'.repeat(60)}`);
 
   if (!res.ok) {
@@ -64,8 +64,8 @@ async function main() {
   }
 
   for (const m of parsed.data.content.messages) {
-    if (m.type === 'text') console.log(`  agente    ${m.text}`);
-    else console.log(`  agente    [${m.type}] ${'url' in m ? m.url : ''}`);
+    if (m.type === 'text') console.log(`  agent     ${m.text}`);
+    else console.log(`  agent     [${m.type}] ${'url' in m ? m.url : ''}`);
   }
 
   const cb = parsed.data.content.external_message_callback;

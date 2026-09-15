@@ -84,7 +84,22 @@ export const CatalogSchema = z.object({
 });
 export type Catalog = z.infer<typeof CatalogSchema>;
 
+/**
+ * Copy a contact actually receives. Required, with no default in source: a
+ * missing value must fail at boot rather than silently emitting English at a
+ * contact who does not read it (Constitution C9).
+ */
+export const MessagesSchema = z.object({
+  acknowledgement: z
+    .string()
+    .min(1)
+    .describe('Sent when the model loses the race and the reply is deferred.'),
+  escalation: z.string().min(1).describe('Sent whenever the turn hands off to a human.'),
+});
+export type Messages = z.infer<typeof MessagesSchema>;
+
 export const RulesSchema = z.object({
+  messages: MessagesSchema,
   confidenceThreshold: z.number().min(0).max(1).default(0.6),
   maxTurnsPerConversation: z.number().int().positive().default(25),
   /** Checked before the model runs — an instant, free handoff. */

@@ -1,7 +1,7 @@
 import { AgentReply, MAX_MESSAGE_CHARS, MAX_MESSAGES_PER_REPLY } from '../contracts/agent.ts';
 import type { EscalationReason } from '../contracts/agent.ts';
 import type { Catalog, Rules } from '../contracts/config.ts';
-import { FENCE, FENCE_END } from './prompt.ts';
+import { FENCE, FENCE_END, PROMPT_MARKERS } from './prompt.ts';
 
 export interface GuardedReply {
   reply: AgentReply;
@@ -9,11 +9,13 @@ export interface GuardedReply {
   interventions: string[];
 }
 
-const ESCALATION_TEXT =
-  'Dejame que te pase con alguien del equipo para darte bien ese dato. Ya te responden por aca.';
-
-/** Deterministic escalation used whenever the model must not or cannot decide. */
-export function escalationReply(reason: EscalationReason, message = ESCALATION_TEXT): AgentReply {
+/**
+ * Deterministic escalation used whenever the model must not or cannot decide.
+ *
+ * The message is supplied by the caller from tenant configuration; this module
+ * deliberately owns no customer-facing text (Constitution C9).
+ */
+export function escalationReply(reason: EscalationReason, message: string): AgentReply {
   return {
     messages: [message],
     escalate: true,
@@ -35,7 +37,7 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
     // A malformed reply is never repaired into a customer-facing answer — the
     // model failed to follow the contract, so a human takes the turn.
     return {
-      reply: escalationReply('low_confidence'),
+      reply: escalationReply('low_confidence', rules.messages.escalation),
       interventions: [
         `schema_invalid: ${parsed.error.issues.map(i => i.path.join('.')).join(',')}`,
       ],
@@ -46,16 +48,22 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
 
   // Prompt/fence leakage: the model echoing its own scaffolding back.
   const leaked = reply.messages.some(
-    m => m.includes(FENCE) || m.includes(FENCE_END) || m.includes('REGLAS OPERATIVAS'),
+    m =>
+      m.includes(FENCE) ||
+      m.includes(FENCE_END) ||
+      PROMPT_MARKERS.some(marker => m.includes(marker)),
   );
   if (leaked) {
-    return { reply: escalationReply('low_confidence'), interventions: ['prompt_leak_detected'] };
+    return {
+      reply: escalationReply('low_confidence', rules.messages.escalation),
+      interventions: ['prompt_leak_detected'],
+    };
   }
 
   // Low confidence forces a handoff even when the model was happy to answer.
   if (!reply.escalate && reply.confidence < rules.confidenceThreshold) {
     interventions.push(`confidence_below_threshold: ${reply.confidence}`);
-    reply = escalationReply('low_confidence');
+    reply = escalationReply('low_confidence', rules.messages.escalation);
   }
 
   // Defensive clamps. The schema already bounds these, so reaching them means

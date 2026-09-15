@@ -61,3 +61,14 @@ finish in time moves to the outbox, never blocks the response.
 
 Behavioral tests cite the spec clause they enforce. A spec change that breaks a
 test is a real finding, not a test to update mechanically.
+
+## C9. English in the repository, no copy in source
+
+Everything committed is in English. Beyond that, **no customer-facing natural
+language lives in source at all** - acknowledgements, escalation messages and
+persona text belong to the tenant, in gitignored configuration.
+
+_Enforced by:_ `.gitignore` for tenant config, review and a stopword check for
+the rest.
+_Rationale:_ hardcoded copy limits the product to one linguistic market
+regardless of which language is hardcoded. See [005-language.md](005-language.md).
