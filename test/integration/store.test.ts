@@ -27,17 +27,33 @@ const rules = RulesSchema.parse({
 
 describe('conversation store', () => {
   it('creates once and increments turn count thereafter', async () => {
-    const a = await store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' });
-    const b = await store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' });
-    expect(a.id).toBe(b.id);
-    expect(a.turnCount).toBe(1);
-    expect(b.turnCount).toBe(2);
+    const first = await store.startTurn({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      channel: 'whatsapp',
+    });
+    const second = await store.startTurn({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      channel: 'whatsapp',
+    });
+    expect(first.id).toBe(second.id);
+    expect(first.turnCount).toBe(1);
+    expect(second.turnCount).toBe(2);
   });
 
   it('isolates subscribers and tenants', async () => {
-    const a = await store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' });
-    const b = await store.startTurn({ tenantId: 'other', subscriberId: 's1', channel: 'whatsapp' });
-    expect(a.id).not.toBe(b.id);
+    const demoTurn = await store.startTurn({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      channel: 'whatsapp',
+    });
+    const otherTurn = await store.startTurn({
+      tenantId: 'other',
+      subscriberId: 's1',
+      channel: 'whatsapp',
+    });
+    expect(demoTurn.id).not.toBe(otherTurn.id);
   });
 
   it('survives concurrent turns from the same subscriber', async () => {
@@ -47,36 +63,44 @@ describe('conversation store', () => {
         store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' }),
       ),
     );
-    expect(new Set(results.map(r => r.id)).size).toBe(1);
+    expect(new Set(results.map(row => row.id)).size).toBe(1);
     const found = await store.find('demo', 's1');
     expect(found?.turnCount).toBe(5);
   });
 
   it('returns history oldest-first', async () => {
-    const c = await store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' });
-    await store.recordUserMessage(c.id, 'first');
-    await store.recordAgentReply(c.id, 'reply', 'answered_inline', {
+    const conversation = await store.startTurn({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      channel: 'whatsapp',
+    });
+    await store.recordUserMessage(conversation.id, 'first');
+    await store.recordAgentReply(conversation.id, 'reply', 'answered_inline', {
       inputTokens: 10,
       outputTokens: 5,
       cacheReadTokens: 8,
       costUsd: 0.0001,
       model: 'anthropic:claude-haiku-4-5',
     });
-    await store.recordUserMessage(c.id, 'second');
-    const h = await store.recentTurns(c.id);
-    expect(h.map(t => t.text)).toEqual(['first', 'reply', 'second']);
+    await store.recordUserMessage(conversation.id, 'second');
+    const history = await store.recentTurns(conversation.id);
+    expect(history.map(turn => turn.text)).toEqual(['first', 'reply', 'second']);
   });
 
   it('records escalation', async () => {
-    const c = await store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' });
-    await store.markEscalated(c.id);
+    const conversation = await store.startTurn({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      channel: 'whatsapp',
+    });
+    await store.markEscalated(conversation.id);
     expect((await store.find('demo', 's1'))?.escalatedAt).toBeInstanceOf(Date);
   });
 });
 
 describe('guards', () => {
   it('allows up to the rate limit then denies', async () => {
-    for (let i = 0; i < 3; i++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       expect((await budget.checkRateLimit('demo', 's1', rules)).allowed).toBe(true);
     }
     const denied = await budget.checkRateLimit('demo', 's1', rules);
@@ -87,7 +111,7 @@ describe('guards', () => {
     const out = await Promise.all(
       Array.from({ length: 6 }, () => budget.checkRateLimit('demo', 's2', rules)),
     );
-    expect(out.filter(r => r.allowed).length).toBe(3);
+    expect(out.filter(outcome => outcome.allowed).length).toBe(3);
   });
 
   it('denies once the daily cost cap is spent', async () => {

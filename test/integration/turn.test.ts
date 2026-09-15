@@ -70,9 +70,9 @@ const fast: AgentRunner = { run: () => Promise.resolve(result(['done'])) };
 const slow = (ms: number): AgentRunner => ({
   run: ({ signal }) =>
     new Promise((resolve, reject) => {
-      const t = setTimeout(() => resolve(result(['late but delivered'])), ms);
+      const timer = setTimeout(() => resolve(result(['late but delivered'])), ms);
       signal?.addEventListener('abort', () => {
-        clearTimeout(t);
+        clearTimeout(timer);
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
       });
     }),
@@ -85,10 +85,10 @@ describe('race won', () => {
     expect(out.reply.messages).toEqual(['done']);
 
     const turns = await db.query.turns.findMany();
-    expect(turns.map(t => t.role)).toEqual(['user', 'agent']);
-    expect(turns.find(t => t.role === 'agent')!.cacheReadTokens).toBe(80);
+    expect(turns.map(turn => turn.role)).toEqual(['user', 'agent']);
+    expect(turns.find(turn => turn.role === 'agent')!.cacheReadTokens).toBe(80);
     // Spend is unattributable after a model switch without this (ADR-0002).
-    expect(turns.find(t => t.role === 'agent')!.model).toBe('mock:demo');
+    expect(turns.find(turn => turn.role === 'agent')!.model).toBe('mock:demo');
   });
 
   it('marks the conversation escalated when the model escalates', async () => {
@@ -140,7 +140,7 @@ describe('race lost', () => {
     await new TurnHandler(deps(slow(500))).handle(inbound('slow'));
     await vi.waitFor(
       async () => {
-        const agentTurn = (await db.query.turns.findMany()).find(t => t.role === 'agent');
+        const agentTurn = (await db.query.turns.findMany()).find(turn => turn.role === 'agent');
         expect(agentTurn?.outcome).toBe('deferred');
       },
       { timeout: 3000 },
@@ -165,7 +165,7 @@ describe('race lost', () => {
     await new TurnHandler(deps(slow(500))).handle(inbound('slow'));
     await vi.waitFor(
       async () => {
-        const agentTurn = (await db.query.turns.findMany()).find(t => t.role === 'agent');
+        const agentTurn = (await db.query.turns.findMany()).find(turn => turn.role === 'agent');
         expect(agentTurn?.model).toBe('mock:demo');
       },
       { timeout: 3000 },
@@ -200,8 +200,8 @@ describe('failing closed', () => {
   });
 
   it('escalates when the conversation exceeds its turn cap', async () => {
-    for (let i = 0; i < 5; i++)
-      await new TurnHandler(deps(fast)).handle(inbound(`m${i}`, 'capped'));
+    for (let index = 0; index < 5; index++)
+      await new TurnHandler(deps(fast)).handle(inbound(`m${index}`, 'capped'));
     const out = await new TurnHandler(deps(fast)).handle(inbound('one too many', 'capped'));
     expect(out.outcome).toBe('escalated_precheck');
   });
@@ -242,6 +242,6 @@ describe('history', () => {
     await new TurnHandler(deps(recording)).handle(inbound('second', 'hist'));
 
     expect(seen[0]).toEqual([]);
-    expect(seen[1]!.map(h => h.text)).toEqual(['first', 'ok']);
+    expect(seen[1]!.map(entry => entry.text)).toEqual(['first', 'ok']);
   });
 });

@@ -8,15 +8,15 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
  * secret's length, and lets `timingSafeEqual` be used at all (it throws on
  * length mismatch).
  */
-function secureEquals(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) {
+function secureEquals(left: string, right: string): boolean {
+  const leftBytes = Buffer.from(left);
+  const rightBytes = Buffer.from(right);
+  if (leftBytes.length !== rightBytes.length) {
     // Still burn a comparison so the failure is not measurably faster.
-    timingSafeEqual(ab, ab);
+    timingSafeEqual(leftBytes, leftBytes);
     return false;
   }
-  return timingSafeEqual(ab, bb);
+  return timingSafeEqual(leftBytes, rightBytes);
 }
 
 /**
@@ -29,7 +29,7 @@ export function createSharedSecretGuard(secrets: string[]) {
     const header = request.headers.authorization;
     const presented = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
 
-    if (!presented || !secrets.some(s => secureEquals(presented, s))) {
+    if (!presented || !secrets.some(secret => secureEquals(presented, secret))) {
       // No detail: a caller who fails auth learns nothing about why.
       await reply.code(401).send({ error: 'unauthorized' });
     }

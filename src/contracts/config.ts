@@ -126,14 +126,14 @@ export type Rules = z.infer<typeof RulesSchema>;
  * validation and stop the process from booting at all.
  */
 const optionalString = z.preprocess(
-  v => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+  value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.string().min(1).optional(),
 );
 
-const csv = (v: string) =>
-  v
+const csv = (raw: string) =>
+  raw
     .split(',')
-    .map(s => s.trim())
+    .map(part => part.trim())
     .filter(Boolean);
 
 export const EnvSchema = z
@@ -171,7 +171,7 @@ export const EnvSchema = z
   // Losing the race must not cancel the model call - it continues and delivers
   // through the outbox (ADR-0001). If the abort fired first it would kill every
   // slow turn instead, and the deferred path could never run.
-  .refine(e => e.MODEL_ABORT_MS > e.RACE_DEADLINE_MS, {
+  .refine(env => env.MODEL_ABORT_MS > env.RACE_DEADLINE_MS, {
     message: 'MODEL_ABORT_MS must be greater than RACE_DEADLINE_MS',
     path: ['MODEL_ABORT_MS'],
   });

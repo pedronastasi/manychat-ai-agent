@@ -20,6 +20,9 @@ export default tseslint.config(
       // Secrets and PII must never reach stdout directly; use the redacting logger.
       'no-console': ['error', { allow: ['error'] }],
       eqeqeq: ['error', 'always', { null: 'ignore' }],
+      // ADR-0009: the name is the documentation, at the point of use. No
+      // exception list, deliberately - that is where this kind of rule dies.
+      'id-length': ['error', { min: 2 }],
     },
   },
 

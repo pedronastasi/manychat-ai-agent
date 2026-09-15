@@ -49,15 +49,15 @@ export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse
   }
 
   parse(raw: unknown, ctx: { tenantId: string; channel: string }): InboundMessage {
-    const p = ManyChatInbound.parse(raw);
-    const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+    const parsed = ManyChatInbound.parse(raw);
+    const name = [parsed.first_name, parsed.last_name].filter(Boolean).join(' ').trim();
     return {
       tenantId: ctx.tenantId,
-      subscriberId: p.subscriber_id,
-      text: p.text,
-      channel: p.channel ?? ctx.channel,
+      subscriberId: parsed.subscriber_id,
+      text: parsed.text,
+      channel: parsed.channel ?? ctx.channel,
       contactName: name.length > 0 ? name : null,
-      locale: p.locale ?? null,
+      locale: parsed.locale ?? null,
       receivedAt: new Date(),
     };
   }

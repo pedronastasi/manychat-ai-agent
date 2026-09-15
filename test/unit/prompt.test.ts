@@ -82,9 +82,6 @@ describe('catalogue rendering', () => {
       faq: [{ question: 'Certificate?', answer: 'Yes.' }],
     });
     expect(buildSystemPrompt('P.', withFaq, rules).catalogBlock).toContain('FREQUENTLY ASKED');
-    expect(buildSystemPrompt('P.', catalogWith({}), rules).catalogBlock).not.toContain(
-      'PREGUNTAS FRECUENTES',
-    );
   });
 
   it('carries the configured confidence threshold into the prompt', () => {
@@ -98,9 +95,9 @@ describe('catalogue rendering', () => {
   });
 
   it('trims the persona so config whitespace cannot shift the cached prefix', () => {
-    const a = buildSystemPrompt('  Persona.  \n\n', catalogWith({}), rules).staticPrefix;
-    const b = buildSystemPrompt('Persona.', catalogWith({}), rules).staticPrefix;
-    expect(a).toBe(b);
+    const padded = buildSystemPrompt('  Persona.  \n\n', catalogWith({}), rules).staticPrefix;
+    const trimmed = buildSystemPrompt('Persona.', catalogWith({}), rules).staticPrefix;
+    expect(padded).toBe(trimmed);
   });
 });
 

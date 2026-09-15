@@ -56,13 +56,13 @@ export function estimateCostUsd(
     cacheReadTokens?: number | undefined;
   },
 ): number {
-  const p = pricingFor(modelId);
+  const pricing = pricingFor(modelId);
   const cacheRead = usage.cacheReadTokens ?? 0;
   const freshInput = Math.max(0, (usage.inputTokens ?? 0) - cacheRead);
   return (
-    (freshInput * p.inputPerMTok) / 1_000_000 +
-    (cacheRead * p.cacheReadPerMTok) / 1_000_000 +
-    ((usage.outputTokens ?? 0) * p.outputPerMTok) / 1_000_000
+    (freshInput * pricing.inputPerMTok) / 1_000_000 +
+    (cacheRead * pricing.cacheReadPerMTok) / 1_000_000 +
+    ((usage.outputTokens ?? 0) * pricing.outputPerMTok) / 1_000_000
   );
 }
 

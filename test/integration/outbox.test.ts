@@ -42,10 +42,10 @@ const enqueue = (subscriberId = 's1', text?: string) =>
   });
 
 const rowById = async (id: string) => {
-  const r: unknown = await db.execute(
+  const raw: unknown = await db.execute(
     sql`SELECT id, status, attempts, last_error, delivered_at, next_attempt_at FROM outbox WHERE id = ${id}`,
   );
-  const rows = Array.isArray(r) ? r : ((r as { rows: unknown[] }).rows ?? []);
+  const rows = Array.isArray(raw) ? raw : ((raw as { rows: unknown[] }).rows ?? []);
   return rows[0] as {
     status: string;
     attempts: number;
@@ -74,7 +74,7 @@ describe('claiming', () => {
   it('claims a due row and increments its attempt count', async () => {
     const id = await enqueue();
     const claimed = await new OutboxQueue(db).claimBatch(10);
-    expect(claimed.map(c => c.id)).toEqual([id]);
+    expect(claimed.map(claim => claim.id)).toEqual([id]);
     expect(claimed[0]!.attempts).toBe(1);
     expect((await rowById(id)).status).toBe('delivering');
   });
@@ -94,20 +94,20 @@ describe('claiming', () => {
   });
 
   it('respects the batch limit', async () => {
-    for (let i = 0; i < 5; i++) await enqueue(`s${i}`);
+    for (let index = 0; index < 5; index++) await enqueue(`s${index}`);
     expect(await new OutboxQueue(db).claimBatch(2)).toHaveLength(2);
   });
 
   it('never hands the same row to two concurrent workers', async () => {
     // The guarantee FOR UPDATE SKIP LOCKED exists to provide. Without it a
     // contact receives the same reply twice.
-    for (let i = 0; i < 6; i++) await enqueue(`s${i}`);
-    const [a, b, c] = await Promise.all([
+    for (let index = 0; index < 6; index++) await enqueue(`s${index}`);
+    const [first, second, third] = await Promise.all([
       new OutboxQueue(db).claimBatch(10),
       new OutboxQueue(db).claimBatch(10),
       new OutboxQueue(db).claimBatch(10),
     ]);
-    const ids = [...a, ...b, ...c].map(r => r.id);
+    const ids = [...first, ...second, ...third].map(row => row.id);
     expect(ids).toHaveLength(6);
     expect(new Set(ids).size).toBe(6);
   });
@@ -231,7 +231,7 @@ describe('drainOnce', () => {
     const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result.delivered).toBe(1);
     expect(result.deadLettered).toBe(1);
-    expect(client.sent.map(s => s.subscriberId)).toEqual(['good']);
+    expect(client.sent.map(sent => sent.subscriberId)).toEqual(['good']);
   });
 });
 
@@ -246,7 +246,7 @@ describe('startWorker', () => {
 
     const before = client.sent.length;
     await enqueue('after-stop');
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(resolve => setTimeout(resolve, 100));
     // A stopped worker must stay stopped.
     expect(client.sent).toHaveLength(before);
   });
@@ -261,7 +261,7 @@ describe('startWorker', () => {
       execute: (...args: unknown[]) => {
         calls++;
         if (calls === 1) return Promise.reject(new Error('connection lost'));
-        return (db.execute as (...a: unknown[]) => unknown)(...args);
+        return (db.execute as (...params: unknown[]) => unknown)(...args);
       },
     } as unknown as Database;
 

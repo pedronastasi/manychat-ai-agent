@@ -59,7 +59,7 @@ export class TurnHandler {
       await this.budget.checkRateLimit(inbound.tenantId, inbound.subscriberId, rules),
       await this.budget.checkBudget(inbound.tenantId, rules),
     ];
-    const denied = guards.find(g => !g.allowed);
+    const denied = guards.find(guard => !guard.allowed);
     if (denied && !denied.allowed) {
       const reply = escalationReply(denied.reason, rules.messages.escalation);
       await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'escalated_precheck');
@@ -82,7 +82,7 @@ export class TurnHandler {
 
     const modelCall = this.deps.runner
       .run({ text: inbound.text, history: priorHistory, signal: abort.signal })
-      .then(r => ({ kind: 'result' as const, result: r }))
+      .then(result => ({ kind: 'result' as const, result: result }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
 
     const winner = await Promise.race([modelCall, deadline]);
