@@ -94,7 +94,7 @@ export class TurnHandler {
         result.reply.messages.join('\n'),
         outcome,
         {
-          model: undefined,
+          model: result.model,
           inputTokens: result.usage.inputTokens,
           outputTokens: result.usage.outputTokens,
           cacheReadTokens: result.usage.cacheReadTokens,
@@ -108,12 +108,17 @@ export class TurnHandler {
     };
 
     if (winner === 'deadline') {
-      clearTimeout(abortTimer);
       clearTimeout(deadlineTimer);
 
       // The in-flight call is NOT cancelled: those tokens are already paid for,
       // and the answer is still wanted. It completes into the outbox instead.
+      //
+      // abortTimer deliberately stays armed. MODEL_ABORT_MS is the outer bound
+      // on a runaway call, and this is the only path where a call can outlive
+      // the request — so clearing it here would leave the deferred call with no
+      // bound at all. It is cleared below, when the call actually settles.
       void modelCall.then(async outcome => {
+        clearTimeout(abortTimer);
         try {
           if (outcome.kind === 'error') {
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');

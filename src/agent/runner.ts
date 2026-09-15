@@ -17,6 +17,12 @@ export interface AgentResult {
   usage: AgentUsage;
   interventions: string[];
   latencyMs: number;
+  /**
+   * The `provider:model` spec that produced this turn. Recorded per turn
+   * because the active model is a runtime string (ADR-0002) — without it,
+   * spend cannot be attributed after a model switch.
+   */
+  model: string;
 }
 
 export interface AgentTurnInput {
@@ -113,6 +119,7 @@ export class GenerateObjectRunner implements AgentRunner {
         reply: escalationReply('low_confidence', this.opts.rules.messages.escalation),
         interventions: [`model_error: ${error instanceof Error ? error.name : 'unknown'}`],
         latencyMs: Date.now() - started,
+        model: this.opts.modelSpec,
         usage: {
           inputTokens: undefined,
           outputTokens: undefined,
@@ -134,6 +141,7 @@ export class GenerateObjectRunner implements AgentRunner {
       reply: guarded.reply,
       interventions: guarded.interventions,
       latencyMs: Date.now() - started,
+      model: this.opts.modelSpec,
       usage: { ...usage, costUsd: estimateCostUsd(this.opts.modelSpec, usage) },
     };
   }

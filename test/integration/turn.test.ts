@@ -46,6 +46,7 @@ const result = (messages: string[], escalate = false): AgentResult => ({
     escalation_reason: escalate ? 'out_of_scope' : null,
     confidence: 0.9,
   },
+  model: 'mock:demo',
   usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 80, costUsd: 0.001 },
   interventions: [],
   latencyMs: 5,
@@ -86,6 +87,8 @@ describe('race won', () => {
     const turns = await db.query.turns.findMany();
     expect(turns.map(t => t.role)).toEqual(['user', 'agent']);
     expect(turns.find(t => t.role === 'agent')!.cacheReadTokens).toBe(80);
+    // Spend is unattributable after a model switch without this (ADR-0002).
+    expect(turns.find(t => t.role === 'agent')!.model).toBe('mock:demo');
   });
 
   it('marks the conversation escalated when the model escalates', async () => {
@@ -139,6 +142,31 @@ describe('race lost', () => {
       async () => {
         const agentTurn = (await db.query.turns.findMany()).find(t => t.role === 'agent');
         expect(agentTurn?.outcome).toBe('deferred');
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it('still bounds the deferred call by MODEL_ABORT_MS', async () => {
+    // Losing the race must not cancel the call, but it must not disarm the
+    // outer bound either: the deferred path is the only place a call outlives
+    // its request, so it is the only place the bound can matter. Clearing the
+    // abort timer alongside the deadline timer let a runaway call run forever.
+    const out = await new TurnHandler(
+      deps(slow(60_000), { raceDeadlineMs: 200, modelAbortMs: 500 }),
+    ).handle(inbound('slow'));
+    expect(out.outcome).toBe('deferred');
+
+    await vi.waitFor(() => expect(logger.error).toHaveBeenCalled(), { timeout: 3000 });
+    expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(0);
+  });
+
+  it('records which model produced the deferred answer', async () => {
+    await new TurnHandler(deps(slow(500))).handle(inbound('slow'));
+    await vi.waitFor(
+      async () => {
+        const agentTurn = (await db.query.turns.findMany()).find(t => t.role === 'agent');
+        expect(agentTurn?.model).toBe('mock:demo');
       },
       { timeout: 3000 },
     );
