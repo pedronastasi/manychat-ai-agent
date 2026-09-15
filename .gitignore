@@ -30,6 +30,9 @@ tmp/
 # identifying even when the file's contents are not.
 *.code-workspace
 .DS_Store
+# Agent skills in .claude/skills/ are committed repo tooling; local permission
+# and settings overrides are not - they carry machine-specific paths.
+.claude/settings.local.json
 .idea/
 .vscode/*
 !.vscode/extensions.json
