@@ -104,6 +104,21 @@ export const RulesSchema = z.object({
   maxTurnsPerConversation: z.number().int().positive().default(25),
   /** Checked before the model runs — an instant, free handoff. */
   escalationKeywords: z.array(z.string()).default([]),
+  /**
+   * A sentinel the channel flow sends to open a conversation, and the scripted
+   * reply it produces. Fully determined, so the model never sees it.
+   *
+   * Matched on the whole message, unlike `escalationKeywords`: those match
+   * substrings because a contact asking for a person may phrase it any way,
+   * whereas this is emitted by the flow, and a contact who happens to type the
+   * phrase must not be able to replay the opening.
+   */
+  openingTrigger: z
+    .object({
+      keywords: z.array(z.string().min(1)).min(1),
+      message: z.string().min(1),
+    })
+    .optional(),
   budget: z.object({
     dailyTokenCap: z.number().int().positive().default(1_000_000),
     dailyCostCapUsd: z.number().positive().default(5),

@@ -13,7 +13,7 @@ test fails the suite.
 | Spec                                                                    | Status      | Implemented | PR  | Tests | Constitution   | ADRs                           |
 | ----------------------------------------------------------------------- | ----------- | ----------- | --- | ----- | -------------- | ------------------------------ |
 | [000 — Constitution](000-constitution.md)                               | standing    | —           | —   | —     | —              | —                              |
-| [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1  | 1     | C4, C6         | [0007]                         |
+| [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1  | 2     | C4, C6         | [0007]                         |
 | [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1  | 1     | C7             | [0001], [0004], [0005], [0006] |
 | [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1  | 1     | C1, C2         | [0003]                         |
 | [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2  | 6     | C8             | —                              |

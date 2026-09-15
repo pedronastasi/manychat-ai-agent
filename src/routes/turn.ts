@@ -4,7 +4,12 @@ import type { InboundMessage, AgentReply, TurnOutcome } from '../contracts/agent
 import type { Rules } from '../contracts/config.ts';
 import { escalationReply } from '../agent/guardrails.ts';
 import { ConversationStore } from '../conversation/store.ts';
-import { BudgetGuard, checkKeywords, checkTurnCap } from '../conversation/budget.ts';
+import {
+  BudgetGuard,
+  checkKeywords,
+  checkTurnCap,
+  matchOpeningTrigger,
+} from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
 
 export interface TurnDeps {
@@ -51,6 +56,28 @@ export class TurnHandler {
       channel: inbound.channel,
     });
     await this.store.recordUserMessage(conversation.id, inbound.text);
+
+    // The channel flow's opening sentinel. Fully determined - no contact input
+    // to interpret and exactly one correct reply - so it never reaches the
+    // model: instant, free, and it cannot be lost to a low-confidence
+    // self-report. Checked before the guards because the sentinel is emitted by
+    // the flow rather than typed by a contact, and the caps below exist to
+    // bound model spend, which a scripted reply does not incur.
+    const opening = matchOpeningTrigger(inbound.text, rules);
+    if (opening) {
+      await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted');
+      logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
+      return {
+        reply: {
+          messages: [opening],
+          escalate: false,
+          escalation_reason: null,
+          confidence: 1,
+        },
+        outcome: 'answered_scripted',
+        conversationId: conversation.id,
+      };
+    }
 
     // Pre-model guards: each denial costs nothing and fails toward a human (C6).
     const guards = [

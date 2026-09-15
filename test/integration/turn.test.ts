@@ -184,6 +184,68 @@ describe('race lost', () => {
   });
 });
 
+/** specs/001-agent-behavior.md — "Scripted opening". */
+describe('opening trigger', () => {
+  const OPENING = 'Welcome! Would you like the course prices?';
+  const withTrigger = RulesSchema.parse({
+    ...rules,
+    openingTrigger: { keywords: ['start workflow', 'iniciar'], message: OPENING },
+  });
+  const triggerDeps = (runner: AgentRunner) => ({ ...deps(runner), rules: withTrigger });
+
+  it('returns the scripted opening without calling the model', async () => {
+    const spy = vi.fn();
+    const out = await new TurnHandler(
+      triggerDeps({
+        run: () => {
+          spy();
+          return Promise.resolve(result(['no']));
+        },
+      }),
+    ).handle(inbound('start workflow'));
+
+    expect(out.outcome).toBe('answered_scripted');
+    expect(out.reply.messages).toEqual([OPENING]);
+    expect(out.reply.escalate).toBe(false);
+    // The whole point: a determined case must not spend tokens or latency.
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('spends nothing, so the budget cap cannot be moved by a scripted reply', async () => {
+    await new TurnHandler(triggerDeps(fast)).handle(inbound('start workflow'));
+    expect(await db.query.budgetCounters.findFirst()).toBeUndefined();
+  });
+
+  it('matches the whole message, so a contact cannot replay it by mentioning it', async () => {
+    // escalationKeywords match substrings; this deliberately does not, because
+    // the sentinel comes from the flow rather than from the contact.
+    const out = await new TurnHandler(triggerDeps(fast)).handle(
+      inbound('should I start workflow or wait?'),
+    );
+    expect(out.outcome).toBe('answered_inline');
+    expect(out.reply.messages).toEqual(['done']);
+  });
+
+  it('ignores case and surrounding whitespace', async () => {
+    const out = await new TurnHandler(triggerDeps(fast)).handle(inbound('  Start Workflow  '));
+    expect(out.outcome).toBe('answered_scripted');
+  });
+
+  it('is inert when no trigger is configured', async () => {
+    const out = await new TurnHandler(deps(fast)).handle(inbound('start workflow'));
+    expect(out.outcome).toBe('answered_inline');
+  });
+
+  it('records the scripted turn so history stays complete', async () => {
+    await new TurnHandler(triggerDeps(fast)).handle(inbound('iniciar', 'scripted'));
+    const turns = await db.query.turns.findMany();
+    expect(turns.map(turn => turn.role)).toEqual(['user', 'agent']);
+    const agentTurn = turns.find(turn => turn.role === 'agent')!;
+    expect(agentTurn.outcome).toBe('answered_scripted');
+    expect(agentTurn.model).toBeNull();
+  });
+});
+
 describe('failing closed', () => {
   it('escalates before the model on a keyword, without calling it', async () => {
     const spy = vi.fn();

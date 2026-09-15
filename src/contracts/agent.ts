@@ -70,6 +70,7 @@ export type InboundMessage = z.infer<typeof InboundMessage>;
 /** Why a turn ended the way it did — recorded per turn for observability. */
 export const TurnOutcome = z.enum([
   'answered_inline', // model won the race
+  'answered_scripted', // opening-trigger sentinel; model never ran
   'deferred', // race lost; delivered via outbox
   'escalated_precheck', // keyword/budget/rate-limit escalation, model never ran
   'escalated_model', // model chose to escalate
