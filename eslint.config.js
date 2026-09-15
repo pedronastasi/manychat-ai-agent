@@ -34,7 +34,12 @@ export default tseslint.config(
 
   {
     // Operational entrypoints and dev tooling legitimately write to stdout.
-    files: ['evals/**/*.ts', 'src/channels/manychat/simulator.ts', '*.config.ts'],
+    files: [
+      'evals/**/*.ts',
+      'scripts/**/*.ts',
+      'src/channels/manychat/simulator.ts',
+      '*.config.ts',
+    ],
     rules: { 'no-console': 'off' },
   },
 

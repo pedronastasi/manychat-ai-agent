@@ -1,3 +1,11 @@
+---
+status: implemented
+implemented: 2026-09-14
+pr: 1
+constitution: [C1, C2]
+adr: [0003]
+---
+
 # 003 — Tenant Configuration
 
 Everything business-specific is configuration, not code. A new tenant means new

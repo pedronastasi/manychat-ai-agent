@@ -1,3 +1,10 @@
+---
+status: implemented
+implemented: 2026-09-14
+pr: 2
+constitution: [C8]
+---
+
 # 004 — Testing
 
 Defines what must be tested, what deliberately must not be, and what a test in

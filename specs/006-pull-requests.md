@@ -1,3 +1,10 @@
+---
+status: implemented
+implemented: 2026-09-15
+pr: 6
+constitution: [C1, C5, C8, C9]
+---
+
 # 006 — Pull Requests
 
 Defines what a pull request in this repository must say, and fixes it in a

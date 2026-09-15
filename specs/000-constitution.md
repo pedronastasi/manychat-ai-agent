@@ -1,3 +1,7 @@
+---
+status: standing
+---
+
 # 000 — Constitution
 
 Non-negotiable principles for this project. Every spec, ADR, and pull request is

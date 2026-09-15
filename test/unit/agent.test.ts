@@ -15,6 +15,16 @@ import {
 import { CatalogSchema, RulesSchema } from '../../src/contracts/config.ts';
 import { mockModel } from '../helpers/model.ts';
 
+/**
+ * specs/001-agent-behavior.md § Escalation, and § Grounding.
+ *
+ * This is where 001 is enforced rather than merely described: that the agent
+ * hands off below the confidence threshold, that a schema violation escalates
+ * instead of reaching a contact, and that a price absent from the catalog is
+ * caught. Constitution C6 turns each of those into the same outcome — fail
+ * closed, toward a human.
+ */
+
 const catalog = CatalogSchema.parse({
   businessName: 'Demo Academy',
   currency: 'ARS',
