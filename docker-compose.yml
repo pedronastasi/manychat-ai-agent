@@ -19,11 +19,24 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://agent:agent@postgres:5432/agent
+      OLLAMA_BASE_URL: http://ollama:11434/v1
       PORT: 3000
     # Secrets come from a local .env, never from this file.
     env_file: [.env]
     ports: ['3000:3000']
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama
+    profiles: [local-model]
+    ports: ['11434:11434']
+    volumes: ['ollama:/root/.ollama']
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:11434/api/tags || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
 volumes:
   pgdata:
+  ollama:

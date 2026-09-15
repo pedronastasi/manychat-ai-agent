@@ -1,7 +1,7 @@
 import { createProviderRegistry } from 'ai';
 import type { LanguageModel } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { openai } from '@ai-sdk/openai';
+import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
 import { createMockModel } from './mock-provider.ts';
 
@@ -10,7 +10,11 @@ import { createMockModel } from './mock-provider.ts';
  * Everything else depends on the AgentRunner port, so switching provider is an
  * environment change rather than a code change (ADR-0002).
  */
-const registry = createProviderRegistry({ anthropic, openai, google });
+const ollama = createOpenAI({
+  baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
+  apiKey: 'ollama',
+});
+const registry = createProviderRegistry({ anthropic, openai, google, ollama });
 
 /** Per-million-token prices, USD. Used for budget caps, not billing. */
 export interface ModelPricing {
@@ -37,7 +41,10 @@ const FALLBACK_PRICING: ModelPricing = {
   cacheReadPerMTok: 0.5,
 };
 
+const ZERO_PRICING: ModelPricing = { inputPerMTok: 0, outputPerMTok: 0, cacheReadPerMTok: 0 };
+
 export function pricingFor(modelId: string): ModelPricing {
+  if (modelId.startsWith('ollama:')) return ZERO_PRICING;
   return PRICING[modelId] ?? FALLBACK_PRICING;
 }
 
@@ -63,7 +70,7 @@ export class UnknownProviderError extends Error {
   constructor(spec: string, cause: unknown) {
     super(
       `Cannot resolve model '${spec}'. Expected "provider:model" where provider is one of ` +
-        `anthropic, openai, google. Check AGENT_MODEL and that the provider's API key is set.`,
+        `anthropic, openai, google, ollama. Check AGENT_MODEL and that the provider's API key is set.`,
       { cause },
     );
     this.name = 'UnknownProviderError';
