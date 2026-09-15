@@ -15,9 +15,20 @@ const template = readFileSync(TEMPLATE_PATH, 'utf8');
 
 const headings = [...template.matchAll(/^## (.+)$/gm)].map(m => m[1]!.trim());
 
+const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
+
+function stripHtmlComments(input: string): string {
+  let previous: string;
+  let current = input;
+  do {
+    previous = current;
+    current = current.replace(HTML_COMMENT_PATTERN, '');
+  } while (current !== previous);
+  return current;
+}
+
 /** Lines a reader sees, once the author-facing prompts are stripped. */
-const rendered = template
-  .replace(/<!--[\s\S]*?-->/g, '')
+const rendered = stripHtmlComments(template)
   .split('\n')
   .map(l => l.trimEnd())
   .filter(l => l.length > 0);
