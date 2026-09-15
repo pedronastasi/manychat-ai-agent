@@ -82,6 +82,10 @@ a branch to the renderer.
 deferred path can never run. `EnvSchema` enforces this and a regression test
 covers it.
 
+**Local models run via Ollama.** `docker compose --profile local-model up` starts
+the container; set `AGENT_MODEL=ollama:llama3.1:8b`. Ollama models price at zero
+so the budget cap does not fire on free turns. The token cap still applies.
+
 **Mock at the provider boundary carefully.** `doGenerate` returns the nested
 provider-facing usage shape (`{ total, noCache, cacheRead, cacheWrite }`), which
 the SDK flattens for callers. Using the flattened shape in a mock silently yields

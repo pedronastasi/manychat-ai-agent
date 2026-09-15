@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: agent
       POSTGRES_DB: agent
     ports: ['5432:5432']
-    volumes: ['pgdata:/var/lib/postgresql/data']
+    volumes: ['pgdata:/var/lib/postgresql']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U agent']
       interval: 5s
@@ -19,11 +19,27 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://agent:agent@postgres:5432/agent
+      OLLAMA_BASE_URL: http://ollama:11434/v1
       PORT: 3000
+    volumes: ['./config:/app/config:ro']
     # Secrets come from a local .env, never from this file.
     env_file: [.env]
     ports: ['3000:3000']
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama
+    profiles: [local-model]
+    ports: ['11434:11434']
+    volumes: ['ollama:/root/.ollama']
+    healthcheck:
+      # The image ships no curl or wget; `ollama list` queries the same local
+      # API and is the only probe guaranteed to exist here.
+      test: ['CMD-SHELL', 'ollama list || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
 volumes:
   pgdata:
+  ollama:

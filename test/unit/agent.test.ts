@@ -206,6 +206,24 @@ describe('registry', () => {
     expect(pricingFor('openai:something-new').inputPerMTok).toBe(5);
     expect(estimateCostUsd('openai:something-new', { inputTokens: 1_000_000 })).toBe(5);
   });
+  it('prices ollama models at zero so the budget cap never fires on free turns', () => {
+    expect(pricingFor('ollama:llama3.1:8b')).toEqual({
+      inputPerMTok: 0,
+      outputPerMTok: 0,
+      cacheReadPerMTok: 0,
+    });
+    expect(
+      estimateCostUsd('ollama:llama3.1:8b', {
+        inputTokens: 2000,
+        outputTokens: 200,
+        cacheReadTokens: 500,
+      }),
+    ).toBe(0);
+  });
+  it('resolves an ollama spec with a colon-bearing tag', () => {
+    const m = resolveModel('ollama:llama3.1:8b');
+    expect(typeof m).toBe('object');
+  });
 });
 
 describe('timeout invariant (ADR-0001)', () => {
@@ -259,6 +277,17 @@ describe('environment loading', () => {
     expect(env.MANYCHAT_API_TOKEN).toBeUndefined();
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
+  });
+
+  it('accepts a colon-bearing ollama model tag', async () => {
+    const { loadEnv } = await import('../../src/config/loader.ts');
+    const env = loadEnv({
+      AGENT_MODEL: 'ollama:llama3.1:8b',
+      PUBLIC_BASE_URL: 'https://x.com',
+      MANYCHAT_SHARED_SECRET: 'a'.repeat(32),
+      DATABASE_URL: 'pglite',
+    });
+    expect(env.AGENT_MODEL).toBe('ollama:llama3.1:8b');
   });
 
   it('still reads a real token when present', async () => {

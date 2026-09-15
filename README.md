@@ -91,6 +91,7 @@ No module imports a provider package except
 AGENT_MODEL=anthropic:claude-haiku-4-5   # default
 AGENT_MODEL=openai:gpt-5-mini            # same behavior, zero code changed
 AGENT_MODEL=google:gemini-2.5-flash
+AGENT_MODEL=ollama:llama3.1:8b           # local, free — see "Local model" below
 AGENT_MODEL=mock:demo                    # offline, deterministic, free
 ```
 
@@ -155,6 +156,34 @@ pnpm lint && pnpm typecheck
 Integration tests run against **PGlite** — real Postgres compiled to WASM, in
 process — so `FOR UPDATE SKIP LOCKED`, upserts and constraints behave as in
 production with no container to start in CI.
+
+### Local model
+
+Run a real model locally via [Ollama](https://ollama.com) — free, no API key,
+useful for testing the model boundary (schema adherence, latency, judgment)
+without incurring API costs.
+
+```bash
+docker compose --profile local-model up        # starts Ollama alongside Postgres
+AGENT_MODEL=ollama:llama3.1:8b pnpm simulate "hola"
+```
+
+The first run pulls ~4.7 GB of weights; they persist in a named Docker volume so
+subsequent starts are instant. Any Ollama-supported model works — just use the
+tag from `ollama list`:
+
+```bash
+AGENT_MODEL=ollama:gemma3:4b pnpm simulate "cuanto sale el curso?"
+```
+
+Inside Compose the agent reaches Ollama at `http://ollama:11434/v1`. Running
+locally (outside Docker), it defaults to `http://localhost:11434/v1`; override
+with `OLLAMA_BASE_URL` if needed.
+
+Ollama models price at zero, so the daily dollar cap never fires. The token cap
+still applies and guards against runaway loops. The 8 s race deadline means the
+deferred path (acknowledge now, push the real answer later) becomes the default
+for slower local models — that is by design.
 
 ## Deployment
 

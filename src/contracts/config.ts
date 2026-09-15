@@ -143,7 +143,7 @@ export const EnvSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
     /** `provider:model` — the whole model-agnosticism story (ADR-0002). */
-    AGENT_MODEL: z.string().regex(/^[a-z0-9_-]+:[A-Za-z0-9._-]+$/, 'Expected "provider:model"'),
+    AGENT_MODEL: z.string().regex(/^[a-z0-9_-]+:[A-Za-z0-9._:-]+$/, 'Expected "provider:model"'),
     AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(400),
     AGENT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
 
@@ -161,6 +161,8 @@ export const EnvSchema = z
     RACE_DEADLINE_MS: z.coerce.number().int().positive().default(8_000),
     /** Outer safety net for the deferred continuation; see the refine below. */
     MODEL_ABORT_MS: z.coerce.number().int().positive().default(30_000),
+
+    OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
 
     ANTHROPIC_API_KEY: optionalString,
     OPENAI_API_KEY: optionalString,
