@@ -1,6 +1,6 @@
 ---
 name: adr
-description: Write an architecture decision record in docs/adr/ using this repository's exact format. Use when a non-obvious technical choice has just been made, when the user says "record this decision", asks for an ADR, supersedes an existing one, or changes a Constitution clause in specs/000-constitution.md.
+description: Write an architecture decision record in docs/adr/ using this repository's exact format, starting with an interview that pressure-tests the decision before recording it. Use when a non-obvious technical choice is being made or has just been made, when the user says "record this decision", asks for an ADR, supersedes an existing one, or changes a Constitution clause in specs/000-constitution.md.
 ---
 
 # Writing an ADR
@@ -21,7 +21,73 @@ nobody reading the repo can see the Redis that is not there.
 Do not write one for a decision with no rejected alternative. "We used
 TypeScript" is not an ADR; it is a fact about the repo.
 
-## Steps
+## Step 0 — Interview before writing anything
+
+**Write no ADR until the developer has answered.** The `/spec` interview gathers
+decisions that were already made. This one is not that. An ADR written straight
+from a brief records a decision taken blind, inside a document whose entire
+purpose is to show that it was not — and it is convincing, because the format
+supplies the confident voice for free.
+
+These questions exist to **make** the decision, not to transcribe it. Expect
+some of them to change the answer. That is the point; a question that could not
+have changed anything was not worth asking.
+
+### First, read
+
+`ls docs/adr/` for the next number and the house voice,
+`specs/000-constitution.md` if a clause is in play, and any existing ADR on the
+same subject — which may mean this supersedes rather than adds.
+
+### Then ask
+
+At most two rounds of `AskUserQuestion`, load-bearing questions first.
+
+1. **What forced this?** The constraint, limit, deadline or failure that made
+   doing nothing impossible. A decision nothing forced is usually a preference,
+   and preferences do not need ADRs.
+2. **What is the reflexive alternative, and what is the strongest case _for_
+   it?** Ask them to argue the side they are rejecting. If they cannot, the ADR
+   will contain a strawman, and an option nobody can defend was never really
+   considered. This is the question that most often changes the answer.
+3. **Which of your reasons are measured, and which are assumed?** Take them one
+   at a time. "Postgres is fast enough here" is either a measurement or a hope,
+   and the finished ADR reads identically in both cases.
+4. **If the main assumption turned out to be wrong, would the decision flip?**
+   If yes, stop and go measure. Recording a coin flip in the voice of a decision
+   is the precise failure this interview exists to prevent.
+5. **What does this cost?** An answer that contains no cost is a pitch, not a
+   decision, and Consequences will expose it.
+6. **What would make this the wrong call later?** The revisit trigger. A
+   decision with no condition that could reverse it is a belief.
+7. **Is this one decision, and does it supersede anything?** If stating it takes
+   more than a sentence it is two decisions. If an ADR already covers the
+   ground, supersede it rather than filing a second opinion.
+
+### When the code already exists
+
+Recording a decision after building it is legitimate, but the questions above
+stop working: everything reads as inevitable once it is running. Ask instead
+what would have had to be true for the **other** option to win, and whether that
+was ever checked. If the honest answer is "we never looked", the ADR says the
+decision was made by default. That is a real finding and belongs in Context.
+
+### Stop rather than write
+
+| If                                              | Then                                                              |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| No rejected alternative can be named            | Not an ADR. It is a fact about the repo — say so and stop         |
+| The decision flips on an unmeasured assumption  | Stop. Measure first, then come back                               |
+| No cost can be named                            | Not ready. Return to question 2 and argue the other side properly |
+| Stating the decision takes more than a sentence | Two decisions. One ADR each                                       |
+
+### Then confirm
+
+Play back the decision in one sentence, the alternative being rejected, the
+cost, and the revisit trigger. Get an explicit go-ahead, then write without
+stopping again.
+
+## Steps — after the decision is confirmed
 
 1. **Number it.** `ls docs/adr/` — take the highest and add one, zero-padded to
    four digits.

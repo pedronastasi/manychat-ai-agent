@@ -51,15 +51,20 @@ exists, and which describe code that does not. It is generated - run
 [`.claude/skills/`](.claude/skills/) holds instructions for the workflows this
 repo has conventions about, so they do not depend on remembering them.
 
-| Skill       | Use it to                                                            |
-| ----------- | -------------------------------------------------------------------- |
-| `adr`       | Write an ADR in `docs/adr/` in the format the existing seven follow. |
-| `spec`      | Write a spec in `specs/` - contract or position.                     |
-| `new-skill` | Add another one of these.                                            |
+| Skill       | Use it to                                                |
+| ----------- | -------------------------------------------------------- |
+| `adr`       | Pressure-test a decision, then record it in `docs/adr/`. |
+| `spec`      | Settle what a spec must say, then write it in `specs/`.  |
+| `new-skill` | Add another one of these.                                |
 
 They are committed on purpose - a skill encoding this repo's format is repo
 tooling. Anything that would work unchanged in an unrelated project is a
 personal skill and does not belong here.
+
+`adr` and `spec` both open by asking questions, and will stop rather than write
+if the answers are not there - an ADR whose rejected alternative nobody can
+argue, or a spec claiming behaviour no test covers, is worse than the missing
+document, because both read as authoritative.
 
 ## Things worth knowing
 
