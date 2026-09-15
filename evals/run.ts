@@ -107,6 +107,8 @@ async function main() {
     const mark = failures.length === 0 ? `${GREEN}pass${RESET}` : `${RED}FAIL${RESET}`;
     console.log(`  ${mark}  ${testCase.id.padEnd(20)} ${DIM}${result.latencyMs}ms${RESET}`);
     for (const failure of failures) console.log(`        ${RED}${failure}${RESET}`);
+    if (result.interventions.length > 0)
+      console.log(`        ${DIM}interventions: ${result.interventions.join(', ')}${RESET}`);
     // Replies are printed so a human reads them; a green suite whose tone has
     // drifted is still a failure, and only a person can see that.
     for (const text of result.reply.messages) console.log(`        ${DIM}${text}${RESET}`);
