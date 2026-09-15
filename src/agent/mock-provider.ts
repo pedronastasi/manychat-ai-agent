@@ -1,4 +1,5 @@
 import type { LanguageModelV4, LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import { FENCE, FENCE_END } from './prompt.ts';
 
 /**
  * A deterministic, offline model used for local development, CI, and demos.
@@ -32,6 +33,14 @@ function reply(messages: string[], escalate: boolean, reason: string | null, con
  */
 function respondTo(text: string): string {
   const lower = text.toLowerCase();
+  // Arrives fenced (C4), so the markers are stripped before asking whether the
+  // contact actually said anything - otherwise their letters read as content.
+  const unfenced = text.split(FENCE).join('').split(FENCE_END).join('').trim();
+  // Punctuation only ("?", "..."): nothing to answer and nothing to escalate on
+  // yet, so the agent asks once rather than spending a person on a stray key.
+  if (unfenced.length > 0 && !/[\p{L}\p{N}]/u.test(unfenced)) {
+    return reply(["Sorry, I didn't catch that - what would you like to know?"], false, null, 0.9);
+  }
   if (/(ignore|system prompt|no rules|you are now|forget your)/.test(lower)) {
     return reply(
       ["I can'lower do that. Would you like me to pass you to someone on the team?"],
@@ -67,6 +76,16 @@ function respondTo(text: string): string {
   }
   if (/(material|kit|included)/.test(lower)) {
     return reply(['The practice kit is included with every course.'], false, null, 0.9);
+  }
+  // Answerable only because the catalog carries a job-placement FAQ. Without
+  // that entry this is an out_of_scope handoff, not a policy to state.
+  if (/(guarantee|placement).{0,30}(job|work|hired|employ)|job.{0,30}guarantee/.test(lower)) {
+    return reply(
+      ["We don't guarantee job placement.", 'The certificate is recognised by local salons.'],
+      false,
+      null,
+      0.88,
+    );
   }
   if (/(where|campus|address|online|in person)/.test(lower)) {
     return reply(['Classes are in person at the main campus.'], false, null, 0.88);

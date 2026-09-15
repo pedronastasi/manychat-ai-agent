@@ -40,6 +40,10 @@
       "answer": "The practice kit is included with every course."
     },
     { "question": "Where are you located?", "answer": "Classes are in person at the main campus." },
-    { "question": "Do you run online classes?", "answer": "All courses are in person for now." }
+    { "question": "Do you run online classes?", "answer": "All courses are in person for now." },
+    {
+      "question": "Do you guarantee I will get a job?",
+      "answer": "We don't guarantee job placement. The certificate is recognised by local salons."
+    }
   ]
 }
