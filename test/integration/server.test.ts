@@ -4,7 +4,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { loadEnv, ConfigStore } from '../../src/config/loader.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
-import { claimBatch } from '../../src/outbox/queue.ts';
+import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { readFileSync } from 'node:fs';
 
 /** The acknowledgement is tenant copy now (Constitution C9), not a constant. */
@@ -211,7 +211,7 @@ describe('deferred reply (race lost) — ADR-0001', () => {
     // Let the abandoned-but-not-cancelled model call complete.
     await new Promise(r => setTimeout(r, 2000));
 
-    const claimed = await claimBatch(db, 10);
+    const claimed = await new OutboxQueue(db).claimBatch(10);
     expect(claimed).toHaveLength(1);
     expect(claimed[0]!.payload.messages).toEqual(['Late reply']);
     expect(claimed[0]!.subscriberId).toBe('88');

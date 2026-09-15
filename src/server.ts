@@ -15,12 +15,12 @@ import { capabilitiesFor } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
 import type { Database } from './db/client.ts';
 import { resolveModel } from './agent/registry.ts';
-import { createAgentRunner } from './agent/runner.ts';
+import { GenerateObjectRunner } from './agent/runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
-import { createManyChatAdapter } from './channels/manychat/adapter.ts';
-import { createManyChatClient } from './channels/manychat/client.ts';
+import { ManyChatAdapter } from './channels/manychat/adapter.ts';
+import { ManyChatHttpClient } from './channels/manychat/client.ts';
 import type { ConfigStore } from './config/loader.ts';
-import { handleTurn } from './routes/turn.ts';
+import { TurnHandler } from './routes/turn.ts';
 import { createSharedSecretGuard } from './routes/auth.ts';
 import { REDACT_PATHS, pseudonymize } from './observability/redact.ts';
 
@@ -53,7 +53,7 @@ export function buildServer(opts: BuildOptions) {
   const capabilities = capabilitiesFor(env.CHANNEL);
 
   const manychatClient = env.MANYCHAT_API_TOKEN
-    ? createManyChatClient({
+    ? new ManyChatHttpClient({
         apiToken: env.MANYCHAT_API_TOKEN,
         baseUrl: env.MANYCHAT_API_BASE,
       })
@@ -66,11 +66,11 @@ export function buildServer(opts: BuildOptions) {
           ),
       };
 
-  const adapter = createManyChatAdapter(manychatClient);
+  const adapter = new ManyChatAdapter(manychatClient);
 
   const runner =
     opts.runner ??
-    createAgentRunner({
+    new GenerateObjectRunner({
       model: resolveModel(env.AGENT_MODEL),
       modelSpec: env.AGENT_MODEL,
       persona: tenant().persona,
@@ -139,17 +139,17 @@ export function buildServer(opts: BuildOptions) {
         contact: pseudonymize(inbound.subscriberId, env.TENANT_ID),
       });
 
-      const { reply, outcome } = await handleTurn(
-        {
-          db,
-          runner,
-          rules: tenant().rules,
-          raceDeadlineMs: env.RACE_DEADLINE_MS,
-          modelAbortMs: env.MODEL_ABORT_MS,
-          logger: log,
-        },
-        inbound,
-      );
+      // Constructed per request: `tenant()` re-reads config, which SIGHUP can
+      // have reloaded since the last turn.
+      const handler = new TurnHandler({
+        db,
+        runner,
+        rules: tenant().rules,
+        raceDeadlineMs: env.RACE_DEADLINE_MS,
+        modelAbortMs: env.MODEL_ABORT_MS,
+        logger: log,
+      });
+      const { reply, outcome } = await handler.handle(inbound);
 
       log.info({ outcome, escalated: reply.escalate }, 'turn complete');
 

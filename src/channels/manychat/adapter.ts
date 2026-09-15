@@ -39,32 +39,34 @@ export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatR
   return ManyChatResponse.parse({ version: 'v2', content });
 }
 
-export function createManyChatAdapter(
-  client: ManyChatClient,
-): ChannelAdapter<unknown, ManyChatResponse> {
-  return {
-    name: 'manychat',
+export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse> {
+  readonly name = 'manychat';
 
-    parse(raw, ctx): InboundMessage {
-      const p = ManyChatInbound.parse(raw);
-      const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-      return {
-        tenantId: ctx.tenantId,
-        subscriberId: p.subscriber_id,
-        text: p.text,
-        channel: p.channel ?? ctx.channel,
-        contactName: name.length > 0 ? name : null,
-        locale: p.locale ?? null,
-        receivedAt: new Date(),
-      };
-    },
+  private readonly client: ManyChatClient;
 
-    render(reply, ctx) {
-      return renderManyChat(reply, ctx);
-    },
+  constructor(client: ManyChatClient) {
+    this.client = client;
+  }
 
-    async push(to, reply) {
-      await client.sendText(to.subscriberId, reply.messages);
-    },
-  };
+  parse(raw: unknown, ctx: { tenantId: string; channel: string }): InboundMessage {
+    const p = ManyChatInbound.parse(raw);
+    const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+    return {
+      tenantId: ctx.tenantId,
+      subscriberId: p.subscriber_id,
+      text: p.text,
+      channel: p.channel ?? ctx.channel,
+      contactName: name.length > 0 ? name : null,
+      locale: p.locale ?? null,
+      receivedAt: new Date(),
+    };
+  }
+
+  render(reply: AgentReply, ctx: RenderContext): ManyChatResponse {
+    return renderManyChat(reply, ctx);
+  }
+
+  async push(to: { subscriberId: string }, reply: AgentReply): Promise<void> {
+    await this.client.sendText(to.subscriberId, reply.messages);
+  }
 }

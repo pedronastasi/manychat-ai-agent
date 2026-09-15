@@ -62,17 +62,27 @@ export interface ManyChatClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-export function createManyChatClient(opts: ManyChatClientOptions): ManyChatClient {
-  const base = (opts.baseUrl ?? 'https://api.manychat.com').replace(/\/$/, '');
-  const bucket = new TokenBucket(5, opts.requestsPerSecond ?? 10);
-  const doFetch = opts.fetchImpl ?? fetch;
+export class ManyChatHttpClient implements ManyChatClient {
+  private readonly base: string;
+  private readonly apiToken: string;
+  private readonly bucket: TokenBucket;
+  private readonly doFetch: typeof fetch;
 
-  async function sendOne(subscriberId: string, text: string): Promise<void> {
-    await bucket.take();
-    const res = await doFetch(`${base}/fb/sending/sendContent`, {
+  constructor(opts: ManyChatClientOptions) {
+    this.base = (opts.baseUrl ?? 'https://api.manychat.com').replace(/\/$/, '');
+    this.apiToken = opts.apiToken;
+    this.bucket = new TokenBucket(5, opts.requestsPerSecond ?? 10);
+    // Bound deliberately: reaching native fetch through `this.doFetch(...)`
+    // would call it with the instance as its receiver, which it rejects.
+    this.doFetch = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  }
+
+  private async sendOne(subscriberId: string, text: string): Promise<void> {
+    await this.bucket.take();
+    const res = await this.doFetch(`${this.base}/fb/sending/sendContent`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${opts.apiToken}`,
+        Authorization: `Bearer ${this.apiToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -89,12 +99,10 @@ export function createManyChatClient(opts: ManyChatClientOptions): ManyChatClien
     }
   }
 
-  return {
-    async sendText(subscriberId, messages) {
-      // Sequential, so the contact receives them in the order they were written.
-      for (const text of messages) {
-        await sendOne(subscriberId, text);
-      }
-    },
-  };
+  async sendText(subscriberId: string, messages: string[]): Promise<void> {
+    // Sequential, so the contact receives them in the order they were written.
+    for (const text of messages) {
+      await this.sendOne(subscriberId, text);
+    }
+  }
 }

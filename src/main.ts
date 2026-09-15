@@ -11,8 +11,8 @@ import { loadEnv, ConfigStore } from './config/loader.ts';
 import { createDatabase, createEmbeddedDatabase, isEmbedded } from './db/client.ts';
 import type { Database } from './db/client.ts';
 import { runMigrations } from './db/migrate.ts';
-import { createManyChatClient } from './channels/manychat/client.ts';
-import { startWorker } from './outbox/worker.ts';
+import { ManyChatHttpClient } from './channels/manychat/client.ts';
+import { OutboxWorker } from './outbox/worker.ts';
 import { buildServer } from './server.ts';
 
 export async function main() {
@@ -33,14 +33,14 @@ export async function main() {
   const migrated = await runMigrations(db);
   if (migrated.length > 0) app.log.info({ migrations: migrated }, 'migrations applied');
 
-  const stopWorker = startWorker({
+  const stopWorker = new OutboxWorker({
     db,
-    client: createManyChatClient({
+    client: new ManyChatHttpClient({
       apiToken: env.MANYCHAT_API_TOKEN ?? '',
       baseUrl: env.MANYCHAT_API_BASE,
     }),
     logger: app.log,
-  });
+  }).start();
 
   // Prompt edits dominate the first weeks; a restart per wording tweak is the
   // friction that ends with people editing prompts in production (specs/003).

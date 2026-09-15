@@ -4,7 +4,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { buildSystemPrompt } from '../../src/agent/prompt.ts';
-import { handleTurn } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/routes/turn.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 
@@ -72,27 +72,31 @@ const deps = (runner: AgentRunner, rules: typeof DEFAULT_TENANT.rules) => ({
 
 describe('no customer-facing copy is hardcoded (C9)', () => {
   it('sends the tenant acknowledgement, not one from source', async () => {
-    const out = await handleTurn(deps(slow, ALT.rules), inbound('how much is it?'));
+    const out = await new TurnHandler(deps(slow, ALT.rules)).handle(inbound('how much is it?'));
     expect(out.reply.messages).toEqual([ALT.rules.messages.acknowledgement]);
     expect(out.reply.messages[0]).not.toBe(DEFAULT_TENANT.rules.messages.acknowledgement);
   });
 
   it('sends the tenant escalation message, not one from source', async () => {
     const boom: AgentRunner = { run: () => Promise.reject(new Error('down')) };
-    const out = await handleTurn(deps(boom, ALT.rules), inbound('hello'));
+    const out = await new TurnHandler(deps(boom, ALT.rules)).handle(inbound('hello'));
     expect(out.reply.messages).toEqual([ALT.rules.messages.escalation]);
   });
 
   it('uses each tenant own copy for the same code path', async () => {
     const boom: AgentRunner = { run: () => Promise.reject(new Error('down')) };
-    const alt = await handleTurn(deps(boom, ALT.rules), inbound('hello', 'a'));
-    const base = await handleTurn(deps(boom, DEFAULT_TENANT.rules), inbound('hello', 'b'));
+    const alt = await new TurnHandler(deps(boom, ALT.rules)).handle(inbound('hello', 'a'));
+    const base = await new TurnHandler(deps(boom, DEFAULT_TENANT.rules)).handle(
+      inbound('hello', 'b'),
+    );
     // Same code path, same input, different copy: proof it comes from config.
     expect(alt.reply.messages[0]).not.toBe(base.reply.messages[0]);
   });
 
   it('escalates on the tenant own keywords', async () => {
-    const out = await handleTurn(deps(slow, ALT.rules), inbound('please transfer me now'));
+    const out = await new TurnHandler(deps(slow, ALT.rules)).handle(
+      inbound('please transfer me now'),
+    );
     expect(out.outcome).toBe('escalated_precheck');
     expect(out.reply.messages).toEqual([ALT.rules.messages.escalation]);
   });

@@ -2,14 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
-import {
-  enqueueReply,
-  claimBatch,
-  markDelivered,
-  markFailed,
-  MAX_ATTEMPTS,
-} from '../../src/outbox/queue.ts';
-import { drainOnce, startWorker } from '../../src/outbox/worker.ts';
+import { OutboxQueue, MAX_ATTEMPTS } from '../../src/outbox/queue.ts';
+import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { ManyChatApiError } from '../../src/channels/manychat/client.ts';
 import type { ManyChatClient } from '../../src/channels/manychat/client.ts';
 import type { AgentReply } from '../../src/contracts/agent.ts';
@@ -40,7 +34,12 @@ const reply = (text = 'the reply'): AgentReply => ({
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} };
 
 const enqueue = (subscriberId = 's1', text?: string) =>
-  enqueueReply(db, { tenantId: 'demo', subscriberId, conversationId: null, reply: reply(text) });
+  new OutboxQueue(db).enqueue({
+    tenantId: 'demo',
+    subscriberId,
+    conversationId: null,
+    reply: reply(text),
+  });
 
 const rowById = async (id: string) => {
   const r: unknown = await db.execute(
@@ -74,7 +73,7 @@ function stubClient(behaviour: (subscriberId: string) => void = () => {}): ManyC
 describe('claiming', () => {
   it('claims a due row and increments its attempt count', async () => {
     const id = await enqueue();
-    const claimed = await claimBatch(db, 10);
+    const claimed = await new OutboxQueue(db).claimBatch(10);
     expect(claimed.map(c => c.id)).toEqual([id]);
     expect(claimed[0]!.attempts).toBe(1);
     expect((await rowById(id)).status).toBe('delivering');
@@ -85,18 +84,18 @@ describe('claiming', () => {
     await db.execute(
       sql`UPDATE outbox SET next_attempt_at = now() + interval '1 hour' WHERE id = ${id}`,
     );
-    expect(await claimBatch(db, 10)).toHaveLength(0);
+    expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(0);
   });
 
   it('does not re-claim a row already being delivered', async () => {
     await enqueue();
-    expect(await claimBatch(db, 10)).toHaveLength(1);
-    expect(await claimBatch(db, 10)).toHaveLength(0);
+    expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(1);
+    expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(0);
   });
 
   it('respects the batch limit', async () => {
     for (let i = 0; i < 5; i++) await enqueue(`s${i}`);
-    expect(await claimBatch(db, 2)).toHaveLength(2);
+    expect(await new OutboxQueue(db).claimBatch(2)).toHaveLength(2);
   });
 
   it('never hands the same row to two concurrent workers', async () => {
@@ -104,9 +103,9 @@ describe('claiming', () => {
     // contact receives the same reply twice.
     for (let i = 0; i < 6; i++) await enqueue(`s${i}`);
     const [a, b, c] = await Promise.all([
-      claimBatch(db, 10),
-      claimBatch(db, 10),
-      claimBatch(db, 10),
+      new OutboxQueue(db).claimBatch(10),
+      new OutboxQueue(db).claimBatch(10),
+      new OutboxQueue(db).claimBatch(10),
     ]);
     const ids = [...a, ...b, ...c].map(r => r.id);
     expect(ids).toHaveLength(6);
@@ -117,8 +116,8 @@ describe('claiming', () => {
 describe('outcomes', () => {
   it('marks a delivered row and stamps delivered_at', async () => {
     const id = await enqueue();
-    await claimBatch(db, 10);
-    await markDelivered(db, id);
+    await new OutboxQueue(db).claimBatch(10);
+    await new OutboxQueue(db).markDelivered(id);
     const row = await rowById(id);
     expect(row.status).toBe('delivered');
     expect(row.delivered_at).not.toBeNull();
@@ -126,10 +125,10 @@ describe('outcomes', () => {
 
   it('reschedules a retryable failure into the future, still claimable', async () => {
     const id = await enqueue();
-    const [claimed] = await claimBatch(db, 10);
+    const [claimed] = await new OutboxQueue(db).claimBatch(10);
     const before = (await rowById(id)).next_attempt_at;
 
-    const outcome = await markFailed(db, id, claimed!.attempts, 'boom', true);
+    const outcome = await new OutboxQueue(db).markFailed(id, claimed!.attempts, 'boom', true);
 
     expect(outcome).toBe('retrying');
     const row = await rowById(id);
@@ -137,13 +136,13 @@ describe('outcomes', () => {
     expect(row.last_error).toBe('boom');
     // Backoff must actually move the row forward, or the worker hot-loops on it.
     expect(new Date(row.next_attempt_at).getTime()).toBeGreaterThan(new Date(before).getTime());
-    expect(await claimBatch(db, 10)).toHaveLength(0);
+    expect(await new OutboxQueue(db).claimBatch(10)).toHaveLength(0);
   });
 
   it('backs off for longer on each successive attempt', async () => {
     const id = await enqueue();
     const at = async (attempts: number) => {
-      await markFailed(db, id, attempts, 'x', true);
+      await new OutboxQueue(db).markFailed(id, attempts, 'x', true);
       const row = await rowById(id);
       return new Date(row.next_attempt_at).getTime() - Date.now();
     };
@@ -156,16 +155,16 @@ describe('outcomes', () => {
     // A malformed request will never succeed; retrying it five times only
     // delays the alert that a contact got nothing.
     const id = await enqueue();
-    await claimBatch(db, 10);
-    const outcome = await markFailed(db, id, 1, 'HTTP 400', false);
+    await new OutboxQueue(db).claimBatch(10);
+    const outcome = await new OutboxQueue(db).markFailed(id, 1, 'HTTP 400', false);
     expect(outcome).toBe('dead-lettered');
     expect((await rowById(id)).status).toBe('failed');
   });
 
   it('dead-letters once attempts are exhausted', async () => {
     const id = await enqueue();
-    expect(await markFailed(db, id, MAX_ATTEMPTS - 1, 'x', true)).toBe('retrying');
-    expect(await markFailed(db, id, MAX_ATTEMPTS, 'x', true)).toBe('dead-lettered');
+    expect(await new OutboxQueue(db).markFailed(id, MAX_ATTEMPTS - 1, 'x', true)).toBe('retrying');
+    expect(await new OutboxQueue(db).markFailed(id, MAX_ATTEMPTS, 'x', true)).toBe('dead-lettered');
     expect((await rowById(id)).status).toBe('failed');
   });
 });
@@ -174,14 +173,18 @@ describe('drainOnce', () => {
   it('delivers a pending reply and reports it', async () => {
     await enqueue('sub-9', 'hi!');
     const client = stubClient();
-    const result = await drainOnce({ db, client, logger: silentLogger });
+    const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
 
     expect(result).toMatchObject({ claimed: 1, delivered: 1, retrying: 0, deadLettered: 0 });
     expect(client.sent).toEqual([{ subscriberId: 'sub-9', messages: ['hi!'] }]);
   });
 
   it('is a no-op when the queue is empty', async () => {
-    const result = await drainOnce({ db, client: stubClient(), logger: silentLogger });
+    const result = await new OutboxWorker({
+      db,
+      client: stubClient(),
+      logger: silentLogger,
+    }).drainOnce();
     expect(result.claimed).toBe(0);
   });
 
@@ -197,14 +200,14 @@ describe('drainOnce', () => {
         ),
     };
 
-    const result = await drainOnce({ db, client, logger: silentLogger });
+    const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result).toMatchObject({ claimed: 2, delivered: 0, retrying: 1, deadLettered: 1 });
   });
 
   it('treats an unknown error as retryable rather than discarding the reply', async () => {
     await enqueue();
     const client: ManyChatClient = { sendText: () => Promise.reject(new Error('socket hang up')) };
-    const result = await drainOnce({ db, client, logger: silentLogger });
+    const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result.retrying).toBe(1);
     expect(result.deadLettered).toBe(0);
   });
@@ -215,7 +218,7 @@ describe('drainOnce', () => {
     const client: ManyChatClient = {
       sendText: () => Promise.reject(new ManyChatApiError(401, 'unauthorized', false)),
     };
-    await drainOnce({ db, client, logger });
+    await new OutboxWorker({ db, client, logger }).drainOnce();
     expect(logger.error).toHaveBeenCalledOnce();
   });
 
@@ -225,7 +228,7 @@ describe('drainOnce', () => {
     const client = stubClient(subscriberId => {
       if (subscriberId === 'bad') throw new ManyChatApiError(400, 'nope', false);
     });
-    const result = await drainOnce({ db, client, logger: silentLogger });
+    const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result.delivered).toBe(1);
     expect(result.deadLettered).toBe(1);
     expect(client.sent.map(s => s.subscriberId)).toEqual(['good']);
@@ -236,7 +239,7 @@ describe('startWorker', () => {
   it('drains the queue while running and stops cleanly', async () => {
     await enqueue('polled');
     const client = stubClient();
-    const stop = startWorker({ db, client, logger: silentLogger, pollIntervalMs: 10 });
+    const stop = new OutboxWorker({ db, client, logger: silentLogger, pollIntervalMs: 10 }).start();
 
     await vi.waitFor(() => expect(client.sent).toHaveLength(1), { timeout: 3000 });
     await stop();
@@ -262,7 +265,12 @@ describe('startWorker', () => {
       },
     } as unknown as Database;
 
-    const stop = startWorker({ db: flaky, client: stubClient(), logger, pollIntervalMs: 10 });
+    const stop = new OutboxWorker({
+      db: flaky,
+      client: stubClient(),
+      logger,
+      pollIntervalMs: 10,
+    }).start();
     await vi.waitFor(() => expect(logger.error).toHaveBeenCalled(), { timeout: 3000 });
 
     await enqueue('after-error');

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { renderManyChat, createManyChatAdapter } from '../../src/channels/manychat/adapter.ts';
-import { createManyChatClient, ManyChatApiError } from '../../src/channels/manychat/client.ts';
+import { renderManyChat, ManyChatAdapter } from '../../src/channels/manychat/adapter.ts';
+import { ManyChatHttpClient, ManyChatApiError } from '../../src/channels/manychat/client.ts';
 import { capabilitiesFor } from '../../src/contracts/config.ts';
 import type { AgentReply } from '../../src/contracts/agent.ts';
 
@@ -69,7 +69,7 @@ describe('Dynamic Block v2 rendering', () => {
 });
 
 describe('inbound parsing', () => {
-  const adapter = createManyChatAdapter({ sendText: async () => {} });
+  const adapter = new ManyChatAdapter({ sendText: async () => {} });
   const ctx = { tenantId: 'demo', channel: 'whatsapp' };
 
   it('normalizes a ManyChat payload', () => {
@@ -104,7 +104,11 @@ describe('Send API client', () => {
       return new Response('{"status":"success"}', { status: 200 });
     }) as unknown as typeof fetch;
 
-    const client = createManyChatClient({ apiToken: 't0ken', fetchImpl, requestsPerSecond: 1000 });
+    const client = new ManyChatHttpClient({
+      apiToken: 't0ken',
+      fetchImpl,
+      requestsPerSecond: 1000,
+    });
     await client.sendText('s1', ['uno', 'dos']);
 
     expect(seen).toEqual(['uno', 'dos']);
@@ -115,7 +119,7 @@ describe('Send API client', () => {
 
   it('marks 5xx retryable and 4xx terminal', async () => {
     const mk = (status: number) =>
-      createManyChatClient({
+      new ManyChatHttpClient({
         apiToken: 't',
         requestsPerSecond: 1000,
         fetchImpl: async () => new Response('err', { status }),
