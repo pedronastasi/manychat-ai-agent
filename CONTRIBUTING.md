@@ -39,6 +39,20 @@ decisions are recorded in [`docs/adr/`](docs/adr/).
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
   next reader than the code that avoided it.
 
+## Repository skills
+
+[`.claude/skills/`](.claude/skills/) holds instructions for the workflows this
+repo has conventions about, so they do not depend on remembering them.
+
+| Skill       | Use it to                                                            |
+| ----------- | -------------------------------------------------------------------- |
+| `adr`       | Write an ADR in `docs/adr/` in the format the existing seven follow. |
+| `new-skill` | Add another one of these.                                            |
+
+They are committed on purpose - a skill encoding this repo's format is repo
+tooling. Anything that would work unchanged in an unrelated project is a
+personal skill and does not belong here.
+
 ## Things worth knowing
 
 **Zod schemas are the source of truth.** Types are inferred and the OpenAPI
