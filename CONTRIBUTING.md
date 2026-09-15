@@ -15,6 +15,10 @@ pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm eval:mock
 
 CI runs exactly these, plus a build, secret scanning and CodeQL.
 
+The PR template opens with `## Why`. Write that part first: the problem or the
+decision, not a summary of the diff. See
+[`specs/006-pull-requests.md`](specs/006-pull-requests.md).
+
 ## How this project is organized
 
 Behavior is specified in [`specs/`](specs/) before it is implemented, and
@@ -27,6 +31,9 @@ decisions are recorded in [`docs/adr/`](docs/adr/).
 - [`specs/005-language.md`](specs/005-language.md) requires English throughout,
   and that no customer-facing copy lives in source at all - it belongs to the
   tenant, in configuration.
+- [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
+  request must say. The first heading is always `## Why` - the diff already says
+  what changed.
 - Tests cite the spec clause they enforce. If a spec change breaks a test, that
   is a real finding — not a test to update mechanically.
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
