@@ -20,17 +20,17 @@ solved.
 `AGENT_MODEL=mock:demo` and `DATABASE_URL=pglite` run the whole agent — server,
 guards, outbox, worker, evals — with no API key, no database and no container.
 CI does exactly this on every push, and the eval suite reports 19/19 for
-$0.0570 of _simulated_ spend.
+$0.0570 of _simulated_ spend (measured 2026-09-15).
 
 So if a local model were only about cost, it would be redundant. It is worth
 adding for a different reason.
 
-## What the mock cannot prove
+## The mock is valid by construction, so it tests nothing at the model boundary
 
 `mock-provider.ts` is a deterministic router: it matches the inbound text and
-returns a hand-written `AgentReply`. It is **valid by construction**. It can
-never emit malformed JSON, never omit a required field, never leak the prompt
-scaffolding, never invent a price, and never take longer than a millisecond.
+returns a hand-written `AgentReply`. It can never emit malformed JSON, never omit
+a required field, never leak the prompt scaffolding, never invent a price, and
+never take longer than a millisecond.
 
 Every guardrail in `guardrails.ts` therefore runs against inputs built to
 exercise it, rather than against a model genuinely trying and sometimes failing.
@@ -45,7 +45,7 @@ That is a fine test of the pipeline and no test at all of the model boundary.
 Ollama is the middle rung and substitutes for neither neighbour.
 
 > **Eval results from a local model are not comparable to hosted results and must
-> never be quoted as this project's eval numbers.** A lower pass rate on a 8B
+> never be quoted as this project's eval numbers.** A lower pass rate on an 8B
 > model is a fact about the model.
 
 ## Ollama goes through the registry, never around it
@@ -53,17 +53,26 @@ Ollama is the middle rung and substitutes for neither neighbour.
 Constitution C2 allows exactly one module to import a provider. Ollama does not
 get an exception, and does not need one: it serves an OpenAI-compatible API, so
 it is an `openai` provider instance with a different `baseURL`, registered as a
-fourth key in `registry.ts`. No new dependency.
+fourth key in `registry.ts`. `createOpenAI` is already exported alongside the
+default `openai` instance, so this adds no dependency.
 
 ```ts
+import { openai, createOpenAI } from '@ai-sdk/openai';
+
 const ollama = createOpenAI({ baseURL: env.OLLAMA_BASE_URL, apiKey: 'ollama' });
 const registry = createProviderRegistry({ anthropic, openai, google, ollama });
 ```
 
+`apiKey` is required by the SDK and ignored by Ollama; any non-empty string does.
+`UnknownProviderError` hardcodes the provider list in its message and must gain
+`ollama` with the same change, or a typo will be reported against a list that no
+longer matches the registry.
+
 `AGENT_MODEL=ollama:llama3.1:8b` therefore works unchanged. The registry splits
-on the **first** separator only — `splitId` uses `indexOf(separator)` — so a model
-tag containing its own colon survives. This is the one thing about the spec most
-likely to be assumed broken; it is not.
+on the **first** separator only — `ProviderRegistry.splitId` uses
+`indexOf(separator)` (verified in `ai@7.0.100`) — so a model tag containing its
+own colon survives. This is the one thing about the spec most likely to be
+assumed broken; it is not.
 
 ## It will lose the race, and that is information
 
@@ -119,11 +128,10 @@ dominated by `schema_invalid` is a statement about the model's schema adherence,
 and choosing a different local model is the fix. Changing the contract to suit a
 small model is not: the contract is what the hosted path depends on.
 
-## The compose service
+## Ollama sits behind a compose profile, so the default `up` is unchanged
 
-Ollama sits behind a compose **profile**, so `docker compose up` behaves exactly
-as it does today. A contributor who wants Postgres must not be made to pull
-several gigabytes of model weights.
+A contributor who wants Postgres must not be made to pull several gigabytes of
+model weights, so the service starts only when asked for by name.
 
 | Property    | Value                                                         |
 | ----------- | ------------------------------------------------------------- |
@@ -134,9 +142,14 @@ several gigabytes of model weights.
 | Volume      | named volume on `/root/.ollama`, so weights survive `down`    |
 | Healthcheck | `GET /api/tags` — ready means _serving_, not merely _started_ |
 
-The model is pulled on first use and cached in the volume. The pull is a
-documented first-run cost, not a silent one: the spec must state the size a
-contributor is about to download before they run the command.
+The recommended model is **`llama3.1:8b`, approximately 4.7 GB** at the default
+Q4 quantisation. It is pulled on first use and cached in the volume, so the cost
+is paid once per machine rather than once per `up`.
+
+That number is stated here because a multi-gigabyte download must never be a
+surprise a contributor discovers halfway through it. Any other 7-8B model works;
+the size is of the same order, and the spec pins one so that the verification
+steps below are reproducible rather than approximate.
 
 `OLLAMA_BASE_URL` defaults to `http://localhost:11434/v1` for a host-run agent and
 `http://ollama:11434/v1` inside compose. Both appear in `.env.example`, commented,
@@ -148,12 +161,12 @@ alongside the existing providers (spec 003).
   `ollama` service reports the model in `GET /api/tags`. A container that is up
   but has not finished pulling is not ready, which is why the healthcheck is on
   `/api/tags` rather than the port.
-- `AGENT_MODEL=ollama:<model> pnpm simulate "<a question from the demo catalog>"`
+- `AGENT_MODEL=ollama:llama3.1:8b pnpm simulate "<a question from the demo catalog>"`
   returns a valid Dynamic Block v2 body. Expect the acknowledgement rather than an
   answer — that is the race behaving as specified above, not a failure.
 - The deferred reply arrives in `outbox` and the worker drains it.
-- `AGENT_MODEL=ollama:<model> pnpm eval` runs. Report the pass rate **and** the
-  `schema_invalid` count, and label both as local-model figures.
+- `AGENT_MODEL=ollama:llama3.1:8b pnpm eval` runs. Report the pass rate **and**
+  the `schema_invalid` count, and label both as local-model figures.
 - A unit test asserts `estimateCostUsd` returns exactly `0` for an `ollama:` spec.
   This is the only part of this spec that CI can enforce.
 - `AGENT_MODEL=ollama:llama3.1:8b` resolves, proving the first-colon split.

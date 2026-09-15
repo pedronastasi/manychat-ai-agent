@@ -43,7 +43,7 @@ So the rule is stronger than "record the status". It is:
 Constitution C8 already requires behavioural tests to cite the spec clause they
 enforce. That citation is the evidence. This spec only makes it load-bearing.
 
-## The four statuses
+## Four statuses are enough, and "partial" is deliberately absent
 
 | Status        | The claim it makes                                      | Evidence required                        |
 | ------------- | ------------------------------------------------------- | ---------------------------------------- |
@@ -57,7 +57,7 @@ the value would attach to everything and distinguish nothing — and it offers a
 author an easy way to avoid deciding. A spec whose implementation genuinely
 stopped half way is two specs: the part that shipped, and the part that did not.
 
-## The fields
+## Every field is specified; unrecognised keys are failures
 
 ```yaml
 ---
