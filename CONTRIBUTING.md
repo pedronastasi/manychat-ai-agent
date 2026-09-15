@@ -47,6 +47,7 @@ repo has conventions about, so they do not depend on remembering them.
 | Skill       | Use it to                                                            |
 | ----------- | -------------------------------------------------------------------- |
 | `adr`       | Write an ADR in `docs/adr/` in the format the existing seven follow. |
+| `spec`      | Write a spec in `specs/` - contract or position.                     |
 | `new-skill` | Add another one of these.                                            |
 
 They are committed on purpose - a skill encoding this repo's format is repo
