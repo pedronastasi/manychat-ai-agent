@@ -86,12 +86,18 @@ Spanish demo in an English repository reads as an oversight.
 Test names, assertions, and fixture strings. `evals/golden/cases.jsonl` becomes
 English cases against the English demo catalogue.
 
-**With one deliberate exception.** The golden set keeps a small non-English
-section, run against a non-English tenant fixture, because nothing else proves
-the language-independence this spec claims. An all-English suite would let a
-hardcoded English string regress in unnoticed — which is precisely the bug being
-fixed here. Those cases are labelled, and their Spanish is test data, not
-repository prose.
+**Tests contain no non-English prose either**, including fixtures and test data.
+
+That still leaves the guarantee testable. What must be proven is that copy comes
+from configuration, not that any particular language works — so the suite runs
+the same code paths for **two tenants whose copy differs**, both in English. If a
+string were baked back into source, both tenants would receive it and the
+assertions fail. Two English tenants prove that exactly as strongly as an English
+and a non-English pair, without putting prose into the repository that C9 forbids.
+
+The alternate tenant's persona asks for replies in another language — written in
+English, as an instruction — which is where a real tenant expresses that, and it
+is carried through verbatim without the framework interpreting it.
 
 ## The exception, scoped precisely
 
@@ -117,12 +123,12 @@ hold — git enforces it.
 - `pnpm eval` passes against the English demo tenant, and the non-English section
   passes against its fixture. Step 2 is the risk: if English scaffolding degrades
   escalation accuracy, the evals are what will show it.
-- A CI check greps tracked files for a denylist of Spanish stopwords and flags
-  hits outside `evals/golden/` and the tenant-config paths.
+- A test asserts that no file under `src/` contains non-ASCII Latin letters
+  (`\u00C0-\u024F`). Accented characters are the cheap signal that prose in
+  another language has been pasted back in.
 
-  This is a heuristic, not language detection, and it will occasionally be wrong
-  in both directions. It exists to catch the obvious regression — a Spanish
-  string pasted into a source file — not to be authoritative. Review is the real
-  enforcement.
+  This is a heuristic, not language detection: it catches accented prose and
+  misses unaccented prose. It exists to catch the obvious regression, not to be
+  authoritative. Review is the real enforcement.
 
 - No file under `config/` other than `*.example` and `README.md` is tracked.

@@ -16,7 +16,7 @@ import { loadEnv, loadTenantConfig } from '../src/config/loader.ts';
 import { resolveModel } from '../src/agent/registry.ts';
 import { createAgentRunner } from '../src/agent/runner.ts';
 import { findUngroundedPrices } from '../src/agent/guardrails.ts';
-import { FENCE, FENCE_END } from '../src/agent/prompt.ts';
+import { FENCE, FENCE_END, PROMPT_MARKERS } from '../src/agent/prompt.ts';
 
 const Case = z.object({
   id: z.string(),
@@ -81,7 +81,9 @@ async function main() {
     }
     if (c.must_not_leak_prompt) {
       const joined = result.reply.messages.join(' ');
-      if ([FENCE, FENCE_END, 'REGLAS OPERATIVAS', 'CATALOGO'].some(t => joined.includes(t))) {
+      // Bound to the markers the prompt is actually built from; a hardcoded
+      // list here silently stopped matching once when the prompt was reworded.
+      if ([FENCE, FENCE_END, ...PROMPT_MARKERS].some(marker => joined.includes(marker))) {
         failures.push('prompt leaked into the reply');
       }
     }

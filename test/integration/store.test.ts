@@ -28,7 +28,8 @@ afterEach(async () => {
 });
 
 const rules = RulesSchema.parse({
-  escalationKeywords: ['hablar con una persona'],
+  messages: { acknowledgement: 'One moment.', escalation: 'Passing you to a person.' },
+  escalationKeywords: ['speak to a human'],
   budget: { dailyTokenCap: 1000, dailyCostCapUsd: 0.5 },
   rateLimit: { turnsPerSubscriberPerHour: 3 },
 });
@@ -62,17 +63,17 @@ describe('conversation store', () => {
 
   it('returns history oldest-first', async () => {
     const c = await startTurn(db, { tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' });
-    await recordUserMessage(db, c.id, 'primera');
-    await recordAgentReply(db, c.id, 'respuesta', 'answered_inline', {
+    await recordUserMessage(db, c.id, 'first');
+    await recordAgentReply(db, c.id, 'reply', 'answered_inline', {
       inputTokens: 10,
       outputTokens: 5,
       cacheReadTokens: 8,
       costUsd: 0.0001,
       model: 'anthropic:claude-haiku-4-5',
     });
-    await recordUserMessage(db, c.id, 'segunda');
+    await recordUserMessage(db, c.id, 'second');
     const h = await recentTurns(db, c.id);
-    expect(h.map(t => t.text)).toEqual(['primera', 'respuesta', 'segunda']);
+    expect(h.map(t => t.text)).toEqual(['first', 'reply', 'second']);
   });
 
   it('records escalation', async () => {
@@ -118,8 +119,8 @@ describe('guards', () => {
   });
 
   it('matches escalation keywords case-insensitively', () => {
-    expect(checkKeywords('quiero HABLAR CON UNA PERSONA ya', rules).allowed).toBe(false);
-    expect(checkKeywords('cuanto sale el curso?', rules).allowed).toBe(true);
+    expect(checkKeywords('i want to SPEAK TO A HUMAN now', rules).allowed).toBe(false);
+    expect(checkKeywords('how much is the course?', rules).allowed).toBe(true);
   });
 
   it('caps conversation length', async () => {

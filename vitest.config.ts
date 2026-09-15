@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // Integration tests boot a PGlite instance per test. That is a few seconds
+    // normally and noticeably slower under v8 coverage instrumentation, so the
+    // default 5s timeout produces failures that are purely about tooling speed.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

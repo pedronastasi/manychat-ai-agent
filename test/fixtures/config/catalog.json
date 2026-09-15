@@ -1,45 +1,45 @@
 {
   "businessName": "Demo Academy",
-  "currency": "ARS",
+  "currency": "USD",
   "courses": [
     {
-      "id": "inicial",
-      "name": "Curso Inicial",
-      "description": "Formacion desde cero. No requiere experiencia previa.",
-      "price": { "amount": 4500000, "currency": "ARS" },
+      "id": "foundation",
+      "name": "Foundation Course",
+      "description": "Start from zero. No previous experience required.",
+      "price": { "amount": 45000, "currency": "USD" },
       "durationHours": 24,
-      "schedule": "Martes y jueves de 18 a 21h, 4 semanas",
-      "enrollmentUrl": "https://example.com/inscripcion/inicial"
+      "schedule": "Tuesdays and Thursdays, 6-9pm, for 4 weeks",
+      "enrollmentUrl": "https://example.com/enrol/foundation"
     },
     {
-      "id": "avanzado",
-      "name": "Curso Avanzado",
-      "description": "Para quienes ya completaron el inicial o tienen experiencia.",
-      "price": { "amount": 6800000, "currency": "ARS" },
+      "id": "advanced",
+      "name": "Advanced Course",
+      "description": "For anyone who finished the foundation course or has equivalent experience.",
+      "price": { "amount": 68000, "currency": "USD" },
       "durationHours": 32,
-      "schedule": "Sabados de 10 a 16h, 5 semanas",
-      "enrollmentUrl": "https://example.com/inscripcion/avanzado"
+      "schedule": "Saturdays, 10am-4pm, for 5 weeks",
+      "enrollmentUrl": "https://example.com/enrol/advanced"
     },
     {
-      "id": "intensivo",
-      "name": "Intensivo de Fin de Semana",
-      "description": "Version condensada del inicial en dos jornadas completas.",
-      "price": { "amount": 3200000, "currency": "ARS" },
+      "id": "weekend-intensive",
+      "name": "Weekend Intensive",
+      "description": "The foundation course condensed into two full days.",
+      "price": { "amount": 32000, "currency": "USD" },
       "durationHours": 12,
-      "schedule": "Un fin de semana al mes, sabado y domingo de 10 a 16h",
-      "enrollmentUrl": "https://example.com/inscripcion/intensivo"
+      "schedule": "One weekend a month, Saturday and Sunday 10am-4pm",
+      "enrollmentUrl": "https://example.com/enrol/weekend-intensive"
     }
   ],
   "faq": [
     {
-      "question": "Dan certificado?",
-      "answer": "Si, al finalizar recibis un certificado de asistencia."
+      "question": "Do you give a certificate?",
+      "answer": "Yes, you receive a certificate of attendance when you finish."
     },
     {
-      "question": "Incluye materiales?",
-      "answer": "El kit de practica esta incluido en todos los cursos."
+      "question": "Are materials included?",
+      "answer": "The practice kit is included with every course."
     },
-    { "question": "Donde quedan?", "answer": "Las clases son presenciales en la sede central." },
-    { "question": "Hay clases online?", "answer": "Por ahora todos los cursos son presenciales." }
+    { "question": "Where are you located?", "answer": "Classes are in person at the main campus." },
+    { "question": "Do you run online classes?", "answer": "All courses are in person for now." }
   ]
 }

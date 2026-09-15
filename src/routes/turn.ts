@@ -34,8 +34,6 @@ export interface TurnResult {
   conversationId: string;
 }
 
-const ACK_MESSAGE = 'Dame un segundo que lo chequeo 👍';
-
 /**
  * Runs one conversational turn under the platform's timeout (specs/002).
  *
@@ -62,7 +60,7 @@ export async function handleTurn(deps: TurnDeps, inbound: InboundMessage): Promi
   ];
   const denied = guards.find(g => !g.allowed);
   if (denied && !denied.allowed) {
-    const reply = escalationReply(denied.reason);
+    const reply = escalationReply(denied.reason, rules.messages.escalation);
     await recordAgentReply(db, conversation.id, reply.messages[0]!, 'escalated_precheck');
     await markEscalated(db, conversation.id);
     logger.info({ reason: denied.reason, detail: denied.detail }, 'turn escalated before model');
@@ -129,7 +127,7 @@ export async function handleTurn(deps: TurnDeps, inbound: InboundMessage): Promi
 
     return {
       reply: {
-        messages: [ACK_MESSAGE],
+        messages: [rules.messages.acknowledgement],
         escalate: false,
         escalation_reason: null,
         confidence: 1,
@@ -144,7 +142,7 @@ export async function handleTurn(deps: TurnDeps, inbound: InboundMessage): Promi
 
   if (winner.kind === 'error') {
     logger.error({ err: String(winner.error) }, 'model call failed');
-    const reply = escalationReply('low_confidence');
+    const reply = escalationReply('low_confidence', rules.messages.escalation);
     await recordAgentReply(db, conversation.id, reply.messages[0]!, 'error');
     await markEscalated(db, conversation.id);
     return { reply, outcome: 'error', conversationId: conversation.id };
@@ -157,5 +155,3 @@ export async function handleTurn(deps: TurnDeps, inbound: InboundMessage): Promi
   }
   return { reply: winner.result.reply, outcome, conversationId: conversation.id };
 }
-
-export { ACK_MESSAGE };

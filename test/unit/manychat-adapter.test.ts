@@ -5,7 +5,7 @@ import { capabilitiesFor } from '../../src/contracts/config.ts';
 import type { AgentReply } from '../../src/contracts/agent.ts';
 
 const reply: AgentReply = {
-  messages: ['Hola!', 'El curso sale $45.000.'],
+  messages: ['Hi!', 'The foundation course is $450.00.'],
   escalate: false,
   escalation_reason: null,
   confidence: 0.9,
@@ -16,7 +16,7 @@ describe('Dynamic Block v2 rendering', () => {
     const out = renderManyChat(reply, { capabilities: capabilitiesFor('whatsapp') });
     expect(out.version).toBe('v2');
     expect(out.content.messages).toHaveLength(2);
-    expect(out.content.messages[0]).toEqual({ type: 'text', text: 'Hola!' });
+    expect(out.content.messages[0]).toEqual({ type: 'text', text: 'Hi!' });
   });
 
   it('OMITS quick_replies on WhatsApp rather than sending an empty array', () => {
@@ -74,7 +74,7 @@ describe('inbound parsing', () => {
 
   it('normalizes a ManyChat payload', () => {
     const m = adapter.parse(
-      { subscriber_id: 998, text: 'hola', first_name: 'Ana', last_name: 'Diaz', locale: 'es_AR' },
+      { subscriber_id: 998, text: 'hello', first_name: 'Ana', last_name: 'Diaz', locale: 'es_AR' },
       ctx,
     );
     expect(m.subscriberId).toBe('998');

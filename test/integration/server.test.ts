@@ -4,8 +4,21 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { loadEnv, ConfigStore } from '../../src/config/loader.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
-import { ACK_MESSAGE } from '../../src/routes/turn.ts';
 import { claimBatch } from '../../src/outbox/queue.ts';
+import { readFileSync } from 'node:fs';
+
+/** The acknowledgement is tenant copy now (Constitution C9), not a constant. */
+const ACK_MESSAGE = (
+  JSON.parse(readFileSync('test/fixtures/config/rules.json', 'utf8')) as {
+    messages: { acknowledgement: string };
+  }
+).messages.acknowledgement;
+
+const ESCALATION_MESSAGE = (
+  JSON.parse(readFileSync('test/fixtures/config/rules.json', 'utf8')) as {
+    messages: { escalation: string };
+  }
+).messages.escalation;
 
 const SECRET = 'a'.repeat(32);
 const ROTATING = 'b'.repeat(32);
@@ -36,7 +49,7 @@ const okResult = (messages: string[], escalate = false): AgentResult => ({
 });
 
 const fastRunner: AgentRunner = {
-  run: async () => okResult(['Hola!', 'El inicial sale $45.000.']),
+  run: async () => okResult(['Hi!', 'The foundation course is $450.00.']),
 };
 
 /**
@@ -48,7 +61,7 @@ const fastRunner: AgentRunner = {
 const slowRunner: AgentRunner = {
   run: async ({ signal }) =>
     new Promise((resolve, reject) => {
-      const t = setTimeout(() => resolve(okResult(['Respuesta tardia'])), 1500);
+      const t = setTimeout(() => resolve(okResult(['Late reply'])), 1500);
       signal?.addEventListener('abort', () => {
         clearTimeout(t);
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
@@ -88,21 +101,21 @@ const post = (app: Awaited<ReturnType<typeof makeApp>>, body: unknown, secret?: 
 describe('authentication (ADR-0006)', () => {
   it('rejects a request with no credential', async () => {
     const app = await makeApp(fastRunner);
-    const res = await post(app, { subscriber_id: '1', text: 'hola' });
+    const res = await post(app, { subscriber_id: '1', text: 'hello' });
     expect(res.statusCode).toBe(401);
     await app.close();
   });
 
   it('rejects a wrong secret', async () => {
     const app = await makeApp(fastRunner);
-    const res = await post(app, { subscriber_id: '1', text: 'hola' }, 'c'.repeat(32));
+    const res = await post(app, { subscriber_id: '1', text: 'hello' }, 'c'.repeat(32));
     expect(res.statusCode).toBe(401);
     await app.close();
   });
 
   it('rejects a secret of a different length', async () => {
     const app = await makeApp(fastRunner);
-    expect((await post(app, { subscriber_id: '1', text: 'hola' }, 'short')).statusCode).toBe(401);
+    expect((await post(app, { subscriber_id: '1', text: 'hello' }, 'short')).statusCode).toBe(401);
     await app.close();
   });
 
@@ -115,7 +128,7 @@ describe('authentication (ADR-0006)', () => {
 
   it('leaks nothing in the 401 body', async () => {
     const app = await makeApp(fastRunner);
-    const res = await post(app, { subscriber_id: '1', text: 'hola' });
+    const res = await post(app, { subscriber_id: '1', text: 'hello' });
     expect(res.json()).toEqual({ error: 'unauthorized' });
     await app.close();
   });
@@ -124,7 +137,7 @@ describe('authentication (ADR-0006)', () => {
 describe('inbound validation', () => {
   it('rejects unknown fields with 400', async () => {
     const app = await makeApp(fastRunner);
-    const res = await post(app, { subscriber_id: '1', text: 'hola', injected: 'x' }, SECRET);
+    const res = await post(app, { subscriber_id: '1', text: 'hello', injected: 'x' }, SECRET);
     expect(res.statusCode).toBe(400);
     await app.close();
   });
@@ -139,27 +152,27 @@ describe('inbound validation', () => {
 describe('inline reply (race won)', () => {
   it('returns a valid Dynamic Block v2 body', async () => {
     const app = await makeApp(fastRunner);
-    const res = await post(app, { subscriber_id: '77', text: 'cuanto sale?' }, SECRET);
+    const res = await post(app, { subscriber_id: '77', text: 'how much is it?' }, SECRET);
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.version).toBe('v2');
     expect(body.content.messages.map((m: { text: string }) => m.text)).toEqual([
-      'Hola!',
-      'El inicial sale $45.000.',
+      'Hi!',
+      'The foundation course is $450.00.',
     ]);
     await app.close();
   });
 
   it('omits quick_replies on WhatsApp', async () => {
     const app = await makeApp(fastRunner);
-    const body = (await post(app, { subscriber_id: '77', text: 'hola' }, SECRET)).json();
+    const body = (await post(app, { subscriber_id: '77', text: 'hello' }, SECRET)).json();
     expect('quick_replies' in body.content).toBe(false);
     await app.close();
   });
 
   it('re-registers external_message_callback every turn', async () => {
     const app = await makeApp(fastRunner);
-    const body = (await post(app, { subscriber_id: '77', text: 'hola' }, SECRET)).json();
+    const body = (await post(app, { subscriber_id: '77', text: 'hello' }, SECRET)).json();
     const cb = body.content.external_message_callback;
     expect(cb.url).toBe('https://agent.example.com/v1/channels/manychat/message');
     expect(cb.headers.Authorization).toBe(`Bearer ${SECRET}`);
@@ -168,7 +181,7 @@ describe('inline reply (race won)', () => {
 
   it('persists the turn and its token usage', async () => {
     const app = await makeApp(fastRunner);
-    await post(app, { subscriber_id: '77', text: 'hola' }, SECRET);
+    await post(app, { subscriber_id: '77', text: 'hello' }, SECRET);
     const turns = await db.query.turns.findMany();
     expect(turns).toHaveLength(2);
     const agentTurn = turns.find(t => t.role === 'agent')!;
@@ -182,7 +195,7 @@ describe('deferred reply (race lost) — ADR-0001', () => {
   it('acknowledges within the platform timeout instead of hanging', async () => {
     const app = await makeApp(slowRunner);
     const started = Date.now();
-    const res = await post(app, { subscriber_id: '88', text: 'algo lento' }, SECRET);
+    const res = await post(app, { subscriber_id: '88', text: 'something slow' }, SECRET);
     const elapsed = Date.now() - started;
 
     expect(res.statusCode).toBe(200);
@@ -194,13 +207,13 @@ describe('deferred reply (race lost) — ADR-0001', () => {
 
   it('delivers the real answer to the outbox once the model finishes', async () => {
     const app = await makeApp(slowRunner);
-    await post(app, { subscriber_id: '88', text: 'algo lento' }, SECRET);
+    await post(app, { subscriber_id: '88', text: 'something slow' }, SECRET);
     // Let the abandoned-but-not-cancelled model call complete.
     await new Promise(r => setTimeout(r, 2000));
 
     const claimed = await claimBatch(db, 10);
     expect(claimed).toHaveLength(1);
-    expect(claimed[0]!.payload.messages).toEqual(['Respuesta tardia']);
+    expect(claimed[0]!.payload.messages).toEqual(['Late reply']);
     expect(claimed[0]!.subscriberId).toBe('88');
     await app.close();
   });
@@ -218,7 +231,7 @@ describe('escalation', () => {
     const app = await makeApp(spy);
     const res = await post(
       app,
-      { subscriber_id: '99', text: 'quiero hablar con una persona' },
+      { subscriber_id: '99', text: 'i want to speak to a human' },
       SECRET,
     );
 
@@ -236,10 +249,10 @@ describe('escalation', () => {
       },
     };
     const app = await makeApp(boom);
-    const res = await post(app, { subscriber_id: '99', text: 'hola' }, SECRET);
+    const res = await post(app, { subscriber_id: '99', text: 'hello' }, SECRET);
     // A provider failure must not surface as a 500 to the platform.
     expect(res.statusCode).toBe(200);
-    expect(res.json().content.messages[0].text).toMatch(/equipo/i);
+    expect(res.json().content.messages[0].text).toBe(ESCALATION_MESSAGE);
     await app.close();
   });
 });

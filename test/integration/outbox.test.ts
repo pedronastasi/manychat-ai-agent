@@ -30,7 +30,7 @@ afterEach(async () => {
   await close();
 });
 
-const reply = (text = 'la respuesta'): AgentReply => ({
+const reply = (text = 'the reply'): AgentReply => ({
   messages: [text],
   escalate: false,
   escalation_reason: null,
@@ -172,12 +172,12 @@ describe('outcomes', () => {
 
 describe('drainOnce', () => {
   it('delivers a pending reply and reports it', async () => {
-    await enqueue('sub-9', 'hola!');
+    await enqueue('sub-9', 'hi!');
     const client = stubClient();
     const result = await drainOnce({ db, client, logger: silentLogger });
 
     expect(result).toMatchObject({ claimed: 1, delivered: 1, retrying: 0, deadLettered: 0 });
-    expect(client.sent).toEqual([{ subscriberId: 'sub-9', messages: ['hola!'] }]);
+    expect(client.sent).toEqual([{ subscriberId: 'sub-9', messages: ['hi!'] }]);
   });
 
   it('is a no-op when the queue is empty', async () => {

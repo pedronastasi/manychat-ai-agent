@@ -17,12 +17,12 @@ That runs with **no API key and no database to install** — an offline mock mod
 and an embedded Postgres. In another terminal:
 
 ```bash
-$ pnpm simulate "cuanto sale el curso inicial?"
+$ pnpm simulate "how much is the foundation course?"
 
-  contacto  cuanto sale el curso inicial?
+  contact   how much is the foundation course?
   ------------------------------------------------------------
-  agente    El Curso Inicial sale $45.000.
-  agente    Son 24hs, martes y jueves de 18 a 21h. Te paso el link?
+  agent     The Foundation Course is $450.00.
+  agent     It runs 24 hours, Tuesdays and Thursdays 6-9pm. Want the link?
   ------------------------------------------------------------
   45ms  |  callback: registered  |  quick_replies: omitted
 ```

@@ -56,8 +56,8 @@ rather than one wall of text. `confidence` below the configured threshold forces
 ## Register
 
 The tenant configures language and tone (`config/prompt.md`). The default demo
-tenant uses neutral Latin American Spanish. The agent matches the contact's
-language when it differs from the default.
+tenant replies in English. The agent matches the contact's language when the
+persona tells it to.
 
 Never: emoji spam, ALL CAPS, invented urgency, or claims of being human. If asked
 directly whether it is a bot, it says yes plainly and offers a handoff.

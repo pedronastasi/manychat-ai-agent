@@ -1,14 +1,17 @@
 {
+  "messages": {
+    "acknowledgement": "Give me one second while I check that.",
+    "escalation": "Let me put you through to someone on the team who can give you the exact answer. They'll reply here shortly."
+  },
   "confidenceThreshold": 0.6,
   "maxTurnsPerConversation": 25,
   "escalationKeywords": [
-    "hablar con una persona",
-    "hablar con alguien",
-    "queja",
-    "reclamo",
-    "reembolso",
-    "devolucion",
-    "estafa"
+    "speak to a human",
+    "talk to someone",
+    "complaint",
+    "refund",
+    "money back",
+    "scam"
   ],
   "budget": {
     "dailyTokenCap": 1000000,

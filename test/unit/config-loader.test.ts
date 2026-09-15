@@ -86,13 +86,25 @@ describe('loadTenantConfig', () => {
   it('rejects an out-of-range confidence threshold', () => {
     writeFileSync(
       join(dir, 'rules.json'),
-      JSON.stringify({ confidenceThreshold: 1.7, budget: {}, rateLimit: {} }),
+      JSON.stringify({
+        messages: { acknowledgement: 'One moment.', escalation: 'Passing you over.' },
+        confidenceThreshold: 1.7,
+        budget: {},
+        rateLimit: {},
+      }),
     );
     expect(() => loadTenantConfig(dir)).toThrow(/confidenceThreshold/);
   });
 
   it('applies documented defaults for omitted rules', () => {
-    writeFileSync(join(dir, 'rules.json'), JSON.stringify({ budget: {}, rateLimit: {} }));
+    writeFileSync(
+      join(dir, 'rules.json'),
+      JSON.stringify({
+        messages: { acknowledgement: 'One moment.', escalation: 'Passing you over.' },
+        budget: {},
+        rateLimit: {},
+      }),
+    );
     const cfg = loadTenantConfig(dir);
     expect(cfg.rules.confidenceThreshold).toBe(0.6);
     expect(cfg.rules.maxTurnsPerConversation).toBe(25);
@@ -107,7 +119,12 @@ describe('ConfigStore reload', () => {
 
     writeFileSync(
       join(dir, 'rules.json'),
-      JSON.stringify({ confidenceThreshold: 0.95, budget: {}, rateLimit: {} }),
+      JSON.stringify({
+        messages: { acknowledgement: 'One moment.', escalation: 'Passing you over.' },
+        confidenceThreshold: 0.95,
+        budget: {},
+        rateLimit: {},
+      }),
     );
     expect(store.reload()).toEqual({ ok: true });
     expect(store.get().rules.confidenceThreshold).toBe(0.95);
@@ -141,7 +158,12 @@ describe('ConfigStore reload', () => {
 
     writeFileSync(
       join(dir, 'rules.json'),
-      JSON.stringify({ confidenceThreshold: 0.75, budget: {}, rateLimit: {} }),
+      JSON.stringify({
+        messages: { acknowledgement: 'One moment.', escalation: 'Passing you over.' },
+        confidenceThreshold: 0.75,
+        budget: {},
+        rateLimit: {},
+      }),
     );
     expect(store.reload()).toEqual({ ok: true });
     expect(store.get().rules.confidenceThreshold).toBe(0.75);
