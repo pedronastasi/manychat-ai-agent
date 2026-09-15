@@ -186,11 +186,141 @@ still applies and guards against runaway loops. The 8 s race deadline means the
 deferred path (acknowledge now, push the real answer later) becomes the default
 for slower local models — that is by design.
 
-## Deployment
+## Running the full stack with Docker
+
+Everything below uses the **mock model** (free, deterministic, no API key). To
+use a real cloud model, set `AGENT_MODEL` and the matching API key in `.env`
+before step 3.
+
+### 1. Clone and bootstrap
+
+```bash
+git clone https://github.com/pedronastasi/manychat-ai-agent.git
+cd manychat-ai-agent
+pnpm install && pnpm bootstrap
+```
+
+`pnpm bootstrap` copies the example configs and `.env`. Everything in `config/`
+is gitignored, so tenant data never reaches version control.
+
+### 2. Set a shared secret
+
+Open `.env` and replace the placeholder `MANYCHAT_SHARED_SECRET` with a real
+value — any string of at least 16 characters. This is the bearer token you will
+use in curl:
+
+```bash
+# generate one if you like
+openssl rand -hex 32
+```
+
+### 3. Start the containers
 
 ```bash
 docker compose up --build
 ```
+
+This starts Postgres 18 and the agent. Wait for the log line:
+
+```
+{"level":30,"msg":"Server listening at http://0.0.0.0:3000"}
+```
+
+### 4. Chat with the agent
+
+The agent exposes one endpoint: `POST /v1/channels/manychat/message`. It expects
+a ManyChat Dynamic Block payload — a JSON body with at least `subscriber_id` and
+`text` — and an `Authorization: Bearer <secret>` header.
+
+**Ask about course prices:**
+
+```bash
+curl -s http://localhost:3000/v1/channels/manychat/message \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <your-secret-from-.env>' \
+  -d '{"subscriber_id": "test-001", "text": "how much is the foundation course?"}' \
+  | jq .
+```
+
+The response is a [Dynamic Block v2](https://manychat.github.io/dynamic_block_docs/)
+object. The agent's reply is in `.content.messages[].text`:
+
+```json
+{
+  "version": "v2",
+  "content": {
+    "messages": [
+      { "type": "text", "text": "The Foundation Course is $450.00." },
+      { "type": "text", "text": "It runs 24 hours total. Want the enrolment link?" }
+    ],
+    "external_message_callback": {
+      "url": "https://agent.example.com/v1/channels/manychat/message",
+      "method": "post",
+      "headers": { "Authorization": "Bearer ..." },
+      "timeout": 86400
+    }
+  }
+}
+```
+
+The `external_message_callback` is what keeps the conversation alive: ManyChat
+sends the contact's next message back here, rather than falling through to its
+own flow.
+
+**Continue the conversation** (same `subscriber_id`):
+
+```bash
+curl -s http://localhost:3000/v1/channels/manychat/message \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <your-secret-from-.env>' \
+  -d '{"subscriber_id": "test-001", "text": "yes, send it"}' \
+  | jq .content.messages
+```
+
+**Trigger an escalation:**
+
+```bash
+curl -s http://localhost:3000/v1/channels/manychat/message \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <your-secret-from-.env>' \
+  -d '{"subscriber_id": "test-001", "text": "I want to speak to a human"}' \
+  | jq .content.messages
+```
+
+**Healthcheck:**
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+```
+
+### 5. (Optional) Use a local model
+
+To test with a real model for free, add Ollama:
+
+```bash
+docker compose --profile local-model up --build
+```
+
+Then set `AGENT_MODEL=ollama:llama3.1:8b` in `.env` and restart the agent
+container (`docker compose up --build agent`). The first run pulls ~4.7 GB;
+subsequent starts are instant.
+
+With a local model, responses typically take 9–120 s, so the **deferred path**
+fires on most turns: the agent sends an acknowledgement within 8 s, and the full
+reply arrives later via the outbox worker.
+
+### Using `pnpm simulate` instead of curl
+
+If you prefer running outside Docker (`pnpm dev`), the simulator wraps the same
+request and formats the output:
+
+```bash
+pnpm simulate "how much is the foundation course?"
+pnpm simulate --subscriber 42 "can you give me a discount?"
+```
+
+## Deployment
 
 Point a ManyChat **Dynamic Block** (Dev Tools, requires a Pro plan) at
 `POST /v1/channels/manychat/message` and add an `Authorization: Bearer <secret>`
