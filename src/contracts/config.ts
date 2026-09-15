@@ -169,6 +169,11 @@ export const EnvSchema = z
     MANYCHAT_SHARED_SECRET: z.string().min(16).transform(csv),
     MANYCHAT_API_TOKEN: optionalString,
     MANYCHAT_API_BASE: z.string().url().default('https://api.manychat.com'),
+    // Both name objects inside the tenant's ManyChat account, not in this repo.
+    // Renaming either there breaks delivery at runtime and no test can see it
+    // (specs/002-channel-contract.md § Verification).
+    MANYCHAT_REPLY_FIELD: z.string().min(1).default('ai_message'),
+    MANYCHAT_REPLY_FLOW_NS: optionalString,
 
     DATABASE_URL: z.string().min(1),
     TENANT_ID: z.string().min(1).default('demo'),
