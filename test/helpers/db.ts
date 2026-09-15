@@ -14,7 +14,7 @@ export async function createTestDatabase(): Promise<{ db: Database; close: () =>
   const client = new PGlite();
   const dir = join(import.meta.dirname, '../../db/migrations');
   for (const file of readdirSync(dir)
-    .filter(f => f.endsWith('.sql'))
+    .filter(name => name.endsWith('.sql'))
     .sort()) {
     const sql = readFileSync(join(dir, file), 'utf8');
     for (const stmt of sql.split('--> statement-breakpoint')) {

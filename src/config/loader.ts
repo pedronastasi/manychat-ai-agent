@@ -27,7 +27,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse(source);
   if (!parsed.success) {
     const detail = parsed.error.issues
-      .map(i => `  ${i.path.join('.') || '(root)'}: ${i.message}`)
+      .map(issue => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`)
       .join('\n');
     throw new ConfigError(`Invalid environment:\n${detail}\n\nSee .env.example.`);
   }
@@ -57,7 +57,7 @@ export function loadTenantConfig(dir = 'config'): TenantConfig {
   if (!catalog.success) {
     throw new ConfigError(
       `Invalid catalog.json:\n` +
-        catalog.error.issues.map(i => `  ${i.path.join('.')}: ${i.message}`).join('\n'),
+        catalog.error.issues.map(issue => `  ${issue.path.join('.')}: ${issue.message}`).join('\n'),
     );
   }
 
@@ -65,7 +65,7 @@ export function loadTenantConfig(dir = 'config'): TenantConfig {
   if (!rules.success) {
     throw new ConfigError(
       `Invalid rules.json:\n` +
-        rules.error.issues.map(i => `  ${i.path.join('.')}: ${i.message}`).join('\n'),
+        rules.error.issues.map(issue => `  ${issue.path.join('.')}: ${issue.message}`).join('\n'),
     );
   }
 

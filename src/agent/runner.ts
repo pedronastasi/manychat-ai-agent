@@ -74,10 +74,10 @@ export class GenerateObjectRunner implements AgentRunner {
     const started = Date.now();
 
     const messages: ModelMessage[] = [
-      ...history.map((h): ModelMessage =>
-        h.role === 'user'
-          ? { role: 'user', content: fenceUserText(h.text) }
-          : { role: 'assistant', content: h.text },
+      ...history.map((turn): ModelMessage =>
+        turn.role === 'user'
+          ? { role: 'user', content: fenceUserText(turn.text) }
+          : { role: 'assistant', content: turn.text },
       ),
       { role: 'user', content: fenceUserText(text) },
     ];

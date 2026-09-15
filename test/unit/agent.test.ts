@@ -67,30 +67,32 @@ const good = { messages: ['Hi!'], escalate: false, escalation_reason: null, conf
 describe('agent runner', () => {
   it('returns a validated reply and computes cost from usage', async () => {
     const { runner } = run(good, { inputTokens: 2000, outputTokens: 100, cacheReadTokens: 1800 });
-    const r = await runner.run({ text: 'hello', history: [] });
-    expect(r.reply.messages).toEqual(['Hi!']);
-    expect(r.usage.inputTokens).toBe(2000);
-    expect(r.usage.cacheReadTokens).toBe(1800);
+    const result = await runner.run({ text: 'hello', history: [] });
+    expect(result.reply.messages).toEqual(['Hi!']);
+    expect(result.usage.inputTokens).toBe(2000);
+    expect(result.usage.cacheReadTokens).toBe(1800);
     // 200 fresh @ $1/M + 1800 cached @ $0.10/M + 100 out @ $5/M
-    expect(r.usage.costUsd).toBeCloseTo(0.0002 + 0.00018 + 0.0005, 8);
+    expect(result.usage.costUsd).toBeCloseTo(0.0002 + 0.00018 + 0.0005, 8);
   });
 
   it('puts the catalog in the system prompt and the message in messages', async () => {
     const { runner, calls } = run(good);
     await runner.run({ text: 'how much is it?', history: [] });
     const prompt = calls[0]!.prompt;
-    const system = prompt.find(p => p.role === 'system');
+    const system = prompt.find(part => part.role === 'system');
     expect(JSON.stringify(system)).toContain('Foundation Course');
     // Volatile content must NOT be in the cached system prefix.
     expect(JSON.stringify(system)).not.toContain('how much is it?');
-    expect(JSON.stringify(prompt.filter(p => p.role === 'user'))).toContain('how much is it?');
+    expect(JSON.stringify(prompt.filter(part => part.role === 'user'))).toContain(
+      'how much is it?',
+    );
   });
 
   it('keeps the system prefix byte-identical across turns (cacheability)', async () => {
     const { runner, calls } = run(good);
     await runner.run({ text: 'first', history: [] });
     await runner.run({ text: 'second', history: [{ role: 'user', text: 'first' }] });
-    const sys = calls.map(c => JSON.stringify(c.prompt.find(p => p.role === 'system')));
+    const sys = calls.map(call => JSON.stringify(call.prompt.find(part => part.role === 'system')));
     expect(sys[0]).toBe(sys[1]);
   });
 
@@ -104,18 +106,18 @@ describe('agent runner', () => {
     // generateObject validates and throws; the runner must fail closed to a
     // human rather than propagating a 500 into the request path.
     const { runner } = run({ nonsense: true });
-    const r = await runner.run({ text: 'hello', history: [] });
-    expect(r.reply.escalate).toBe(true);
-    expect(r.reply.escalation_reason).toBe('low_confidence');
-    expect(r.interventions[0]).toContain('model_error');
-    expect(r.usage.costUsd).toBe(0);
+    const result = await runner.run({ text: 'hello', history: [] });
+    expect(result.reply.escalate).toBe(true);
+    expect(result.reply.escalation_reason).toBe('low_confidence');
+    expect(result.interventions[0]).toContain('model_error');
+    expect(result.usage.costUsd).toBe(0);
   });
 
   it('forces escalation below the confidence threshold', async () => {
     const { runner } = run({ ...good, confidence: 0.3 });
-    const r = await runner.run({ text: 'hello', history: [] });
-    expect(r.reply.escalate).toBe(true);
-    expect(r.reply.escalation_reason).toBe('low_confidence');
+    const result = await runner.run({ text: 'hello', history: [] });
+    expect(result.reply.escalate).toBe(true);
+    expect(result.reply.escalation_reason).toBe('low_confidence');
   });
 });
 
@@ -140,8 +142,10 @@ describe('guardrails', () => {
     // stopped matching when the prompt was translated. It is now bound to the
     // markers the prompt is built from.
     const { staticPrefix } = buildSystemPrompt('P.', catalog, rules);
-    const heading = staticPrefix.split('\n').find(l => l === l.toUpperCase() && l.length > 5)!;
-    const g = applyGuardrails(
+    const heading = staticPrefix
+      .split('\n')
+      .find(line => line === line.toUpperCase() && line.length > 5)!;
+    const guarded = applyGuardrails(
       {
         messages: [`here you go: ${heading}`],
         escalate: false,
@@ -150,11 +154,11 @@ describe('guardrails', () => {
       },
       rules,
     );
-    expect(g.interventions).toContain('prompt_leak_detected');
+    expect(guarded.interventions).toContain('prompt_leak_detected');
   });
 
   it('escalates when the model leaks its scaffolding', () => {
-    const g = applyGuardrails(
+    const guarded = applyGuardrails(
       {
         messages: [`aca va ${FENCE} texto`],
         escalate: false,
@@ -163,23 +167,23 @@ describe('guardrails', () => {
       },
       rules,
     );
-    expect(g.reply.escalate).toBe(true);
-    expect(g.interventions).toContain('prompt_leak_detected');
+    expect(guarded.reply.escalate).toBe(true);
+    expect(guarded.interventions).toContain('prompt_leak_detected');
   });
 
   it('rejects escalate/reason mismatch via the schema', () => {
-    const g = applyGuardrails(
+    const guarded = applyGuardrails(
       { messages: ['x'], escalate: true, escalation_reason: null, confidence: 1 },
       rules,
     );
-    expect(g.interventions[0]).toContain('schema_invalid');
+    expect(guarded.interventions[0]).toContain('schema_invalid');
   });
 
   it('builds a deterministic escalation reply from tenant copy', () => {
-    const r = escalationReply('complaint', 'Passing you to a person.');
-    expect(r.messages).toEqual(['Passing you to a person.']);
-    expect(r.escalate).toBe(true);
-    expect(r.escalation_reason).toBe('complaint');
+    const reply = escalationReply('complaint', 'Passing you to a person.');
+    expect(reply.messages).toEqual(['Passing you to a person.']);
+    expect(reply.escalate).toBe(true);
+    expect(reply.escalation_reason).toBe('complaint');
   });
 });
 
@@ -195,9 +199,9 @@ describe('price grounding', () => {
 
 describe('registry', () => {
   it('resolves a provider:model spec', () => {
-    const m = resolveModel('anthropic:claude-haiku-4-5');
-    expect(typeof m).toBe('object');
-    expect((m as { modelId: string }).modelId).toBe('claude-haiku-4-5');
+    const model = resolveModel('anthropic:claude-haiku-4-5');
+    expect(typeof model).toBe('object');
+    expect((model as { modelId: string }).modelId).toBe('claude-haiku-4-5');
   });
   it('throws a helpful error for an unknown provider', () => {
     expect(() => resolveModel('notreal:x')).toThrow(UnknownProviderError);
@@ -221,8 +225,8 @@ describe('registry', () => {
     ).toBe(0);
   });
   it('resolves an ollama spec with a colon-bearing tag', () => {
-    const m = resolveModel('ollama:llama3.1:8b');
-    expect(typeof m).toBe('object');
+    const model = resolveModel('ollama:llama3.1:8b');
+    expect(typeof model).toBe('object');
   });
 });
 
@@ -340,13 +344,13 @@ describe('runner failure branches (specs/004 P2)', () => {
     const broken = new MockLanguageModelV4({
       doGenerate: () => Promise.reject(new Error('provider exploded')),
     });
-    const r = await runnerFor(broken).run({ text: 'hello', history: [] });
+    const result = await runnerFor(broken).run({ text: 'hello', history: [] });
 
-    expect(r.reply.escalate).toBe(true);
-    expect(r.reply.escalation_reason).toBe('low_confidence');
-    expect(r.usage.costUsd).toBe(0);
-    expect(r.usage.inputTokens).toBeUndefined();
-    expect(r.interventions[0]).toContain('model_error');
+    expect(result.reply.escalate).toBe(true);
+    expect(result.reply.escalation_reason).toBe('low_confidence');
+    expect(result.usage.costUsd).toBe(0);
+    expect(result.usage.inputTokens).toBeUndefined();
+    expect(result.interventions[0]).toContain('model_error');
   });
 
   it('sends prior turns as alternating roles, fencing only the user side', async () => {
@@ -359,7 +363,7 @@ describe('runner failure branches (specs/004 P2)', () => {
       ],
     });
     const prompt = calls[0]!.prompt;
-    const assistant = prompt.filter(p => p.role === 'assistant');
+    const assistant = prompt.filter(part => part.role === 'assistant');
     expect(JSON.stringify(assistant)).toContain('It is $450.00.');
     // The agent's own words are trusted; only contact text is fenced.
     expect(JSON.stringify(assistant)).not.toContain(FENCE);
@@ -369,19 +373,19 @@ describe('runner failure branches (specs/004 P2)', () => {
 describe('guardrail clamps', () => {
   it('truncates a message that exceeds the platform limit', () => {
     const long = 'x'.repeat(1200);
-    const g = applyGuardrails(
+    const guarded = applyGuardrails(
       { messages: [long], escalate: false, escalation_reason: null, confidence: 0.9 },
       rules,
     );
     // The schema bounds this, so reaching the clamp means something upstream
     // changed - record it rather than failing the turn.
-    expect(g.interventions.length).toBeGreaterThan(0);
+    expect(guarded.interventions.length).toBeGreaterThan(0);
   });
 
   it('passes a reply that needs no intervention through untouched', () => {
-    const g = applyGuardrails(good, rules);
-    expect(g.interventions).toEqual([]);
-    expect(g.reply).toEqual(good);
+    const guarded = applyGuardrails(good, rules);
+    expect(guarded.interventions).toEqual([]);
+    expect(guarded.reply).toEqual(good);
   });
 
   it('keeps a low-confidence reply that already escalates', () => {
@@ -391,7 +395,7 @@ describe('guardrail clamps', () => {
       escalation_reason: 'complaint' as const,
       confidence: 0.1,
     };
-    const g = applyGuardrails(escalating, rules);
-    expect(g.reply.escalation_reason).toBe('complaint');
+    const guarded = applyGuardrails(escalating, rules);
+    expect(guarded.reply.escalation_reason).toBe('complaint');
   });
 });

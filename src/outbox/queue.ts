@@ -73,12 +73,12 @@ export class OutboxQueue {
       ? (result as Row[])
       : ((result as { rows?: Row[] }).rows ?? []);
 
-    return rows.map(r => ({
-      id: r.id,
-      tenantId: r.tenant_id,
-      subscriberId: r.subscriber_id,
-      payload: r.payload,
-      attempts: r.attempts,
+    return rows.map(row => ({
+      id: row.id,
+      tenantId: row.tenant_id,
+      subscriberId: row.subscriber_id,
+      payload: row.payload,
+      attempts: row.attempts,
     }));
   }
 

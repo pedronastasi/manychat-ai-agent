@@ -105,7 +105,7 @@ export function checkTurnCap(turnCount: number, rules: Rules): GuardDecision {
 /** Immediate handoff on configured keywords — checked before the model runs. */
 export function checkKeywords(text: string, rules: Rules): GuardDecision {
   const haystack = text.toLowerCase();
-  const hit = rules.escalationKeywords.find(k => haystack.includes(k.toLowerCase()));
+  const hit = rules.escalationKeywords.find(keyword => haystack.includes(keyword.toLowerCase()));
   return hit
     ? { allowed: false, reason: 'explicit_request', detail: `keyword: ${hit}` }
     : { allowed: true };

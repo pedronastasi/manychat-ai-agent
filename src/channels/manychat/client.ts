@@ -47,8 +47,8 @@ class TokenBucket {
         this.tokens -= 1;
         return;
       }
-      await new Promise(r =>
-        setTimeout(r, Math.ceil(((1 - this.tokens) / this.refillPerSec) * 1000)),
+      await new Promise(resolve =>
+        setTimeout(resolve, Math.ceil(((1 - this.tokens) / this.refillPerSec) * 1000)),
       );
     }
   }

@@ -82,7 +82,9 @@ export function adrFiles(): Map<string, string> {
 /** Clause identifiers that actually have a heading in the constitution. */
 export function constitutionClauses(): Set<string> {
   const source = readFileSync(join(SPECS_DIR, CONSTITUTION), 'utf8');
-  return new Set([...source.matchAll(/^## (C\d+)\./gm)].flatMap(m => (m[1] ? [m[1]] : [])));
+  return new Set(
+    [...source.matchAll(/^## (C\d+)\./gm)].flatMap(match => (match[1] ? [match[1]] : [])),
+  );
 }
 
 /**
@@ -98,8 +100,8 @@ export function citationsByNumber(): Map<string, string[]> {
       if (entry.isDirectory()) walk(path);
       else if (entry.name.endsWith('.ts')) {
         const numbers = new Set(
-          [...readFileSync(path, 'utf8').matchAll(/specs\/(\d{3})/g)].flatMap(m =>
-            m[1] ? [m[1]] : [],
+          [...readFileSync(path, 'utf8').matchAll(/specs\/(\d{3})/g)].flatMap(match =>
+            match[1] ? [match[1]] : [],
           ),
         );
         for (const number of numbers) found.set(number, [...(found.get(number) ?? []), path]);
@@ -123,11 +125,11 @@ export function readSpecs(): Spec[] {
  * The floor of 3 is Prettier's: a delimiter cell is never narrower than `---`.
  */
 function table(header: string[], rows: string[][]): string {
-  const widths = header.map((cell, i) =>
-    Math.max(3, cell.length, ...rows.map(row => row[i]?.length ?? 0)),
+  const widths = header.map((cell, column) =>
+    Math.max(3, cell.length, ...rows.map(row => row[column]?.length ?? 0)),
   );
   const line = (cells: string[]): string =>
-    `| ${cells.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join(' | ')} |`;
+    `| ${cells.map((cell, column) => cell.padEnd(widths[column] ?? 0)).join(' | ')} |`;
 
   return [
     line(header),
@@ -152,7 +154,7 @@ export function renderIndex(
       meta?.pr ? `#${meta.pr}` : EMPTY,
       tests > 0 ? String(tests) : EMPTY,
       clauses.length > 0 ? clauses.join(', ') : EMPTY,
-      adrs.length > 0 ? adrs.map(n => `[${n}]`).join(', ') : EMPTY,
+      adrs.length > 0 ? adrs.map(number => `[${number}]`).join(', ') : EMPTY,
     ];
   });
 
@@ -174,7 +176,7 @@ export function renderIndex(
     table(['Spec', 'Status', 'Implemented', 'PR', 'Tests', 'Constitution', 'ADRs'], rows),
     '',
     // Shortcut reference definitions: the ADR column stays narrow and clickable.
-    ...referenced.map(n => `[${n}]: ../${ADR_DIR}/${adrs_.get(n) ?? ''}`),
+    ...referenced.map(number => `[${number}]: ../${ADR_DIR}/${adrs_.get(number) ?? ''}`),
     '',
   ].join('\n');
 }

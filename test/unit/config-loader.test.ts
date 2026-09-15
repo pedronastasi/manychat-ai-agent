@@ -18,8 +18,8 @@ const FIXTURES = 'test/fixtures/config';
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'agent-config-'));
-  for (const f of ['prompt.md', 'catalog.json', 'rules.json']) {
-    copyFileSync(join(FIXTURES, f), join(dir, f));
+  for (const name of ['prompt.md', 'catalog.json', 'rules.json']) {
+    copyFileSync(join(FIXTURES, name), join(dir, name));
   }
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));

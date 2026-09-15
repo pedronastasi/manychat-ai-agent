@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 const TEMPLATE_PATH = '.github/pull_request_template.md';
 const template = readFileSync(TEMPLATE_PATH, 'utf8');
 
-const headings = [...template.matchAll(/^## (.+)$/gm)].map(m => m[1]!.trim());
+const headings = [...template.matchAll(/^## (.+)$/gm)].map(match => match[1]!.trim());
 
 /** Lines a reader sees, once the author-facing prompts are stripped. */
 const stripHtmlComments = (input: string): string => {
@@ -28,8 +28,8 @@ const stripHtmlComments = (input: string): string => {
 
 const rendered = stripHtmlComments(template)
   .split('\n')
-  .map(l => l.trimEnd())
-  .filter(l => l.length > 0);
+  .map(line => line.trimEnd())
+  .filter(line => line.length > 0);
 
 const checkboxes = template.match(/^- \[ \] .*/gm) ?? [];
 
@@ -51,7 +51,7 @@ describe('the pull request template', () => {
     // line is a heading, a table row, a rule, or a checkbox (with its
     // indented continuation lines).
     const structural = /^(## |\||---$|- \[ \] |\s+\S)/;
-    const prose = rendered.filter(l => !structural.test(l));
+    const prose = rendered.filter(line => !structural.test(line));
     expect(prose).toEqual([]);
   });
 
