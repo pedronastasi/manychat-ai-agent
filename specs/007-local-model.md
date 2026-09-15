@@ -1,3 +1,9 @@
+---
+status: specified
+constitution: [C2, C3, C6, C7]
+adr: [0001, 0002]
+---
+
 # 007 — Local Model (Ollama)
 
 Defines how to run a **real** model against this agent at no cost, in Docker, and

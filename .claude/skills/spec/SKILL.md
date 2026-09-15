@@ -88,18 +88,33 @@ an ADR, not a paragraph you improvise here. Use `/adr` first.
 1. **Number it.** `ls specs/` — next integer, **three digits**. (ADRs are four.
    Do not mix them.)
 2. **Name the file** `specs/NNN-kebab-case.md`.
-3. **Open** with the title line and two or three lines saying what this defines
+3. **Add the frontmatter** required by
+   [`008-spec-metadata.md`](../../../specs/008-spec-metadata.md). A new spec is
+   almost always `status: specified` — `implemented` is only permitted once a
+   test cites the spec, and the suite checks that. Do not claim it in advance.
+
+   ```yaml
+   ---
+   status: specified
+   constitution: [C6] # clauses this is the detailed form of, if any
+   adr: [0001] # decisions that produced this shape, if any
+   ---
+   ```
+
+4. **Open** with the title line and two or three lines saying what this defines
    and what it deliberately leaves out. No `## Overview` heading — the paragraph
    under the title is the overview.
-4. **Write it**, following the house style below.
-5. **End with `## Verification`** for a position spec. A contract spec that is
+5. **Write it**, following the house style below.
+6. **End with `## Verification`** for a position spec. A contract spec that is
    pure reference may omit it.
-6. **Link it**: from `CONTRIBUTING.md` if a contributor needs it day to day, and
+7. **Link it**: from `CONTRIBUTING.md` if a contributor needs it day to day, and
    from the Constitution clause it backs, if it backs one.
-7. **Format**: `npx prettier --write specs/NNN-*.md`. Prose line breaks are
+8. **Regenerate the index**: `pnpm spec:index`, and commit `specs/README.md`
+   with the spec. A stale index fails the suite.
+9. **Format**: `npx prettier --write specs/NNN-*.md`. Prose line breaks are
    preserved, so wrap at 80 columns by hand.
-8. **Commit the spec on its own**, before the implementation. The convention here
-   is specs on `main`, implementation in the PR that follows.
+10. **Commit the spec on its own**, before the implementation. The convention
+    here is specs on `main`, implementation in the PR that follows.
 
 ## Format
 

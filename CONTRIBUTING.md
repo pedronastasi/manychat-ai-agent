@@ -24,8 +24,15 @@ decision, not a summary of the diff. See
 Behavior is specified in [`specs/`](specs/) before it is implemented, and
 decisions are recorded in [`docs/adr/`](docs/adr/).
 
+[`specs/README.md`](specs/README.md) is the index: which specs describe code that
+exists, and which describe code that does not. It is generated - run
+`pnpm spec:index` after changing any spec's frontmatter, or CI will fail.
+
 - [`specs/000-constitution.md`](specs/000-constitution.md) holds non-negotiables.
   A change there needs an ADR that supersedes the clause.
+- [`specs/008-spec-metadata.md`](specs/008-spec-metadata.md) defines that
+  frontmatter. `status: implemented` is only permitted where a test cites the
+  spec, so the index cannot quietly claim more than the suite proves.
 - [`specs/004-testing.md`](specs/004-testing.md) defines what must be tested,
   what deliberately is not, and the rules a test here follows.
 - [`specs/005-language.md`](specs/005-language.md) requires English throughout,

@@ -1,3 +1,11 @@
+---
+status: implemented
+implemented: 2026-09-14
+pr: 1
+constitution: [C4, C6]
+adr: [0007]
+---
+
 # 001 — Agent Behavior
 
 Defines what the agent is allowed to say, when it must hand off, and how that is

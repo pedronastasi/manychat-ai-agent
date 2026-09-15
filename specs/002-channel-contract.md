@@ -1,3 +1,11 @@
+---
+status: implemented
+implemented: 2026-09-14
+pr: 1
+constitution: [C7]
+adr: [0001, 0004, 0005, 0006]
+---
+
 # 002 — Channel Contract (ManyChat / WhatsApp)
 
 Defines the wire contract between the chat platform and this service, and the

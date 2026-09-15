@@ -1,3 +1,10 @@
+---
+status: implemented
+implemented: 2026-09-15
+pr: 3
+constitution: [C1, C9]
+---
+
 # 005 — Repository Language
 
 Everything committed to this repository is in English. The only exception is a
