@@ -65,15 +65,16 @@ agent portable instead of welded to one vendor's UI.
 
 Every non-obvious choice is written down in [`docs/adr/`](docs/adr/):
 
-| ADR                                                    | Decision                                                                 |
-| ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| [0001](docs/adr/0001-hybrid-race-reply-path.md)        | Race the model against a deadline instead of choosing sync or async      |
-| [0002](docs/adr/0002-provider-agnostic-model-layer.md) | One registry module may import providers; everything else uses a port    |
-| [0003](docs/adr/0003-contract-first-with-zod.md)       | Zod schemas generate both the types and the OpenAPI document             |
-| [0004](docs/adr/0004-postgres-outbox-over-redis.md)    | A Postgres outbox, not Redis — one datastore, transactional enqueue      |
-| [0005](docs/adr/0005-channel-port-single-adapter.md)   | Define the channel port, ship exactly one adapter                        |
-| [0006](docs/adr/0006-manychat-auth-risk-accepted.md)   | ManyChat does not sign webhooks; the compensating controls, written down |
-| [0007](docs/adr/0007-generateobject-not-toolloop.md)   | `generateObject`, not a tool loop, while there are no tools              |
+| ADR                                                       | Decision                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [0001](docs/adr/0001-hybrid-race-reply-path.md)           | Race the model against a deadline instead of choosing sync or async      |
+| [0002](docs/adr/0002-provider-agnostic-model-layer.md)    | One registry module may import providers; everything else uses a port    |
+| [0003](docs/adr/0003-contract-first-with-zod.md)          | Zod schemas generate both the types and the OpenAPI document             |
+| [0004](docs/adr/0004-postgres-outbox-over-redis.md)       | A Postgres outbox, not Redis — one datastore, transactional enqueue      |
+| [0005](docs/adr/0005-channel-port-single-adapter.md)      | Define the channel port, ship exactly one adapter                        |
+| [0006](docs/adr/0006-manychat-auth-risk-accepted.md)      | ManyChat does not sign webhooks; the compensating controls, written down |
+| [0007](docs/adr/0007-generateobject-not-toolloop.md)      | `generateObject`, not a tool loop, while there are no tools              |
+| [0008](docs/adr/0008-classes-for-port-implementations.md) | Ports are implemented by classes; functions stay for pure transformation |
 
 Behavior is specified before it is implemented, in [`specs/`](specs/) —
 a [constitution](specs/000-constitution.md) of non-negotiables, the
