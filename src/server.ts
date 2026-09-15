@@ -56,6 +56,8 @@ export function buildServer(opts: BuildOptions) {
     ? new ManyChatHttpClient({
         apiToken: env.MANYCHAT_API_TOKEN,
         baseUrl: env.MANYCHAT_API_BASE,
+        replyField: env.MANYCHAT_REPLY_FIELD,
+        replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
       })
     : {
         // Without a token the deferred path cannot deliver. Fail loudly at use

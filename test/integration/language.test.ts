@@ -54,9 +54,9 @@ const okResult = (messages: string[]): AgentResult => ({
 const slow: AgentRunner = {
   run: ({ signal }) =>
     new Promise((resolve, reject) => {
-      const t = setTimeout(() => resolve(okResult(['late'])), 1500);
+      const timer = setTimeout(() => resolve(okResult(['late'])), 1500);
       signal?.addEventListener('abort', () => {
-        clearTimeout(t);
+        clearTimeout(timer);
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
       });
     }),

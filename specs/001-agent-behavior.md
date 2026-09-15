@@ -30,6 +30,32 @@ extrapolate from it.
 If the catalog does not contain the answer, that is an escalation — not an
 invitation to reason about what the answer probably is.
 
+## Scripted opening
+
+A tenant may configure an **opening trigger** in `config/rules.json`: a sentinel
+the channel flow emits to start a conversation, and the reply it produces.
+
+```json
+"openingTrigger": { "keywords": ["start workflow"], "message": "…" }
+```
+
+When the whole inbound message is one of those keywords, the configured message
+is returned verbatim and the model never runs. The case is fully determined —
+there is no contact input to interpret and exactly one correct reply — so
+consulting the model would spend tokens and latency to reach a known answer, and
+would subject it to the confidence threshold, which can turn a certain reply
+into a handoff.
+
+Matching is on the whole message, trimmed and case-insensitive, unlike
+`escalationKeywords`, which match substrings. The sentinel is emitted by the
+flow, so a contact who happens to type the phrase must not be able to replay the
+opening.
+
+The outcome is recorded as `answered_scripted`, distinct from `answered_inline`,
+so a scripted reply is never mistaken for a model answer in spend or quality
+analysis. It consumes no tokens and is not subject to the turn, rate or budget
+caps, which exist to bound model spend.
+
 ## Escalation
 
 `escalate: true` with a reason from this closed set:

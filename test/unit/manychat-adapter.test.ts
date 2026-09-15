@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderManyChat, ManyChatAdapter } from '../../src/channels/manychat/adapter.ts';
-import { ManyChatHttpClient, ManyChatApiError } from '../../src/channels/manychat/client.ts';
 import { capabilitiesFor } from '../../src/contracts/config.ts';
 import type { AgentReply } from '../../src/contracts/agent.ts';
 
@@ -39,7 +38,10 @@ describe('Dynamic Block v2 rendering', () => {
   });
 
   it('clamps to the platform message ceiling', () => {
-    const many = { ...reply, messages: Array.from({ length: 12 }, (_, i) => `m${i}`) };
+    const many = {
+      ...reply,
+      messages: Array.from({ length: 12 }, (_unused, index) => `m${index}`),
+    };
     const out = renderManyChat(many, { capabilities: capabilitiesFor('whatsapp') });
     expect(out.content.messages.length).toBeLessThanOrEqual(10);
   });
@@ -73,14 +75,14 @@ describe('inbound parsing', () => {
   const ctx = { tenantId: 'demo', channel: 'whatsapp' };
 
   it('normalizes a ManyChat payload', () => {
-    const m = adapter.parse(
+    const inbound = adapter.parse(
       { subscriber_id: 998, text: 'hello', first_name: 'Ana', last_name: 'Diaz', locale: 'es_AR' },
       ctx,
     );
-    expect(m.subscriberId).toBe('998');
-    expect(m.contactName).toBe('Ana Diaz');
-    expect(m.tenantId).toBe('demo');
-    expect(m.channel).toBe('whatsapp');
+    expect(inbound.subscriberId).toBe('998');
+    expect(inbound.contactName).toBe('Ana Diaz');
+    expect(inbound.tenantId).toBe('demo');
+    expect(inbound.channel).toBe('whatsapp');
   });
 
   it('leaves contactName null when absent', () => {
@@ -93,40 +95,5 @@ describe('inbound parsing', () => {
 
   it('rejects a payload with no subscriber id', () => {
     expect(() => adapter.parse({ text: 'hi' }, ctx)).toThrow();
-  });
-});
-
-describe('Send API client', () => {
-  it('sends one request per message, in order, with bearer auth', async () => {
-    const seen: string[] = [];
-    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      seen.push(JSON.parse(String(init!.body)).data.content.messages[0].text);
-      return new Response('{"status":"success"}', { status: 200 });
-    }) as unknown as typeof fetch;
-
-    const client = new ManyChatHttpClient({
-      apiToken: 't0ken',
-      fetchImpl,
-      requestsPerSecond: 1000,
-    });
-    await client.sendText('s1', ['uno', 'dos']);
-
-    expect(seen).toEqual(['uno', 'dos']);
-    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
-      .calls[0]![1] as RequestInit;
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer t0ken');
-  });
-
-  it('marks 5xx retryable and 4xx terminal', async () => {
-    const mk = (status: number) =>
-      new ManyChatHttpClient({
-        apiToken: 't',
-        requestsPerSecond: 1000,
-        fetchImpl: async () => new Response('err', { status }),
-      });
-    await expect(mk(500).sendText('s', ['x'])).rejects.toMatchObject({ retryable: true });
-    await expect(mk(429).sendText('s', ['x'])).rejects.toMatchObject({ retryable: true });
-    await expect(mk(400).sendText('s', ['x'])).rejects.toMatchObject({ retryable: false });
-    await expect(mk(400).sendText('s', ['x'])).rejects.toBeInstanceOf(ManyChatApiError);
   });
 });

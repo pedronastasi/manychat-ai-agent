@@ -98,7 +98,7 @@ export class ConversationStore {
   async recentTurns(conversationId: string, limit = 10) {
     const rows = await this.db.query.turns.findMany({
       where: eq(turns.conversationId, conversationId),
-      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      orderBy: (table, { desc }) => [desc(table.createdAt)],
       limit,
       columns: { role: true, text: true },
     });

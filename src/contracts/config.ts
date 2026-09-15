@@ -104,6 +104,21 @@ export const RulesSchema = z.object({
   maxTurnsPerConversation: z.number().int().positive().default(25),
   /** Checked before the model runs — an instant, free handoff. */
   escalationKeywords: z.array(z.string()).default([]),
+  /**
+   * A sentinel the channel flow sends to open a conversation, and the scripted
+   * reply it produces. Fully determined, so the model never sees it.
+   *
+   * Matched on the whole message, unlike `escalationKeywords`: those match
+   * substrings because a contact asking for a person may phrase it any way,
+   * whereas this is emitted by the flow, and a contact who happens to type the
+   * phrase must not be able to replay the opening.
+   */
+  openingTrigger: z
+    .object({
+      keywords: z.array(z.string().min(1)).min(1),
+      message: z.string().min(1),
+    })
+    .optional(),
   budget: z.object({
     dailyTokenCap: z.number().int().positive().default(1_000_000),
     dailyCostCapUsd: z.number().positive().default(5),
@@ -126,14 +141,14 @@ export type Rules = z.infer<typeof RulesSchema>;
  * validation and stop the process from booting at all.
  */
 const optionalString = z.preprocess(
-  v => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+  value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.string().min(1).optional(),
 );
 
-const csv = (v: string) =>
-  v
+const csv = (raw: string) =>
+  raw
     .split(',')
-    .map(s => s.trim())
+    .map(part => part.trim())
     .filter(Boolean);
 
 export const EnvSchema = z
@@ -154,6 +169,11 @@ export const EnvSchema = z
     MANYCHAT_SHARED_SECRET: z.string().min(16).transform(csv),
     MANYCHAT_API_TOKEN: optionalString,
     MANYCHAT_API_BASE: z.string().url().default('https://api.manychat.com'),
+    // Both name objects inside the tenant's ManyChat account, not in this repo.
+    // Renaming either there breaks delivery at runtime and no test can see it
+    // (specs/002-channel-contract.md § Verification).
+    MANYCHAT_REPLY_FIELD: z.string().min(1).default('ai_message'),
+    MANYCHAT_REPLY_FLOW_NS: optionalString,
 
     DATABASE_URL: z.string().min(1),
     TENANT_ID: z.string().min(1).default('demo'),
@@ -171,7 +191,7 @@ export const EnvSchema = z
   // Losing the race must not cancel the model call - it continues and delivers
   // through the outbox (ADR-0001). If the abort fired first it would kill every
   // slow turn instead, and the deferred path could never run.
-  .refine(e => e.MODEL_ABORT_MS > e.RACE_DEADLINE_MS, {
+  .refine(env => env.MODEL_ABORT_MS > env.RACE_DEADLINE_MS, {
     message: 'MODEL_ABORT_MS must be greater than RACE_DEADLINE_MS',
     path: ['MODEL_ABORT_MS'],
   });

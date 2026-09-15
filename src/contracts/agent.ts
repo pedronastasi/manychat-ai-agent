@@ -36,7 +36,7 @@ export const AgentReply = z
   })
   // Enforces the "iff" in specs/001: a reason without an escalation, or an
   // escalation without a reason, is a malformed reply rather than a warning.
-  .refine(r => r.escalate === (r.escalation_reason !== null), {
+  .refine(reply => reply.escalate === (reply.escalation_reason !== null), {
     message: 'escalation_reason must be non-null exactly when escalate is true',
     path: ['escalation_reason'],
   });
@@ -70,6 +70,7 @@ export type InboundMessage = z.infer<typeof InboundMessage>;
 /** Why a turn ended the way it did — recorded per turn for observability. */
 export const TurnOutcome = z.enum([
   'answered_inline', // model won the race
+  'answered_scripted', // opening-trigger sentinel; model never ran
   'deferred', // race lost; delivered via outbox
   'escalated_precheck', // keyword/budget/rate-limit escalation, model never ran
   'escalated_model', // model chose to escalate

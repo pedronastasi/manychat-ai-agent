@@ -50,13 +50,22 @@ JSON edit and a restart — no prompt editing, no deploy.
 | `AGENT_MODEL`            | `provider:model`, e.g. `anthropic:claude-haiku-4-5` |
 | `ANTHROPIC_API_KEY` etc. | Only the active provider's key is required          |
 | `MANYCHAT_SHARED_SECRET` | Validates inbound Dynamic Block requests            |
-| `MANYCHAT_API_TOKEN`     | Send API, for the deferred push                     |
+| `MANYCHAT_API_TOKEN`     | Deferred delivery, for both calls in `002`          |
+| `MANYCHAT_REPLY_FIELD`   | Custom field the reply text is written to           |
+| `MANYCHAT_REPLY_FLOW_NS` | Flow triggered to render that field                 |
 | `DATABASE_URL`           | Postgres                                            |
 | `CHANNEL`                | Capability profile, e.g. `whatsapp`                 |
 
 `AGENT_MODEL` is the whole model-agnosticism story: changing provider is an env
 edit and a restart, with no code change (Constitution C2). Model IDs carry no
 date suffix.
+
+`MANYCHAT_REPLY_FIELD` and `MANYCHAT_REPLY_FLOW_NS` name objects that live in the
+tenant's ManyChat account, not in this repository. They are environment rather
+than tenant config because they identify infrastructure, not customer-facing
+content: nothing in either value is ever shown to a contact. Renaming the field
+or flow in ManyChat without updating these breaks delivery at runtime, and no
+test can catch it — see `002-channel-contract.md § Verification`.
 
 ## Reload
 

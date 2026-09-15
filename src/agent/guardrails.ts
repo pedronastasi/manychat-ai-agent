@@ -39,7 +39,7 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
     return {
       reply: escalationReply('low_confidence', rules.messages.escalation),
       interventions: [
-        `schema_invalid: ${parsed.error.issues.map(i => i.path.join('.')).join(',')}`,
+        `schema_invalid: ${parsed.error.issues.map(issue => issue.path.join('.')).join(',')}`,
       ],
     };
   }
@@ -48,10 +48,10 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
 
   // Prompt/fence leakage: the model echoing its own scaffolding back.
   const leaked = reply.messages.some(
-    m =>
-      m.includes(FENCE) ||
-      m.includes(FENCE_END) ||
-      PROMPT_MARKERS.some(marker => m.includes(marker)),
+    message =>
+      message.includes(FENCE) ||
+      message.includes(FENCE_END) ||
+      PROMPT_MARKERS.some(marker => message.includes(marker)),
   );
   if (leaked) {
     return {
@@ -72,9 +72,12 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
     reply = { ...reply, messages: reply.messages.slice(0, MAX_MESSAGES_PER_REPLY) };
     interventions.push('messages_truncated');
   }
-  const overlong = reply.messages.some(m => m.length > MAX_MESSAGE_CHARS);
+  const overlong = reply.messages.some(message => message.length > MAX_MESSAGE_CHARS);
   if (overlong) {
-    reply = { ...reply, messages: reply.messages.map(m => m.slice(0, MAX_MESSAGE_CHARS)) };
+    reply = {
+      ...reply,
+      messages: reply.messages.map(message => message.slice(0, MAX_MESSAGE_CHARS)),
+    };
     interventions.push('message_truncated');
   }
 
@@ -91,22 +94,22 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
  */
 export function findUngroundedPrices(messages: string[], catalog: Catalog): string[] {
   const allowed = new Set<string>();
-  for (const c of catalog.courses) {
-    const major = c.price.amount / 100;
+  for (const course of catalog.courses) {
+    const major = course.price.amount / 100;
     allowed.add(String(major));
-    allowed.add(String(c.price.amount));
+    allowed.add(String(course.price.amount));
     allowed.add(major.toLocaleString('es-AR'));
     allowed.add(major.toLocaleString('en-US'));
   }
   const found: string[] = [];
-  for (const m of messages) {
+  for (const message of messages) {
     // Numbers with a currency cue nearby, e.g. "$45.000", "45000 pesos".
-    for (const match of m.matchAll(
+    for (const match of message.matchAll(
       /(?:\$\s?)([\d][\d.,]{2,})|([\d][\d.,]{2,})\s?(?:pesos|ars|usd)/gi,
     )) {
       const value = (match[1] ?? match[2] ?? '').trim();
       const normalized = value.replace(/[.,]/g, '');
-      const isKnown = [...allowed].some(a => a.replace(/[.,]/g, '') === normalized);
+      const isKnown = [...allowed].some(known => known.replace(/[.,]/g, '') === normalized);
       if (!isKnown) found.push(value);
     }
   }

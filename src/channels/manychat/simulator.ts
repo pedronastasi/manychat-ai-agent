@@ -14,11 +14,11 @@ import { ManyChatResponse } from '../../contracts/manychat.ts';
 function parseArgs(argv: string[]) {
   let subscriber = 'sim-001';
   const words: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--subscriber' || argv[i] === '-s') {
-      subscriber = argv[++i] ?? subscriber;
+  for (let index = 0; index < argv.length; index++) {
+    if (argv[index] === '--subscriber' || argv[index] === '-s') {
+      subscriber = argv[++index] ?? subscriber;
     } else {
-      words.push(argv[i]!);
+      words.push(argv[index]!);
     }
   }
   return { subscriber, text: words.join(' ') };
@@ -63,9 +63,9 @@ async function main() {
     process.exit(1);
   }
 
-  for (const m of parsed.data.content.messages) {
-    if (m.type === 'text') console.log(`  agent     ${m.text}`);
-    else console.log(`  agent     [${m.type}] ${'url' in m ? m.url : ''}`);
+  for (const message of parsed.data.content.messages) {
+    if (message.type === 'text') console.log(`  agent     ${message.text}`);
+    else console.log(`  agent     [${message.type}] ${'url' in message ? message.url : ''}`);
   }
 
   const cb = parsed.data.content.external_message_callback;

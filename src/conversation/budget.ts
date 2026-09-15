@@ -102,10 +102,27 @@ export function checkTurnCap(turnCount: number, rules: Rules): GuardDecision {
   return { allowed: true };
 }
 
+/**
+ * The scripted opening, when the whole inbound message is the configured
+ * sentinel. Returns null when no trigger is configured or the text is anything
+ * else, so the turn proceeds to the model as usual.
+ *
+ * Whole-message and case-insensitive: the sentinel is emitted by the channel
+ * flow, not typed by a contact, so substring matching would let a contact who
+ * mentions the phrase replay the opening.
+ */
+export function matchOpeningTrigger(text: string, rules: Rules): string | null {
+  const trigger = rules.openingTrigger;
+  if (!trigger) return null;
+  const normalized = text.trim().toLowerCase();
+  const hit = trigger.keywords.some(keyword => keyword.trim().toLowerCase() === normalized);
+  return hit ? trigger.message : null;
+}
+
 /** Immediate handoff on configured keywords — checked before the model runs. */
 export function checkKeywords(text: string, rules: Rules): GuardDecision {
   const haystack = text.toLowerCase();
-  const hit = rules.escalationKeywords.find(k => haystack.includes(k.toLowerCase()));
+  const hit = rules.escalationKeywords.find(keyword => haystack.includes(keyword.toLowerCase()));
   return hit
     ? { allowed: false, reason: 'explicit_request', detail: `keyword: ${hit}` }
     : { allowed: true };

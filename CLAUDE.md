@@ -14,23 +14,23 @@ Runs with no API key and no database (mock model + embedded PGlite).
 
 ## Commands
 
-| Command | Purpose |
-|---------|---------|
-| `pnpm dev` | Local dev server (watch mode, `.env` loaded) |
-| `pnpm build` | TypeScript compilation |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm lint` | ESLint |
-| `pnpm format` | Prettier write |
-| `pnpm format:check` | Prettier check |
-| `pnpm test` | `vitest run` |
-| `pnpm test:coverage` | Vitest with coverage thresholds enforced |
-| `pnpm test:watch` | Vitest watch mode |
-| `pnpm eval:mock` | Golden-set eval with mock model (free, deterministic) |
-| `pnpm eval` | Golden-set eval with real model (costs money) |
+| Command               | Purpose                                                |
+| --------------------- | ------------------------------------------------------ |
+| `pnpm dev`            | Local dev server (watch mode, `.env` loaded)           |
+| `pnpm build`          | TypeScript compilation                                 |
+| `pnpm typecheck`      | `tsc --noEmit`                                         |
+| `pnpm lint`           | ESLint                                                 |
+| `pnpm format`         | Prettier write                                         |
+| `pnpm format:check`   | Prettier check                                         |
+| `pnpm test`           | `vitest run`                                           |
+| `pnpm test:coverage`  | Vitest with coverage thresholds enforced               |
+| `pnpm test:watch`     | Vitest watch mode                                      |
+| `pnpm eval:mock`      | Golden-set eval with mock model (free, deterministic)  |
+| `pnpm eval`           | Golden-set eval with real model (costs money)          |
 | `pnpm simulate "msg"` | Send a Dynamic Block request to a running local server |
-| `pnpm db:generate` | Drizzle migration generation |
-| `pnpm db:migrate` | Run Drizzle migrations |
-| `pnpm spec:index` | Regenerate `specs/README.md` from spec frontmatter |
+| `pnpm db:generate`    | Drizzle migration generation                           |
+| `pnpm db:migrate`     | Run Drizzle migrations                                 |
+| `pnpm spec:index`     | Regenerate `specs/README.md` from spec frontmatter     |
 
 ## Tech stack
 
