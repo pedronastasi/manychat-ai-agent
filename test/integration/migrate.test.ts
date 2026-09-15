@@ -17,11 +17,11 @@ function freshDb() {
 }
 
 const tableNames = async (db: Database) => {
-  const r: unknown = await db.execute(
+  const raw: unknown = await db.execute(
     sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`,
   );
-  const rows = Array.isArray(r) ? r : ((r as { rows: { table_name: string }[] }).rows ?? []);
-  return (rows as { table_name: string }[]).map(x => x.table_name);
+  const rows = Array.isArray(raw) ? raw : ((raw as { rows: { table_name: string }[] }).rows ?? []);
+  return (rows as { table_name: string }[]).map(row => row.table_name);
 };
 
 describe('runMigrations', () => {
@@ -56,9 +56,9 @@ describe('runMigrations', () => {
   it('records what it applied so later runs can skip it', async () => {
     const { db, close } = freshDb();
     const applied = await runMigrations(db, 'db/migrations');
-    const r: unknown = await db.execute(sql`SELECT name FROM _migrations ORDER BY name`);
-    const rows = Array.isArray(r) ? r : ((r as { rows: { name: string }[] }).rows ?? []);
-    expect((rows as { name: string }[]).map(x => x.name)).toEqual(applied);
+    const raw: unknown = await db.execute(sql`SELECT name FROM _migrations ORDER BY name`);
+    const rows = Array.isArray(raw) ? raw : ((raw as { rows: { name: string }[] }).rows ?? []);
+    expect((rows as { name: string }[]).map(row => row.name)).toEqual(applied);
     await close();
   });
 
@@ -97,8 +97,8 @@ describe('runMigrations', () => {
     const { db, close } = freshDb();
 
     await expect(runMigrations(db, dir)).rejects.toThrow();
-    const r: unknown = await db.execute(sql`SELECT count(*)::int AS n FROM _migrations`);
-    const rows = Array.isArray(r) ? r : ((r as { rows: { n: number }[] }).rows ?? []);
+    const raw: unknown = await db.execute(sql`SELECT count(*)::int AS n FROM _migrations`);
+    const rows = Array.isArray(raw) ? raw : ((raw as { rows: { n: number }[] }).rows ?? []);
     expect((rows as { n: number }[])[0]!.n).toBe(0);
 
     await close();

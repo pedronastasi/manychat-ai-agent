@@ -31,10 +31,10 @@ function reply(messages: string[], escalate: boolean, reason: string | null, con
  * price question.
  */
 function respondTo(text: string): string {
-  const t = text.toLowerCase();
-  if (/(ignore|system prompt|no rules|you are now|forget your)/.test(t)) {
+  const lower = text.toLowerCase();
+  if (/(ignore|system prompt|no rules|you are now|forget your)/.test(lower)) {
     return reply(
-      ["I can't do that. Would you like me to pass you to someone on the team?"],
+      ["I can'lower do that. Would you like me to pass you to someone on the team?"],
       true,
       'out_of_scope',
       0.9,
@@ -43,7 +43,7 @@ function respondTo(text: string): string {
   // Asking to BE PUT THROUGH to a person is a handoff request; asking whether
   // you ARE one is a question to answer. Checked in this order because "human"
   // appears in both.
-  if (/(speak|talk|put me through|connect me).{0,20}(human|person|someone|agent)/.test(t)) {
+  if (/(speak|talk|put me through|connect me).{0,20}(human|person|someone|agent)/.test(lower)) {
     return reply(
       ['Of course - let me pass you to someone on the team.'],
       true,
@@ -51,7 +51,7 @@ function respondTo(text: string): string {
       0.95,
     );
   }
-  if (/(are you a|is this a).{0,10}(bot|human|robot|machine|real person)/.test(t)) {
+  if (/(are you a|is this a).{0,10}(bot|human|robot|machine|real person)/.test(lower)) {
     return reply(
       [
         "Yes, I'm an automated assistant.",
@@ -62,16 +62,16 @@ function respondTo(text: string): string {
       0.95,
     );
   }
-  if (/(certificate|diploma|qualification)/.test(t)) {
+  if (/(certificate|diploma|qualification)/.test(lower)) {
     return reply(['Yes, you get a certificate of attendance when you finish.'], false, null, 0.9);
   }
-  if (/(material|kit|included)/.test(t)) {
+  if (/(material|kit|included)/.test(lower)) {
     return reply(['The practice kit is included with every course.'], false, null, 0.9);
   }
-  if (/(where|campus|address|online|in person)/.test(t)) {
+  if (/(where|campus|address|online|in person)/.test(lower)) {
     return reply(['Classes are in person at the main campus.'], false, null, 0.88);
   }
-  if (/(discount|instalment|installment|cheaper|expensive|deal)/.test(t)) {
+  if (/(discount|instalment|installment|cheaper|expensive|deal)/.test(lower)) {
     return reply(
       ['On anything to do with pricing, let me pass you to someone on the team.'],
       true,
@@ -79,7 +79,7 @@ function respondTo(text: string): string {
       0.95,
     );
   }
-  if (/(complaint|dispute|refund|money back|scam)/.test(t)) {
+  if (/(complaint|dispute|refund|money back|scam)/.test(lower)) {
     return reply(
       ['Sorry about that. Let me pass you to someone right away.'],
       true,
@@ -87,7 +87,7 @@ function respondTo(text: string): string {
       0.95,
     );
   }
-  if (/(price|cost|how much|fee)/.test(t)) {
+  if (/(price|cost|how much|fee)/.test(lower)) {
     return reply(
       [
         'The Foundation Course is $450.00.',
@@ -98,7 +98,7 @@ function respondTo(text: string): string {
       0.9,
     );
   }
-  if (/(schedule|when|what day|timetable)/.test(t)) {
+  if (/(schedule|when|what day|timetable)/.test(lower)) {
     return reply(
       ['The foundation course runs Tuesdays and Thursdays, 6-9pm, for 4 weeks.'],
       false,
@@ -106,7 +106,7 @@ function respondTo(text: string): string {
       0.88,
     );
   }
-  if (/(hello|hi|good morning|good afternoon|hey)/.test(t)) {
+  if (/(hello|hi|good morning|good afternoon|hey)/.test(lower)) {
     return reply(
       ["Hi! Tell me which course you're interested in and I'll send the details."],
       false,
@@ -115,7 +115,7 @@ function respondTo(text: string): string {
     );
   }
   return reply(
-    ["I don't have that to hand - let me pass you to someone on the team."],
+    ["I don'lower have that to hand - let me pass you to someone on the team."],
     true,
     'out_of_scope',
     0.8,
@@ -123,12 +123,12 @@ function respondTo(text: string): string {
 }
 
 function lastUserText(options: LanguageModelV4CallOptions): string {
-  for (let i = options.prompt.length - 1; i >= 0; i--) {
-    const m = options.prompt[i];
-    if (m?.role === 'user') {
-      const content = m.content;
+  for (let index = options.prompt.length - 1; index >= 0; index--) {
+    const entry = options.prompt[index];
+    if (entry?.role === 'user') {
+      const content = entry.content;
       if (typeof content === 'string') return content;
-      return content.map(p => (p.type === 'text' ? p.text : '')).join(' ');
+      return content.map(part => (part.type === 'text' ? part.text : '')).join(' ');
     }
   }
   return '';
@@ -147,9 +147,9 @@ export function createMockModel(modelId: string): LanguageModelV4 {
       // can be exercised without a real slow provider.
       if (modelId === 'slow') {
         await new Promise((resolve, reject) => {
-          const t = setTimeout(resolve, 12_000);
+          const timer = setTimeout(resolve, 12_000);
           options.abortSignal?.addEventListener('abort', () => {
-            clearTimeout(t);
+            clearTimeout(timer);
             reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
           });
         });

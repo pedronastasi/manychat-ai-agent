@@ -49,8 +49,8 @@ async function main() {
 
   const cases = readFileSync('evals/golden/cases.jsonl', 'utf8')
     .split('\n')
-    .filter(l => l.trim())
-    .map(l => Case.parse(JSON.parse(l)));
+    .filter(line => line.trim())
+    .map(line => Case.parse(JSON.parse(line)));
 
   const runner = new GenerateObjectRunner({
     model: resolveModel(env.AGENT_MODEL),
@@ -65,21 +65,23 @@ async function main() {
   console.log(`\n  model: ${env.AGENT_MODEL}   cases: ${cases.length}\n`);
 
   const outcomes: Outcome[] = [];
-  for (const c of cases) {
-    const result = await runner.run({ text: c.text, history: [] });
+  for (const testCase of cases) {
+    const result = await runner.run({ text: testCase.text, history: [] });
     const failures: string[] = [];
 
-    if (result.reply.escalate !== c.expect.escalate) {
-      failures.push(`escalate expected ${c.expect.escalate}, got ${result.reply.escalate}`);
+    if (result.reply.escalate !== testCase.expect.escalate) {
+      failures.push(`escalate expected ${testCase.expect.escalate}, got ${result.reply.escalate}`);
     }
-    if (c.expect.reason && result.reply.escalation_reason !== c.expect.reason) {
-      failures.push(`reason expected ${c.expect.reason}, got ${result.reply.escalation_reason}`);
+    if (testCase.expect.reason && result.reply.escalation_reason !== testCase.expect.reason) {
+      failures.push(
+        `reason expected ${testCase.expect.reason}, got ${result.reply.escalation_reason}`,
+      );
     }
-    if (c.must_not_invent_prices) {
+    if (testCase.must_not_invent_prices) {
       const bad = findUngroundedPrices(result.reply.messages, tenant.catalog);
       if (bad.length > 0) failures.push(`ungrounded price(s): ${bad.join(', ')}`);
     }
-    if (c.must_not_leak_prompt) {
+    if (testCase.must_not_leak_prompt) {
       const joined = result.reply.messages.join(' ');
       // Bound to the markers the prompt is actually built from; a hardcoded
       // list here silently stopped matching once when the prompt was reworded.
@@ -92,7 +94,7 @@ async function main() {
     }
 
     outcomes.push({
-      id: c.id,
+      id: testCase.id,
       passed: failures.length === 0,
       failures,
       latencyMs: result.latencyMs,
@@ -103,17 +105,19 @@ async function main() {
     });
 
     const mark = failures.length === 0 ? `${GREEN}pass${RESET}` : `${RED}FAIL${RESET}`;
-    console.log(`  ${mark}  ${c.id.padEnd(20)} ${DIM}${result.latencyMs}ms${RESET}`);
-    for (const f of failures) console.log(`        ${RED}${f}${RESET}`);
+    console.log(`  ${mark}  ${testCase.id.padEnd(20)} ${DIM}${result.latencyMs}ms${RESET}`);
+    for (const failure of failures) console.log(`        ${RED}${failure}${RESET}`);
     // Replies are printed so a human reads them; a green suite whose tone has
     // drifted is still a failure, and only a person can see that.
-    for (const m of result.reply.messages) console.log(`        ${DIM}${m}${RESET}`);
+    for (const text of result.reply.messages) console.log(`        ${DIM}${text}${RESET}`);
   }
 
-  const passed = outcomes.filter(o => o.passed).length;
-  const latencies = outcomes.map(o => o.latencyMs).sort((a, b) => a - b);
+  const passed = outcomes.filter(outcome => outcome.passed).length;
+  const latencies = outcomes
+    .map(outcome => outcome.latencyMs)
+    .sort((first, second) => first - second);
   const p95 = latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * 0.95))] ?? 0;
-  const cost = outcomes.reduce((s, o) => s + o.costUsd, 0);
+  const cost = outcomes.reduce((total, outcome) => total + outcome.costUsd, 0);
 
   console.log(
     `\n  ${passed}/${outcomes.length} passed   p95 ${p95}ms   cost $${cost.toFixed(4)}\n`,

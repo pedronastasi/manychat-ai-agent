@@ -62,9 +62,9 @@ const fastRunner: AgentRunner = {
 const slowRunner: AgentRunner = {
   run: async ({ signal }) =>
     new Promise((resolve, reject) => {
-      const t = setTimeout(() => resolve(okResult(['Late reply'])), 1500);
+      const timer = setTimeout(() => resolve(okResult(['Late reply'])), 1500);
       signal?.addEventListener('abort', () => {
-        clearTimeout(t);
+        clearTimeout(timer);
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
       });
     }),
@@ -157,7 +157,7 @@ describe('inline reply (race won)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.version).toBe('v2');
-    expect(body.content.messages.map((m: { text: string }) => m.text)).toEqual([
+    expect(body.content.messages.map((message: { text: string }) => message.text)).toEqual([
       'Hi!',
       'The foundation course is $450.00.',
     ]);
@@ -185,7 +185,7 @@ describe('inline reply (race won)', () => {
     await post(app, { subscriber_id: '77', text: 'hello' }, SECRET);
     const turns = await db.query.turns.findMany();
     expect(turns).toHaveLength(2);
-    const agentTurn = turns.find(t => t.role === 'agent')!;
+    const agentTurn = turns.find(turn => turn.role === 'agent')!;
     expect(agentTurn.outcome).toBe('answered_inline');
     expect(agentTurn.cacheReadTokens).toBe(80);
     await app.close();
@@ -210,7 +210,7 @@ describe('deferred reply (race lost) — ADR-0001', () => {
     const app = await makeApp(slowRunner);
     await post(app, { subscriber_id: '88', text: 'something slow' }, SECRET);
     // Let the abandoned-but-not-cancelled model call complete.
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const claimed = await new OutboxQueue(db).claimBatch(10);
     expect(claimed).toHaveLength(1);

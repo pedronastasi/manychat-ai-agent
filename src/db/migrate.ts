@@ -20,11 +20,11 @@ export async function runMigrations(db: Database, dir = 'db/migrations'): Promis
   const rows = Array.isArray(existing)
     ? (existing as { name: string }[])
     : ((existing as { rows?: { name: string }[] }).rows ?? []);
-  for (const r of rows) applied.add(r.name);
+  for (const row of rows) applied.add(row.name);
 
   const ran: string[] = [];
   for (const file of readdirSync(dir)
-    .filter(f => f.endsWith('.sql'))
+    .filter(name => name.endsWith('.sql'))
     .sort()) {
     if (applied.has(file)) continue;
     const content = readFileSync(join(dir, file), 'utf8');

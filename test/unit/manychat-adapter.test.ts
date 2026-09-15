@@ -39,7 +39,10 @@ describe('Dynamic Block v2 rendering', () => {
   });
 
   it('clamps to the platform message ceiling', () => {
-    const many = { ...reply, messages: Array.from({ length: 12 }, (_, i) => `m${i}`) };
+    const many = {
+      ...reply,
+      messages: Array.from({ length: 12 }, (_unused, index) => `m${index}`),
+    };
     const out = renderManyChat(many, { capabilities: capabilitiesFor('whatsapp') });
     expect(out.content.messages.length).toBeLessThanOrEqual(10);
   });
@@ -73,14 +76,14 @@ describe('inbound parsing', () => {
   const ctx = { tenantId: 'demo', channel: 'whatsapp' };
 
   it('normalizes a ManyChat payload', () => {
-    const m = adapter.parse(
+    const inbound = adapter.parse(
       { subscriber_id: 998, text: 'hello', first_name: 'Ana', last_name: 'Diaz', locale: 'es_AR' },
       ctx,
     );
-    expect(m.subscriberId).toBe('998');
-    expect(m.contactName).toBe('Ana Diaz');
-    expect(m.tenantId).toBe('demo');
-    expect(m.channel).toBe('whatsapp');
+    expect(inbound.subscriberId).toBe('998');
+    expect(inbound.contactName).toBe('Ana Diaz');
+    expect(inbound.tenantId).toBe('demo');
+    expect(inbound.channel).toBe('whatsapp');
   });
 
   it('leaves contactName null when absent', () => {

@@ -44,11 +44,11 @@ export const REDACT_PATHS = [
  * without storing the identifier itself.
  */
 export function pseudonymize(subscriberId: string, salt: string): string {
-  let h = 2166136261;
+  let hash = 2166136261;
   const input = `${salt}:${subscriberId}`;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+  for (let index = 0; index < input.length; index++) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
   }
-  return (h >>> 0).toString(36).padStart(7, '0');
+  return (hash >>> 0).toString(36).padStart(7, '0');
 }

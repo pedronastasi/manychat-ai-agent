@@ -75,6 +75,7 @@ Every non-obvious choice is written down in [`docs/adr/`](docs/adr/):
 | [0006](docs/adr/0006-manychat-auth-risk-accepted.md)      | ManyChat does not sign webhooks; the compensating controls, written down |
 | [0007](docs/adr/0007-generateobject-not-toolloop.md)      | `generateObject`, not a tool loop, while there are no tools              |
 | [0008](docs/adr/0008-classes-for-port-implementations.md) | Ports are implemented by classes; functions stay for pure transformation |
+| [0009](docs/adr/0009-no-single-letter-identifiers.md)     | Identifiers are at least two characters, enforced by lint                |
 
 Behavior is specified before it is implemented, in [`specs/`](specs/) —
 a [constitution](specs/000-constitution.md) of non-negotiables, the

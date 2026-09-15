@@ -29,7 +29,9 @@ export const conversations = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  t => [uniqueIndex('conversations_tenant_subscriber_uq').on(t.tenantId, t.subscriberId)],
+  table => [
+    uniqueIndex('conversations_tenant_subscriber_uq').on(table.tenantId, table.subscriberId),
+  ],
 );
 
 export const turns = pgTable(
@@ -53,7 +55,7 @@ export const turns = pgTable(
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  t => [index('turns_conversation_created_idx').on(t.conversationId, t.createdAt)],
+  table => [index('turns_conversation_created_idx').on(table.conversationId, table.createdAt)],
 );
 
 /**
@@ -81,7 +83,7 @@ export const outbox = pgTable(
   },
   // The worker's claim query orders by this; without the index it degrades to a
   // sequential scan once the table accumulates delivered rows.
-  t => [index('outbox_claim_idx').on(t.status, t.nextAttemptAt)],
+  table => [index('outbox_claim_idx').on(table.status, table.nextAttemptAt)],
 );
 
 /** Daily spend caps (Constitution C6: fail closed, toward a human). */
@@ -93,7 +95,7 @@ export const budgetCounters = pgTable(
     tokens: integer('tokens').notNull().default(0),
     costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).notNull().default('0'),
   },
-  t => [primaryKey({ columns: [t.tenantId, t.day] })],
+  table => [primaryKey({ columns: [table.tenantId, table.day] })],
 );
 
 /** Per-subscriber rate limiting, in the same store as everything else. */
@@ -105,5 +107,5 @@ export const rateCounters = pgTable(
     windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
     count: integer('count').notNull().default(0),
   },
-  t => [primaryKey({ columns: [t.tenantId, t.subscriberId, t.windowStart] })],
+  table => [primaryKey({ columns: [table.tenantId, table.subscriberId, table.windowStart] })],
 );

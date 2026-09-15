@@ -79,8 +79,8 @@ export class OutboxWorker {
     const loop = async () => {
       while (this.running) {
         try {
-          this.settled = this.drainOnce().then(r => {
-            if (r.claimed > 0) this.opts.logger.info({ ...r }, 'outbox batch processed');
+          this.settled = this.drainOnce().then(batch => {
+            if (batch.claimed > 0) this.opts.logger.info({ ...batch }, 'outbox batch processed');
           });
           await this.settled;
         } catch (error) {
@@ -91,7 +91,7 @@ export class OutboxWorker {
             'outbox worker iteration failed',
           );
         }
-        await new Promise(r => setTimeout(r, interval));
+        await new Promise(resolve => setTimeout(resolve, interval));
       }
     };
 
