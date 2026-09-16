@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.2.0...manychat-ai-agent-v0.3.0) (2026-09-16)
+
+
+### Features
+
+* batch dependency updates and auto-merge only patches ([7bfb068](https://github.com/pedronastasi/manychat-ai-agent/commit/7bfb0687c4c1fc577ac48de8d232cf3bfa2835f8))
+* batch dependency updates and auto-merge only patches ([d628930](https://github.com/pedronastasi/manychat-ai-agent/commit/d6289304d83587ff0d16ed0f96ad4d1d8eba64dd))
+
+
+### Specs and Docs
+
+* record the PR that landed specs/011 ([cc0c14a](https://github.com/pedronastasi/manychat-ai-agent/commit/cc0c14ae166b714a376f24193cd9d160ab46358c))
+
 ## [0.2.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.1.0...manychat-ai-agent-v0.2.0) (2026-09-16)
 
 
