@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.2...manychat-ai-agent-v0.3.3) (2026-09-16)
+
+
+### Bug Fixes
+
+* regenerate lockfile for pnpm 12 and add workspace config ([67fc8d8](https://github.com/pedronastasi/manychat-ai-agent/commit/67fc8d8fbc1e0f1c3a44b142175175cac5f52243))
+
 ## [0.3.2](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.1...manychat-ai-agent-v0.3.2) (2026-09-16)
 
 
