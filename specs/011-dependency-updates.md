@@ -176,10 +176,10 @@ That is not cosmetic. `010-release-workflow.md` derives the version from commit
 subjects, so the prefix decides what an auto-merged dependency bump does to the
 next release:
 
-| Update                        | Commit prefix | Effect on the Release PR                |
-| ----------------------------- | ------------- | --------------------------------------- |
-| Runtime dependency, any level | `fix(deps)`   | Patch bump; appears under Bug Fixes     |
-| Dev dependency, any level     | `chore(deps)` | Patch bump; appears under Dependencies  |
+| Update                        | Commit prefix | Effect on the Release PR               |
+| ----------------------------- | ------------- | -------------------------------------- |
+| Runtime dependency, any level | `fix(deps)`   | Patch bump; appears under Bug Fixes    |
+| Dev dependency, any level     | `chore(deps)` | Patch bump; appears under Dependencies |
 
 Both produce a release. `010-release-workflow.md` maps `chore(deps)` to a
 visible Dependencies section rather than hiding it under Chores, because a dev
