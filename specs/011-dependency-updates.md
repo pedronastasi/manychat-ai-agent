@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-09-16
 constitution: [C1, C8]
 ---
 
@@ -118,7 +119,9 @@ branch, and majors are precisely the updates most likely to fail.
   "packageRules": [
     { "matchUpdateTypes": ["patch"], "groupName": "patch dependencies", "automerge": true },
     { "matchUpdateTypes": ["minor"], "groupName": "minor dependencies" },
-    { "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true }
+    { "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true },
+    { "matchManagers": ["github-actions"], "groupName": "github actions", "automerge": false },
+    { "matchDepTypes": ["engines", "packageManager"], "groupName": "toolchain", "automerge": false }
   ],
   "lockFileMaintenance": { "enabled": true, "schedule": ["before 9am on monday"] }
 }
@@ -129,6 +132,14 @@ point: a group that re-opens the moment any package ships turns back into a
 stream. `dependencyDashboardApproval` on majors keeps them listed but unopened
 until someone asks for one, so a framework's major release does not sit as an
 open pull request for months accruing conflicts.
+
+**The last two rules are ordering-sensitive, and silently so.** Renovate merges
+`packageRules` in sequence, so for a dependency matched by several, the later
+rule wins. The GitHub Actions and toolchain exclusions below carry
+`automerge: false` and must stay _below_ the patch rule that grants it —
+otherwise a patch bump to an action auto-merges, which is precisely what
+_Deliberately not automated_ forbids. Placed above, the exclusion is void and
+the configuration still validates, so the failure has no symptom.
 
 ## Auto-merge is a claim about CI, and CI does not check for malice
 
@@ -215,16 +226,23 @@ handles urgent ones.
 
 ## Verification
 
-- `renovate.json` validates against the published schema. A test runs
-  `renovate-config-validator`, so a malformed rule fails in CI rather than by
-  the bot quietly doing nothing — the failure mode of a bad Renovate config is
-  silence, which is indistinguishable from a working repository.
+- `renovate.json` validates against the published schema, so a malformed rule
+  fails in CI rather than by the bot quietly doing nothing — the failure mode of
+  a bad Renovate config is silence, which is indistinguishable from a working
+  repository. This runs as a **CI step**, `npx renovate-config-validator`, not
+  as a unit test: the validator ships inside `renovate`, which has 123 direct
+  dependencies, and a spec arguing for a small dependency surface should not
+  add the largest package in the ecosystem to the install path of everyone who
+  clones the repository. The cost is that it is the one check here a contributor
+  does not get from `pnpm test`.
 - A test asserts the configuration enables `automerge` for no update type other
   than `patch`, and that `minimumReleaseAge` is present and at least three days.
   Both are the policy above stated as a predicate; without the test, either can
   be relaxed in a one-line diff that reads as a tweak.
 - A test asserts no rule grants `automerge` to `github-actions` or to the
-  toolchain manager, matching the exclusions above.
+  toolchain manager, matching the exclusions above, **and that both exclusions
+  appear after the rule that grants it.** Order is what makes them effective,
+  and the validator has no opinion about it.
 - The first grouped patch PR is observed end to end: it opens on schedule, CI
   runs, it merges without intervention, and the following Release PR contains
   the resulting `fix(deps)` entries.
