@@ -103,7 +103,7 @@ required human attention actually differs:
 | ------- | --------------------- | ---------- | ---------------------------------------------------------------- |
 | `patch` | One combined PR       | Yes        | No interface change is claimed. CI is the whole review           |
 | `minor` | One combined PR       | No         | New surface, additive by contract — read the notes, then merge   |
-| `major` | One PR per dependency | No         | Breaking by declaration. Batching them makes a bisect impossible |
+| `major` | One PR per dependency | No         | Breaking by declaration. Batching them hides which upgrade broke |
 
 Majors are deliberately **not** grouped. A combined major PR that fails CI
 leaves no way to tell which of four upgrades broke it without unpicking the
@@ -120,7 +120,7 @@ branch, and majors are precisely the updates most likely to fail.
   "packageRules": [
     { "matchUpdateTypes": ["patch"], "groupName": "patch dependencies", "automerge": true },
     { "matchUpdateTypes": ["minor"], "groupName": "minor dependencies" },
-    { "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true },
+    { "matchUpdateTypes": ["major"] },
     { "matchManagers": ["github-actions"], "groupName": "github actions", "automerge": false },
     { "matchDepTypes": ["engines", "packageManager"], "groupName": "toolchain", "automerge": false }
   ],
@@ -130,9 +130,9 @@ branch, and majors are precisely the updates most likely to fail.
 
 A weekly schedule rather than a continuous one, because the batching is the
 point: a group that re-opens the moment any package ships turns back into a
-stream. `dependencyDashboardApproval` on majors keeps them listed but unopened
-until someone asks for one, so a framework's major release does not sit as an
-open pull request for months accruing conflicts.
+stream. Major PRs open automatically like everything else — they sit until a
+person reviews and merges them, and the weekly schedule keeps them from arriving
+mid-sprint.
 
 **The last two rules are ordering-sensitive, and silently so.** Renovate merges
 `packageRules` in sequence, so for a dependency matched by several, the later

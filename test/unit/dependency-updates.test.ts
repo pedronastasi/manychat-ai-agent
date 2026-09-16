@@ -60,8 +60,8 @@ describe('the three streams match the spec table', () => {
     expect(ruleFor('major')?.groupName).toBeUndefined();
   });
 
-  it('holds majors behind the dashboard', () => {
-    expect(ruleFor('major')?.dependencyDashboardApproval).toBe(true);
+  it('opens major PRs without dashboard approval', () => {
+    expect(ruleFor('major')?.dependencyDashboardApproval).toBeUndefined();
   });
 });
 
