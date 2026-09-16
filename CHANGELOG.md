@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.1...manychat-ai-agent-v0.3.2) (2026-09-16)
+
+
+### Bug Fixes
+
+* downgrade to TypeScript 6.0 — typescript-eslint does not support TS 7 ([c26a70d](https://github.com/pedronastasi/manychat-ai-agent/commit/c26a70d49eb54c1f1473ca4818e12c4528445e00))
+
 ## [0.3.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.0...manychat-ai-agent-v0.3.1) (2026-09-16)
 
 
