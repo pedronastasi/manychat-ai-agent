@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-09-16
 constitution: [C1, C8, C9]
 ---
 
@@ -212,8 +213,18 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          release-type: node
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 ```
+
+The workflow points at the two configuration files and declares nothing about
+the release itself. The action also accepts a `release-type` input inline, which
+would put the release's shape in two places — the changelog sections and the
+pre-1.0 bump rules have to live in the config file regardless, so the workflow
+is kept to permissions and wiring.
+
+There is no `actions/checkout` step. The action operates through the GitHub API
+rather than a working tree, so a checkout would be cost with no effect.
 
 This lives in `.github/workflows/release.yml`, separate from `ci.yml`. Keeping
 them apart is what lets `ci.yml` keep `permissions: contents: read` — the

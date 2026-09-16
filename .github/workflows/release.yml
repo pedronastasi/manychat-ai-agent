@@ -1,0 +1,21 @@
+name: Release
+
+on:
+  push: { branches: [main] }
+
+# Separate from ci.yml on purpose (specs/010-release-workflow.md § What a
+# release contains): ci.yml runs on pull requests from forks and keeps
+# `contents: read`. Merging the two would hand it write access.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # No checkout step: the action works through the API, not the worktree.
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
