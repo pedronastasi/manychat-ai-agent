@@ -20,8 +20,7 @@
       "groupName": "minor dependencies"
     },
     {
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
+      "matchUpdateTypes": ["major"]
     },
     {
       "matchManagers": ["github-actions"],
