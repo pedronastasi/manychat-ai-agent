@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.4](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.3...manychat-ai-agent-v0.3.4) (2026-09-16)
+
+
+### Bug Fixes
+
+* restore pnpm-workspace.yaml with minimumReleaseAge disabled ([6c96d58](https://github.com/pedronastasi/manychat-ai-agent/commit/6c96d58571d3d8943356e59097a125a4873e2f98))
+
+
+### Specs and Docs
+
+* add deps prefix to spec 010 changelog table ([d0b7b67](https://github.com/pedronastasi/manychat-ai-agent/commit/d0b7b672e67a5768431ff4ca6847b0d0a650e8d0))
+
 ## [0.3.3](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.2...manychat-ai-agent-v0.3.3) (2026-09-16)
 
 
