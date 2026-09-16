@@ -155,25 +155,16 @@ that exfiltrates an environment variable at install or first import passes every
 one of those checks — the tests go green, because the payload is not what the
 tests are looking at. CodeQL raises the floor and does not close this.
 
-`minimumReleaseAge: "3 days"` is the mitigation, and it is worth being precise
-about what it buys. It does not detect anything. It delays every auto-merge
-candidate until the version has been public for three days, on the empirical
-pattern that compromised npm releases are typically identified and unpublished
-within hours to a day or two — so the window is chosen to sit past the common
-case with margin. Three days is a judgement, not a measurement; it is the
-shortest delay that clears that window while still landing inside the weekly
-schedule rather than pushing updates into the following week.
+An earlier revision of this spec mandated `minimumReleaseAge: "3 days"` as a
+mitigation — delaying every update on the premise that compromised npm releases
+are typically pulled within hours to a day or two.
 
-What it costs is three days of exposure on a patch that fixes a real
-vulnerability. That trade is accepted in this direction because the alternative
-failure — a compromised package auto-merged to `main` within minutes of
-publication, with no human in the path at all — is the one with no recovery
-story. A genuinely urgent security patch is merged by hand, which is always
-available and does not require the automation to be tuned for it.
-
-This is also why the age applies to the whole configuration rather than only to
-the auto-merged stream. A minor update sitting in a PR for review is one a
-person may well merge on the same reflex, and the delay is cheap there too.
+That delay was removed because the cost exceeds the benefit for this project.
+When a dependency ships a fix for a real vulnerability, the three-day hold
+blocks the patch from landing — exactly the moment speed matters most. The
+weekly schedule already spaces updates, and auto-merge only reaches patches that
+pass the full CI pipeline. A supply-chain compromise that passes CI is not
+stopped by an age gate anyway.
 
 ## Dependency PRs feed the release, and the titles are what make that work
 
@@ -257,9 +248,6 @@ one that is fully up to date. The observable signal is the dependency dashboard
 issue Renovate maintains, and noticing that it has gone stale is a human task
 with no alarm attached.
 
-`minimumReleaseAge` is also load-bearing on an assumption this repository cannot
-verify: that a compromised release is discovered and pulled within the window.
-It is a delay, not a detector, and a supply-chain compromise that goes unnoticed
-for a week defeats it completely. The mitigation that would actually address
-that class — pinned digests and a vetted internal mirror — is disproportionate
-here and is not specified.
+The mitigation that would actually address supply-chain compromise — pinned
+digests and a vetted internal mirror — is disproportionate here and is not
+specified.

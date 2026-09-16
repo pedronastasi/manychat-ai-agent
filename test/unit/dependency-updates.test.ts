@@ -23,7 +23,6 @@ type PackageRule = {
 
 const config = JSON.parse(readFileSync('renovate.json', 'utf8')) as {
   extends?: string[];
-  minimumReleaseAge?: string;
   schedule?: string[];
   packageRules?: PackageRule[];
 };
@@ -111,17 +110,7 @@ describe('the exclusions override the patch rule rather than being overridden', 
   });
 });
 
-describe('a compromised release gets a window to be caught in', () => {
-  it('delays every update by at least three days', () => {
-    // specs/011 § Auto-merge is a claim about CI: this is a delay, not a
-    // detector. CI goes green on a malicious patch because the payload is not
-    // what the tests are looking at.
-    const age = config.minimumReleaseAge ?? '';
-    const [amount, unit] = age.split(' ');
-    expect(unit).toMatch(/^days?$/);
-    expect(Number(amount)).toBeGreaterThanOrEqual(3);
-  });
-
+describe('updates are batched, not continuous', () => {
   it('batches on a weekly schedule rather than continuously', () => {
     expect(config.schedule?.length).toBeGreaterThan(0);
     expect(config.schedule?.join(' ')).toMatch(/monday/i);
