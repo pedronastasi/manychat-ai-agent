@@ -12,6 +12,10 @@ permissions:
 
 jobs:
   release-please:
+    # The workflow file is synced to the deploy repo via force push. Without
+    # this guard release-please runs on both repos, creating duplicate release
+    # PRs — and on the org repo it fails because GITHUB_TOKEN cannot open PRs.
+    if: github.repository == 'pedronastasi/manychat-ai-agent'
     runs-on: ubuntu-latest
     steps:
       # No checkout step: the action works through the API, not the worktree.
