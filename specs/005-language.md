@@ -108,10 +108,10 @@ is carried through verbatim without the framework interpreting it.
 
 ## The exception, scoped precisely
 
-Rossy Nails Academy's real `config/prompt.md`, `config/catalog.json`,
-`config/rules.json` and `.env` stay in Rioplatense Spanish. They are gitignored
-(Constitution C1) and verified unstageable. The exception needs no discipline to
-hold — git enforces it.
+A deploying tenant's real `config/prompt.md`, `config/catalog.json`,
+`config/rules.json` and `.env` stay in whatever language that tenant sells in.
+They are gitignored (Constitution C1) and verified unstageable. The exception
+needs no discipline to hold — git enforces it.
 
 ## Order of work
 

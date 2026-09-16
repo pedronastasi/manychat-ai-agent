@@ -27,8 +27,8 @@ There is a second, sharper reason, specific to this project.
 > `.gitignore` protects the repository. It does not protect a pull request body.
 
 Constitution C1 is enforced by git for files. Nothing enforces it for the text a
-human types into GitHub. The most plausible route for Rossy Nails Academy data to
-reach the public internet is not a committed file — that is blocked — it is
+human types into GitHub. The most plausible route for a deploying tenant's data
+to reach the public internet is not a committed file — that is blocked — it is
 somebody pasting a real WhatsApp transcript, a screenshot of a conversation, or
 the real price list into a PR to illustrate a bug. The template has to put that
 in front of the author at the moment they are writing, which is the only moment
