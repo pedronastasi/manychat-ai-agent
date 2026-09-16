@@ -1,6 +1,5 @@
 allowBuilds:
   esbuild: true
-minimumReleaseAgeExclude:
-  - '@ai-sdk/provider@4.0.17'
+minimumReleaseAge: 0
 overrides:
   '@ai-sdk/provider': 4.0.17
