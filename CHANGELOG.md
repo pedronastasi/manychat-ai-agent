@@ -1,0 +1,58 @@
+# Changelog
+
+## [0.2.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.1.0...manychat-ai-agent-v0.2.0) (2026-09-16)
+
+
+### Features
+
+* add Ollama as a local model provider ([1274bac](https://github.com/pedronastasi/manychat-ai-agent/commit/1274bacaa9882db22cc558c7cad7ffcfeb898738))
+* add Ollama as a local model provider (specs/007) ([aa1da2f](https://github.com/pedronastasi/manychat-ai-agent/commit/aa1da2f0f5ba078a5ea45260eccea24f779040e1))
+* cut releases from a reviewable Release PR ([de2a4c6](https://github.com/pedronastasi/manychat-ai-agent/commit/de2a4c645f5d5c728cd44f175ccee8b3543c4045))
+* cut releases from a reviewable Release PR ([d8c4364](https://github.com/pedronastasi/manychat-ai-agent/commit/d8c4364c77d49c52f778367b67f327c227a309ac))
+* implement the agent gateway MVP ([63be48a](https://github.com/pedronastasi/manychat-ai-agent/commit/63be48a28c8251d883d356b7a652ac61f3c316b0))
+* implement the agent gateway MVP ([aba2203](https://github.com/pedronastasi/manychat-ai-agent/commit/aba2203c7215c1e84634e2f0360bf89452928c18))
+* let a tenant carry its own eval suite ([e2b50da](https://github.com/pedronastasi/manychat-ai-agent/commit/e2b50dacc3cfd759fe31a1c5779491caa574e42e))
+* let a tenant carry its own eval suite ([704e530](https://github.com/pedronastasi/manychat-ai-agent/commit/704e530c6aa22e836d17b7ffd3ff63ea160e8f93))
+* make a spec state whether its behaviour exists yet ([89f653a](https://github.com/pedronastasi/manychat-ai-agent/commit/89f653a60cd90e7192efcefe475c6ffb6915e01a))
+* make a spec state whether its behaviour exists yet ([423e318](https://github.com/pedronastasi/manychat-ai-agent/commit/423e318ec6469114060b91eb9959fcc4cdb9d375))
+* replace sendContent with flow-based delivery (specs/002) ([0603016](https://github.com/pedronastasi/manychat-ai-agent/commit/0603016d4e4efbf455b4f4fc2aa8a69c8ede0ddf))
+* scripted opening on a configured sentinel (specs/001) ([9bc8ff5](https://github.com/pedronastasi/manychat-ai-agent/commit/9bc8ff5c87e9375ec89018da2ee14753cb10258a))
+* scripted opening trigger and flow-based delivery ([a4cd0c5](https://github.com/pedronastasi/manychat-ai-agent/commit/a4cd0c5d1800fe398ee8cb094371df2d76f70456))
+
+
+### Bug Fixes
+
+* green eval:mock on main after [#17](https://github.com/pedronastasi/manychat-ai-agent/issues/17) ([00a50c2](https://github.com/pedronastasi/manychat-ai-agent/commit/00a50c2b23d3a756b4aa6035e3453c03714864df))
+* keep MODEL_ABORT_MS armed on the deferred path, record the model ([2089bcc](https://github.com/pedronastasi/manychat-ai-agent/commit/2089bcc7cd1f29adc6178f0b90588506571c12f4))
+* mount config into container and update Postgres 18 volume path ([7718a3b](https://github.com/pedronastasi/manychat-ai-agent/commit/7718a3b813f90d2dc5840ed02f704507c5a8b927))
+
+
+### Refactors
+
+* English throughout, and no customer copy in source ([e3094ee](https://github.com/pedronastasi/manychat-ai-agent/commit/e3094ee83c75de1ddca78b9abb5eb0912a3a5b15))
+* English throughout, and no customer copy in source ([8662c05](https://github.com/pedronastasi/manychat-ai-agent/commit/8662c0584d7041f6e74da5ca002d06de241a935c))
+* implement ports as classes rather than factory functions ([1738550](https://github.com/pedronastasi/manychat-ai-agent/commit/17385504b22749a00f6aa1b7af1014ad526226e4))
+* implement ports as classes rather than factory functions ([36245bd](https://github.com/pedronastasi/manychat-ai-agent/commit/36245bd7c4599a0b920f457ff8a9bea7fb92459b))
+
+
+### Specs and Docs
+
+* add CLAUDE.md with codebase documentation ([3b94ae4](https://github.com/pedronastasi/manychat-ai-agent/commit/3b94ae4943d9fe835fe36ce68785a3f4547a27af))
+* add CLAUDE.md with codebase documentation ([34d24b2](https://github.com/pedronastasi/manychat-ai-agent/commit/34d24b2aee8b4ed1f1b5db64f84c3c9e03d7383b))
+* add Docker setup and API walkthrough to README ([8cc50c2](https://github.com/pedronastasi/manychat-ai-agent/commit/8cc50c2c33a05136c55459321dd0970fc3b94c39))
+* add the pull request template specified in 006 ([b329490](https://github.com/pedronastasi/manychat-ai-agent/commit/b329490ca49dc49261cfd095df164bf970abb63d))
+* close spec 007's unkept promise and verify its claims ([a988eb2](https://github.com/pedronastasi/manychat-ai-agent/commit/a988eb2a2da203593a96b047568b2c4f8ade22fb))
+* close spec 007's unkept promise and verify its claims ([0381946](https://github.com/pedronastasi/manychat-ai-agent/commit/0381946cbc4dfdbcbe034e4ea2ed2c3ba2184875))
+* link to PGlite in quick-start blurb ([ef25a41](https://github.com/pedronastasi/manychat-ai-agent/commit/ef25a41177e15d120578ba5ea7ab5ee182459e32))
+* record classes as the standard for port implementations ([746c874](https://github.com/pedronastasi/manychat-ai-agent/commit/746c874422d56380bc6100c3a4100bc47cfa08d2))
+* record the PR that landed specs/009 ([53bdae0](https://github.com/pedronastasi/manychat-ai-agent/commit/53bdae02d67c890e317cc14d27982774295ecf9b))
+* remove tenant identity from the published repo ([e24b335](https://github.com/pedronastasi/manychat-ai-agent/commit/e24b335d4965dbef9daff91a6fbbd51d6c2c4715))
+* require English in the repository, and no copy in source ([395bcda](https://github.com/pedronastasi/manychat-ai-agent/commit/395bcda2426455a478cbb9c34e54165269e10627))
+* specify running a real model locally via Ollama ([2aeb100](https://github.com/pedronastasi/manychat-ai-agent/commit/2aeb100a5d284f5493c1dd008fe2d3df4a930475))
+* specify running a real model locally via Ollama ([7fc04ca](https://github.com/pedronastasi/manychat-ai-agent/commit/7fc04ca43e31bf0f8026ca6abf4486f61ba5203d))
+* specify tenant eval suites ([faff5af](https://github.com/pedronastasi/manychat-ai-agent/commit/faff5af592282125d3166974aa51997acf2adb0c))
+* specify the agent before building it ([095e7a4](https://github.com/pedronastasi/manychat-ai-agent/commit/095e7a472b0940f8e93638a593a0190f9a5062b4))
+* specify the release workflow and dependency updates ([d63cdca](https://github.com/pedronastasi/manychat-ai-agent/commit/d63cdca7d595b9684a5eb11d05c14d6ea789f62a))
+* specify the release workflow and dependency updates ([3253c49](https://github.com/pedronastasi/manychat-ai-agent/commit/3253c49c85ead6ba41d3ef54660be6a7f45b30a2))
+* specify the testing strategy ([8b39203](https://github.com/pedronastasi/manychat-ai-agent/commit/8b392032f858acce1c27cd07ae1c5ae11c8942ee))
+* specify what a pull request must say ([beeb226](https://github.com/pedronastasi/manychat-ai-agent/commit/beeb226da1f5e9d3337265696e6c1af902d3e293))
