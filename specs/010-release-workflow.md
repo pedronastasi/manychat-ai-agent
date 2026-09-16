@@ -134,6 +134,7 @@ The sections are therefore declared explicitly:
 | `refactor` | Refactors       | No     |
 | `docs`     | Specs and Docs  | No     |
 | `test`     | Tests           | Yes    |
+| `deps`     | Dependencies    | No     |
 | `chore`    | Chores          | Yes    |
 | `ci`       | CI              | Yes    |
 
