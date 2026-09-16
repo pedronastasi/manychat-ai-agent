@@ -21,6 +21,7 @@ test fails the suite.
 | [006 — Pull Requests](006-pull-requests.md)                             | implemented | 2026-09-15  | #6  | 1     | C1, C5, C8, C9 | —                              |
 | [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —   | —     | C2, C3, C6, C7 | [0001], [0002]                 |
 | [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9  | 1     | C8             | —                              |
+| [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | —   | 1     | C1, C6, C8, C9 | —                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md

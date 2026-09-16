@@ -38,6 +38,9 @@ exists, and which describe code that does not. It is generated - run
 - [`specs/005-language.md`](specs/005-language.md) requires English throughout,
   and that no customer-facing copy lives in source at all - it belongs to the
   tenant, in configuration.
+- [`specs/009-tenant-eval-suites.md`](specs/009-tenant-eval-suites.md) explains
+  why `evals/golden/` holds framework cases against the demo tenant only, and how
+  a tenant points the runner at a suite of its own.
 - [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
   request must say. The first heading is always `## Why` - the diff already says
   what changed.
