@@ -44,6 +44,13 @@ exists, and which describe code that does not. It is generated - run
 - [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
   request must say. The first heading is always `## Why` - the diff already says
   what changed.
+- [`specs/010-release-workflow.md`](specs/010-release-workflow.md) explains why a
+  release is cut by merging a Release PR rather than by pushing to `main`: the
+  changelog is generated from commit subjects, so it gets read as a diff before
+  it is published.
+- [`specs/011-dependency-updates.md`](specs/011-dependency-updates.md) explains
+  how dependency PRs are batched, and which ones merge without review. Patches
+  auto-merge on green CI; minors and majors do not.
 - Tests cite the spec clause they enforce. If a spec change breaks a test, that
   is a real finding — not a test to update mechanically.
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
