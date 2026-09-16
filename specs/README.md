@@ -23,7 +23,7 @@ test fails the suite.
 | [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9  | 1     | C8             | —                              |
 | [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19 | 1     | C1, C6, C8, C9 | —                              |
 | [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22 | 2     | C1, C8, C9     | —                              |
-| [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | —   | 1     | C1, C8         | —                              |
+| [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24 | 1     | C1, C8         | —                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
