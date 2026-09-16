@@ -14,7 +14,7 @@ pnpm install && pnpm bootstrap && pnpm dev
 ```
 
 That runs with **no API key and no database to install** — an offline mock model
-and an embedded Postgres. In another terminal:
+and an embedded [PGlite](https://pglite.dev/) Postgres. In another terminal:
 
 ```bash
 $ pnpm simulate "how much is the foundation course?"
