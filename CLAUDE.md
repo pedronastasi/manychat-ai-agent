@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Provider-agnostic conversational AI agent that answers customer questions on WhatsApp through ManyChat. Acts as a "front desk" for a nail academy — answers grounded questions about courses and escalates everything else to a human. ManyChat terminates external requests after 10 seconds, so the system uses a hybrid race (`Promise.race`) between the model and an 8-second deadline; if the model loses the race, its reply completes into a Postgres outbox for deferred delivery.
+Provider-agnostic conversational AI agent that answers customer questions on WhatsApp through ManyChat. Acts as a "front desk" for a training academy — answers grounded questions about courses and escalates everything else to a human. ManyChat terminates external requests after 10 seconds, so the system uses a hybrid race (`Promise.race`) between the model and an 8-second deadline; if the model loses the race, its reply completes into a Postgres outbox for deferred delivery.
 
 ## Quick start
 
