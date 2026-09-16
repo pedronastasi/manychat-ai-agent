@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.0...manychat-ai-agent-v0.3.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* gate release-please to the public repo only ([fa58933](https://github.com/pedronastasi/manychat-ai-agent/commit/fa58933e11787c6c91650d5aac3789115ace160e))
+* gate release-please to the public repo only ([b545948](https://github.com/pedronastasi/manychat-ai-agent/commit/b545948228aca002a2ec39683c16fe491e5da610))
+
 ## [0.3.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.2.0...manychat-ai-agent-v0.3.0) (2026-09-16)
 
 
