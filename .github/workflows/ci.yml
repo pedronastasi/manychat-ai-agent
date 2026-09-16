@@ -27,6 +27,14 @@ jobs:
       - name: Format
         run: pnpm format:check
 
+      # specs/011-dependency-updates.md § Verification. A bad Renovate config
+      # fails silently — the bot just stops opening PRs, which looks exactly
+      # like a repository with nothing to update. Run via npx rather than as a
+      # devDependency: renovate has 123 direct dependencies, and none of them
+      # belong in the install path of everyone who clones this.
+      - name: Validate Renovate config
+        run: npx --yes --package renovate renovate-config-validator
+
       # Integration tests run against PGlite (real Postgres, in-process), so no
       # service container is needed. Coverage thresholds are enforced here
       # (specs/004-testing.md); the run fails if they regress.
