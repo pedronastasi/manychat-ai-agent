@@ -45,11 +45,11 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "4.0.14",
+    "@ai-sdk/provider": "4.0.16",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.2",
-    "@vitest/coverage-v8": "5.0.0",
+    "@vitest/coverage-v8": "5.0.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.10.0",
     "prettier": "^3.9.6",
