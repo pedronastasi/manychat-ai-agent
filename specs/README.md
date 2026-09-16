@@ -22,7 +22,7 @@ test fails the suite.
 | [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —   | —     | C2, C3, C6, C7 | [0001], [0002]                 |
 | [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9  | 1     | C8             | —                              |
 | [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19 | 1     | C1, C6, C8, C9 | —                              |
-| [010 — Release Workflow](010-release-workflow.md)                       | specified   | —           | —   | —     | C1, C8, C9     | —                              |
+| [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | —   | 1     | C1, C8, C9     | —                              |
 | [011 — Dependency Updates](011-dependency-updates.md)                   | specified   | —           | —   | —     | C1, C8         | —                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
