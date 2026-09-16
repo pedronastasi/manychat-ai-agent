@@ -20,7 +20,12 @@ const config = JSON.parse(readFileSync('release-please-config.json', 'utf8')) as
     {
       'bump-minor-pre-major'?: boolean;
       'bump-patch-for-minor-pre-major'?: boolean;
-      'changelog-sections'?: { type: string; section: string; hidden?: boolean }[];
+      'changelog-sections'?: {
+        type: string;
+        scope?: string;
+        section: string;
+        hidden?: boolean;
+      }[];
     }
   >;
 };
@@ -35,13 +40,18 @@ const sections = rootPackage?.['changelog-sections'] ?? [];
  */
 const specTable = [
   ...readFileSync(SPEC_PATH, 'utf8').matchAll(
-    /^\|\s*`([a-z]+)`\s*\|\s*([^|]+?)\s*\|\s*(Yes|No)\s*\|$/gm,
+    /^\|\s*`([a-z]+(?:\([a-z]+\))?)`\s*\|\s*([^|]+?)\s*\|\s*(Yes|No)\s*\|$/gm,
   ),
-].map(row => ({
-  type: row[1]!,
-  section: row[2]!,
-  hidden: row[3] === 'Yes',
-}));
+].map(row => {
+  const match = row[1]!.match(/^([a-z]+)(?:\(([a-z]+)\))?$/);
+  return {
+    type: match![1]!,
+    scope: match![2],
+    key: row[1]!,
+    section: row[2]!,
+    hidden: row[3] === 'Yes',
+  };
+});
 
 describe('the changelog sections match the commit prefixes this repository admits', () => {
   it('found the table in the spec', () => {
@@ -50,16 +60,26 @@ describe('the changelog sections match the commit prefixes this repository admit
     expect(specTable.length).toBeGreaterThan(0);
   });
 
-  it.each(specTable)('declares a section for $type', ({ type, section, hidden }) => {
-    const declared = sections.find(entry => entry.type === type);
-    expect(declared, `no changelog-sections entry for \`${type}:\``).toBeDefined();
-    expect(declared?.section).toBe(section);
-    expect(declared?.hidden ?? false).toBe(hidden);
-  });
+  it.each(specTable)(
+    'declares a section for $key',
+    ({ type, scope, section, hidden }: (typeof specTable)[number]) => {
+      const declared = sections.find(
+        entry => entry.type === type && (entry.scope ?? undefined) === scope,
+      );
+      expect(
+        declared,
+        `no changelog-sections entry for \`${scope ? `${type}(${scope})` : type}:\``,
+      ).toBeDefined();
+      expect(declared?.section).toBe(section);
+      expect(declared?.hidden ?? false).toBe(hidden);
+    },
+  );
 
   it('declares nothing the spec does not list', () => {
-    const spec = specTable.map(row => row.type).sort();
-    expect(sections.map(entry => entry.type).sort()).toEqual(spec);
+    const sectionKey = (entry: { type: string; scope?: string }) =>
+      entry.scope ? `${entry.type}(${entry.scope})` : entry.type;
+    const spec = specTable.map(row => row.key).sort();
+    expect(sections.map(sectionKey).sort()).toEqual(spec);
   });
 
   it('keeps refactor and docs visible', () => {
