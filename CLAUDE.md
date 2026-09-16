@@ -37,7 +37,7 @@ tenant it runs against — see `specs/009-tenant-eval-suites.md`.
 
 ## Tech stack
 
-- **Runtime:** Node.js >= 22, TypeScript ~5.9 (strict, ESM, `verbatimModuleSyntax`)
+- **Runtime:** Node.js >= 22, TypeScript ~6.0 (strict, ESM, `verbatimModuleSyntax`)
 - **Server:** Fastify 5 with Zod type provider
 - **AI:** Vercel AI SDK (`generateObject`) with Anthropic/OpenAI/Google providers
 - **Database:** PostgreSQL via `postgres` + Drizzle ORM; PGlite for dev/test
