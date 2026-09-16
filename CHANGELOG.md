@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.6](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.5...manychat-ai-agent-v0.3.6) (2026-09-16)
+
+
+### Bug Fixes
+
+* **docker:** copy pnpm-workspace.yaml into build stage ([89441f6](https://github.com/pedronastasi/manychat-ai-agent/commit/89441f6a5116e58b42918d41ab44fc21371a439d))
+* **docker:** copy pnpm-workspace.yaml into build stage ([11d39f5](https://github.com/pedronastasi/manychat-ai-agent/commit/11d39f5ee4209ce1f1e37a2817967ed1e956d8d7))
+
 ## [0.3.5](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.4...manychat-ai-agent-v0.3.5) (2026-09-16)
 
 
