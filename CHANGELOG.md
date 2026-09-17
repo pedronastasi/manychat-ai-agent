@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.4.0...manychat-ai-agent-v0.4.1) (2026-09-17)
+
+
+### Refactors
+
+* migrate from deprecated generateObject to generateText ([3988740](https://github.com/pedronastasi/manychat-ai-agent/commit/3988740ce567edc1440b7d27bf12b9fa7c146ba6))
+* migrate from deprecated generateObject to generateText ([7319a6f](https://github.com/pedronastasi/manychat-ai-agent/commit/7319a6f4a20a62f052727243446a7cc333d0e49e))
+
 ## [0.4.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.6...manychat-ai-agent-v0.4.0) (2026-09-17)
 
 
