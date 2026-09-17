@@ -84,6 +84,12 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
   return { reply, interventions };
 }
 
+/** Numbers with a currency cue nearby, e.g. "$45.000", "45000 pesos". */
+const PRICE_PATTERN = /(?:\$\s?)([\d][\d.,]{2,})|([\d][\d.,]{2,})\s?(?:pesos|ars|usd)/gi;
+
+/** Digits only, so "45.000", "45,000" and "45000" compare equal. */
+const digits = (value: string) => value.replace(/[.,]/g, '');
+
 /**
  * Flags prices that do not appear in the catalog.
  *
@@ -91,26 +97,38 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
  * over numbers in text, and blocking live replies on a heuristic would trade a
  * rare invented price for frequent false escalations. In evals it is exactly the
  * right tool, because a human reads the failures.
+ *
+ * Grounding reads the catalog's prose as well as `price.amount`. A tenant whose
+ * offering has tiers — a web-only discount, a deposit, a balance — documents
+ * those figures in an FAQ answer or a course description, because `price` holds
+ * one number per course and cannot express them. Grounding against `price` alone
+ * flagged every correct mention of such a figure, which is the failure mode that
+ * gets the whole assertion switched off.
  */
 export function findUngroundedPrices(messages: string[], catalog: Catalog): string[] {
   const allowed = new Set<string>();
+
   for (const course of catalog.courses) {
     const major = course.price.amount / 100;
-    allowed.add(String(major));
-    allowed.add(String(course.price.amount));
-    allowed.add(major.toLocaleString('es-AR'));
-    allowed.add(major.toLocaleString('en-US'));
+    allowed.add(digits(String(major)));
+    allowed.add(digits(String(course.price.amount)));
+    allowed.add(digits(major.toLocaleString('es-AR')));
+    allowed.add(digits(major.toLocaleString('en-US')));
   }
+
+  const prose = [
+    ...catalog.courses.map(course => course.description),
+    ...catalog.faq.map(entry => entry.answer),
+  ].join(' ');
+  for (const match of prose.matchAll(PRICE_PATTERN)) {
+    allowed.add(digits((match[1] ?? match[2] ?? '').trim()));
+  }
+
   const found: string[] = [];
   for (const message of messages) {
-    // Numbers with a currency cue nearby, e.g. "$45.000", "45000 pesos".
-    for (const match of message.matchAll(
-      /(?:\$\s?)([\d][\d.,]{2,})|([\d][\d.,]{2,})\s?(?:pesos|ars|usd)/gi,
-    )) {
+    for (const match of message.matchAll(PRICE_PATTERN)) {
       const value = (match[1] ?? match[2] ?? '').trim();
-      const normalized = value.replace(/[.,]/g, '');
-      const isKnown = [...allowed].some(known => known.replace(/[.,]/g, '') === normalized);
-      if (!isKnown) found.push(value);
+      if (!allowed.has(digits(value))) found.push(value);
     }
   }
   return found;

@@ -251,6 +251,34 @@ describe('price grounding', () => {
   it('flags an invented price', () => {
     expect(findUngroundedPrices(['Te lo dejo en $30.000'], catalog).length).toBe(1);
   });
+
+  // A tiered offering — web-only discount, deposit, balance — cannot be
+  // expressed in `price`, which holds one number per course. Those figures live
+  // in the prose, and grounding against `price` alone flagged every correct
+  // mention of them.
+  it('grounds a price documented only in a FAQ answer or description', () => {
+    const tiered = CatalogSchema.parse({
+      businessName: 'Demo Academy',
+      currency: 'ARS',
+      courses: [
+        {
+          id: 'c1',
+          name: 'Foundation Course',
+          description: 'Reserva con $25.000 de inscripcion.',
+          price: { amount: 4500000, currency: 'ARS' },
+          durationHours: 20,
+          schedule: 'Martes 18h',
+          enrollmentUrl: 'https://example.com/c1',
+        },
+      ],
+      faq: [{ question: 'Hay descuento?', answer: 'Por la tienda web sale $39.000.' }],
+    });
+
+    expect(findUngroundedPrices(['Sale $45.000, por la web $39.000'], tiered)).toEqual([]);
+    expect(findUngroundedPrices(['La inscripcion es $25.000'], tiered)).toEqual([]);
+    // Prose grounding must not become a blanket amnesty for any number.
+    expect(findUngroundedPrices(['Te lo dejo en $30.000'], tiered)).toEqual(['30.000']);
+  });
 });
 
 describe('registry', () => {
