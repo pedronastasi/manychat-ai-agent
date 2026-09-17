@@ -28,8 +28,8 @@ const replyOf = (messages: string[], overrides: Partial<AgentReply> = {}): Agent
   ...overrides,
 });
 
-const check = (raw: unknown, reply: AgentReply, latencyMs = 100) =>
-  checkCase({ testCase: Case.parse(raw), reply, catalog, latencyMs, raceDeadlineMs: 8000 });
+const check = (raw: unknown, reply: AgentReply, latencyMs = 100, latencyBudgetMs = 8000) =>
+  checkCase({ testCase: Case.parse(raw), reply, catalog, latencyMs, latencyBudgetMs });
 
 const base = { id: 'test', text: 'hello', expect: { escalate: false } };
 
@@ -148,6 +148,28 @@ describe('max_lines (specs/009 § Register is the assertion that cannot be one)'
       'message of 3 lines exceeds max_lines 2',
     ]);
   });
+
+  // A tenant whose format rules mandate a blank line between the answer and its
+  // closing question was failing on the separators those rules require.
+  it('counts content lines, not the blank separators between them', () => {
+    // Six lines as written, four of content: answer, two list items, question.
+    const listed = replyOf(['answer\n\n1. one\n2. two\n\nwhich?']);
+    expect(check({ ...base, max_lines: 4 }, listed)).toEqual([]);
+    expect(check({ ...base, max_lines: 2 }, replyOf(['answer\n\nwhich?']))).toEqual([]);
+    // Content still counts: blank-line tolerance is not a way past the cap.
+    expect(check({ ...base, max_lines: 3 }, listed)).toEqual([
+      'message of 4 lines exceeds max_lines 3',
+    ]);
+  });
+});
+
+describe('latency budget', () => {
+  it('is independent of the production race deadline', () => {
+    const reply = replyOf(['hi']);
+    expect(check(base, reply, 9000, 8000)).toEqual(['latency 9000ms exceeds budget 8000ms']);
+    // The same turn passes once the tenant raises the suite's own budget.
+    expect(check(base, reply, 9000, 30_000)).toEqual([]);
+  });
 });
 
 describe('classify (specs/009 § Verification)', () => {
@@ -173,7 +195,7 @@ describe('existing assertions still hold (specs/009 § additive)', () => {
     expect(check({ ...base, must_not_invent_prices: true }, reply)).toEqual([
       'ungrounded price(s): 999',
     ]);
-    expect(check(base, replyOf(['fine']), 9000)).toEqual(['latency 9000ms exceeds race deadline']);
+    expect(check(base, replyOf(['fine']), 9000)).toEqual(['latency 9000ms exceeds budget 8000ms']);
   });
 
   it('flags an escalation mismatch and a reason mismatch', () => {
