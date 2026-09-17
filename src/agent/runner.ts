@@ -109,7 +109,8 @@ export class GenerateTextRunner implements AgentRunner {
     ];
 
     const outputSpec = Output.object({ schema: AgentReplyForModel });
-    let result: Awaited<ReturnType<typeof generateText<Record<string, never>, Record<string, never>, typeof outputSpec>>>;
+    type Empty = Record<string, never>;
+    let result: Awaited<ReturnType<typeof generateText<Empty, Empty, typeof outputSpec>>>;
     try {
       result = await generateText({
         model: this.opts.model,
