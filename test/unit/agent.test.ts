@@ -53,9 +53,7 @@ const run = (object: unknown, usage = {}) => {
   const runner = new GenerateObjectRunner({
     model,
     modelSpec: 'anthropic:claude-haiku-4-5',
-    persona: 'Sos el front desk.',
-    catalog,
-    rules,
+    config: () => ({ persona: 'Sos el front desk.', catalog, rules }),
     maxOutputTokens: 400,
     temperature: 0.3,
   });
@@ -94,6 +92,31 @@ describe('agent runner', () => {
     await runner.run({ text: 'second', history: [{ role: 'user', text: 'first' }] });
     const sys = calls.map(call => JSON.stringify(call.prompt.find(part => part.role === 'system')));
     expect(sys[0]).toBe(sys[1]);
+  });
+
+  it('rebuilds the system prompt after a config reload (specs/003 Reload)', async () => {
+    // The persona used to be captured in the constructor, so SIGHUP reloaded
+    // rules.json but left the prompt frozen until the process restarted —
+    // exactly the friction the reload path exists to remove.
+    const { model, calls } = mockModel(good);
+    let config = { persona: 'Sos el front desk.', catalog, rules };
+    const runner = new GenerateObjectRunner({
+      model,
+      modelSpec: 'anthropic:claude-haiku-4-5',
+      config: () => config,
+      maxOutputTokens: 400,
+      temperature: 0.3,
+    });
+
+    await runner.run({ text: 'hola', history: [] });
+    // ConfigStore.reload() swaps in a whole new object; identity is the signal.
+    config = { persona: 'Sos Rosario, la instructora.', catalog, rules };
+    await runner.run({ text: 'hola', history: [] });
+
+    const sys = calls.map(call => JSON.stringify(call.prompt.find(part => part.role === 'system')));
+    expect(sys[0]).toContain('Sos el front desk.');
+    expect(sys[1]).toContain('Sos Rosario, la instructora.');
+    expect(sys[1]).not.toContain('Sos el front desk.');
   });
 
   it('fences untrusted contact text', async () => {
@@ -312,9 +335,7 @@ describe('runner failure branches (specs/004 P2)', () => {
     new GenerateObjectRunner({
       model,
       modelSpec: 'mock:test',
-      persona: 'P.',
-      catalog,
-      rules,
+      config: () => ({ persona: 'P.', catalog, rules }),
       maxOutputTokens: 400,
       temperature: 0.3,
     });
