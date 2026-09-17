@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.6...manychat-ai-agent-v0.4.0) (2026-09-17)
+
+
+### Features
+
+* cap reasoning effort, and make a dead model call visible ([c9cb90a](https://github.com/pedronastasi/manychat-ai-agent/commit/c9cb90a21f127f45d1560569e3966db1ca6fff5a))
+* cap reasoning effort, and make a dead model call visible ([257f039](https://github.com/pedronastasi/manychat-ai-agent/commit/257f039a05fc84b82739b45c3854ab1637f755d0))
+
+
+### Bug Fixes
+
+* add serial seq column to turns for deterministic ordering ([7ecf70f](https://github.com/pedronastasi/manychat-ai-agent/commit/7ecf70f28292e9eceb104c3195c77da16ed5d332))
+* deterministic turn ordering with serial seq column ([537ec70](https://github.com/pedronastasi/manychat-ai-agent/commit/537ec70a1f12ede6a8b0794ce01ef64c23ca62ce))
+* prevent false escalation on short conversational replies ([85af807](https://github.com/pedronastasi/manychat-ai-agent/commit/85af8076fcf3d2b071212761db16e7f441ca8bed))
+* prevent false escalation on short conversational replies ([7c4992e](https://github.com/pedronastasi/manychat-ai-agent/commit/7c4992e9157c6322d4c9235a25e7199d907eedc7))
+* reload the persona and catalog on SIGHUP ([7293d59](https://github.com/pedronastasi/manychat-ai-agent/commit/7293d59751aca0afd65321cefbbecc7b1de088a1))
+* reload the persona and catalog on SIGHUP ([c43222e](https://github.com/pedronastasi/manychat-ai-agent/commit/c43222e44838a68188e43978250303eab6f87107))
+
 ## [0.3.6](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.5...manychat-ai-agent-v0.3.6) (2026-09-16)
 
 
