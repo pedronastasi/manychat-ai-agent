@@ -15,7 +15,7 @@ import { capabilitiesFor } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
 import type { Database } from './db/client.ts';
 import { resolveModel } from './agent/registry.ts';
-import { GenerateObjectRunner } from './agent/runner.ts';
+import { GenerateTextRunner } from './agent/runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { ManyChatHttpClient } from './channels/manychat/client.ts';
@@ -72,7 +72,7 @@ export function buildServer(opts: BuildOptions) {
 
   const runner =
     opts.runner ??
-    new GenerateObjectRunner({
+    new GenerateTextRunner({
       model: resolveModel(env.AGENT_MODEL),
       modelSpec: env.AGENT_MODEL,
       // The accessor, not its result: the runner re-reads it so SIGHUP reaches

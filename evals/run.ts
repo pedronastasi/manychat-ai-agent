@@ -16,7 +16,7 @@
  */
 import { loadEnv, loadTenantConfig } from '../src/config/loader.ts';
 import { resolveModel } from '../src/agent/registry.ts';
-import { GenerateObjectRunner } from '../src/agent/runner.ts';
+import { GenerateTextRunner } from '../src/agent/runner.ts';
 import { checkCase, classify, evalDir, loadCases, type Status } from './cases.ts';
 
 interface Outcome {
@@ -47,7 +47,7 @@ async function main() {
   const tenant = loadTenantConfig(configDir);
   const cases = loadCases(suiteDir);
 
-  const runner = new GenerateObjectRunner({
+  const runner = new GenerateTextRunner({
     model: resolveModel(env.AGENT_MODEL),
     modelSpec: env.AGENT_MODEL,
     config: () => tenant,
