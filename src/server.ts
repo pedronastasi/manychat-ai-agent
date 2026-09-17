@@ -80,6 +80,7 @@ export function buildServer(opts: BuildOptions) {
       config: tenant,
       maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
       temperature: env.AGENT_TEMPERATURE,
+      reasoningEffort: env.AGENT_REASONING_EFFORT,
     });
 
   const registerPlugins = async () => {

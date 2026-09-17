@@ -16,6 +16,16 @@ export interface AgentResult {
   reply: AgentReply;
   usage: AgentUsage;
   interventions: string[];
+  /**
+   * The error name when the call failed and `reply` is the fail-closed
+   * fallback, absent when the model actually answered.
+   *
+   * Without it a failed call is indistinguishable from a model that chose to
+   * escalate: both carry `escalate: true` and the same tenant message, so the
+   * turn was recorded as `escalated_model` and the only clue left was that
+   * usage came back undefined.
+   */
+  modelError?: string;
   latencyMs: number;
   /**
    * The `provider:model` spec that produced this turn. Recorded per turn
@@ -52,6 +62,8 @@ export interface RunnerOptions {
   config: () => TenantConfig;
   maxOutputTokens: number;
   temperature: number;
+  /** Reasoning models only; omitted from the request when unset. */
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | undefined;
   /**
    * Records prompts and completions in telemetry spans. Off by default: spans
    * would otherwise carry the contact's message text verbatim, which is exactly
@@ -119,6 +131,11 @@ export class GenerateObjectRunner implements AgentRunner {
           // Caches the system block on Anthropic. Ignored by providers that
           // cache automatically, so it is safe to send unconditionally.
           anthropic: { cacheControl: { type: 'ephemeral' } },
+          // Each key is read only by the provider it names, so an option meant
+          // for one is inert for the rest.
+          ...(this.opts.reasoningEffort
+            ? { openai: { reasoningEffort: this.opts.reasoningEffort } }
+            : {}),
         },
       });
     } catch (error) {
@@ -129,9 +146,11 @@ export class GenerateObjectRunner implements AgentRunner {
       // (Constitution C6).
       if (error instanceof Error && error.name === 'AbortError') throw error;
       if (signal?.aborted) throw error;
+      const name = error instanceof Error ? error.name : 'unknown';
       return {
         reply: escalationReply('low_confidence', config.rules.messages.escalation),
-        interventions: [`model_error: ${error instanceof Error ? error.name : 'unknown'}`],
+        interventions: [`model_error: ${name}`],
+        modelError: name,
         latencyMs: Date.now() - started,
         model: this.opts.modelSpec,
         usage: {
