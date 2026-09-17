@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GenerateObjectRunner } from '../../src/agent/runner.ts';
+import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import {
   applyGuardrails,
   escalationReply,
@@ -50,7 +50,7 @@ const rules = RulesSchema.parse({
 
 const run = (object: unknown, usage = {}) => {
   const { model, calls } = mockModel(object, usage);
-  const runner = new GenerateObjectRunner({
+  const runner = new GenerateTextRunner({
     model,
     modelSpec: 'anthropic:claude-haiku-4-5',
     config: () => ({ persona: 'Sos el front desk.', catalog, rules }),
@@ -100,7 +100,7 @@ describe('agent runner', () => {
     // exactly the friction the reload path exists to remove.
     const { model, calls } = mockModel(good);
     let config = { persona: 'Sos el front desk.', catalog, rules };
-    const runner = new GenerateObjectRunner({
+    const runner = new GenerateTextRunner({
       model,
       modelSpec: 'anthropic:claude-haiku-4-5',
       config: () => config,
@@ -131,7 +131,7 @@ describe('agent runner', () => {
     // the lever that avoids it; sending nothing keeps non-reasoning providers
     // untouched.
     const bare = mockModel(good);
-    await new GenerateObjectRunner({
+    await new GenerateTextRunner({
       model: bare.model,
       modelSpec: 'openai:gpt-5-mini',
       config: () => ({ persona: 'P.', catalog, rules }),
@@ -141,7 +141,7 @@ describe('agent runner', () => {
     expect(bare.calls[0]!.providerOptions?.openai).toBeUndefined();
 
     const tuned = mockModel(good);
-    await new GenerateObjectRunner({
+    await new GenerateTextRunner({
       model: tuned.model,
       modelSpec: 'openai:gpt-5-mini',
       config: () => ({ persona: 'P.', catalog, rules }),
@@ -364,8 +364,8 @@ describe('environment loading', () => {
 });
 
 describe('runner failure branches (specs/004 P2)', () => {
-  const runnerFor = (model: ConstructorParameters<typeof GenerateObjectRunner>[0]['model']) =>
-    new GenerateObjectRunner({
+  const runnerFor = (model: ConstructorParameters<typeof GenerateTextRunner>[0]['model']) =>
+    new GenerateTextRunner({
       model,
       modelSpec: 'mock:test',
       config: () => ({ persona: 'P.', catalog, rules }),

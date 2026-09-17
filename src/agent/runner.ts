@@ -1,4 +1,4 @@
-import { generateObject, type LanguageModel, type ModelMessage } from 'ai';
+import { generateText, Output, type LanguageModel, type ModelMessage } from 'ai';
 import { AgentReplyForModel, type AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import { buildSystemPrompt, fenceUserText } from './prompt.ts';
@@ -43,7 +43,7 @@ export interface AgentTurnInput {
 
 /**
  * The port every caller depends on. v1 implements it with a single
- * `generateObject` call; a tool-using implementation can replace it later
+ * `generateText` call; a tool-using implementation can replace it later
  * without touching callers (ADR-0007).
  */
 export interface AgentRunner {
@@ -72,7 +72,7 @@ export interface RunnerOptions {
   recordPromptsInTraces?: boolean;
 }
 
-export class GenerateObjectRunner implements AgentRunner {
+export class GenerateTextRunner implements AgentRunner {
   private readonly opts: RunnerOptions;
   private cached: { config: TenantConfig; staticPrefix: string; catalogBlock: string } | undefined;
 
@@ -108,19 +108,17 @@ export class GenerateObjectRunner implements AgentRunner {
       { role: 'user', content: fenceUserText(text) },
     ];
 
-    let result: Awaited<ReturnType<typeof generateObject<typeof AgentReplyForModel>>>;
+    const outputSpec = Output.object({ schema: AgentReplyForModel });
+    type Empty = Record<string, never>;
+    let result: Awaited<ReturnType<typeof generateText<Empty, Empty, typeof outputSpec>>>;
     try {
-      result = await generateObject({
+      result = await generateText({
         model: this.opts.model,
-        schema: AgentReplyForModel,
-        // Static instructions first, then the catalog. Both are invariant across
-        // requests, which is what makes the prefix cacheable (see prompt.ts).
+        output: outputSpec,
         system: `${staticPrefix}\n\n${catalogBlock}`,
         messages,
         maxOutputTokens: this.opts.maxOutputTokens,
         temperature: this.opts.temperature,
-        // Emits OpenTelemetry spans when the operator registers a telemetry
-        // integration; a no-op otherwise, so it costs nothing by default.
         telemetry: {
           functionId: 'agent-turn',
           recordInputs: this.opts.recordPromptsInTraces ?? false,
@@ -128,19 +126,15 @@ export class GenerateObjectRunner implements AgentRunner {
         },
         ...(signal ? { abortSignal: signal } : {}),
         providerOptions: {
-          // Caches the system block on Anthropic. Ignored by providers that
-          // cache automatically, so it is safe to send unconditionally.
           anthropic: { cacheControl: { type: 'ephemeral' } },
-          // Each key is read only by the provider it names, so an option meant
-          // for one is inert for the rest.
           ...(this.opts.reasoningEffort
             ? { openai: { reasoningEffort: this.opts.reasoningEffort } }
             : {}),
         },
       });
     } catch (error) {
-      // generateObject validates against the schema and throws when the model
-      // does not comply, so this is the common failure, not an exotic one.
+      // generateText validates against the output schema and throws when the
+      // model does not comply, so this is the common failure, not an exotic one.
       // An abort (race deadline) is rethrown so the caller can tell "too slow"
       // apart from "model misbehaved"; everything else fails closed to a human
       // (Constitution C6).
@@ -168,7 +162,7 @@ export class GenerateObjectRunner implements AgentRunner {
       cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
     };
 
-    const guarded = applyGuardrails(result.object, config.rules);
+    const guarded = applyGuardrails(result.output, config.rules);
 
     return {
       reply: guarded.reply,
