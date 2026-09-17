@@ -75,9 +75,9 @@ export function buildServer(opts: BuildOptions) {
     new GenerateObjectRunner({
       model: resolveModel(env.AGENT_MODEL),
       modelSpec: env.AGENT_MODEL,
-      persona: tenant().persona,
-      catalog: tenant().catalog,
-      rules: tenant().rules,
+      // The accessor, not its result: the runner re-reads it so SIGHUP reaches
+      // the persona and catalog, not just the rules turn.ts reads per request.
+      config: tenant,
       maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
       temperature: env.AGENT_TEMPERATURE,
     });

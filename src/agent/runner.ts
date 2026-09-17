@@ -1,6 +1,6 @@
 import { generateObject, type LanguageModel, type ModelMessage } from 'ai';
 import { AgentReplyForModel, type AgentReply } from '../contracts/agent.ts';
-import type { Catalog, Rules } from '../contracts/config.ts';
+import type { TenantConfig } from '../config/loader.ts';
 import { buildSystemPrompt, fenceUserText } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import { estimateCostUsd } from './registry.ts';
@@ -43,9 +43,13 @@ export interface AgentRunner {
 export interface RunnerOptions {
   model: LanguageModel;
   modelSpec: string;
-  persona: string;
-  catalog: Catalog;
-  rules: Rules;
+  /**
+   * Read per turn rather than captured, so a SIGHUP reload reaches the prompt.
+   * Passing the values directly froze the persona and catalog for the life of
+   * the process: `rules` reloaded because turn.ts re-reads them, but the system
+   * prompt did not, so prompt edits silently needed a restart (specs/003).
+   */
+  config: () => TenantConfig;
   maxOutputTokens: number;
   temperature: number;
   /**
@@ -58,20 +62,30 @@ export interface RunnerOptions {
 
 export class GenerateObjectRunner implements AgentRunner {
   private readonly opts: RunnerOptions;
-  private readonly staticPrefix: string;
-  private readonly catalogBlock: string;
+  private cached: { config: TenantConfig; staticPrefix: string; catalogBlock: string } | undefined;
 
   constructor(opts: RunnerOptions) {
     this.opts = opts;
-    // Built once: both halves are invariant across requests, which is what
-    // makes the prefix cacheable (see prompt.ts).
-    const built = buildSystemPrompt(opts.persona, opts.catalog, opts.rules);
-    this.staticPrefix = built.staticPrefix;
-    this.catalogBlock = built.catalogBlock;
+  }
+
+  /**
+   * Rebuilds only when ConfigStore swaps in a new object, so the prefix stays
+   * byte-identical between reloads and remains cacheable (see prompt.ts). A
+   * failed reload keeps the previous object, so it correctly rebuilds nothing.
+   */
+  private current() {
+    const config = this.opts.config();
+    if (this.cached?.config !== config) {
+      this.cached = { config, ...buildSystemPrompt(config.persona, config.catalog, config.rules) };
+    }
+    return this.cached;
   }
 
   async run({ text, history, signal }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
+    // Resolved once per turn: a reload landing mid-turn must not produce a
+    // reply built from one config and guarded by another.
+    const { config, staticPrefix, catalogBlock } = this.current();
 
     const messages: ModelMessage[] = [
       ...history.map((turn): ModelMessage =>
@@ -89,7 +103,7 @@ export class GenerateObjectRunner implements AgentRunner {
         schema: AgentReplyForModel,
         // Static instructions first, then the catalog. Both are invariant across
         // requests, which is what makes the prefix cacheable (see prompt.ts).
-        system: `${this.staticPrefix}\n\n${this.catalogBlock}`,
+        system: `${staticPrefix}\n\n${catalogBlock}`,
         messages,
         maxOutputTokens: this.opts.maxOutputTokens,
         temperature: this.opts.temperature,
@@ -116,7 +130,7 @@ export class GenerateObjectRunner implements AgentRunner {
       if (error instanceof Error && error.name === 'AbortError') throw error;
       if (signal?.aborted) throw error;
       return {
-        reply: escalationReply('low_confidence', this.opts.rules.messages.escalation),
+        reply: escalationReply('low_confidence', config.rules.messages.escalation),
         interventions: [`model_error: ${error instanceof Error ? error.name : 'unknown'}`],
         latencyMs: Date.now() - started,
         model: this.opts.modelSpec,
@@ -135,7 +149,7 @@ export class GenerateObjectRunner implements AgentRunner {
       cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
     };
 
-    const guarded = applyGuardrails(result.object, this.opts.rules);
+    const guarded = applyGuardrails(result.object, config.rules);
 
     return {
       reply: guarded.reply,

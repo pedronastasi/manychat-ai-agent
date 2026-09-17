@@ -50,9 +50,7 @@ async function main() {
   const runner = new GenerateObjectRunner({
     model: resolveModel(env.AGENT_MODEL),
     modelSpec: env.AGENT_MODEL,
-    persona: tenant.persona,
-    catalog: tenant.catalog,
-    rules: tenant.rules,
+    config: () => tenant,
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
     temperature: env.AGENT_TEMPERATURE,
   });
