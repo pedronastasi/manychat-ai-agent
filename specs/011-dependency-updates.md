@@ -176,17 +176,22 @@ That is not cosmetic. `010-release-workflow.md` derives the version from commit
 subjects, so the prefix decides what an auto-merged dependency bump does to the
 next release:
 
-| Update                        | Commit prefix | Effect on the Release PR              |
-| ----------------------------- | ------------- | ------------------------------------- |
-| Runtime dependency, any level | `fix(deps)`   | Patch bump; appears under Bug Fixes   |
-| Dev dependency, any level     | `chore(deps)` | Patch bump; hidden from the changelog |
+| Update                        | Commit prefix | Effect on the Release PR               |
+| ----------------------------- | ------------- | -------------------------------------- |
+| Runtime dependency, any level | `fix(deps)`   | Patch bump; appears under Bug Fixes    |
+| Dev dependency, any level     | `chore(deps)` | Patch bump; appears under Dependencies |
+
+Both produce a release. `010-release-workflow.md` maps `chore(deps)` to a
+visible Dependencies section rather than hiding it under Chores, because a dev
+dependency update still changes the lockfile that ships with the build — hiding
+it would suppress legitimate entries from the changelog.
 
 The consequence is worth stating plainly rather than discovering: **auto-merged
 patches change the version number.** A week with nothing but dependency updates
-still produces a Release PR, and the changelog credits it as a fix. This is
-correct — a runtime dependency patch is a change to what ships — but it means
-the release cadence is partly driven by a bot, and a reader of the changelog
-should find dependency bumps there rather than be surprised by them.
+still produces a Release PR. This is correct — a dependency patch is a change
+to what ships — but it means the release cadence is partly driven by a bot, and
+a reader of the changelog should find dependency bumps there rather than be
+surprised by them.
 
 A prefix Renovate emits that `010` does not declare a section for would vanish
 from the changelog silently. That spec's verification already asserts the

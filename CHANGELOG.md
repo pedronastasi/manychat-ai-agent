@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.3.6](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.5...manychat-ai-agent-v0.3.6) (2026-09-16)
+
+
+### Bug Fixes
+
+* **docker:** copy pnpm-workspace.yaml into build stage ([89441f6](https://github.com/pedronastasi/manychat-ai-agent/commit/89441f6a5116e58b42918d41ab44fc21371a439d))
+* **docker:** copy pnpm-workspace.yaml into build stage ([11d39f5](https://github.com/pedronastasi/manychat-ai-agent/commit/11d39f5ee4209ce1f1e37a2817967ed1e956d8d7))
+
+## [0.3.5](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.4...manychat-ai-agent-v0.3.5) (2026-09-16)
+
+
+### Bug Fixes
+
+* **release:** map chore(deps) to a visible Dependencies changelog section ([0d259eb](https://github.com/pedronastasi/manychat-ai-agent/commit/0d259eb339cc619233877cf9676674ea0b03e99b))
+* **release:** map chore(deps) to visible Dependencies section ([571935c](https://github.com/pedronastasi/manychat-ai-agent/commit/571935ccf37939bb6681a2642d12864f528e3314))
+* **renovate:** remove semanticCommitType override ([9a29ce4](https://github.com/pedronastasi/manychat-ai-agent/commit/9a29ce4d4726db11c0ea6c11724e3be9537eb6ad))
+* **renovate:** remove semanticCommitType override so :semanticCommits preset controls PR prefixes ([566cd84](https://github.com/pedronastasi/manychat-ai-agent/commit/566cd84e6620cc364d6773b1125ff9271d599b2d))
+
+
+### Dependencies
+
+* **deps:** update dependency ai to v7.0.105 ([c0388d2](https://github.com/pedronastasi/manychat-ai-agent/commit/c0388d28bf8f08879265e06bed262a32f32e5982))
+* **deps:** update dependency ai to v7.0.105 ([4a8843b](https://github.com/pedronastasi/manychat-ai-agent/commit/4a8843b7ef27d2512cc42d3aa6583c58278226f3))
+* **deps:** update pnpm to v12.4.2 ([c9ea9b4](https://github.com/pedronastasi/manychat-ai-agent/commit/c9ea9b439f500e1fd79e95a76d2a05288f052bad))
+* **deps:** update pnpm to v12.4.2 ([c508eef](https://github.com/pedronastasi/manychat-ai-agent/commit/c508eefbfee3757ff392cbf14d7177ae1766ed1e))
+
 ## [0.3.4](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.3.3...manychat-ai-agent-v0.3.4) (2026-09-16)
 
 

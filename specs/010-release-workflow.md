@@ -127,16 +127,16 @@ binding on its tests (C8). Both would be invisible.
 
 The sections are therefore declared explicitly:
 
-| Prefix     | Section heading | Hidden |
-| ---------- | --------------- | ------ |
-| `feat`     | Features        | No     |
-| `fix`      | Bug Fixes       | No     |
-| `refactor` | Refactors       | No     |
-| `docs`     | Specs and Docs  | No     |
-| `test`     | Tests           | Yes    |
-| `deps`     | Dependencies    | No     |
-| `chore`    | Chores          | Yes    |
-| `ci`       | CI              | Yes    |
+| Prefix        | Section heading | Hidden |
+| ------------- | --------------- | ------ |
+| `feat`        | Features        | No     |
+| `fix`         | Bug Fixes       | No     |
+| `refactor`    | Refactors       | No     |
+| `docs`        | Specs and Docs  | No     |
+| `test`        | Tests           | Yes    |
+| `chore(deps)` | Dependencies    | No     |
+| `chore`       | Chores          | Yes    |
+| `ci`          | CI              | Yes    |
 
 Hidden means the commit still counts toward the version bump but does not
 appear in the notes. `test`, `chore` and `ci` are hidden because they describe

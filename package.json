@@ -1,6 +1,6 @@
 {
   "name": "manychat-ai-agent",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "private": true,
   "description": "A provider-agnostic conversational AI agent gateway that bridges no-code chat platforms to any LLM.",
   "license": "MIT",
@@ -8,7 +8,7 @@
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "pnpm@12.4.1",
+  "packageManager": "pnpm@12.4.2",
   "scripts": {
     "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env --watch src/main.ts",
     "bootstrap": "node scripts/setup.mjs",
