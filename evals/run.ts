@@ -53,6 +53,7 @@ async function main() {
     config: () => tenant,
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
     temperature: env.AGENT_TEMPERATURE,
+    reasoningEffort: env.AGENT_REASONING_EFFORT,
   });
 
   console.log(`\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   cases: ${cases.length}\n`);

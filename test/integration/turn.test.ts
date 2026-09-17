@@ -100,6 +100,32 @@ describe('race won', () => {
     expect((await db.query.conversations.findFirst())!.escalatedAt).toBeInstanceOf(Date);
   });
 
+  it('records a failed model call as an error, not as an escalation', async () => {
+    // The runner fails closed with the tenant's escalation message, so a dead
+    // call is indistinguishable from a deliberate escalation in the chat. It
+    // was indistinguishable in the turns table too, which sent a production
+    // investigation after the prompt and the budget caps for hours while the
+    // real cause was the model never emitting a reply.
+    const failing: AgentRunner = {
+      run: () =>
+        Promise.resolve({
+          ...result(['passing you over'], true),
+          modelError: 'NoObjectGeneratedError',
+          usage: {
+            inputTokens: undefined,
+            outputTokens: undefined,
+            cacheReadTokens: undefined,
+            costUsd: 0,
+          },
+        }),
+    };
+    const out = await new TurnHandler(deps(failing)).handle(inbound('hola'));
+    expect(out.outcome).toBe('error');
+
+    const agentTurn = (await db.query.turns.findMany()).find(turn => turn.role === 'agent')!;
+    expect(agentTurn.outcome).toBe('error');
+  });
+
   it('accumulates spend so the budget cap can see it', async () => {
     await new TurnHandler(deps(fast)).handle(inbound('hello'));
     const counter = await db.query.budgetCounters.findFirst();

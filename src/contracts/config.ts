@@ -161,6 +161,20 @@ export const EnvSchema = z
     AGENT_MODEL: z.string().regex(/^[a-z0-9_-]+:[A-Za-z0-9._:-]+$/, 'Expected "provider:model"'),
     AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(400),
     AGENT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
+    /**
+     * How hard a reasoning model deliberates before answering. Unset by default
+     * so non-reasoning models are sent nothing at all.
+     *
+     * It matters because reasoning is charged and capped as OUTPUT: a model that
+     * deliberates past AGENT_MAX_OUTPUT_TOKENS never emits the structured reply,
+     * generateObject throws, and the turn fails closed to a human. A front desk
+     * answering from a fixed catalog gains little from deliberation, so 'low' or
+     * 'minimal' buys latency and cost back.
+     */
+    AGENT_REASONING_EFFORT: z
+      .enum(['minimal', 'low', 'medium', 'high'])
+      .optional()
+      .describe('Reasoning models only. Ignored by providers that do not support it.'),
 
     CHANNEL: z.string().default('whatsapp'),
     PUBLIC_BASE_URL: z.string().url().describe('HTTPS base for external_message_callback.'),

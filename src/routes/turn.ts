@@ -152,6 +152,15 @@ export class TurnHandler {
             return;
           }
           await settle(outcome.result, 'deferred');
+          // The inline path logs these below. Without the same line here a
+          // guardrail or a failed call on a deferred turn left no trace in the
+          // logs at all, which is most of them whenever the model runs slow.
+          if (outcome.result.interventions.length > 0) {
+            logger.info(
+              { interventions: outcome.result.interventions, deferred: true },
+              'guardrails intervened',
+            );
+          }
           await this.queue.enqueue({
             tenantId: inbound.tenantId,
             subscriberId: inbound.subscriberId,
@@ -186,9 +195,14 @@ export class TurnHandler {
       return { reply, outcome: 'error', conversationId: conversation.id };
     }
 
-    const outcome: TurnOutcome = winner.result.reply.escalate
-      ? 'escalated_model'
-      : 'answered_inline';
+    // A failed call and a deliberate escalation both carry `escalate: true` and
+    // the same tenant message, so without the first branch the turns table
+    // recorded a dead model call as a decision the model made.
+    const outcome: TurnOutcome = winner.result.modelError
+      ? 'error'
+      : winner.result.reply.escalate
+        ? 'escalated_model'
+        : 'answered_inline';
     await settle(winner.result, outcome);
     if (winner.result.interventions.length > 0) {
       logger.info({ interventions: winner.result.interventions }, 'guardrails intervened');
