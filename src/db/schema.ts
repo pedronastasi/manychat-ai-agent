@@ -5,6 +5,7 @@ import {
   integer,
   timestamp,
   jsonb,
+  serial,
   numeric,
   date,
   index,
@@ -38,6 +39,7 @@ export const turns = pgTable(
   'turns',
   {
     id: uuid('id').defaultRandom().primaryKey(),
+    seq: serial('seq').notNull(),
     conversationId: uuid('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
