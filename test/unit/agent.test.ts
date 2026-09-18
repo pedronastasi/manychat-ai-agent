@@ -10,6 +10,7 @@ import {
   estimateCostUsd,
   pricingFor,
   resolveModel,
+  supportsTemperature,
   UnknownProviderError,
 } from '../../src/agent/registry.ts';
 import { CatalogSchema, RulesSchema } from '../../src/contracts/config.ts';
@@ -156,6 +157,30 @@ describe('agent runner', () => {
       reasoningEffort: 'low',
     }).run({ text: 'hello', history: [] });
     expect(tuned.calls[0]!.providerOptions?.openai).toEqual({ reasoningEffort: 'low' });
+  });
+
+  it('omits temperature for reasoning models, which reject it', async () => {
+    // Not a failed call: the provider drops the setting and warns once per
+    // request, which buries the warnings that do matter.
+    const reasoning = mockModel(good);
+    await new GenerateTextRunner({
+      model: reasoning.model,
+      modelSpec: 'openai:gpt-5-mini',
+      config: () => ({ persona: 'P.', catalog, rules }),
+      maxOutputTokens: 400,
+      temperature: 0.3,
+    }).run({ text: 'hello', history: [] });
+    expect(reasoning.calls[0]!.temperature).toBeUndefined();
+
+    const standard = mockModel(good);
+    await new GenerateTextRunner({
+      model: standard.model,
+      modelSpec: 'anthropic:claude-haiku-4-5',
+      config: () => ({ persona: 'P.', catalog, rules }),
+      maxOutputTokens: 400,
+      temperature: 0.3,
+    }).run({ text: 'hello', history: [] });
+    expect(standard.calls[0]!.temperature).toBe(0.3);
   });
 
   it('fences untrusted contact text', async () => {
@@ -367,6 +392,19 @@ describe('registry', () => {
   it('falls back to pessimistic pricing for unknown models', () => {
     expect(pricingFor('openai:something-new').inputPerMTok).toBe(5);
     expect(estimateCostUsd('openai:something-new', { inputTokens: 1_000_000 })).toBe(5);
+  });
+  it('knows which models reject temperature', () => {
+    for (const spec of ['openai:gpt-5-mini', 'openai:gpt-5', 'openai:o1', 'openai:o3-mini']) {
+      expect(supportsTemperature(spec)).toBe(false);
+    }
+    for (const spec of [
+      'anthropic:claude-haiku-4-5',
+      'openai:gpt-4o',
+      'google:gemini-2.5-flash',
+      'ollama:llama3.1:8b',
+    ]) {
+      expect(supportsTemperature(spec)).toBe(true);
+    }
   });
   it('prices ollama models at zero so the budget cap never fires on free turns', () => {
     expect(pricingFor('ollama:llama3.1:8b')).toEqual({

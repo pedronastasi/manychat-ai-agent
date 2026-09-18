@@ -3,7 +3,7 @@ import { AgentReplyForModel, type AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import { buildSystemPrompt, fenceUserText } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
-import { estimateCostUsd } from './registry.ts';
+import { estimateCostUsd, supportsTemperature } from './registry.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -118,7 +118,7 @@ export class GenerateTextRunner implements AgentRunner {
         system: `${staticPrefix}\n\n${catalogBlock}`,
         messages,
         maxOutputTokens: this.opts.maxOutputTokens,
-        temperature: this.opts.temperature,
+        ...(supportsTemperature(this.opts.modelSpec) ? { temperature: this.opts.temperature } : {}),
         telemetry: {
           functionId: 'agent-turn',
           recordInputs: this.opts.recordPromptsInTraces ?? false,
