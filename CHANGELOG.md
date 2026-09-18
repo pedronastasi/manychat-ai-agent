@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.5.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.4.1...manychat-ai-agent-v0.5.0) (2026-09-18)
+
+
+### Features
+
+* make the closing question a field rather than a hope ([65072d8](https://github.com/pedronastasi/manychat-ai-agent/commit/65072d8dd97632554a4f94d6e68dcdc77af7409e))
+* make the closing question a field rather than a hope ([cf7ee19](https://github.com/pedronastasi/manychat-ai-agent/commit/cf7ee19f725e3416c0a1e1e13685d95362c317b9))
+
+
+### Bug Fixes
+
+* count content lines, and give the suite its own latency budget ([31d4382](https://github.com/pedronastasi/manychat-ai-agent/commit/31d43826f285ce3a6d0b79a4ba05fb775d009b53))
+* count content lines, and give the suite its own latency budget ([ae21d99](https://github.com/pedronastasi/manychat-ai-agent/commit/ae21d99bf3b7af61db546e78b43c1bc3be5b8c15))
+* ground prices documented in catalog prose ([281613c](https://github.com/pedronastasi/manychat-ai-agent/commit/281613cc07edfa74b20318a85430143e21c3f12d))
+* ground prices documented in catalog prose ([8a93597](https://github.com/pedronastasi/manychat-ai-agent/commit/8a935975e305a68b2db91c6dcd50e48c538829e7))
+* last Spanish string in an integration test fixture ([c22e82d](https://github.com/pedronastasi/manychat-ai-agent/commit/c22e82dc2511fda88e41cd84750b1bbcdf8daa83))
+* omit temperature for models that reject it ([1f934c8](https://github.com/pedronastasi/manychat-ai-agent/commit/1f934c843e661646a157a1acdc96265092e04afd))
+* omit temperature for models that reject it ([279d6fb](https://github.com/pedronastasi/manychat-ai-agent/commit/279d6fb66022cd5f5d94c07335339ea4a87b0bf2))
+* remove Spanish and real deployment data from test fixtures ([9fd5797](https://github.com/pedronastasi/manychat-ai-agent/commit/9fd5797398955894fb7c6a5ad7bbf6d3c19755be))
+* stop discarding every message after the first on WhatsApp ([5e39c07](https://github.com/pedronastasi/manychat-ai-agent/commit/5e39c07b7afa496641fb111df4e2e1b527d50ce8))
+* stop discarding every message after the first on WhatsApp ([bdc797e](https://github.com/pedronastasi/manychat-ai-agent/commit/bdc797e4630547597612a9feaede5f49adaed473))
+
+
+### Specs and Docs
+
+* document EVAL_MAX_LATENCY_MS in .env.example ([2f7cec0](https://github.com/pedronastasi/manychat-ai-agent/commit/2f7cec0db8741a6d4ff2b81f772770ac000a3376))
+
 ## [0.4.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.4.0...manychat-ai-agent-v0.4.1) (2026-09-17)
 
 
