@@ -17,9 +17,16 @@ import type { ManyChatClient } from './client.ts';
 export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatResponse {
   const caps = ctx.capabilities;
 
-  const messages: ManyChatMessage[] = reply.messages
-    .slice(0, caps.maxMessages)
-    .map(text => ({ type: 'text' as const, text }));
+  // Overflow is folded into the last message, never dropped. Slicing it away
+  // silently delivered a reply's opening line and discarded everything after
+  // it: contacts got "here are the two options:" and no options, because
+  // WhatsApp renders one message per Dynamic Block response. A reply that does
+  // not fit is a formatting problem, not a licence to lose half of it.
+  const head = reply.messages.slice(0, caps.maxMessages - 1);
+  const tail = reply.messages.slice(caps.maxMessages - 1);
+  const texts = tail.length > 0 ? [...head, tail.join('\n\n')] : head;
+
+  const messages: ManyChatMessage[] = texts.map(text => ({ type: 'text' as const, text }));
 
   const content: ManyChatResponse['content'] = { messages };
 

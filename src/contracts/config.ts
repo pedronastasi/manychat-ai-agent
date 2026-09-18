@@ -21,7 +21,12 @@ export const CHANNEL_CAPABILITIES: Record<string, ChannelCapabilities> = {
   whatsapp: {
     supportsQuickReplies: false,
     maxButtonsPerMessage: 3,
-    maxMessages: 10,
+    // One, not ten. ManyChat accepts a ten-message array on WhatsApp and
+    // delivers only the first, so the platform limit and the delivered limit
+    // are different numbers. Ten was the platform's; this is the one that
+    // decides what a contact actually reads, and the renderer joins the rest
+    // into it rather than dropping them.
+    maxMessages: 1,
     maxActions: 5,
   },
   instagram: {
