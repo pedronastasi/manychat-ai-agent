@@ -10,6 +10,30 @@ export interface GuardedReply {
 }
 
 /**
+ * Whitespace and emoji trailing the final character.
+ *
+ * Deliberately NOT `\p{Emoji_Component}`, which includes the ASCII digits: that
+ * would strip a trailing price off the message before testing it.
+ *
+ * Written as an alternation rather than one character class: a class holding
+ * ZWJ and the skin-tone modifiers can match half a grapheme, which is what
+ * `no-misleading-character-class` exists to catch.
+ */
+const TRAILING_DECORATION = /(?:\s|\p{Extended_Pictographic}|️|‍|[\u{1F3FB}-\u{1F3FF}])+$/u;
+
+/**
+ * Whether a message leaves the turn on a question, ignoring the emoji a chat
+ * persona signs off with.
+ *
+ * Lives here rather than in the eval suite because the guardrails now decide
+ * with it: a check the suite and the request path disagreed on would pass the
+ * suite while a contact read something else.
+ */
+export function endsWithQuestion(message: string): boolean {
+  return message.replace(TRAILING_DECORATION, '').endsWith('?');
+}
+
+/**
  * Deterministic escalation used whenever the model must not or cannot decide.
  *
  * The message is supplied by the caller from tenant configuration; this module
@@ -90,8 +114,22 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
   //
   // Skipped on an escalation, where the tenant's handoff copy is the whole
   // reply and a sales question after it would be absurd.
+  //
+  // Skipped when the body already ends on a question. The prompt tells the
+  // model to leave the question to the field and it mostly complies, but when
+  // it writes one into the body as well, appending a second asked the contact
+  // the same thing twice in a row. Prose could not close that gap — this is the
+  // same reason the question became a field in the first place.
+  //
+  // The body's own question wins because it is the one written in context. What
+  // matters is that exactly one question ends the turn, not which.
+  const body = reply.messages.at(-1);
   if (reply.closing_question !== null && !reply.escalate) {
-    reply = { ...reply, messages: [...reply.messages, reply.closing_question] };
+    if (body !== undefined && endsWithQuestion(body)) {
+      interventions.push('closing_question_already_in_body');
+    } else {
+      reply = { ...reply, messages: [...reply.messages, reply.closing_question] };
+    }
   }
 
   return { reply, interventions };
