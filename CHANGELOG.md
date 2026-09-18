@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.0...manychat-ai-agent-v0.5.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* never ask the closing question twice ([f9c10b7](https://github.com/pedronastasi/manychat-ai-agent/commit/f9c10b7e0f69d7c43a1496ffb15b19654c19b863))
+* never ask the closing question twice ([2c6f897](https://github.com/pedronastasi/manychat-ai-agent/commit/2c6f897fc4bc4224d74d2b10c30de773c35207cf))
+
 ## [0.5.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.4.1...manychat-ai-agent-v0.5.0) (2026-09-18)
 
 
