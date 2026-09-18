@@ -48,6 +48,24 @@ export function pricingFor(modelId: string): ModelPricing {
   return PRICING[modelId] ?? FALLBACK_PRICING;
 }
 
+/** OpenAI's reasoning families: the o-series and gpt-5. */
+const REASONING_MODEL = /^openai:(o\d|gpt-5)/;
+
+/**
+ * Whether a model accepts `temperature` at all.
+ *
+ * Reasoning models reject it. The provider does not fail the call — it drops
+ * the setting and emits a warning per request, which is noise in every log and
+ * every eval run, and it trains the reader to ignore SDK warnings that
+ * occasionally matter.
+ *
+ * Keyed off the `provider:model` spec rather than a provider package, so this
+ * stays on the right side of C2.
+ */
+export function supportsTemperature(modelId: string): boolean {
+  return !REASONING_MODEL.test(modelId);
+}
+
 export function estimateCostUsd(
   modelId: string,
   usage: {
