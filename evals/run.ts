@@ -65,7 +65,39 @@ async function main() {
 
   const outcomes: Outcome[] = [];
   for (const testCase of cases) {
-    const result = await runner.run({ text: testCase.text, history: testCase.history });
+    // Bounded the way the live request path bounds it (routes/turn.ts). Without
+    // a signal the call is unbounded, and `latencyMs` spans the SDK's retries
+    // and their backoff as well as the generation: one provider blip turned a
+    // case whose reply was correct into a 56s latency failure, which reads as a
+    // prompt problem and is not one. Aborting at the budget keeps the number
+    // attributable and stops a flake dragging out the whole run.
+    const deadline = AbortSignal.timeout(latencyBudgetMs);
+    let result;
+    try {
+      result = await runner.run({
+        text: testCase.text,
+        history: testCase.history,
+        signal: deadline,
+      });
+    } catch (error) {
+      // The runner rethrows an abort so a caller can tell "too slow" apart from
+      // "model misbehaved". Keyed off the signal rather than the error name,
+      // which the SDK is free to wrap.
+      if (!deadline.aborted) throw error;
+      const failures = [`latency exceeds budget ${latencyBudgetMs}ms`];
+      outcomes.push({
+        id: testCase.id,
+        status: 'failed',
+        failures,
+        latencyMs: latencyBudgetMs,
+        costUsd: 0,
+      });
+      console.log(
+        `  ${MARKS.failed}  ${testCase.id.padEnd(28)} ${DIM}>${latencyBudgetMs}ms${RESET}`,
+      );
+      for (const failure of failures) console.log(`        ${RED}${failure}${RESET}`);
+      continue;
+    }
     const failures = checkCase({
       testCase,
       reply: result.reply,
