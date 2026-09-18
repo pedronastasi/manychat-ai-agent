@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import {
   applyGuardrails,
+  endsWithQuestion,
   escalationReply,
   findUngroundedPrices,
 } from '../../src/agent/guardrails.ts';
@@ -241,6 +242,41 @@ describe('closing question (specs/001 § the reply advances the conversation)', 
   it('appends nothing when the model declares an exception', () => {
     const { reply } = applyGuardrails({ ...base, confidence: 0.9, closing_question: null }, rules);
     expect(reply.messages).toEqual(['It is $450.']);
+  });
+
+  it('asks nothing twice when the model also wrote the question into the body', () => {
+    // The prompt tells the model to leave the question to the field, and it
+    // usually does. When it does not, appending anyway asked the contact the
+    // same thing twice in a row, in consecutive messages.
+    const { reply, interventions } = applyGuardrails(
+      {
+        messages: ['Great — are you starting from scratch?'],
+        escalate: false,
+        escalation_reason: null,
+        confidence: 0.9,
+        closing_question: 'Are you starting from scratch?',
+      },
+      rules,
+    );
+    expect(reply.messages).toEqual(['Great — are you starting from scratch?']);
+    expect(interventions).toContain('closing_question_already_in_body');
+  });
+
+  it('still ends on a question when the body was the one asking it', () => {
+    // The guarantee is one question at the end of the turn, not which of the
+    // two it came from — so skipping the append must not skip the question.
+    const { reply } = applyGuardrails(
+      {
+        messages: ['Here are the tiers.', 'Which one suits you? \u{1F90D}'],
+        escalate: false,
+        escalation_reason: null,
+        confidence: 0.9,
+        closing_question: 'Which one suits you?',
+      },
+      rules,
+    );
+    expect(endsWithQuestion(reply.messages.at(-1)!)).toBe(true);
+    expect(reply.messages).toHaveLength(2);
   });
 
   it('does not tack a sales question onto a handoff', () => {
