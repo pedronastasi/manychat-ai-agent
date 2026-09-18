@@ -8,6 +8,7 @@ const reply: AgentReply = {
   escalate: false,
   escalation_reason: null,
   confidence: 0.9,
+  closing_question: null,
 };
 
 describe('Dynamic Block v2 rendering', () => {

@@ -44,7 +44,13 @@ const inbound = (text: string, subscriberId = 's1'): InboundMessage => ({
 });
 
 const okResult = (messages: string[]): AgentResult => ({
-  reply: { messages, escalate: false, escalation_reason: null, confidence: 0.9 },
+  reply: {
+    messages,
+    escalate: false,
+    escalation_reason: null,
+    confidence: 0.9,
+    closing_question: null,
+  },
   model: 'mock:demo',
   usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, costUsd: 0 },
   interventions: [],

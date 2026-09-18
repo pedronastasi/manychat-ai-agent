@@ -41,6 +41,7 @@ const okResult = (messages: string[], escalate = false): AgentResult => ({
     messages,
     escalate,
     escalation_reason: escalate ? 'out_of_scope' : null,
+    closing_question: null,
     confidence: 0.95,
   },
   model: 'mock:demo',

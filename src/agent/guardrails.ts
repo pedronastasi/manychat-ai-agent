@@ -21,6 +21,8 @@ export function escalationReply(reason: EscalationReason, message: string): Agen
     escalate: true,
     escalation_reason: reason,
     confidence: 1,
+    // A handoff has no next step to offer; the human takes the turn from here.
+    closing_question: null,
   };
 }
 
@@ -79,6 +81,17 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
       messages: reply.messages.map(message => message.slice(0, MAX_MESSAGE_CHARS)),
     };
     interventions.push('message_truncated');
+  }
+
+  // Appended as its own message rather than joined onto the last one. That is
+  // what makes the rule structural: a reply whose body ends on a bullet or a
+  // URL still ends on a question, because the question is a separate message
+  // and nothing can follow it.
+  //
+  // Skipped on an escalation, where the tenant's handoff copy is the whole
+  // reply and a sales question after it would be absurd.
+  if (reply.closing_question !== null && !reply.escalate) {
+    reply = { ...reply, messages: [...reply.messages, reply.closing_question] };
   }
 
   return { reply, interventions };

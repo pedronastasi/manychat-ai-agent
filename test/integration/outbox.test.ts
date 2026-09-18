@@ -29,6 +29,7 @@ const reply = (text = 'the reply'): AgentReply => ({
   escalate: false,
   escalation_reason: null,
   confidence: 0.9,
+  closing_question: null,
 });
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} };
