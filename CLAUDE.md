@@ -93,6 +93,15 @@ evals/golden/          # Golden eval cases (cases.jsonl)
 - A fake must honour the contract it stands in for.
 - Mock the model at the provider boundary using the correct nested `usage` shape (see `test/helpers/model.ts`).
 - Coverage thresholds: 85% statements, 75% branches, 85% functions, 85% lines.
+- **Fixtures are English and invented.** Every string a test or eval case
+  contains — persona, catalog, schedule, FAQ, message text, price — is written
+  in English and made up. Never paste a real deployment's copy into this
+  repository, and never reach into a tenant's `config/` for a realistic value.
+  This is C1 and C9 together, and test data is where both get broken, because a
+  fixture copied from a live tenant is the quickest way to make one.
+- **Prices in fixtures are invented too.** A price is tenant data. Pick figures
+  that match no real deployment; if a test needs several tiers, invent the
+  spread rather than reproducing one.
 
 ## Code style
 
@@ -108,6 +117,9 @@ evals/golden/          # Golden eval cases (cases.jsonl)
 Nine non-negotiable clauses:
 
 1. **C1** — No tenant data in VCS (config/ gitignored, examples committed).
+   Covers tests, fixtures, eval cases, comments and PR descriptions, not just
+   `config/`: a real business name, person, price, schedule or URL must not
+   reach this repository through any of them.
 2. **C2** — Provider isolation: only `registry.ts` imports provider packages.
 3. **C3** — Schema validation on every external boundary (Zod).
 4. **C4** — Input fencing: user text injected inside fences, never raw.
@@ -115,7 +127,9 @@ Nine non-negotiable clauses:
 6. **C6** — Fail closed: unknown errors escalate to human, never hallucinate.
 7. **C7** — 10-second budget: race deadline + model abort.
 8. **C8** — Tests cite the spec clause they enforce.
-9. **C9** — English only in source, docs, and logs.
+9. **C9** — English only in source, docs, and logs. Test fixtures, eval cases
+   and PR descriptions included. A tenant's own `config/` is the one carve-out
+   (specs/005), and it lives outside this repository.
 
 ## CI
 
