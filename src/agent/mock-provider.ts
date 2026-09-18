@@ -19,6 +19,10 @@ function reply(messages: string[], escalate: boolean, reason: string | null, con
     escalate,
     escalation_reason: reason,
     confidence,
+    // A fake must honour the contract it stands in for: a real model is now
+    // required to decide this, so the mock decides it too. An escalating turn
+    // has no next step to offer, which is exactly when null is correct.
+    closing_question: escalate ? null : 'Anything else I can help you with?',
   });
 }
 

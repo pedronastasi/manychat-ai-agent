@@ -17,6 +17,25 @@ export const MAX_MESSAGE_CHARS = 1000;
 export const MAX_MESSAGES_PER_REPLY = 3;
 
 /**
+ * Content messages plus the appended closing question.
+ *
+ * The model is asked for at most `MAX_MESSAGES_PER_REPLY`; guardrails append the
+ * question as one more, so a validated reply can legitimately hold one extra.
+ */
+export const MAX_RENDERED_MESSAGES = MAX_MESSAGES_PER_REPLY + 1;
+
+/**
+ * Guidance shown to the model for `closing_question`.
+ *
+ * Exported because the system prompt and the schema must say the same thing: a
+ * tenant reading one and not the other is how the two drift apart.
+ */
+export const CLOSING_QUESTION_DESCRIPTION =
+  'The single question that ends this turn, or null when no question belongs ' +
+  'here. Written on its own, without prices, list items or explanations — it is ' +
+  'appended as the final message, so it must read as a complete question by itself.';
+
+/**
  * The agent's structured output. Every field is validated before anything
  * reaches a customer (Constitution C3) — model output is untrusted input.
  *
@@ -28,11 +47,17 @@ export const AgentReply = z
     messages: z
       .array(z.string().min(1).max(MAX_MESSAGE_CHARS))
       .min(1)
-      .max(MAX_MESSAGES_PER_REPLY)
+      .max(MAX_RENDERED_MESSAGES)
       .describe('Reply split the way a person types in chat: short, sequential messages.'),
     escalate: z.boolean().describe('True when a human must take over.'),
     escalation_reason: EscalationReason.nullable().describe('Non-null if and only if escalate.'),
     confidence: z.number().min(0).max(1).describe('Self-reported confidence, 0..1.'),
+    closing_question: z
+      .string()
+      .min(1)
+      .max(MAX_MESSAGE_CHARS)
+      .nullable()
+      .describe(CLOSING_QUESTION_DESCRIPTION),
   })
   // Enforces the "iff" in specs/001: a reason without an escalation, or an
   // escalation without a reason, is a malformed reply rather than a warning.
@@ -53,6 +78,21 @@ export const AgentReplyForModel = z.object({
   escalate: z.boolean(),
   escalation_reason: EscalationReason.nullable(),
   confidence: z.number().min(0).max(1),
+  /**
+   * Required so the model must decide rather than trail off. Prose asking for a
+   * closing question was followed about six turns in seven; a required field is
+   * followed every time, because the reply does not validate without it.
+   *
+   * Nullable, not optional: a turn that should not ask — a handoff, a health
+   * question, a contact already paying — states that by sending null, which is
+   * a decision the reply records rather than an omission nobody can see.
+   */
+  closing_question: z
+    .string()
+    .min(1)
+    .max(MAX_MESSAGE_CHARS)
+    .nullable()
+    .describe(CLOSING_QUESTION_DESCRIPTION),
 });
 
 /** Normalized inbound message, independent of any channel. */

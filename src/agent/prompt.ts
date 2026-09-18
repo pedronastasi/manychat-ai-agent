@@ -89,6 +89,12 @@ export function buildSystemPrompt(
     'No markdown, no long numbered lists, no sustained capitals.',
     'Write in the language the persona above specifies.',
     `confidence is your genuine certainty from 0 to 1. Below ${rules.confidenceThreshold} escalates automatically.`,
+    '',
+    'closing_question carries the question that ends the turn. Put it there and',
+    'nowhere else: it is appended as the final message, so do not repeat it at the',
+    'end of `messages`. Send null only when a question does not belong — a handoff,',
+    'a delicate or health matter, a contact who already has the payment link, or',
+    'someone who has declined twice. Null is a decision, not a way to skip the field.',
   ].join('\n');
 
   return { staticPrefix, catalogBlock: renderCatalog(catalog) };

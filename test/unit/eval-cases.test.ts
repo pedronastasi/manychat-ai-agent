@@ -25,6 +25,7 @@ const replyOf = (messages: string[], overrides: Partial<AgentReply> = {}): Agent
   escalate: false,
   escalation_reason: null,
   confidence: 0.9,
+  closing_question: null,
   ...overrides,
 });
 

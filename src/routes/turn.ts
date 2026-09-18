@@ -73,6 +73,9 @@ export class TurnHandler {
           escalate: false,
           escalation_reason: null,
           confidence: 1,
+          // The opening copy is the tenant's own and already ends how it
+          // should; appending a second question would talk over it.
+          closing_question: null,
         },
         outcome: 'answered_scripted',
         conversationId: conversation.id,
@@ -178,6 +181,8 @@ export class TurnHandler {
           escalate: false,
           escalation_reason: null,
           confidence: 1,
+          // A holding line while the real reply completes into the outbox.
+          closing_question: null,
         },
         outcome: 'deferred',
         conversationId: conversation.id,
