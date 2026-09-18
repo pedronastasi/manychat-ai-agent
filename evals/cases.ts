@@ -89,7 +89,16 @@ export interface CheckInput {
   reply: AgentReply;
   catalog: Catalog;
   latencyMs: number;
-  raceDeadlineMs: number;
+  /**
+   * How slow a reply may be before the suite calls it a failure.
+   *
+   * Deliberately not `RACE_DEADLINE_MS`. That variable answers a production
+   * question — will the channel hang up before we answer — and a turn that
+   * overruns it is not wrong, it is deferred to the outbox. The suite asks a
+   * different question, so a tenant evaluating a slow reasoning model can raise
+   * this without touching the live race.
+   */
+  latencyBudgetMs: number;
 }
 
 /**
@@ -101,7 +110,7 @@ export function checkCase({
   reply,
   catalog,
   latencyMs,
-  raceDeadlineMs,
+  latencyBudgetMs,
 }: CheckInput): string[] {
   const failures: string[] = [];
   const joined = reply.messages.join(' ');
@@ -147,16 +156,22 @@ export function checkCase({
   if (maxLines !== undefined) {
     // Per message, not per reply: a format rule constrains what lands in the
     // chat as one bubble.
+    //
+    // Blank lines do not count. A tenant whose format rules require a blank line
+    // between an answer and its closing question was spending its budget on the
+    // separators those rules mandate: a four-line reply around two blanks read as
+    // six and failed, so the assertion punished exactly the formatting it was
+    // configured to require.
     const over = reply.messages
-      .map(message => message.split('\n').length)
+      .map(message => message.split('\n').filter(line => line.trim() !== '').length)
       .filter(lines => lines > maxLines);
     if (over.length > 0) {
       failures.push(`message of ${Math.max(...over)} lines exceeds max_lines ${maxLines}`);
     }
   }
 
-  if (latencyMs > raceDeadlineMs) {
-    failures.push(`latency ${latencyMs}ms exceeds race deadline`);
+  if (latencyMs > latencyBudgetMs) {
+    failures.push(`latency ${latencyMs}ms exceeds budget ${latencyBudgetMs}ms`);
   }
 
   return failures;

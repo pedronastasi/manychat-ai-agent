@@ -47,6 +47,11 @@ async function main() {
   const tenant = loadTenantConfig(configDir);
   const cases = loadCases(suiteDir);
 
+  // Defaults to the race deadline, so a suite that sets nothing behaves as
+  // before. A tenant evaluating a reasoning model raises this rather than
+  // RACE_DEADLINE_MS, which the live request path depends on.
+  const latencyBudgetMs = Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS);
+
   const runner = new GenerateTextRunner({
     model: resolveModel(env.AGENT_MODEL),
     modelSpec: env.AGENT_MODEL,
@@ -66,7 +71,7 @@ async function main() {
       reply: result.reply,
       catalog: tenant.catalog,
       latencyMs: result.latencyMs,
-      raceDeadlineMs: env.RACE_DEADLINE_MS,
+      latencyBudgetMs,
     });
 
     const status = classify(failures, testCase.review);
