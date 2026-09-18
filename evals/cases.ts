@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { AgentReply } from '../src/contracts/agent.ts';
 import type { Catalog } from '../src/contracts/config.ts';
-import { findUngroundedPrices } from '../src/agent/guardrails.ts';
+import { endsWithQuestion, findUngroundedPrices } from '../src/agent/guardrails.ts';
 import { FENCE, FENCE_END, PROMPT_MARKERS } from '../src/agent/prompt.ts';
 
 /** The framework's own suite. A tenant points EVAL_DIR at its own (specs/009). */
@@ -57,20 +57,11 @@ export function loadCases(dir: string): Case[] {
 }
 
 /**
- * Whitespace and emoji trailing the final character.
- *
- * Deliberately NOT `\p{Emoji_Component}`, which includes the ASCII digits: that
- * would strip a trailing price off the message before testing it.
- *
- * Written as an alternation rather than one character class: a class holding
- * ZWJ and the skin-tone modifiers can match half a grapheme, which is what
- * `no-misleading-character-class` exists to catch.
+ * Re-exported, not redefined. The guardrails decide whether to append the
+ * closing question with this, so a suite carrying its own copy would be
+ * asserting against a rule the request path had stopped applying.
  */
-const TRAILING_DECORATION = /(?:\s|\p{Extended_Pictographic}|️|‍|[\u{1F3FB}-\u{1F3FF}])+$/u;
-
-export function endsWithQuestion(message: string): boolean {
-  return message.replace(TRAILING_DECORATION, '').endsWith('?');
-}
+export { endsWithQuestion };
 
 export type Status = 'passed' | 'failed' | 'reviewed';
 
