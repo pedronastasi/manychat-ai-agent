@@ -158,9 +158,13 @@ describe('inline reply (race won)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.version).toBe('v2');
+    // One message on WhatsApp, carrying the whole reply. The inline path is the
+    // only one that renders through a Dynamic Block, and ManyChat delivers just
+    // the first message of one — so a reply split across several arrived
+    // truncated at its opening line while the deferred path, which posts each
+    // message separately, delivered the same reply in full.
     expect(body.content.messages.map((message: { text: string }) => message.text)).toEqual([
-      'Hi!',
-      'The foundation course is $450.00.',
+      'Hi!\n\nThe foundation course is $450.00.',
     ]);
     await app.close();
   });
