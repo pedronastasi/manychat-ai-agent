@@ -119,7 +119,7 @@ describe('race won', () => {
           },
         }),
     };
-    const out = await new TurnHandler(deps(failing)).handle(inbound('hola'));
+    const out = await new TurnHandler(deps(failing)).handle(inbound('hello'));
     expect(out.outcome).toBe('error');
 
     const agentTurn = (await db.query.turns.findMany()).find(turn => turn.role === 'agent')!;

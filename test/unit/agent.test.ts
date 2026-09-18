@@ -35,11 +35,11 @@ const catalog = CatalogSchema.parse({
       description: 'Base',
       price: { amount: 4500000, currency: 'ARS' },
       durationHours: 20,
-      schedule: 'Martes 18h',
+      schedule: 'Tuesdays 18h',
       enrollmentUrl: 'https://example.com/c1',
     },
   ],
-  faq: [{ question: 'Dan certificado?', answer: 'Si, al finalizar.' }],
+  faq: [{ question: 'Is there a certificate?', answer: 'Yes, on completion.' }],
 });
 const rules = RulesSchema.parse({
   messages: { acknowledgement: 'One moment.', escalation: 'Passing you to a person.' },
@@ -53,7 +53,7 @@ const run = (object: unknown, usage = {}) => {
   const runner = new GenerateTextRunner({
     model,
     modelSpec: 'anthropic:claude-haiku-4-5',
-    config: () => ({ persona: 'Sos el front desk.', catalog, rules }),
+    config: () => ({ persona: 'You are the front desk.', catalog, rules }),
     maxOutputTokens: 400,
     temperature: 0.3,
   });
@@ -99,7 +99,7 @@ describe('agent runner', () => {
     // rules.json but left the prompt frozen until the process restarted —
     // exactly the friction the reload path exists to remove.
     const { model, calls } = mockModel(good);
-    let config = { persona: 'Sos el front desk.', catalog, rules };
+    let config = { persona: 'You are the front desk.', catalog, rules };
     const runner = new GenerateTextRunner({
       model,
       modelSpec: 'anthropic:claude-haiku-4-5',
@@ -108,20 +108,20 @@ describe('agent runner', () => {
       temperature: 0.3,
     });
 
-    await runner.run({ text: 'hola', history: [] });
+    await runner.run({ text: 'hello', history: [] });
     // ConfigStore.reload() swaps in a whole new object; identity is the signal.
-    config = { persona: 'Sos Rosario, la instructora.', catalog, rules };
-    await runner.run({ text: 'hola', history: [] });
+    config = { persona: 'You are the lead instructor.', catalog, rules };
+    await runner.run({ text: 'hello', history: [] });
 
     const sys = calls.map(call => JSON.stringify(call.prompt.find(part => part.role === 'system')));
-    expect(sys[0]).toContain('Sos el front desk.');
-    expect(sys[1]).toContain('Sos Rosario, la instructora.');
-    expect(sys[1]).not.toContain('Sos el front desk.');
+    expect(sys[0]).toContain('You are the front desk.');
+    expect(sys[1]).toContain('You are the lead instructor.');
+    expect(sys[1]).not.toContain('You are the front desk.');
   });
 
   it('leaves modelError unset when the model answers', async () => {
     const { runner } = run(good);
-    const result = await runner.run({ text: 'hola', history: [] });
+    const result = await runner.run({ text: 'hello', history: [] });
     expect(result.modelError).toBeUndefined();
   });
 
@@ -137,7 +137,7 @@ describe('agent runner', () => {
       config: () => ({ persona: 'P.', catalog, rules }),
       maxOutputTokens: 400,
       temperature: 0.3,
-    }).run({ text: 'hola', history: [] });
+    }).run({ text: 'hello', history: [] });
     expect(bare.calls[0]!.providerOptions?.openai).toBeUndefined();
 
     const tuned = mockModel(good);
@@ -148,7 +148,7 @@ describe('agent runner', () => {
       maxOutputTokens: 400,
       temperature: 0.3,
       reasoningEffort: 'low',
-    }).run({ text: 'hola', history: [] });
+    }).run({ text: 'hello', history: [] });
     expect(tuned.calls[0]!.providerOptions?.openai).toEqual({ reasoningEffort: 'low' });
   });
 
@@ -159,8 +159,8 @@ describe('agent runner', () => {
   });
 
   it('escalates instead of throwing when the model violates the schema', async () => {
-    // generateObject validates and throws; the runner must fail closed to a
-    // human rather than propagating a 500 into the request path.
+    // generateText validates the output schema and throws; the runner must fail
+    // closed to a human rather than propagating a 500 into the request path.
     const { runner } = run({ nonsense: true });
     const result = await runner.run({ text: 'hello', history: [] });
     expect(result.reply.escalate).toBe(true);
@@ -249,7 +249,35 @@ describe('price grounding', () => {
     expect(findUngroundedPrices(['Sale 45000 pesos'], catalog)).toEqual([]);
   });
   it('flags an invented price', () => {
-    expect(findUngroundedPrices(['Te lo dejo en $30.000'], catalog).length).toBe(1);
+    expect(findUngroundedPrices(['I could do $30.000 for you'], catalog).length).toBe(1);
+  });
+
+  // A tiered offering — web-only discount, deposit, balance — cannot be
+  // expressed in `price`, which holds one number per course. Those figures live
+  // in the prose, and grounding against `price` alone flagged every correct
+  // mention of them.
+  it('grounds a price documented only in a FAQ answer or description', () => {
+    const tiered = CatalogSchema.parse({
+      businessName: 'Demo Academy',
+      currency: 'ARS',
+      courses: [
+        {
+          id: 'c2',
+          name: 'Advanced Course',
+          description: 'Hold a seat with a $7.100 deposit.',
+          price: { amount: 6200000, currency: 'ARS' },
+          durationHours: 12,
+          schedule: 'Thursdays 19h',
+          enrollmentUrl: 'https://example.com/c2',
+        },
+      ],
+      faq: [{ question: 'Any discount?', answer: 'Booking online brings it to $48.500.' }],
+    });
+
+    expect(findUngroundedPrices(['It is $62.000, or $48.500 online'], tiered)).toEqual([]);
+    expect(findUngroundedPrices(['The deposit is $7.100'], tiered)).toEqual([]);
+    // Prose grounding must not become a blanket amnesty for any number.
+    expect(findUngroundedPrices(['I could do $30.000 for you'], tiered)).toEqual(['30.000']);
   });
 });
 
