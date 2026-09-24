@@ -27,6 +27,7 @@ test fails the suite.
 | [012 — Agent Tools](012-agent-tools.md)                                 | specified   | —           | —   | —     | C3, C4, C5, C6, C7         | [0010]                         |
 | [013 — No Verbatim Repetition](013-no-verbatim-repetition.md)           | specified   | —           | —   | —     | C9                         | —                              |
 | [014 — Documentation Site](014-docs-site.md)                            | specified   | —           | —   | —     | C1, C9                     | —                              |
+| [015 — Test Service](015-test-service.md)                               | specified   | —           | —   | —     | C1, C3, C5, C7, C9         | [0001], [0005]                 |
 | [016 — Model-Graded Evals](016-model-graded-evals.md)                   | specified   | —           | —   | —     | C1, C2, C3, C4, C6, C8, C9 | [0011]                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
