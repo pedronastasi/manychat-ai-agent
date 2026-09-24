@@ -10,8 +10,8 @@ constitution: [C1, C6, C8, C9]
 Defines how a tenant carries its own evaluation suite alongside the framework's
 golden set: how a suite is selected, what a case may contain, and which
 assertions a staged sales conversation needs. It deliberately contains no
-tenant's cases, introduces no model-graded scoring, and does not replace the
-golden set.
+tenant's cases and does not replace the golden set. Model-graded scoring is
+defined separately, in [`016-model-graded-evals.md`](016-model-graded-evals.md).
 
 ## The golden set and a tenant set answer different questions
 
@@ -211,6 +211,12 @@ passed ones, so a suite of nothing but `review` cases cannot report itself green
 This is weaker than an assertion and is labelled as such. The alternative on
 offer was not a stronger check; it was a weaker check wearing an assertion's
 clothes.
+
+The objection above is to an _unvalidated_ judge, and it still stands against
+one. [`016-model-graded-evals.md`](016-model-graded-evals.md) admits a judge
+that grades a `review` criterion only in a run where it has first agreed with a
+hand-labelled calibration set, and counts its verdicts apart from asserted ones.
+Without a judge model configured, `review` behaves exactly as described here.
 
 ## A tenant suite covers its funnel stage by stage, or it covers nothing
 

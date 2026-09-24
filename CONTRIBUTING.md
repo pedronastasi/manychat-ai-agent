@@ -41,6 +41,10 @@ exists, and which describe code that does not. It is generated - run
 - [`specs/009-tenant-eval-suites.md`](specs/009-tenant-eval-suites.md) explains
   why `evals/golden/` holds framework cases against the demo tenant only, and how
   a tenant points the runner at a suite of its own.
+- [`specs/016-model-graded-evals.md`](specs/016-model-graded-evals.md) defines
+  when a judge model may grade an eval reply: only after agreeing with a
+  hand-labelled calibration set in the same run, and counted apart from asserted
+  results.
 - [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
   request must say. The first heading is always `## Why` - the diff already says
   what changed.
