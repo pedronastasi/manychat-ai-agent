@@ -1,6 +1,6 @@
 # ADR-0007 — `generateObject` rather than a tool loop for v1
 
-**Status:** accepted · **Date:** 2026-09-14
+**Status:** superseded by ADR-0010 · **Date:** 2026-09-14
 
 ## Context
 

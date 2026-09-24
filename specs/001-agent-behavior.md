@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-09-14
 pr: 1
 constitution: [C4, C6]
-adr: [0007]
+adr: [0010]
 ---
 
 # 001 — Agent Behavior
