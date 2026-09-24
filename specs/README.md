@@ -26,6 +26,7 @@ test fails the suite.
 | [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24 | 1     | C1, C8             | —                              |
 | [012 — Agent Tools](012-agent-tools.md)                                 | specified   | —           | —   | —     | C3, C4, C5, C6, C7 | [0010]                         |
 | [013 — No Verbatim Repetition](013-no-verbatim-repetition.md)           | specified   | —           | —   | —     | C9                 | —                              |
+| [014 — Documentation Site](014-docs-site.md)                            | specified   | —           | —   | —     | C1, C9             | —                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
