@@ -244,7 +244,9 @@ specified here.
 
 **Container images.** The deployment artefact is built outside this repository
 (`rossy-nails-deploy`). A release here is a source-level marker; what consumes
-it is that repository's concern.
+it is that repository's concern. The one image this repository does build is
+the test-service image of `015-test-service.md`, tagged by commit SHA, never
+by version, and never attached to a release.
 
 **Monorepo manifests.** `release-please` supports releasing many packages from
 one repository. There is one package. The manifest file exists only because v4
