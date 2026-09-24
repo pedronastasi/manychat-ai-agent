@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.3](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.2...manychat-ai-agent-v0.5.3) (2026-09-24)
+
+
+### Specs and Docs
+
+* add spec 013 — no verbatim repetition ([e864936](https://github.com/pedronastasi/manychat-ai-agent/commit/e8649365de1e850acc02dc0765e6c7717f89ad90))
+* add spec 013 — no verbatim repetition ([e0f5ea2](https://github.com/pedronastasi/manychat-ai-agent/commit/e0f5ea27171b9e626e1a82f303580b68e8c270e4))
+* record agent actions per turn and feed them back to the model ([4876c94](https://github.com/pedronastasi/manychat-ai-agent/commit/4876c94192b07e8a9b765c25c60e9a619d201463))
+* specify agent tools for ManyChat flows, tags and fields ([9385f22](https://github.com/pedronastasi/manychat-ai-agent/commit/9385f22e01fa07eac28d42a5c972d58f8ef330dc))
+* specify agent tools for ManyChat flows, tags and fields ([8e4d604](https://github.com/pedronastasi/manychat-ai-agent/commit/8e4d6049ad182936d1eb23fa41b7615f10a41720))
+
+
+### Dependencies
+
+* **deps:** update minor dependencies ([b4efac6](https://github.com/pedronastasi/manychat-ai-agent/commit/b4efac6a5f95e95a1394c7ce19d7ea155e300a63))
+* **deps:** update minor dependencies ([ac224f5](https://github.com/pedronastasi/manychat-ai-agent/commit/ac224f5a71f9fb2a36be35cff264c576ead39aa3))
+* **deps:** update patch dependencies ([#77](https://github.com/pedronastasi/manychat-ai-agent/issues/77)) ([381c0a1](https://github.com/pedronastasi/manychat-ai-agent/commit/381c0a18d36303c76232dcf22070845a8081606f))
+* **deps:** update pnpm to v12.6.0 ([025cb26](https://github.com/pedronastasi/manychat-ai-agent/commit/025cb2659c4427b9acaeede30174331880147b04))
+* **deps:** update pnpm to v12.6.0 ([0d46f00](https://github.com/pedronastasi/manychat-ai-agent/commit/0d46f00c9de90ab86d9c4f266ecde07cd1ea920e))
+
 ## [0.5.2](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.1...manychat-ai-agent-v0.5.2) (2026-09-18)
 
 
