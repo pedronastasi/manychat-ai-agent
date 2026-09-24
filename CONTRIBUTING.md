@@ -51,6 +51,9 @@ exists, and which describe code that does not. It is generated - run
 - [`specs/011-dependency-updates.md`](specs/011-dependency-updates.md) explains
   how dependency PRs are batched, and which ones merge without review. Patches
   auto-merge on green CI; minors and majors do not.
+- [`specs/014-test-service.md`](specs/014-test-service.md) defines the
+  browser test page: off unless `DEMO_UI=true`, mock model only, and it drives
+  the real ManyChat route rather than a shortcut around it.
 - Tests cite the spec clause they enforce. If a spec change breaks a test, that
   is a real finding — not a test to update mechanically.
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
