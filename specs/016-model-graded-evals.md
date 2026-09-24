@@ -52,10 +52,10 @@ evidence than the answer.
 
 Criteria come from two places.
 
-**A case's own `review` criterion.** Under 009 it is printed and the case counts
-as `read`. With a judge configured, the same string is the criterion the judge
-grades. There is no new field, so a suite written for 009 gains a judge without
-an edit.
+**A case's own `review` criteria.** Under 009 a criterion is printed and the case
+counts as `read`. With a judge configured, the same text is what the judge
+grades, one verdict per criterion. There is no new field, so a suite written for
+009 gains a judge without an edit.
 
 **A fixed framework rubric** of three tenant-agnostic dimensions, applied to
 every case whose `expect.escalate` is `false`:
@@ -82,6 +82,31 @@ tenant that cares about register writes it as a `review` criterion.
 The judge is shown the tenant catalogue, which `implicit_concession` needs, plus
 the history, the text and the reply. The judge's own prompt is framework source:
 English, and free of tenant copy (C1, C9).
+
+## One criterion per verdict, so a case may carry several
+
+A single `review` string that asks for two things — a warm register _and_ a
+question about the student's level — gets one verdict. When it fails, the status
+cannot say which half failed. The judge is also asked to combine two judgements
+inside one sample, so a stray reading of either half flips the whole verdict.
+
+So `review` widens from a string to a string or a list:
+
+```ts
+review: z.union([z.string(), z.array(z.string()).min(1)]).optional(),
+```
+
+A string is a one-entry list. Every case written for 009 parses unchanged and
+behaves as before. Each entry is its own criterion: sampled three times, graded
+to its own verdict, printed with its own reason and evidence, and counted as a
+free-text item when calibration groups are scored.
+
+Without a judge, every entry is printed beneath the reply and the case is
+`reviewed`, exactly as 009 defines for a single string.
+
+A list is not free: each entry costs three judge calls. A criterion that really
+is one judgement stays one string, and a list is for a case that genuinely asks
+several independent questions of the same reply.
 
 ## A verdict is binary, and a failure quotes the reply
 
@@ -175,7 +200,12 @@ nobody has measured.
 | `failed`      | A deterministic assertion failed                                 | Yes           |
 | `judged-fail` | Every assertion held, and a calibrated criterion failed          | Yes           |
 | `judged-pass` | The case carries `review`, and every calibrated criterion passed | No            |
-| `reviewed`    | The case carries `review`, and its criterion went ungraded       | No            |
+| `reviewed`    | The case carries `review`, and a criterion of it went ungraded   | No            |
+
+When outcomes mix, the more severe wins, in table order: `failed`, then
+`judged-fail`, then `reviewed`. A case with one `review` entry failed and
+another ungraded is `judged-fail`, because a known failure outranks a missing
+verdict. `judged-pass` requires every `review` entry to have passed.
 
 A case without `review` whose rubric passes stays `passed`, not `judged-pass`.
 Its green was earned by assertions, and the rubric only looked for a reason to
@@ -249,6 +279,9 @@ calibration set catches a judge that approves everything.
   failure is an invalid sample; that a verdict needs two agreeing valid samples;
   that a group below the threshold is downgraded alone; that an asserted failure
   never reaches the judge; and that an equal judge and agent model warns.
+- A unit test asserts that a `review` string and a one-entry list produce
+  identical outcomes, with and without a judge, and that each entry of a longer
+  list is graded and reported separately.
 - CI runs `pnpm eval:mock` without a judge and asserts the output is unchanged,
   then with `mock:judge` and asserts exit 0, every group uncalibrated, and zero
   `judged-pass`.
