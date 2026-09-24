@@ -10,20 +10,21 @@ described is **not** in the code yet.
 every run rather than declared. A spec marked `implemented` with no citing
 test fails the suite.
 
-| Spec                                                                    | Status      | Implemented | PR  | Tests | Constitution   | ADRs                           |
-| ----------------------------------------------------------------------- | ----------- | ----------- | --- | ----- | -------------- | ------------------------------ |
-| [000 — Constitution](000-constitution.md)                               | standing    | —           | —   | —     | —              | —                              |
-| [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1  | 2     | C4, C6         | [0007]                         |
-| [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1  | 2     | C7             | [0001], [0004], [0005], [0006] |
-| [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1  | 2     | C1, C2         | [0003]                         |
-| [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2  | 6     | C8             | —                              |
-| [005 — Repository Language](005-language.md)                            | implemented | 2026-09-15  | #3  | 2     | C1, C9         | —                              |
-| [006 — Pull Requests](006-pull-requests.md)                             | implemented | 2026-09-15  | #6  | 1     | C1, C5, C8, C9 | —                              |
-| [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —   | —     | C2, C3, C6, C7 | [0001], [0002]                 |
-| [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9  | 1     | C8             | —                              |
-| [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19 | 1     | C1, C6, C8, C9 | —                              |
-| [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22 | 2     | C1, C8, C9     | —                              |
-| [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24 | 1     | C1, C8         | —                              |
+| Spec                                                                    | Status      | Implemented | PR  | Tests | Constitution       | ADRs                           |
+| ----------------------------------------------------------------------- | ----------- | ----------- | --- | ----- | ------------------ | ------------------------------ |
+| [000 — Constitution](000-constitution.md)                               | standing    | —           | —   | —     | —                  | —                              |
+| [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1  | 2     | C4, C6             | [0010]                         |
+| [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1  | 2     | C7                 | [0001], [0004], [0005], [0006] |
+| [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1  | 2     | C1, C2             | [0003]                         |
+| [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2  | 6     | C8                 | —                              |
+| [005 — Repository Language](005-language.md)                            | implemented | 2026-09-15  | #3  | 2     | C1, C9             | —                              |
+| [006 — Pull Requests](006-pull-requests.md)                             | implemented | 2026-09-15  | #6  | 1     | C1, C5, C8, C9     | —                              |
+| [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —   | —     | C2, C3, C6, C7     | [0001], [0002]                 |
+| [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9  | 1     | C8                 | —                              |
+| [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19 | 1     | C1, C6, C8, C9     | —                              |
+| [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22 | 2     | C1, C8, C9         | —                              |
+| [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24 | 1     | C1, C8             | —                              |
+| [012 — Agent Tools](012-agent-tools.md)                                 | specified   | —           | —   | —     | C3, C4, C5, C6, C7 | [0010]                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
@@ -31,4 +32,4 @@ test fails the suite.
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
 [0005]: ../docs/adr/0005-channel-port-single-adapter.md
 [0006]: ../docs/adr/0006-manychat-auth-risk-accepted.md
-[0007]: ../docs/adr/0007-generateobject-not-toolloop.md
+[0010]: ../docs/adr/0010-bounded-tool-loop-with-staged-actions.md
