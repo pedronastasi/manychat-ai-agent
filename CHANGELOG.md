@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.2](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.1...manychat-ai-agent-v0.5.2) (2026-09-18)
+
+
+### Dependencies
+
+* **deps:** update dependency @types/node to v24 ([d269787](https://github.com/pedronastasi/manychat-ai-agent/commit/d269787c0103301ba56b280f4cf55a546faf0fa5))
+* **deps:** update dependency @types/node to v24 ([cd69d3d](https://github.com/pedronastasi/manychat-ai-agent/commit/cd69d3d87e1969d657a9653f5e92e4b164063100))
+* **deps:** update patch dependencies ([e748b59](https://github.com/pedronastasi/manychat-ai-agent/commit/e748b59b438cfce72f76a52ec2ebfe51286fd657))
+* **deps:** update patch dependencies ([50207ba](https://github.com/pedronastasi/manychat-ai-agent/commit/50207baf39ecaea1b4e0cd32c4862eebd410863c))
+
+## [0.5.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.0...manychat-ai-agent-v0.5.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* never ask the closing question twice ([f9c10b7](https://github.com/pedronastasi/manychat-ai-agent/commit/f9c10b7e0f69d7c43a1496ffb15b19654c19b863))
+* never ask the closing question twice ([2c6f897](https://github.com/pedronastasi/manychat-ai-agent/commit/2c6f897fc4bc4224d74d2b10c30de773c35207cf))
+
 ## [0.5.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.4.1...manychat-ai-agent-v0.5.0) (2026-09-18)
 
 
