@@ -41,6 +41,10 @@ exists, and which describe code that does not. It is generated - run
 - [`specs/009-tenant-eval-suites.md`](specs/009-tenant-eval-suites.md) explains
   why `evals/golden/` holds framework cases against the demo tenant only, and how
   a tenant points the runner at a suite of its own.
+- [`specs/016-model-graded-evals.md`](specs/016-model-graded-evals.md) defines
+  when a judge model may grade an eval reply: only after agreeing with a
+  hand-labelled calibration set in the same run, and counted apart from asserted
+  results.
 - [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
   request must say. The first heading is always `## Why` - the diff already says
   what changed.
@@ -67,11 +71,12 @@ exists, and which describe code that does not. It is generated - run
 [`.claude/skills/`](.claude/skills/) holds instructions for the workflows this
 repo has conventions about, so they do not depend on remembering them.
 
-| Skill       | Use it to                                                |
-| ----------- | -------------------------------------------------------- |
-| `adr`       | Pressure-test a decision, then record it in `docs/adr/`. |
-| `spec`      | Settle what a spec must say, then write it in `specs/`.  |
-| `new-skill` | Add another one of these.                                |
+| Skill         | Use it to                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `adr`         | Pressure-test a decision, then record it in `docs/adr/`.                                   |
+| `spec`        | Settle what a spec must say, then write it in `specs/`.                                    |
+| `new-skill`   | Add another one of these.                                                                  |
+| `eval-review` | Grade `pnpm eval` replies against `review` criteria and the 016 rubric, quoting the reply. |
 
 They are committed on purpose - a skill encoding this repo's format is repo
 tooling. Anything that would work unchanged in an unrelated project is a

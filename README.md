@@ -65,18 +65,19 @@ agent portable instead of welded to one vendor's UI.
 
 Every non-obvious choice is written down in [`docs/adr/`](docs/adr/):
 
-| ADR                                                            | Decision                                                                                  |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [0001](docs/adr/0001-hybrid-race-reply-path.md)                | Race the model against a deadline instead of choosing sync or async                       |
-| [0002](docs/adr/0002-provider-agnostic-model-layer.md)         | One registry module may import providers; everything else uses a port                     |
-| [0003](docs/adr/0003-contract-first-with-zod.md)               | Zod schemas generate both the types and the OpenAPI document                              |
-| [0004](docs/adr/0004-postgres-outbox-over-redis.md)            | A Postgres outbox, not Redis — one datastore, transactional enqueue                       |
-| [0005](docs/adr/0005-channel-port-single-adapter.md)           | Define the channel port, ship exactly one adapter                                         |
-| [0006](docs/adr/0006-manychat-auth-risk-accepted.md)           | ManyChat does not sign webhooks; the compensating controls, written down                  |
-| [0007](docs/adr/0007-generateobject-not-toolloop.md)           | `generateObject`, not a tool loop, while there are no tools (superseded)                  |
-| [0008](docs/adr/0008-classes-for-port-implementations.md)      | Ports are implemented by classes; functions stay for pure transformation                  |
-| [0009](docs/adr/0009-no-single-letter-identifiers.md)          | Identifiers are at least two characters, enforced by lint                                 |
-| [0010](docs/adr/0010-bounded-tool-loop-with-staged-actions.md) | A two-step tool loop whose tools stage actions; the server performs them after guardrails |
+| ADR                                                            | Decision                                                                                      |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [0001](docs/adr/0001-hybrid-race-reply-path.md)                | Race the model against a deadline instead of choosing sync or async                           |
+| [0002](docs/adr/0002-provider-agnostic-model-layer.md)         | One registry module may import providers; everything else uses a port                         |
+| [0003](docs/adr/0003-contract-first-with-zod.md)               | Zod schemas generate both the types and the OpenAPI document                                  |
+| [0004](docs/adr/0004-postgres-outbox-over-redis.md)            | A Postgres outbox, not Redis — one datastore, transactional enqueue                           |
+| [0005](docs/adr/0005-channel-port-single-adapter.md)           | Define the channel port, ship exactly one adapter                                             |
+| [0006](docs/adr/0006-manychat-auth-risk-accepted.md)           | ManyChat does not sign webhooks; the compensating controls, written down                      |
+| [0007](docs/adr/0007-generateobject-not-toolloop.md)           | `generateObject`, not a tool loop, while there are no tools (superseded)                      |
+| [0008](docs/adr/0008-classes-for-port-implementations.md)      | Ports are implemented by classes; functions stay for pure transformation                      |
+| [0009](docs/adr/0009-no-single-letter-identifiers.md)          | Identifiers are at least two characters, enforced by lint                                     |
+| [0010](docs/adr/0010-bounded-tool-loop-with-staged-actions.md) | A two-step tool loop whose tools stage actions; the server performs them after guardrails     |
+| [0011](docs/adr/0011-model-graded-evals-behind-calibration.md) | A judge model grades evals only in a run where it first agrees with hand-labelled calibration |
 
 Behavior is specified before it is implemented, in [`specs/`](specs/) —
 a [constitution](specs/000-constitution.md) of non-negotiables, the
