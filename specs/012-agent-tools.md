@@ -29,7 +29,25 @@ The model is told an action was staged, never that it succeeded. The persona
 must not have it claim "I've sent it" as fact. It says what it is sending, the
 way a person does before pressing send.
 
-## Four tools, each built from tenant configuration
+## The mechanism is built here; only the choices are the tenant's
+
+Everything in this spec is code in this repository, identical for every tenant:
+the four tools, staging, the `tools.json` schema and its startup checks, the
+delivery order on both paths, the outbox payload, and the per-turn action
+record.
+A deployment never implements a tool. It supplies:
+
+- `config/tools.json`, which says which flows, tags and field values exist and
+  when each should be used (gitignored, C1);
+- the flows themselves, and the media inside them, which live in the tenant's
+  ManyChat account.
+
+The implementing pull request commits `config/tools.json.example` for the
+fictional demo tenant, as `003-config-schema.md` requires of every config file.
+A deployment with no `tools.json` gets no tools, and behaves exactly as it does
+today.
+
+## Four tools, parameterised by tenant configuration
 
 | Tool         | ManyChat endpoint                          | Model supplies            |
 | ------------ | ------------------------------------------ | ------------------------- |
@@ -95,9 +113,9 @@ numbers) into the CRM. If a tenant needs an open field, that is a new spec.
 
 ## Guardrails run before any action is performed
 
-Staged actions are performed only if the final reply, **after** `applyGuardrails`,
-has `escalate: false`. Every other outcome discards them, and the count
-discarded is logged:
+Staged actions are performed only if the final reply, **after**
+`applyGuardrails`, has `escalate: false`. Every other outcome discards them,
+and the count discarded is logged:
 
 - the model set `escalate: true`;
 - confidence fell below the threshold;
@@ -144,8 +162,8 @@ through the existing `ManyChatClient` and its rate limiter.
 
 ## The flow set may not include the reply flow or field
 
-`flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, and `fields[].field` may
-not equal `MANYCHAT_REPLY_FIELD`. The reply flow renders whatever the reply
+`flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, and `fields[].field`
+may not equal `MANYCHAT_REPLY_FIELD`. The reply flow renders whatever the reply
 field holds, so firing it as a tool would resend a stale reply, and writing that
 field as a tool would overwrite a reply in flight (`002 § The two calls are one
 delivery`). Either collision is a startup failure, not a runtime surprise.
@@ -164,6 +182,67 @@ performed once, after the first successful delivery.
 On the inline path, actions run in-process after the response. A crash between
 the response and the actions loses them. This is accepted for the same reason.
 
+## Every staged action is recorded on its turn
+
+A log line answers "did something fail?" and nothing else. It cannot answer
+"what did the agent do for this contact?", and it only covers failures. So the
+agent's row in `turns` gains an `actions` column (jsonb): one entry per action
+the model staged, whatever became of it.
+
+```jsonc
+[
+  { "tool": "send_flow", "id": "gel_course_brochure", "status": "performed" },
+  {
+    "tool": "set_field",
+    "id": "preferred_shift",
+    "value": "evening",
+    "status": "failed",
+    "error": "…",
+  },
+]
+```
+
+| `status`           | Meaning                                                |
+| ------------------ | ------------------------------------------------------ |
+| `staged`           | Deferred path; waiting for the outbox worker           |
+| `performed`        | ManyChat accepted the request                          |
+| `failed`           | ManyChat rejected it; `error` holds the reason         |
+| `discarded`        | The turn escalated (see "Guardrails run before…")      |
+| `dropped_over_cap` | Staged past the per-turn limit and never sent          |
+| `dead_lettered`    | Its outbox row was dead-lettered, so it was never sent |
+
+On the inline path the entries are written once the actions have run. On the
+deferred path they are written as `staged` with the turn, and the outbox worker
+updates them after it has sent them. The column is `null` on turns where no tool
+was offered, so "no tools" and "tools offered, none chosen" (`[]`) are distinct.
+
+Entries hold only configured ids and values, never `flowNs`, tag or field names,
+or contact text, so the record needs no redaction under C5.
+
+## Performed actions reach the model on later turns
+
+Today the history the model sees is text only. Without more, the model on the
+next turn cannot tell that it already sent the brochure, and will send it again
+when the contact says "thanks, and the price?".
+
+Each agent turn in the history therefore carries a server-written note of the
+actions recorded as `performed`, e.g.
+`[actions performed: send_flow gel_course_brochure]`. The note:
+
+- is built from the `actions` column, never from the model's own text;
+- sits outside the contact fence, since it is system-authored rather than
+  untrusted (C4);
+- lists `performed` only. A discarded, failed or still-staged action is not
+  mentioned, so the model never believes something reached the contact that
+  did not. A deferred action that has not yet been performed when the next turn
+  starts is absent from that turn, which errs toward a repeat, not a false
+  claim;
+- uses ids, not descriptions, so a long `description` is not repeated on every
+  turn of history.
+
+The note's format is English and system-facing, never shown to the contact, so
+it is not customer copy under C9.
+
 ## Verification
 
 1. A unit test asserts each tool's parameter schema rejects an id absent from
@@ -174,8 +253,9 @@ the response and the actions loses them. This is accepted for the same reason.
    action is performed" and asserts zero ManyChat requests.
 4. A test asserts a fourth staged action returns `{ staged: false }` and is not
    performed.
-5. A unit test over `fetchImpl` pins each action's request body. Each carries the
-   current turn's `subscriber_id`, and `set_field` carries a configured value.
+5. A unit test over `fetchImpl` pins each action's request body. Each carries
+   the current turn's `subscriber_id`, and `set_field` carries a configured
+   value.
 6. On both paths, a test asserts the order: text is delivered before any action
    request. On the deferred path, a retried row performs its actions once, and a
    dead-lettered row performs none.
@@ -184,6 +264,12 @@ the response and the actions loses them. This is accepted for the same reason.
 8. The mock model gains a tool-calling case. Golden eval cases assert the tool
    choice for a request that should send a flow, and for one that should not.
    `001 § Verification` item 5 (p95 latency) now covers tool turns.
+9. An integration test against PGlite asserts each `actions` status is written
+   on the path that produces it. It also asserts that a deferred turn's entries
+   move from `staged` to `performed` or `failed` after the worker drains, and to
+   `dead_lettered` when the row is.
+10. A unit test asserts the next turn's prompt carries the note for a
+    `performed` action and omits discarded, failed and staged ones.
 
 What this misses: as in `002`, ManyChat returning success is not WhatsApp
 delivering. A flow that was renamed, is unpublished or points at a missing file
@@ -192,3 +278,7 @@ Dynamic Block response and a `sendFlow` are both with ManyChat, the order in
 which the contact sees them is ManyChat's. And no test can tell whether a
 `description` leads the model to the right flow. Evals sample that, and a person
 reading real conversations is the actual check.
+
+For the same reason, `performed` means ManyChat accepted the request, not that
+the contact received it. The action record and the history note both inherit
+that gap. They say what this service did, not what the contact saw.
