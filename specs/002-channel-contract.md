@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-09-14
 pr: 1
 constitution: [C7]
-adr: [0001, 0004, 0005, 0006]
+adr: [0001, 0004, 0005, 0012]
 ---
 
 # 002 — Channel Contract (ManyChat / WhatsApp)
@@ -24,15 +24,19 @@ renders the JSON we return. Dev Tools require a **ManyChat Pro** plan.
 ManyChat does **not** sign its requests (no HMAC, no timestamp nonce). The only
 available mechanism is a static secret header that ManyChat sends verbatim.
 
-Consequences, accepted in ADR-0006:
+Consequences, first accepted in ADR-0006 (superseded by ADR-0012):
 
 - The secret is a bearer credential. TLS is mandatory; it is the only thing
   preventing replay.
 - Compared with `crypto.timingSafeEqual`, never `===`.
 - Rotatable via env without redeploying ManyChat flows (two valid secrets during
   a rotation window).
-- Requests are also rate-limited per IP and per subscriber, so a leaked secret
-  is bounded in blast radius rather than unlimited.
+
+The secret proves the caller holds it, and nothing about which contact the
+request speaks for. What the endpoint believes about a request, the contact
+token ManyChat holds and sends back (ADR-0012), and the controls that bound a
+leaked secret are specified in
+[`017-inbound-request-trust.md`](017-inbound-request-trust.md).
 
 ## Response contract (Dynamic Block v2)
 

@@ -16,16 +16,33 @@ ManyChat does **not** sign Dynamic Block requests — no HMAC, no timestamp, no
 nonce. Only a static header we configure is available, so we can verify that the
 caller knows a secret, not that the caller is ManyChat.
 
-This is accepted, with compensating controls, in
-[ADR-0006](docs/adr/0006-manychat-auth-risk-accepted.md):
+[ADR-0006](docs/adr/0006-manychat-auth-risk-accepted.md) accepted this with
+compensating controls. It is superseded by
+[ADR-0012](docs/adr/0012-contact-tokens-held-in-manychat.md), because
+several of its claims did not hold:
+
+- ADR-0006 said a forged request could not read conversation history. It can: a
+  holder of the secret can name any contact's `subscriber_id`, and the model
+  receives that contact's recent turns.
+- The per-IP rate limit was never applied to any route.
+- Every response registers a callback carrying the first configured secret,
+  whichever secret the caller presented, so a holder of a retired secret is
+  handed its replacement during a rotation.
+
+[specs/017](specs/017-inbound-request-trust.md) specifies the fix: each contact
+has a token that ManyChat holds and sends back, a request without it reads no
+history, and every control has a test that makes it fire. Until it is
+implemented and `CONTACT_TOKENS_ENFORCED` is on, the gaps above are live. The
+controls that do hold today:
 
 - Constant-time comparison (`crypto.timingSafeEqual`), never `===`
 - TLS required — the only protection against interception and replay
 - Two secrets accepted during rotation, so rotating needs no flow downtime
-- Per-IP and per-subscriber rate limits bound a leaked secret's blast radius
+- Per-subscriber turn limits, enforced in the database
 - Daily token and cost caps bound the worst case to finite spend
-- The endpoint returns only a generated reply; there is no conversation history
-  to read back, so a forged request cannot exfiltrate data
+
+What a holder of the secret can still do once specs/017 is implemented is
+listed there, under "What a holder of the shared secret can still do".
 
 If ManyChat adds request signing, this decision should be revisited immediately.
 
@@ -49,7 +66,9 @@ in CI.
 
 Message text routinely contains names and phone numbers. Redaction is configured
 at the logger so no individual log statement can opt out, telemetry spans omit
-prompts by default, and subscriber IDs are pseudonymized for correlation.
+prompts by default, and subscriber IDs are pseudonymized for correlation. The
+current pseudonym is a weak hash; specs/017 replaces it with the conversation's
+random ID (ADR-0014).
 
 Transcripts are stored in Postgres to provide conversation history. Operators are
 responsible for retention and for their own legal obligations.
