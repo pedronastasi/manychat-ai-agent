@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.6.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.3...manychat-ai-agent-v0.6.0) (2026-09-26)
+
+
+### Features
+
+* bound history to 30 days and reset the turn cap after 24 hours (spec 018) ([f5cdd44](https://github.com/pedronastasi/manychat-ai-agent/commit/f5cdd442338e6d8239be6fe84b2d4b140eb63883))
+* bound history to 30 days and reset the turn cap after 24 hours (spec 018) ([b06f349](https://github.com/pedronastasi/manychat-ai-agent/commit/b06f3490f5c6e6d4bfcbf02fe97f84eb1500dadd))
+* enforce inbound request trust (spec 017) ([5056995](https://github.com/pedronastasi/manychat-ai-agent/commit/50569952622a0ecb2b8db1cc4ca2c675aa818cfc))
+* enforce inbound request trust (spec 017) ([e29f676](https://github.com/pedronastasi/manychat-ai-agent/commit/e29f676943480dbaa4fc7a7b3ea1f303ecef0c9e))
+
+
+### Bug Fixes
+
+* strip reply fields the model writes into message text ([8fc5421](https://github.com/pedronastasi/manychat-ai-agent/commit/8fc5421c0f79cf86f6b451bc36003a9ec5ffe8ed))
+* strip reply fields the model writes into message text ([8edd948](https://github.com/pedronastasi/manychat-ai-agent/commit/8edd94899add71231690044d03d1244cfcf5116d))
+
+
+### Specs and Docs
+
+* let a case carry several review criteria, one verdict each ([7fa80e5](https://github.com/pedronastasi/manychat-ai-agent/commit/7fa80e50dbfd61f5f1c41b1b928dd82b373cb1f1))
+* record PR 89 in spec 017 ([a9be334](https://github.com/pedronastasi/manychat-ai-agent/commit/a9be334edf895957e9f254890f65d70f160f2ffd))
+* record PR 91 in spec 018 ([25963b3](https://github.com/pedronastasi/manychat-ai-agent/commit/25963b3019dd9f7fd41a99657dcc9e88a6bb757b))
+* specify a flag-gated browser test service on the mock model ([b79ac2d](https://github.com/pedronastasi/manychat-ai-agent/commit/b79ac2d587d92a26678055b30a8f7ed681e3b007))
+* specify inbound request trust (spec 017, ADRs 0012-0014) ([b9c5518](https://github.com/pedronastasi/manychat-ai-agent/commit/b9c55186ea7c69f5e89164621e1811c48eb5653a))
+* specify inbound request trust (spec 017, ADRs 0012-0014) ([d2b30b8](https://github.com/pedronastasi/manychat-ai-agent/commit/d2b30b88fcc5193ae92656fc108af329725388e7))
+* specify model-graded evals behind a calibration gate ([c7bd2ab](https://github.com/pedronastasi/manychat-ai-agent/commit/c7bd2ab9092728335685f32966ce389fbff513c4))
+* specify model-graded evals behind a calibration gate ([38478ab](https://github.com/pedronastasi/manychat-ai-agent/commit/38478ab1cb7c68d9571d2a9897a4f90c6ea54b78))
+* specify the documentation site ([ce6b613](https://github.com/pedronastasi/manychat-ai-agent/commit/ce6b613f21a721498e25d33a2378f244f6a65e10))
+* translate leftover Spanish strings to English ([bef7660](https://github.com/pedronastasi/manychat-ai-agent/commit/bef7660ff482d032bb5015088299635cd1c28f01))
+* translate leftover Spanish strings to English ([23d2bb9](https://github.com/pedronastasi/manychat-ai-agent/commit/23d2bb98e94e52d35bf740e6f2a76c38f8fda5f8))
+
+
+### Dependencies
+
+* **deps:** update patch dependencies ([#87](https://github.com/pedronastasi/manychat-ai-agent/issues/87)) ([46d8a11](https://github.com/pedronastasi/manychat-ai-agent/commit/46d8a11a9253457b8eb0b67061e2605a86ce8197))
+
 ## [0.5.3](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.2...manychat-ai-agent-v0.5.3) (2026-09-24)
 
 
