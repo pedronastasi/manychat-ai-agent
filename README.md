@@ -171,7 +171,7 @@ without incurring API costs.
 
 ```bash
 docker compose --profile local-model up        # starts Ollama alongside Postgres
-AGENT_MODEL=ollama:llama3.1:8b pnpm simulate "hola"
+AGENT_MODEL=ollama:llama3.1:8b pnpm simulate "hello"
 ```
 
 The first run pulls ~4.7 GB of weights; they persist in a named Docker volume so
@@ -179,7 +179,7 @@ subsequent starts are instant. Any Ollama-supported model works — just use the
 tag from `ollama list`:
 
 ```bash
-AGENT_MODEL=ollama:gemma3:4b pnpm simulate "cuanto sale el curso?"
+AGENT_MODEL=ollama:gemma3:4b pnpm simulate "how much does the course cost?"
 ```
 
 Inside Compose the agent reaches Ollama at `http://ollama:11434/v1`. Running

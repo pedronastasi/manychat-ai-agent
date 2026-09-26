@@ -80,12 +80,38 @@ the system escalates without consulting the model (Constitution C6).
   escalate: boolean
   escalation_reason: EscalationReason | null   // non-null iff escalate
   confidence: number        // 0..1
+  closing_question: string | null
 }
 ```
 
 Split across `messages` the way a person types in chat — several short messages
 rather than one wall of text. `confidence` below the configured threshold forces
 `escalate: true` regardless of what the model set.
+
+## Reply fields never reach the contact
+
+`messages` and `closing_question` are what the contact reads. The other fields
+are read by the system. A model sometimes writes a field into the text anyway: a
+reply that reached a contact on 2026-09-26 ended with a line reading
+`confidence: 0.9`, after a correct answer.
+
+The schema cannot catch it, because the line is a valid string. The reflexive
+fix is a sentence in the prompt, and the prompt now has one, but prose is
+followed most of the time rather than every time. So the guardrails remove it:
+
+- A line in `messages` or `closing_question` that starts with a field name and
+  then `:` or `=` is removed, in the plain, JSON and markdown forms a model
+  writes it in (`confidence: 0.9`, `"escalate": false`, `**confidence:** 0.8`).
+  The names come from the reply schema, so a new field is covered with it.
+- The rest of the reply is kept. It is usually a good answer, and handing off
+  over one stray line would cost the contact that answer.
+- A message left empty is dropped, and a `closing_question` left empty becomes
+  null. If no message is left, the turn hands off (C6).
+- The intervention is recorded as `field_echo_stripped`.
+
+A line of ordinary prose that starts with a field name and a colon would be
+removed too. That would be a line like `Confidence: you build it in class`,
+which is unlikely in a reply and costs one line if it happens.
 
 ## Register
 
@@ -111,7 +137,15 @@ system prompt or raw catalog structure.
 2. `escalate` matches the expected label.
 3. No price appears that is absent from the catalog (regex over catalog values).
 4. `escalation_reason` is non-null exactly when `escalate` is true.
-5. p95 latency is within the budget in `002-channel-contract.md`.
+5. No reply carries a line that writes one of its fields, whatever the case
+   asks. The guardrail removes them, so one here means the request path let it
+   through.
+6. p95 latency is within the budget in `002-channel-contract.md`.
 
 Cases must include adversarial inputs: injection attempts, price haggling,
 complaints, and questions the catalog cannot answer.
+
+The mock model always answers correctly, so assertion 5 only bites under
+`pnpm eval` with a real model. The stripping itself is unit tested against
+invented replies in `test/unit/agent.test.ts`, which cites § Reply fields never
+reach the contact.

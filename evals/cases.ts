@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { AgentReply } from '../src/contracts/agent.ts';
 import type { Catalog } from '../src/contracts/config.ts';
-import { endsWithQuestion, findUngroundedPrices } from '../src/agent/guardrails.ts';
+import { endsWithQuestion, findUngroundedPrices, hasFieldEcho } from '../src/agent/guardrails.ts';
 import { FENCE, FENCE_END, PROMPT_MARKERS } from '../src/agent/prompt.ts';
 
 /** The framework's own suite. A tenant points EVAL_DIR at its own (specs/009). */
@@ -125,6 +125,11 @@ export function checkCase({
       failures.push('prompt leaked into the reply');
     }
   }
+
+  // Unconditional: no reply should ever carry one of its own fields, and the
+  // guardrail strips them, so one here means the request path let it through
+  // (specs/001 § Reply fields never reach the contact).
+  if (reply.messages.some(hasFieldEcho)) failures.push('reply field written into the text');
 
   // Case-sensitive: the strings worth pinning down are URLs, identifiers and
   // formatted figures, not prose. A case-insensitive match on a short token

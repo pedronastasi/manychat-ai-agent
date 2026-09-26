@@ -1,4 +1,9 @@
-import { AgentReply, MAX_MESSAGE_CHARS, MAX_MESSAGES_PER_REPLY } from '../contracts/agent.ts';
+import {
+  AgentReply,
+  AgentReplyForModel,
+  MAX_MESSAGE_CHARS,
+  MAX_MESSAGES_PER_REPLY,
+} from '../contracts/agent.ts';
 import type { EscalationReason } from '../contracts/agent.ts';
 import type { Catalog, Rules } from '../contracts/config.ts';
 import { FENCE, FENCE_END, PROMPT_MARKERS } from './prompt.ts';
@@ -31,6 +36,38 @@ const TRAILING_DECORATION = /(?:\s|\p{Extended_Pictographic}|️|‍|[\u{1F3FB}-
  */
 export function endsWithQuestion(message: string): boolean {
   return message.replace(TRAILING_DECORATION, '').endsWith('?');
+}
+
+/**
+ * A line that writes one of the reply's own fields into the text:
+ * `confidence: 0.9`, `"escalate": false`, `**closing_question:** ...`.
+ *
+ * Built from the schema's keys, so a field added later is covered without
+ * anyone remembering to extend a list here.
+ */
+const FIELD_ECHO = new RegExp(
+  `^[\\s"'*_\`>-]*(?:${Object.keys(AgentReplyForModel.shape).join('|')})["'*_\`]*\\s*[:=]`,
+  'i',
+);
+
+/**
+ * Whether a message carries a line that echoes a reply field.
+ *
+ * Exported for the eval suite, which fails any reply that still carries one: a
+ * suite with its own copy would pass while the request path let one through.
+ */
+export function hasFieldEcho(text: string): boolean {
+  return text.split('\n').some(line => FIELD_ECHO.test(line));
+}
+
+/** The text without its field-echo lines, and without the gap they leave. */
+function stripFieldEchoes(text: string): string {
+  return text
+    .split('\n')
+    .filter(line => !FIELD_ECHO.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 /**
@@ -71,6 +108,32 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
   }
 
   let reply = parsed.data;
+
+  // Reply fields written into the text, such as a trailing "confidence: 0.9".
+  // The fields are for the system, not the contact. Only the offending lines
+  // go: the rest is a good answer, and handing off over one stray line would
+  // cost the contact that answer (specs/001 § Reply fields never reach the
+  // contact).
+  const echoed =
+    reply.messages.some(hasFieldEcho) ||
+    (reply.closing_question !== null && hasFieldEcho(reply.closing_question));
+  if (echoed) {
+    interventions.push('field_echo_stripped');
+    const messages = reply.messages
+      .map(message => (hasFieldEcho(message) ? stripFieldEchoes(message) : message))
+      .filter(message => message.length > 0);
+    if (messages.length === 0) {
+      return {
+        reply: escalationReply('low_confidence', rules.messages.escalation),
+        interventions,
+      };
+    }
+    const closing =
+      reply.closing_question !== null && hasFieldEcho(reply.closing_question)
+        ? stripFieldEchoes(reply.closing_question) || null
+        : reply.closing_question;
+    reply = { ...reply, messages, closing_question: closing };
+  }
 
   // Prompt/fence leakage: the model echoing its own scaffolding back.
   const leaked = reply.messages.some(
