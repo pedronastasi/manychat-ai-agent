@@ -190,6 +190,15 @@ describe('classify (specs/009 § Verification)', () => {
   });
 });
 
+describe('reply fields (specs/001 § Reply fields never reach the contact)', () => {
+  it('fails any reply that carries one of its own fields, whatever the case asks', () => {
+    expect(check(base, replyOf(['Sure, here they are.\n\nconfidence: 0.9']))).toEqual([
+      'reply field written into the text',
+    ]);
+    expect(check(base, replyOf(['Confidence comes with practice.']))).toEqual([]);
+  });
+});
+
 describe('existing assertions still hold (specs/009 § additive)', () => {
   it('flags an ungrounded price and a latency overrun', () => {
     const reply = replyOf(['It is $999 today only.']);
