@@ -5,6 +5,8 @@
   },
   "confidenceThreshold": 0.6,
   "maxTurnsPerConversation": 25,
+  "idleResetHours": 24,
+  "historyDays": 30,
   "escalationKeywords": [
     "speak to a human",
     "talk to someone",

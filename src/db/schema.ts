@@ -27,6 +27,8 @@ export const conversations = pgTable(
     channel: text('channel').notNull(),
     turnCount: integer('turn_count').notNull().default(0),
     escalatedAt: timestamp('escalated_at', { withTimezone: true }),
+    /** The contact's latest message; a gap since it resets the turn cap (specs/018). */
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

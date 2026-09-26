@@ -12,6 +12,8 @@ import {
 } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
 
+const DAY_MS = 86_400_000;
+
 export interface TurnLogger {
   info: (o: object, m: string) => void;
   error: (o: object, m: string) => void;
@@ -65,12 +67,17 @@ export class TurnHandler {
 
   async handle(inbound: InboundMessage): Promise<TurnResult> {
     const { rules } = this.deps;
+    const now = new Date();
 
-    const conversation = await this.store.startTurn({
-      tenantId: inbound.tenantId,
-      subscriberId: inbound.subscriberId,
-      channel: inbound.channel,
-    });
+    const conversation = await this.store.startTurn(
+      {
+        tenantId: inbound.tenantId,
+        subscriberId: inbound.subscriberId,
+        channel: inbound.channel,
+        idleResetHours: rules.idleResetHours,
+      },
+      now,
+    );
     const logger = withConversation(this.deps.logger, conversation.id);
     await this.store.recordUserMessage(conversation.id, inbound.text);
 
@@ -115,7 +122,10 @@ export class TurnHandler {
       return { reply, outcome: 'escalated_precheck', conversationId: conversation.id };
     }
 
-    const history = await this.store.recentTurns(conversation.id, 10);
+    // History outlives the turn cap on purpose: a contact returning after two
+    // weeks gets their context and a fresh cap (specs/018, ADR-0013).
+    const historySince = new Date(now.getTime() - rules.historyDays * DAY_MS);
+    const history = await this.store.recentTurns(conversation.id, historySince, 10);
     // recentTurns includes the message just recorded; the runner adds it itself.
     const priorHistory = history.slice(0, -1);
 

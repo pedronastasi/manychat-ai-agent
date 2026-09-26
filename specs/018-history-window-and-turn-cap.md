@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-09-26
+pr: 91
 adr: [0013]
 ---
 
