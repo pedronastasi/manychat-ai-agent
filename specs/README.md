@@ -14,7 +14,7 @@ test fails the suite.
 | ----------------------------------------------------------------------- | ----------- | ----------- | --- | ----- | -------------------------- | ------------------------------ |
 | [000 — Constitution](000-constitution.md)                               | standing    | —           | —   | —     | —                          | —                              |
 | [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1  | 2     | C4, C6                     | [0010]                         |
-| [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1  | 2     | C7                         | [0001], [0004], [0005], [0006] |
+| [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1  | 2     | C7                         | [0001], [0004], [0005], [0012] |
 | [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1  | 2     | C1, C2                     | [0003]                         |
 | [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2  | 6     | C8                         | —                              |
 | [005 — Repository Language](005-language.md)                            | implemented | 2026-09-15  | #3  | 2     | C1, C9                     | —                              |
@@ -29,12 +29,15 @@ test fails the suite.
 | [014 — Documentation Site](014-docs-site.md)                            | specified   | —           | —   | —     | C1, C9                     | —                              |
 | [015 — Test Service](015-test-service.md)                               | specified   | —           | —   | —     | C1, C3, C5, C7, C9         | [0001], [0005]                 |
 | [016 — Model-Graded Evals](016-model-graded-evals.md)                   | specified   | —           | —   | —     | C1, C2, C3, C4, C6, C8, C9 | [0011]                         |
+| [017 — Inbound Request Trust](017-inbound-request-trust.md)             | specified   | —           | —   | —     | C5, C6                     | [0012], [0013], [0014]         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
 [0003]: ../docs/adr/0003-contract-first-with-zod.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
 [0005]: ../docs/adr/0005-channel-port-single-adapter.md
-[0006]: ../docs/adr/0006-manychat-auth-risk-accepted.md
 [0010]: ../docs/adr/0010-bounded-tool-loop-with-staged-actions.md
 [0011]: ../docs/adr/0011-model-graded-evals-behind-calibration.md
+[0012]: ../docs/adr/0012-contact-tokens-held-in-manychat.md
+[0013]: ../docs/adr/0013-history-spans-30-days-turn-cap-resets-daily.md
+[0014]: ../docs/adr/0014-log-conversation-id-not-pseudonym.md

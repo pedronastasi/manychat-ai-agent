@@ -1,6 +1,6 @@
 # ADR-0006 — Accepting ManyChat's unsigned webhooks
 
-**Status:** accepted · **Date:** 2026-09-14
+**Status:** superseded by ADR-0012 · **Date:** 2026-09-14
 
 ## Context
 
