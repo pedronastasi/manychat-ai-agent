@@ -641,7 +641,7 @@ describe('runner failure branches (specs/004 P2)', () => {
   it('sends prior turns as alternating roles, fencing only the user side', async () => {
     const { model, calls } = mockModel(good);
     await runnerFor(model).run({
-      text: 'y el avanzado?',
+      text: 'what about the advanced one?',
       history: [
         { role: 'user', text: 'how much is the foundation course?' },
         { role: 'agent', text: 'It is $450.00.' },
