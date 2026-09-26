@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { z } from 'zod';
 
 /* -------------------------------------------------------------------------- */
@@ -156,6 +157,18 @@ const csv = (raw: string) =>
     .map(part => part.trim())
     .filter(Boolean);
 
+const PROXY_PRESETS = new Set(['loopback', 'linklocal', 'uniquelocal']);
+
+function isProxyAddress(entry: string): boolean {
+  if (PROXY_PRESETS.has(entry)) return true;
+  const [address = '', prefix, ...rest] = entry.split('/');
+  const family = isIP(address);
+  if (family === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+  const bits = Number(prefix);
+  return /^\d+$/.test(prefix) && bits <= (family === 4 ? 32 : 128);
+}
+
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -182,9 +195,29 @@ export const EnvSchema = z
       .describe('Reasoning models only. Ignored by providers that do not support it.'),
 
     CHANNEL: z.string().default('whatsapp'),
-    PUBLIC_BASE_URL: z.string().url().describe('HTTPS base for external_message_callback.'),
+    // ManyChat refuses a non-HTTPS callback, and the response schema refuses it
+    // before that, so an http:// base would fail every turn rather than boot
+    // (specs/017 § Callbacks are HTTPS or the process does not boot).
+    PUBLIC_BASE_URL: z
+      .string()
+      .url()
+      .startsWith('https://', 'PUBLIC_BASE_URL must be https://')
+      .describe('HTTPS base for external_message_callback.'),
 
-    /** Comma-separated to allow rotation without flow downtime (ADR-0006). */
+    /**
+     * The proxies whose X-Forwarded-For is believed, as addresses, CIDR ranges
+     * or proxy-addr presets. Empty trusts none, so `req.ip` is the socket peer
+     * (specs/017 § Rate limiting is attached before any route).
+     */
+    TRUST_PROXY: z
+      .string()
+      .default('')
+      .transform(csv)
+      .refine(entries => entries.every(isProxyAddress), {
+        message: 'Expected addresses, CIDR ranges, or loopback|linklocal|uniquelocal',
+      }),
+
+    /** Comma-separated to allow rotation without flow downtime (ADR-0012). */
     MANYCHAT_SHARED_SECRET: z.string().min(16).transform(csv),
     MANYCHAT_API_TOKEN: optionalString,
     MANYCHAT_API_BASE: z.string().url().default('https://api.manychat.com'),

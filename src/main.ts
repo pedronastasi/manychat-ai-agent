@@ -27,8 +27,7 @@ export async function main() {
     db = createDatabase(env.DATABASE_URL);
   }
 
-  const { app, registerPlugins } = buildServer({ env, db, configStore });
-  await registerPlugins();
+  const { app } = await buildServer({ env, db, configStore });
 
   const migrated = await runMigrations(db);
   if (migrated.length > 0) app.log.info({ migrations: migrated }, 'migrations applied');

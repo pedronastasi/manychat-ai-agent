@@ -33,10 +33,11 @@ Consequences, first accepted in ADR-0006 (superseded by ADR-0012):
   a rotation window).
 
 The secret proves the caller holds it, and nothing about which contact the
-request speaks for. What the endpoint believes about a request, the contact
-token ManyChat holds and sends back (ADR-0012), and the controls that bound a
-leaked secret are specified in
-[`017-inbound-request-trust.md`](017-inbound-request-trust.md).
+request speaks for. The checks every request passes, and the controls that bound
+a leaked secret, are specified in
+[`017-inbound-request-trust.md`](017-inbound-request-trust.md). The contact
+token ManyChat holds and sends back (ADR-0012) is specified in
+[`019-contact-tokens.md`](019-contact-tokens.md).
 
 ## Response contract (Dynamic Block v2)
 

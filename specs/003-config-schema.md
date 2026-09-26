@@ -39,29 +39,29 @@ JSON edit and a restart — no prompt editing, no deploy.
 
 - `confidence_threshold` — below this, force escalation
 - `max_turns_per_conversation` — after which every turn escalates (counted since
-  the last `idleResetHours` gap once `017` is implemented)
+  the last `idleResetHours` gap once `018` is implemented)
 - `escalation_keywords` — immediate handoff, checked before the model runs
 - `budget` — daily token and cost caps per tenant
 - `rate_limit` — per-subscriber turns per window
 - `historyDays` — how far back the model's history reaches, default 30
-- `idleResetHours` — hours of silence after which the turn cap resets, default 24. Both specified in `017`, not yet implemented
+- `idleResetHours` — hours of silence after which the turn cap resets, default 24. Both specified in `018`, not yet implemented
 
 ## `.env`
 
-| Variable                  | Purpose                                                     |
-| ------------------------- | ----------------------------------------------------------- |
-| `AGENT_MODEL`             | `provider:model`, e.g. `anthropic:claude-haiku-4-5`         |
-| `ANTHROPIC_API_KEY` etc.  | Only the active provider's key is required                  |
-| `MANYCHAT_SHARED_SECRET`  | Validates inbound Dynamic Block requests                    |
-| `MANYCHAT_API_TOKEN`      | Deferred delivery, for both calls in `002`                  |
-| `MANYCHAT_REPLY_FIELD`    | Custom field the reply text is written to                   |
-| `MANYCHAT_REPLY_FLOW_NS`  | Flow triggered to render that field                         |
-| `PUBLIC_BASE_URL`         | HTTPS base for `external_message_callback`                  |
-| `MANYCHAT_TOKEN_FIELD`    | Contact field holding the token; `017`, not yet implemented |
-| `CONTACT_TOKENS_ENFORCED` | Rollout flag for contact tokens; `017`, not yet implemented |
-| `TRUST_PROXY_HOPS`        | Proxies in front of the service; `017`, not yet implemented |
-| `DATABASE_URL`            | Postgres                                                    |
-| `CHANNEL`                 | Capability profile, e.g. `whatsapp`                         |
+| Variable                  | Purpose                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `AGENT_MODEL`             | `provider:model`, e.g. `anthropic:claude-haiku-4-5`                |
+| `ANTHROPIC_API_KEY` etc.  | Only the active provider's key is required                         |
+| `MANYCHAT_SHARED_SECRET`  | Validates inbound Dynamic Block requests                           |
+| `MANYCHAT_API_TOKEN`      | Deferred delivery, for both calls in `002`                         |
+| `MANYCHAT_REPLY_FIELD`    | Custom field the reply text is written to                          |
+| `MANYCHAT_REPLY_FLOW_NS`  | Flow triggered to render that field                                |
+| `PUBLIC_BASE_URL`         | HTTPS base for `external_message_callback`; boot refuses `http://` |
+| `MANYCHAT_TOKEN_FIELD`    | Contact field holding the token; `019`, not yet implemented        |
+| `CONTACT_TOKENS_ENFORCED` | Rollout flag for contact tokens; `019`, not yet implemented        |
+| `TRUST_PROXY`             | Proxies whose `X-Forwarded-For` is believed (`017`)                |
+| `DATABASE_URL`            | Postgres                                                           |
+| `CHANNEL`                 | Capability profile, e.g. `whatsapp`                                |
 
 `AGENT_MODEL` is the whole model-agnosticism story: changing provider is an env
 edit and a restart, with no code change (Constitution C2). Model IDs carry no

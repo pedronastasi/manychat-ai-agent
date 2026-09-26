@@ -81,13 +81,12 @@ afterEach(async () => {
 });
 
 async function makeApp(runner: AgentRunner) {
-  const { app, registerPlugins } = buildServer({
+  const { app } = await buildServer({
     env,
     db,
     configStore: new ConfigStore('test/fixtures/config'),
     runner,
   });
-  await registerPlugins();
   await app.ready();
   return app;
 }

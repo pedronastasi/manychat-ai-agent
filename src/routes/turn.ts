@@ -12,13 +12,29 @@ import {
 } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
 
+export interface TurnLogger {
+  info: (o: object, m: string) => void;
+  error: (o: object, m: string) => void;
+}
+
 export interface TurnDeps {
   db: Database;
   runner: AgentRunner;
   rules: Rules;
   raceDeadlineMs: number;
   modelAbortMs: number;
-  logger: { info: (o: object, m: string) => void; error: (o: object, m: string) => void };
+  logger: TurnLogger;
+}
+
+/**
+ * Every line about a turn names its conversation by the row's random ID, and
+ * nothing derived from the subscriber ID (ADR-0014).
+ */
+function withConversation(logger: TurnLogger, conversation: string): TurnLogger {
+  return {
+    info: (fields, message) => logger.info({ conversation, ...fields }, message),
+    error: (fields, message) => logger.error({ conversation, ...fields }, message),
+  };
 }
 
 export interface TurnResult {
@@ -48,13 +64,14 @@ export class TurnHandler {
   }
 
   async handle(inbound: InboundMessage): Promise<TurnResult> {
-    const { rules, logger } = this.deps;
+    const { rules } = this.deps;
 
     const conversation = await this.store.startTurn({
       tenantId: inbound.tenantId,
       subscriberId: inbound.subscriberId,
       channel: inbound.channel,
     });
+    const logger = withConversation(this.deps.logger, conversation.id);
     await this.store.recordUserMessage(conversation.id, inbound.text);
 
     // The channel flow's opening sentinel. Fully determined - no contact input
