@@ -209,6 +209,58 @@ describe('agent runner', () => {
   });
 });
 
+describe('reply fields (specs/001 § Reply fields never reach the contact)', () => {
+  const answer = (messages: string[], closing_question: string | null = null) =>
+    applyGuardrails(
+      { messages, escalate: false, escalation_reason: null, confidence: 0.9, closing_question },
+      rules,
+    );
+
+  it('strips a field written after the answer and keeps the answer', () => {
+    const { reply, interventions } = answer(
+      ['Two options: Group or Private.\n\nconfidence: 0.9'],
+      'Which suits you?',
+    );
+    expect(reply.escalate).toBe(false);
+    expect(reply.messages).toEqual(['Two options: Group or Private.', 'Which suits you?']);
+    expect(interventions).toContain('field_echo_stripped');
+  });
+
+  it('drops a message that was nothing but a field', () => {
+    const { reply } = answer(['Classes run on Tuesdays.', 'confidence: 0.9']);
+    expect(reply.messages).toEqual(['Classes run on Tuesdays.']);
+  });
+
+  it('recognises the JSON and markdown forms a model writes fields in', () => {
+    const { reply } = answer([
+      'Classes run on Tuesdays.\n"escalate": false\n**confidence:** 0.8\n- escalation_reason = null',
+    ]);
+    expect(reply.messages).toEqual(['Classes run on Tuesdays.']);
+  });
+
+  it('strips the closing question too, and a question that was only a field becomes null', () => {
+    expect(
+      answer(['Classes run on Tuesdays.'], 'Which day suits you?\nconfidence: 0.9').reply.messages,
+    ).toEqual(['Classes run on Tuesdays.', 'Which day suits you?']);
+    expect(answer(['Classes run on Tuesdays.'], 'closing_question: null').reply.messages).toEqual([
+      'Classes run on Tuesdays.',
+    ]);
+  });
+
+  it('hands off when nothing but fields is left', () => {
+    const { reply, interventions } = answer(['confidence: 0.9']);
+    expect(reply.escalate).toBe(true);
+    expect(reply.escalation_reason).toBe('low_confidence');
+    expect(interventions).toContain('field_echo_stripped');
+  });
+
+  it('leaves prose that only uses a field name as a word', () => {
+    const { reply, interventions } = answer(['Confidence comes with practice.']);
+    expect(reply.messages).toEqual(['Confidence comes with practice.']);
+    expect(interventions).not.toContain('field_echo_stripped');
+  });
+});
+
 describe('closing question (specs/001 § the reply advances the conversation)', () => {
   const base = { messages: ['It is $450.'], escalate: false, escalation_reason: null };
 
