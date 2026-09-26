@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { redactText, pseudonymize, REDACT_PATHS } from '../../src/observability/redact.ts';
+import { redactText, REDACT_PATHS } from '../../src/observability/redact.ts';
 
 /** Constitution C5 — no PII in logs. */
 
@@ -34,30 +34,6 @@ describe('redactText', () => {
 
   it('is a no-op on empty input', () => {
     expect(redactText('')).toBe('');
-  });
-});
-
-describe('pseudonymize', () => {
-  it('is stable for the same subscriber, so a conversation can be correlated', () => {
-    expect(pseudonymize('sub-1', 'demo')).toBe(pseudonymize('sub-1', 'demo'));
-  });
-
-  it('differs across subscribers', () => {
-    expect(pseudonymize('sub-1', 'demo')).not.toBe(pseudonymize('sub-2', 'demo'));
-  });
-
-  it('differs across tenants for the same subscriber id', () => {
-    // Subscriber ids are only unique within a page, so the tenant must salt it.
-    expect(pseudonymize('sub-1', 'tenant-a')).not.toBe(pseudonymize('sub-1', 'tenant-b'));
-  });
-
-  it('never returns the original identifier', () => {
-    const id = '998877';
-    expect(pseudonymize(id, 'demo')).not.toContain(id);
-  });
-
-  it('produces a short fixed-width token', () => {
-    expect(pseudonymize('x', 'demo')).toMatch(/^[a-z0-9]{7}$/);
   });
 });
 

@@ -29,19 +29,30 @@ several of its claims did not hold:
   whichever secret the caller presented, so a holder of a retired secret is
   handed its replacement during a rotation.
 
-[specs/017](specs/017-inbound-request-trust.md) specifies the fix: each contact
-has a token that ManyChat holds and sends back, a request without it reads no
-history, and every control has a test that makes it fire. Until it is
-implemented and `CONTACT_TOKENS_ENFORCED` is on, the gaps above are live. The
-controls that do hold today:
+[specs/017](specs/017-inbound-request-trust.md) fixes the last two, and every
+control listed below has a test that makes it fire through the server a process
+runs. [specs/019](specs/019-contact-tokens.md) specifies the fix for the first:
+each contact has a token that ManyChat holds and sends back, and a request
+without it reads no history. Until 019 is implemented and
+`CONTACT_TOKENS_ENFORCED` is on, a holder of the secret can read any contact's
+history. The controls that hold today:
 
-- Constant-time comparison (`crypto.timingSafeEqual`), never `===`
-- TLS required — the only protection against interception and replay
-- Two secrets accepted during rotation, so rotating needs no flow downtime
+- Constant-time comparison (`crypto.timingSafeEqual`), never `===`, before the
+  body is parsed, so an unauthenticated caller learns nothing about the schema
+- TLS required — the only protection against interception and replay. The
+  process does not boot with an `http://` callback base
+- Two secrets accepted during rotation, and each callback carries back the
+  secret its caller presented, so rotating needs no flow downtime
+- 300 requests a minute per address, counting failed authentication, with
+  separate budgets for requests with and without the secret, so a flood that
+  cannot authenticate cannot lock ManyChat out. The address is believed from
+  `X-Forwarded-For` only when the peer is listed in `TRUST_PROXY`
 - Per-subscriber turn limits, enforced in the database
 - Daily token and cost caps bound the worst case to finite spend
+- An unhandled error on the message route hands the contact to a person, and no
+  response carries error text
 
-What a holder of the secret can still do once specs/017 is implemented is
+What a holder of the secret can still do once specs/019 is implemented is
 listed there, under "What a holder of the shared secret can still do".
 
 If ManyChat adds request signing, this decision should be revisited immediately.
@@ -66,9 +77,8 @@ in CI.
 
 Message text routinely contains names and phone numbers. Redaction is configured
 at the logger so no individual log statement can opt out, telemetry spans omit
-prompts by default, and subscriber IDs are pseudonymized for correlation. The
-current pseudonym is a weak hash; specs/017 replaces it with the conversation's
-random ID (ADR-0014).
+prompts by default, and log lines identify a conversation by its random ID,
+never by anything derived from the subscriber ID (ADR-0014).
 
 Transcripts are stored in Postgres to provide conversation history. Operators are
 responsible for retention and for their own legal obligations.
@@ -79,5 +89,14 @@ No credential or tenant data may enter git history (Constitution C1). `config/`
 and `.env` are gitignored except for `*.example` scaffolds, and CI runs secret
 scanning on every push.
 
-Rotate `MANYCHAT_SHARED_SECRET` by setting both the old and new value
-comma-separated, updating the ManyChat flow, then removing the old one.
+Rotate `MANYCHAT_SHARED_SECRET` in four steps:
+
+1. Set both the old and the new value, comma-separated.
+2. Update the ManyChat flow's Dynamic Block header to the new value.
+3. Wait at least 24 hours, then remove the old value. Each callback carries back
+   the secret its caller presented (specs/017), so a conversation carried on by
+   callbacks keeps the old one until the contact is silent for 24 hours, the
+   longest a callback lives. A contact still writing when the old value is
+   removed loses one reply, and the next message arrives with the new secret.
+4. If the old value leaked, skip the wait: remove it at once and accept those
+   lost replies. Keeping it only extends the leak.

@@ -38,17 +38,3 @@ export const REDACT_PATHS = [
   'env.MANYCHAT_API_TOKEN',
   'env.DATABASE_URL',
 ];
-
-/**
- * Stable pseudonym for a subscriber, so conversations can be correlated in logs
- * without storing the identifier itself.
- */
-export function pseudonymize(subscriberId: string, salt: string): string {
-  let hash = 2166136261;
-  const input = `${salt}:${subscriberId}`;
-  for (let index = 0; index < input.length; index++) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36).padStart(7, '0');
-}

@@ -124,8 +124,8 @@ on WhatsApp; ManyChat accepts them and the contact never sees them. That lives i
 a `ChannelCapabilities` value with a test, not in a comment someone forgets.
 
 **No PII in logs.** Redaction is configured at the logger, so a new log statement
-cannot opt out. Telemetry spans omit prompts by default. Subscribers are
-pseudonymized for correlation.
+cannot opt out. Telemetry spans omit prompts by default. Log lines name a
+conversation by its random ID, never by anything derived from the subscriber.
 
 **An eval harness.** `pnpm eval` replays a labelled golden set through the current
 prompt and asserts escalation behavior, price grounding, prompt leakage, and

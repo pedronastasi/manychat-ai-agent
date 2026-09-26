@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import type { FastifyError } from 'fastify';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import underPressure from '@fastify/under-pressure';
@@ -21,8 +22,11 @@ import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { ManyChatHttpClient } from './channels/manychat/client.ts';
 import type { ConfigStore } from './config/loader.ts';
 import { TurnHandler } from './routes/turn.ts';
-import { createSharedSecretGuard } from './routes/auth.ts';
-import { REDACT_PATHS, pseudonymize } from './observability/redact.ts';
+import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
+import { escalationReply } from './agent/guardrails.ts';
+import { REDACT_PATHS, redactText } from './observability/redact.ts';
+
+const MESSAGE_ROUTE = '/v1/channels/manychat/message';
 
 export interface BuildOptions {
   env: Env;
@@ -30,9 +34,18 @@ export interface BuildOptions {
   configStore: ConfigStore;
   /** Injected by tests to avoid a live provider. */
   runner?: AgentRunner;
+  /** Injected by tests to read what the service logs. */
+  logStream?: { write(line: string): void };
 }
 
-export function buildServer(opts: BuildOptions) {
+/**
+ * The whole production composition. Plugins are registered before any route is
+ * declared, inside this function, because `@fastify/rate-limit` and anything
+ * else that hooks `onRoute` never sees a route declared before it. Doing both
+ * here leaves no call for a caller to make in the wrong order (specs/017 § A
+ * control that no test fires does not exist).
+ */
+export async function buildServer(opts: BuildOptions) {
   const { env, db, configStore } = opts;
 
   const app = Fastify({
@@ -40,10 +53,14 @@ export function buildServer(opts: BuildOptions) {
       level: env.LOG_LEVEL,
       // Redaction lives here so no call site can forget it (Constitution C5).
       redact: { paths: REDACT_PATHS, remove: true },
+      ...(opts.logStream ? { stream: opts.logStream } : {}),
     },
     // ManyChat payloads are small; a large body is a red flag, not a use case.
     bodyLimit: 64 * 1024,
-    trustProxy: true,
+    // Only the listed proxies are believed about the caller's address. `true`
+    // believed any X-Forwarded-For, so rotating the header reset the rate limit
+    // (specs/017 § Rate limiting is attached before any route).
+    trustProxy: env.TRUST_PROXY.length > 0 ? env.TRUST_PROXY.join(',') : false,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -83,31 +100,91 @@ export function buildServer(opts: BuildOptions) {
       reasoningEffort: env.AGENT_REASONING_EFFORT,
     });
 
-  const registerPlugins = async () => {
-    await app.register(helmet, { contentSecurityPolicy: false });
-    await app.register(underPressure, { maxEventLoopDelay: 1000, exposeStatusRoute: false });
-    await app.register(rateLimit, {
-      max: 300,
-      timeWindow: '1 minute',
-      // Per subscriber when identifiable, else per IP, so one noisy contact
-      // cannot consume another's budget.
-      keyGenerator: req => {
-        const body = req.body as { subscriber_id?: string | number } | undefined;
-        return body?.subscriber_id ? `sub:${String(body.subscriber_id)}` : `ip:${req.ip}`;
-      },
-    });
-    await app.register(swagger, {
-      openapi: {
-        info: { title: 'ManyChat AI Agent', version: '0.1.0' },
-        components: {
-          securitySchemes: {
-            sharedSecret: { type: 'http', scheme: 'bearer' },
-          },
+  await app.register(helmet, { contentSecurityPolicy: false });
+  await app.register(underPressure, { maxEventLoopDelay: 1000, exposeStatusRoute: false });
+  // Per address, as an app-level `onRequest` hook. That runs before each
+  // route's own hooks, so a request that fails authentication still counts.
+  // Requests with and without the shared secret get separate budgets, so a
+  // flood that cannot authenticate never spends ManyChat's, even when every
+  // caller shares one address behind an unlisted proxy. There is no
+  // per-subscriber key: the body is not parsed yet at this point, and
+  // BudgetGuard limits each contact in the database instead.
+  await app.register(rateLimit, {
+    global: false,
+    max: 300,
+    timeWindow: '1 minute',
+    keyGenerator: request =>
+      `${isAuthenticated(request, env.MANYCHAT_SHARED_SECRET) ? 'secret' : 'anonymous'}:${request.ip}`,
+  });
+  app.addHook('onRequest', app.rateLimit());
+  await app.register(swagger, {
+    openapi: {
+      info: { title: 'ManyChat AI Agent', version: '0.1.0' },
+      components: {
+        securitySchemes: {
+          sharedSecret: { type: 'http', scheme: 'bearer' },
         },
       },
-      transform: jsonSchemaTransform,
-    });
-  };
+    },
+    transform: jsonSchemaTransform,
+  });
+
+  /** Where ManyChat sends the contact's next message (specs/002). */
+  const callbackFor = (presentedSecret: string | undefined) => ({
+    callbackUrl: `${env.PUBLIC_BASE_URL}${MESSAGE_ROUTE}`,
+    // The secret this caller presented, not always the first: handing back
+    // secrets[0] gave a caller holding a retired secret its replacement.
+    callbackSecret: presentedSecret,
+  });
+
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    // Client errors (rate limit, oversized body, validation) keep Fastify's
+    // answer. Validation runs after authentication, so its detail reaches only
+    // a caller holding the secret.
+    if (error.statusCode !== undefined && error.statusCode < 500) return reply.send(error);
+
+    // Load shedding is deliberate, not a fault: under-pressure refuses new
+    // work while the event loop lags, and passes its 503 through here.
+    const shed = error.code === 'FST_UNDER_PRESSURE';
+    if (shed) {
+      request.log.warn({ route: request.routeOptions.url }, 'load shed');
+    } else {
+      // The message is redacted because a driver error can quote a query's
+      // parameters, and those include the contact's text (C5).
+      request.log.error(
+        { error: { name: error.name, code: error.code, message: redactText(error.message) } },
+        'unhandled error',
+      );
+    }
+
+    // On the message route a failure, overload included, is a handoff to a
+    // person, never a 500 carrying the error or a 503 the contact never sees
+    // (C6, specs/017 § An error on the message route is a handoff, not a 500).
+    if (
+      request.routeOptions.url === MESSAGE_ROUTE &&
+      isAuthenticated(request, env.MANYCHAT_SHARED_SECRET)
+    ) {
+      try {
+        const handoff = adapter.render(
+          escalationReply('low_confidence', tenant().rules.messages.escalation),
+          { capabilities, ...callbackFor(bearerToken(request.headers.authorization)) },
+        );
+        // under-pressure sets it for its 503; on a 200 it means nothing.
+        reply.removeHeader('retry-after');
+        return reply.code(200).send(handoff);
+      } catch (renderError) {
+        // Without a valid handoff there is nothing to send but the plain answer
+        // below; this line is how anyone learns contacts stopped reaching a
+        // person.
+        const failure = renderError instanceof Error ? renderError : new Error(String(renderError));
+        request.log.error(
+          { error: { name: failure.name, message: redactText(failure.message) } },
+          'handoff failed',
+        );
+      }
+    }
+    return reply.code(error.statusCode ?? 500).send({ error: shed ? 'unavailable' : 'internal' });
+  });
 
   app.get('/health', { logLevel: 'warn' }, () => ({ status: 'ok' }));
 
@@ -121,9 +198,9 @@ export function buildServer(opts: BuildOptions) {
   });
 
   app.post(
-    '/v1/channels/manychat/message',
+    MESSAGE_ROUTE,
     {
-      preHandler: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
+      onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
       schema: {
         summary: 'ManyChat Dynamic Block webhook',
         body: ManyChatInbound,
@@ -137,11 +214,6 @@ export function buildServer(opts: BuildOptions) {
         channel: env.CHANNEL,
       });
 
-      const log = request.log.child({
-        // Correlates a conversation without storing the identifier (C5).
-        contact: pseudonymize(inbound.subscriberId, env.TENANT_ID),
-      });
-
       // Constructed per request: `tenant()` re-reads config, which SIGHUP can
       // have reloaded since the last turn.
       const handler = new TurnHandler({
@@ -150,20 +222,24 @@ export function buildServer(opts: BuildOptions) {
         rules: tenant().rules,
         raceDeadlineMs: env.RACE_DEADLINE_MS,
         modelAbortMs: env.MODEL_ABORT_MS,
-        logger: log,
+        logger: request.log,
       });
-      const { reply, outcome } = await handler.handle(inbound);
+      const { reply, outcome, conversationId } = await handler.handle(inbound);
 
-      log.info({ outcome, escalated: reply.escalate }, 'turn complete');
+      // The conversation's random ID, never anything derived from the
+      // subscriber ID (ADR-0014).
+      request.log.info(
+        { conversation: conversationId, outcome, escalated: reply.escalate },
+        'turn complete',
+      );
 
       return adapter.render(reply, {
         capabilities,
         // Re-registered every turn so the loop stays server-side (specs/002).
-        callbackUrl: `${env.PUBLIC_BASE_URL}/v1/channels/manychat/message`,
-        callbackSecret: env.MANYCHAT_SHARED_SECRET[0],
+        ...callbackFor(bearerToken(request.headers.authorization)),
       });
     },
   );
 
-  return { app, registerPlugins, runner };
+  return { app, runner };
 }
