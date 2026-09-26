@@ -31,11 +31,13 @@ describe('conversation store', () => {
       tenantId: 'demo',
       subscriberId: 's1',
       channel: 'whatsapp',
+      idleResetHours: 24,
     });
     const second = await store.startTurn({
       tenantId: 'demo',
       subscriberId: 's1',
       channel: 'whatsapp',
+      idleResetHours: 24,
     });
     expect(first.id).toBe(second.id);
     expect(first.turnCount).toBe(1);
@@ -47,11 +49,13 @@ describe('conversation store', () => {
       tenantId: 'demo',
       subscriberId: 's1',
       channel: 'whatsapp',
+      idleResetHours: 24,
     });
     const otherTurn = await store.startTurn({
       tenantId: 'other',
       subscriberId: 's1',
       channel: 'whatsapp',
+      idleResetHours: 24,
     });
     expect(demoTurn.id).not.toBe(otherTurn.id);
   });
@@ -60,7 +64,12 @@ describe('conversation store', () => {
     // People send three messages in a row; ManyChat delivers them concurrently.
     const results = await Promise.all(
       Array.from({ length: 5 }, () =>
-        store.startTurn({ tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp' }),
+        store.startTurn({
+          tenantId: 'demo',
+          subscriberId: 's1',
+          channel: 'whatsapp',
+          idleResetHours: 24,
+        }),
       ),
     );
     expect(new Set(results.map(row => row.id)).size).toBe(1);
@@ -73,6 +82,7 @@ describe('conversation store', () => {
       tenantId: 'demo',
       subscriberId: 's1',
       channel: 'whatsapp',
+      idleResetHours: 24,
     });
     await store.recordUserMessage(conversation.id, 'first');
     await store.recordAgentReply(conversation.id, 'reply', 'answered_inline', {
@@ -83,7 +93,7 @@ describe('conversation store', () => {
       model: 'anthropic:claude-haiku-4-5',
     });
     await store.recordUserMessage(conversation.id, 'second');
-    const history = await store.recentTurns(conversation.id);
+    const history = await store.recentTurns(conversation.id, new Date(0));
     expect(history.map(turn => turn.text)).toEqual(['first', 'reply', 'second']);
   });
 
@@ -92,6 +102,7 @@ describe('conversation store', () => {
       tenantId: 'demo',
       subscriberId: 's1',
       channel: 'whatsapp',
+      idleResetHours: 24,
     });
     await store.markEscalated(conversation.id);
     expect((await store.find('demo', 's1'))?.escalatedAt).toBeInstanceOf(Date);

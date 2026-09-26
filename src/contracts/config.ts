@@ -107,7 +107,11 @@ export type Messages = z.infer<typeof MessagesSchema>;
 export const RulesSchema = z.object({
   messages: MessagesSchema,
   confidenceThreshold: z.number().min(0).max(1).default(0.6),
+  /** Counted since the contact's last gap of `idleResetHours` (specs/018). */
   maxTurnsPerConversation: z.number().int().positive().default(25),
+  idleResetHours: z.number().int().positive().default(24),
+  /** How far back the model's history reaches (specs/018, ADR-0013). */
+  historyDays: z.number().int().positive().default(30),
   /** Checked before the model runs — an instant, free handoff. */
   escalationKeywords: z.array(z.string()).default([]),
   /**

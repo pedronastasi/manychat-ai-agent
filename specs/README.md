@@ -30,7 +30,7 @@ test fails the suite.
 | [015 — Test Service](015-test-service.md)                               | specified   | —           | —   | —     | C1, C3, C5, C7, C9         | [0001], [0005]                 |
 | [016 — Model-Graded Evals](016-model-graded-evals.md)                   | specified   | —           | —   | —     | C1, C2, C3, C4, C6, C8, C9 | [0011]                         |
 | [017 — Inbound Request Trust](017-inbound-request-trust.md)             | implemented | 2026-09-26  | #89 | 1     | C5, C6                     | [0012], [0014]                 |
-| [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | specified   | —           | —   | —     | —                          | [0013]                         |
+| [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | implemented | 2026-09-26  | —   | 2     | —                          | [0013]                         |
 | [019 — Contact Tokens](019-contact-tokens.md)                           | specified   | —           | —   | —     | C5                         | [0012], [0013]                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md

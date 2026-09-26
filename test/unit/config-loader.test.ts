@@ -109,6 +109,9 @@ describe('loadTenantConfig', () => {
     expect(cfg.rules.confidenceThreshold).toBe(0.6);
     expect(cfg.rules.maxTurnsPerConversation).toBe(25);
     expect(cfg.rules.escalationKeywords).toEqual([]);
+    // specs/018-history-window-and-turn-cap.md § Both are tenant rules.
+    expect(cfg.rules.historyDays).toBe(30);
+    expect(cfg.rules.idleResetHours).toBe(24);
   });
 });
 

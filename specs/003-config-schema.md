@@ -38,13 +38,13 @@ JSON edit and a restart — no prompt editing, no deploy.
 ## `rules.json`
 
 - `confidence_threshold` — below this, force escalation
-- `max_turns_per_conversation` — after which every turn escalates (counted since
-  the last `idleResetHours` gap once `018` is implemented)
+- `max_turns_per_conversation` — after which every turn escalates, counted since
+  the contact's last gap of `idleResetHours` (`018`)
 - `escalation_keywords` — immediate handoff, checked before the model runs
 - `budget` — daily token and cost caps per tenant
 - `rate_limit` — per-subscriber turns per window
 - `historyDays` — how far back the model's history reaches, default 30
-- `idleResetHours` — hours of silence after which the turn cap resets, default 24. Both specified in `018`, not yet implemented
+- `idleResetHours` — hours of silence after which the turn cap resets, default 24 (`018`)
 
 ## `.env`
 
