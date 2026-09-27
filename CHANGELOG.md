@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.6.0...manychat-ai-agent-v0.7.0) (2026-09-27)
+
+
+### Features
+
+* read inbound voice notes, images and videos (spec 020) ([700d2cc](https://github.com/pedronastasi/manychat-ai-agent/commit/700d2cc215984cc588d4279b2a8216fc55173917))
+* read inbound voice notes, images and videos (spec 020) ([ea74381](https://github.com/pedronastasi/manychat-ai-agent/commit/ea7438118dc210ef27c921640eff2730ca4e5cfe))
+
+
+### Bug Fixes
+
+* compare the media host as a parsed hostname, not a substring ([8a44692](https://github.com/pedronastasi/manychat-ai-agent/commit/8a44692162bb02b424e307f3a76bacd3ad653c87))
+
+
+### Specs and Docs
+
+* specify inbound media (voice notes, images, video) ([b706b3b](https://github.com/pedronastasi/manychat-ai-agent/commit/b706b3bcad467f6090695a81ad9f8933ae87e361))
+
 ## [0.6.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.5.3...manychat-ai-agent-v0.6.0) (2026-09-27)
 
 
