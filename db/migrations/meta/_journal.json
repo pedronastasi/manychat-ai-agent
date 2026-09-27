@@ -29,6 +29,13 @@
       "when": 1790393005620,
       "tag": "0003_worthless_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790519860599,
+      "tag": "0004_lucky_sabretooth",
+      "breakpoints": true
     }
   ]
 }

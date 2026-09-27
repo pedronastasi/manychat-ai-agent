@@ -1,7 +1,15 @@
 import type { Database } from '../db/client.ts';
 import type { AgentRunner, AgentResult } from '../agent/runner.ts';
-import type { InboundMessage, AgentReply, TurnOutcome } from '../contracts/agent.ts';
+import type {
+  InboundMedia,
+  InboundMessage,
+  AgentReply,
+  MediaKind,
+  TurnOutcome,
+} from '../contracts/agent.ts';
 import type { Rules } from '../contracts/config.ts';
+import type { MediaResolver } from '../media/resolver.ts';
+import { MediaFailure } from '../media/port.ts';
 import { escalationReply } from '../agent/guardrails.ts';
 import { ConversationStore } from '../conversation/store.ts';
 import {
@@ -32,7 +40,29 @@ export interface TurnDeps {
   tokenWriter: ContactTokenWriter;
   /** CONTACT_TOKENS_ENFORCED: false only while tokens reach existing contacts. */
   tokensEnforced: boolean;
+  /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
+  media?: MediaResolver | undefined;
 }
+
+/**
+ * What a media turn is recorded as until, and unless, it has a transcript.
+ * Never the URL: it opens the contact's file for good (specs/020).
+ */
+const MEDIA_MARKERS: Record<MediaKind, string> = {
+  audio: '[voice note]',
+  image: '[image]',
+  video: '[video]',
+  unsupported: '[media]',
+};
+
+/**
+ * What the part of a turn run against the deadline produced: the model's
+ * answer, or a reply decided without it — a media fallback, a keyword found in
+ * a transcript, or media we failed to read.
+ */
+type Completion =
+  | { kind: 'model'; result: AgentResult }
+  | { kind: 'decided'; reply: AgentReply; outcome: TurnOutcome };
 
 /**
  * Every line about a turn names its conversation by the row's random ID, and
@@ -113,7 +143,12 @@ export class TurnHandler {
           );
     const logger = withConversation(this.deps.logger, conversation.id);
     const turn = { bound };
-    await this.store.recordUserMessage(conversation.id, inbound.text, turn);
+    const media = inbound.media;
+    const userTurnId = await this.store.recordUserMessage(
+      conversation.id,
+      media ? MEDIA_MARKERS[media.kind] : inbound.text,
+      { bound, mediaKind: media?.kind },
+    );
 
     // Watched as a share of all turns: a flow that stopped sending the field
     // shows up here and nowhere else.
@@ -145,8 +180,9 @@ export class TurnHandler {
     // model: instant, free, and it cannot be lost to a low-confidence
     // self-report. Checked before the guards because the sentinel is emitted by
     // the flow rather than typed by a contact, and the caps below exist to
-    // bound model spend, which a scripted reply does not incur.
-    const opening = matchOpeningTrigger(inbound.text, rules);
+    // bound model spend, which a scripted reply does not incur. Media never
+    // matches: the sentinel is sent by the flow, not spoken by a contact.
+    const opening = media ? null : matchOpeningTrigger(inbound.text, rules);
     if (opening) {
       await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted', turn);
       logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
@@ -167,8 +203,10 @@ export class TurnHandler {
     }
 
     // Pre-model guards: each denial costs nothing and fails toward a human (C6).
+    // A media turn has no words to match until it is transcribed, inside the
+    // race; the rest need none, so a contact over a limit costs no download.
     const guards = [
-      checkKeywords(inbound.text, rules),
+      media ? { allowed: true as const } : checkKeywords(inbound.text, rules),
       bound ? checkTurnCap(conversation.turnCount, rules) : { allowed: true as const },
       await this.budget.checkRateLimit(inbound.tenantId, inbound.subscriberId, rules),
       await this.budget.checkBudget(inbound.tenantId, rules),
@@ -204,12 +242,25 @@ export class TurnHandler {
       deadlineTimer = setTimeout(() => resolve('deadline'), this.deps.raceDeadlineMs);
     });
 
-    const modelCall = this.deps.runner
-      .run({ text: inbound.text, history: priorHistory, signal: abort.signal })
-      .then(result => ({ kind: 'result' as const, result: result }))
+    // A media turn's download and transcription share the model's deadline and
+    // abort signal (specs/020 § Download and transcription run inside the
+    // race), so the bound on a runaway model call also bounds a runaway fetch.
+    const work: Promise<Completion> = media
+      ? this.readMedia(media, {
+          userTurnId,
+          tenantId: inbound.tenantId,
+          history: priorHistory,
+          signal: abort.signal,
+          logger,
+        })
+      : this.deps.runner
+          .run({ text: inbound.text, history: priorHistory, signal: abort.signal })
+          .then(result => ({ kind: 'model' as const, result }));
+    const completion = work
+      .then(done => ({ kind: 'done' as const, done }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
 
-    const winner = await Promise.race([modelCall, deadline]);
+    const winner = await Promise.race([completion, deadline]);
 
     /** Persists usage and spend. Shared by the inline and deferred paths. */
     const settle = async (result: AgentResult, outcome: TurnOutcome) => {
@@ -234,6 +285,21 @@ export class TurnHandler {
       if (result.reply.escalate) await markEscalated();
     };
 
+    /**
+     * Records a reply decided without the model. Its own outcome is kept even
+     * when it lands after the deadline: `deferred` describes a slow model, and
+     * a fallback recorded as one could not be counted as a fallback.
+     */
+    const conclude = async (decided: Extract<Completion, { kind: 'decided' }>) => {
+      await this.store.recordAgentReply(
+        conversation.id,
+        decided.reply.messages.join('\n'),
+        decided.outcome,
+        turn,
+      );
+      if (decided.reply.escalate) await markEscalated();
+    };
+
     if (winner === 'deadline') {
       clearTimeout(deadlineTimer);
 
@@ -244,28 +310,34 @@ export class TurnHandler {
       // on a runaway call, and this is the only path where a call can outlive
       // the request — so clearing it here would leave the deferred call with no
       // bound at all. It is cleared below, when the call actually settles.
-      void modelCall.then(async outcome => {
+      void completion.then(async outcome => {
         clearTimeout(abortTimer);
         try {
           if (outcome.kind === 'error') {
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');
             return;
           }
-          await settle(outcome.result, 'deferred');
-          // The inline path logs these below. Without the same line here a
-          // guardrail or a failed call on a deferred turn left no trace in the
-          // logs at all, which is most of them whenever the model runs slow.
-          if (outcome.result.interventions.length > 0) {
-            logger.info(
-              { interventions: outcome.result.interventions, deferred: true },
-              'guardrails intervened',
-            );
+          const { done } = outcome;
+          if (done.kind === 'decided') {
+            await conclude(done);
+          } else {
+            await settle(done.result, 'deferred');
+            // The inline path logs these below. Without the same line here a
+            // guardrail or a failed call on a deferred turn left no trace in
+            // the logs at all, which is most of them whenever the model runs
+            // slow.
+            if (done.result.interventions.length > 0) {
+              logger.info(
+                { interventions: done.result.interventions, deferred: true },
+                'guardrails intervened',
+              );
+            }
           }
           await this.queue.enqueue({
             tenantId: inbound.tenantId,
             subscriberId: inbound.subscriberId,
             conversationId: conversation.id,
-            reply: outcome.result.reply,
+            reply: done.kind === 'decided' ? done.reply : done.result.reply,
           });
         } catch (error) {
           logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
@@ -298,18 +370,137 @@ export class TurnHandler {
       return { reply, outcome: 'error', conversationId: conversation.id, binding };
     }
 
+    const { done } = winner;
+    if (done.kind === 'decided') {
+      await conclude(done);
+      return { reply: done.reply, outcome: done.outcome, conversationId: conversation.id, binding };
+    }
+
     // A failed call and a deliberate escalation both carry `escalate: true` and
     // the same tenant message, so without the first branch the turns table
     // recorded a dead model call as a decision the model made.
-    const outcome: TurnOutcome = winner.result.modelError
+    const outcome: TurnOutcome = done.result.modelError
       ? 'error'
-      : winner.result.reply.escalate
+      : done.result.reply.escalate
         ? 'escalated_model'
         : 'answered_inline';
-    await settle(winner.result, outcome);
-    if (winner.result.interventions.length > 0) {
-      logger.info({ interventions: winner.result.interventions }, 'guardrails intervened');
+    await settle(done.result, outcome);
+    if (done.result.interventions.length > 0) {
+      logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
-    return { reply: winner.result.reply, outcome, conversationId: conversation.id, binding };
+    return { reply: done.result.reply, outcome, conversationId: conversation.id, binding };
+  }
+
+  /**
+   * The media half of a turn (specs/020): download, split and transcribe,
+   * then the keyword check the transcript makes possible, then the model.
+   */
+  private async readMedia(
+    media: InboundMedia,
+    ctx: {
+      userTurnId: string;
+      tenantId: string;
+      history: { role: 'user' | 'agent'; text: string }[];
+      signal: AbortSignal;
+      logger: TurnLogger;
+    },
+  ): Promise<Completion> {
+    const { rules } = this.deps;
+    const { logger } = ctx;
+
+    let resolved;
+    try {
+      resolved = this.deps.media
+        ? await this.deps.media.resolve(media, ctx.signal)
+        : ({ status: 'fallback', reason: 'unsupported', costUsd: 0 } as const);
+    } catch (error) {
+      // A failed download, transcription or frame extraction is not something
+      // the contact can fix, and asking them to type would blame them for it.
+      // The message names the step, never the URL.
+      logger.error(
+        {
+          media: media.kind,
+          reason: error instanceof MediaFailure ? error.reason : 'unknown',
+          err: error instanceof Error ? error.message : String(error),
+        },
+        'media unreadable',
+      );
+      return {
+        kind: 'decided',
+        reply: escalationReply('low_confidence', rules.messages.escalation),
+        outcome: 'error',
+      };
+    }
+
+    // Owed whatever happens next: an empty transcript was still transcribed.
+    if (resolved.costUsd > 0) await this.budget.recordSpend(ctx.tenantId, 0, resolved.costUsd);
+
+    if (resolved.status === 'fallback') {
+      logger.info({ media: media.kind, reason: resolved.reason }, 'media fallback');
+      return this.mediaFallback();
+    }
+
+    const { transcript, images } = resolved;
+    if (transcript !== null) {
+      // From here the transcript is the contact's message, as if typed: it
+      // enters history, and it is matched against the keywords.
+      await this.store.replaceUserMessage(ctx.userTurnId, transcript);
+      const keyword = checkKeywords(transcript, rules);
+      if (!keyword.allowed) {
+        logger.info(
+          { reason: keyword.reason, detail: keyword.detail },
+          'turn escalated before model',
+        );
+        return {
+          kind: 'decided',
+          reply: escalationReply(keyword.reason, rules.messages.escalation),
+          outcome: 'escalated_precheck',
+        };
+      }
+    }
+
+    logger.info(
+      { media: media.kind, images: images.length, transcript: transcript !== null },
+      'media read',
+    );
+    const result = await this.deps.runner.run({
+      text: transcript ?? '',
+      history: ctx.history,
+      signal: ctx.signal,
+      media: {
+        // `unsupported` never resolves; it always takes the fallback above.
+        kind: media.kind as 'audio' | 'image' | 'video',
+        images,
+        transcript: transcript !== null,
+      },
+    });
+    return { kind: 'model', result };
+  }
+
+  /**
+   * The tenant's "please type it" reply, or a handoff when the tenant has not
+   * written one: a contact who cannot be asked to type goes to a person (C6).
+   */
+  private mediaFallback(): Completion {
+    const { messages } = this.deps.rules;
+    if (!messages.mediaFallback) {
+      return {
+        kind: 'decided',
+        reply: escalationReply('out_of_scope', messages.escalation),
+        outcome: 'escalated_precheck',
+      };
+    }
+    return {
+      kind: 'decided',
+      reply: {
+        messages: [messages.mediaFallback],
+        escalate: false,
+        escalation_reason: null,
+        confidence: 1,
+        // Tenant copy that already asks what it needs to.
+        closing_question: null,
+      },
+      outcome: 'media_fallback',
+    };
   }
 }

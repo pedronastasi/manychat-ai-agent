@@ -1,7 +1,7 @@
 import { and, eq, gte, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
-import type { TurnOutcome } from '../contracts/agent.ts';
+import type { MediaKind, TurnOutcome } from '../contracts/agent.ts';
 import type { TokenState } from './tokens.ts';
 
 export interface ConversationRecord {
@@ -87,8 +87,32 @@ export class ConversationStore {
    * turn is kept but never enters history (specs/019), so a caller without the
    * token cannot plant text in the contact's conversation.
    */
-  async recordUserMessage(conversationId: string, text: string, turn: { bound: boolean }) {
-    await this.db.insert(turns).values({ conversationId, role: 'user', text, bound: turn.bound });
+  async recordUserMessage(
+    conversationId: string,
+    text: string,
+    turn: { bound: boolean; mediaKind?: MediaKind | undefined },
+  ): Promise<string> {
+    const [row] = await this.db
+      .insert(turns)
+      .values({
+        conversationId,
+        role: 'user',
+        text,
+        bound: turn.bound,
+        mediaKind: turn.mediaKind ?? null,
+      })
+      .returning({ id: turns.id });
+    if (!row) throw new Error('recordUserMessage: insert returned no row');
+    return row.id;
+  }
+
+  /**
+   * Replaces a media turn's marker with its transcript once there is one
+   * (specs/020). The row is written first so the message keeps its place in
+   * the conversation while the download and transcription run.
+   */
+  async replaceUserMessage(turnId: string, text: string) {
+    await this.db.update(turns).set({ text }).where(eq(turns.id, turnId));
   }
 
   async recordAgentReply(

@@ -1,7 +1,8 @@
 import { generateText, Output, type LanguageModel, type ModelMessage } from 'ai';
 import { AgentReplyForModel, type AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
-import { buildSystemPrompt, fenceUserText } from './prompt.ts';
+import type { MediaImage } from '../media/port.ts';
+import { buildSystemPrompt, fenceUserText, mediaNotice } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
 
@@ -35,10 +36,49 @@ export interface AgentResult {
   model: string;
 }
 
+/** What the contact sent when it was not typed, as the model receives it (specs/020). */
+export interface TurnMedia {
+  kind: 'audio' | 'image' | 'video';
+  /** A photo, or still frames from a video. Sent this turn only, never kept. */
+  images: MediaImage[];
+  /** Whether `text` is a transcript of what the contact said. */
+  transcript: boolean;
+}
+
 export interface AgentTurnInput {
+  /** The contact's message, or a transcript of it. Empty for an image alone. */
   text: string;
   history: { role: 'user' | 'agent'; text: string }[];
   signal?: AbortSignal | undefined;
+  media?: TurnMedia | undefined;
+}
+
+/**
+ * The turn's own message. A media turn adds a note saying what the model
+ * received, and the images as bytes: never a URL, which some providers would
+ * fetch themselves and all would keep in their logs.
+ */
+function currentMessage(text: string, media: TurnMedia | undefined): ModelMessage {
+  if (!media) return { role: 'user', content: fenceUserText(text) };
+  const notice = mediaNotice({
+    kind: media.kind,
+    frames: media.images.length,
+    transcript: media.transcript,
+  });
+  return {
+    role: 'user',
+    content: [
+      { type: 'text', text: notice },
+      // `file` with an image type: the SDK deprecated `image` parts and warns
+      // on every request that sends one.
+      ...media.images.map(image => ({
+        type: 'file' as const,
+        data: image.data,
+        mediaType: image.mediaType,
+      })),
+      ...(text.length > 0 ? [{ type: 'text' as const, text: fenceUserText(text) }] : []),
+    ],
+  };
 }
 
 /**
@@ -93,7 +133,7 @@ export class GenerateTextRunner implements AgentRunner {
     return this.cached;
   }
 
-  async run({ text, history, signal }: AgentTurnInput): Promise<AgentResult> {
+  async run({ text, history, signal, media }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
@@ -105,7 +145,7 @@ export class GenerateTextRunner implements AgentRunner {
           ? { role: 'user', content: fenceUserText(turn.text) }
           : { role: 'assistant', content: turn.text },
       ),
-      { role: 'user', content: fenceUserText(text) },
+      currentMessage(text, media),
     ];
 
     const outputSpec = Output.object({ schema: AgentReplyForModel });

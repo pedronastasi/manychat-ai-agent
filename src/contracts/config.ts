@@ -101,6 +101,16 @@ export const MessagesSchema = z.object({
     .min(1)
     .describe('Sent when the model loses the race and the reply is deferred.'),
   escalation: z.string().min(1).describe('Sent whenever the turn hands off to a human.'),
+  /**
+   * Asks the contact to type what they sent as a voice note, image or video
+   * the agent cannot read (specs/020). Optional so no existing rules.json
+   * fails to load; without it such a turn hands off with `escalation`.
+   */
+  mediaFallback: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Sent when the contact sent media the agent cannot read.'),
 });
 export type Messages = z.infer<typeof MessagesSchema>;
 
@@ -150,10 +160,12 @@ export type Rules = z.infer<typeof RulesSchema>;
  * and `.optional()` alone accepts only `undefined`, so an empty value would fail
  * validation and stop the process from booting at all.
  */
-const optionalString = z.preprocess(
-  value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-  z.string().min(1).optional(),
-);
+const emptyAsUnset = (value: unknown) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+const optionalString = z.preprocess(emptyAsUnset, z.string().min(1).optional());
+
+const MODEL_SPEC = /^[a-z0-9_-]+:[A-Za-z0-9._:-]+$/;
 
 const csv = (raw: string) =>
   raw
@@ -180,7 +192,7 @@ export const EnvSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
     /** `provider:model` — the whole model-agnosticism story (ADR-0002). */
-    AGENT_MODEL: z.string().regex(/^[a-z0-9_-]+:[A-Za-z0-9._:-]+$/, 'Expected "provider:model"'),
+    AGENT_MODEL: z.string().regex(MODEL_SPEC, 'Expected "provider:model"'),
     AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(400),
     AGENT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
     /**
@@ -197,6 +209,16 @@ export const EnvSchema = z
       .enum(['minimal', 'low', 'medium', 'high'])
       .optional()
       .describe('Reasoning models only. Ignored by providers that do not support it.'),
+
+    /**
+     * Turns voice notes and video soundtracks into text (specs/020). A second
+     * model rather than a setting on AGENT_MODEL: not every answering model
+     * takes audio. Unset sends voice notes to the media fallback.
+     */
+    TRANSCRIPTION_MODEL: z.preprocess(
+      emptyAsUnset,
+      z.string().regex(MODEL_SPEC, 'Expected "provider:model"').optional(),
+    ),
 
     CHANNEL: z.string().default('whatsapp'),
     // ManyChat refuses a non-HTTPS callback, and the response schema refuses it

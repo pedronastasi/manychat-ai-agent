@@ -72,14 +72,15 @@ src/
   contracts/           # Zod schemas (agent, config, manychat)
   conversation/        # Budget enforcement, conversation/turn persistence
   db/                  # DB client factory, migrations, Drizzle schema
+  media/               # Inbound voice notes, images, videos: resolver, ffmpeg splitter
   observability/       # PII redaction
   outbox/              # Deferred reply queue + polling worker
   routes/              # Auth middleware, turn handler (the race)
 test/
   unit/                # Pure logic tests
   integration/         # Tests hitting PGlite
-  helpers/             # db.ts (PGlite factory), model.ts (mock model)
-  fixtures/            # Tenant config fixtures
+  helpers/             # db.ts (PGlite factory), model.ts (mock models), manychat.ts, ffmpeg.ts
+  fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
 docs/adr/              # Architecture Decision Records (0001–0008)
 specs/                 # Specification documents (000–008)
@@ -88,7 +89,9 @@ evals/golden/          # Golden eval cases (cases.jsonl)
 
 ## Testing conventions
 
-- Mock only at two seams: the model and the ManyChat HTTP boundary.
+- Mock only at two seams: the model and the ManyChat HTTP boundary. The
+  transcription model is a model; the media download is the ManyChat boundary.
+  ffmpeg is run, never faked: its tests skip without it locally and fail under CI.
 - Database tests run against PGlite (real Postgres in WASM — no container needed).
 - Tests cite the spec clause they enforce.
 - A fake must honour the contract it stands in for.
@@ -145,5 +148,7 @@ All env vars documented in `.env.example`. Key variables:
 - `MANYCHAT_SHARED_SECRET` — min 16 chars, comma-separated for rotation
 - `RACE_DEADLINE_MS` — race timeout (default: 8000)
 - `CONTACT_TOKENS_ENFORCED` — `false` only during the specs/019 rollout (default: `true`)
+- `TRANSCRIPTION_MODEL` — `provider:model` for voice notes and video soundtracks
+  (specs/020); unset sends them to `rules.messages.mediaFallback`
 
 Tenant config (`config/prompt.md`, `catalog.json`, `rules.json`) reloads on `SIGHUP` without restart.

@@ -1,0 +1,1 @@
+ALTER TABLE "turns" ADD COLUMN "media_kind" text;

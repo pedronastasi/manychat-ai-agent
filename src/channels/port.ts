@@ -11,6 +11,13 @@ export interface RenderContext {
   contactTokenField?: string | undefined;
 }
 
+export interface ParseContext {
+  tenantId: string;
+  channel: string;
+  /** For what parsing notices but cannot reject, such as an unrecognised media URL. */
+  logger?: { warn: (fields: object, message: string) => void } | undefined;
+}
+
 /**
  * The seam between the agent and any chat platform (ADR-0005).
  *
@@ -21,7 +28,7 @@ export interface RenderContext {
 export interface ChannelAdapter<TInbound = unknown, TOutbound = unknown> {
   readonly name: string;
   /** Normalizes a platform payload. Throws on invalid input. */
-  parse(raw: unknown, ctx: { tenantId: string; channel: string }): InboundMessage;
+  parse(raw: unknown, ctx: ParseContext): InboundMessage;
   /** Renders a reply into the platform's response format. */
   render(reply: AgentReply, ctx: RenderContext): TOutbound;
   /** Delivers a reply outside the request/response cycle (the deferred path). */

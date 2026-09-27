@@ -95,6 +95,21 @@ export const AgentReplyForModel = z.object({
     .describe(CLOSING_QUESTION_DESCRIPTION),
 });
 
+/** What a contact sent when it was not text (specs/020). */
+export const MediaKind = z.enum(['audio', 'image', 'video', 'unsupported']);
+export type MediaKind = z.infer<typeof MediaKind>;
+
+/**
+ * A file the contact sent, as a pointer only the server resolves. Nothing past
+ * the channel adapter knows what the URL looks like, and it is never stored,
+ * logged or shown to the model (specs/020).
+ */
+export const InboundMedia = z.object({
+  kind: MediaKind,
+  url: z.string().url(),
+});
+export type InboundMedia = z.infer<typeof InboundMedia>;
+
 /** Normalized inbound message, independent of any channel. */
 export const InboundMessage = z.object({
   tenantId: z.string().min(1),
@@ -105,6 +120,8 @@ export const InboundMessage = z.object({
   locale: z.string().nullable(),
   /** What the request presented as the contact's token, if anything (specs/019). */
   contactToken: z.string().nullable(),
+  /** Set when `text` was a media pointer rather than something the contact typed. */
+  media: InboundMedia.optional(),
   receivedAt: z.date(),
 });
 export type InboundMessage = z.infer<typeof InboundMessage>;
@@ -118,5 +135,6 @@ export const TurnOutcome = z.enum([
   'escalated_model', // model chose to escalate
   'failed_validation', // model output failed the schema; escalated
   'error', // unexpected failure; escalated
+  'media_fallback', // media the agent cannot read; contact asked to type (specs/020)
 ]);
 export type TurnOutcome = z.infer<typeof TurnOutcome>;

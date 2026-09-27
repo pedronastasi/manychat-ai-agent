@@ -1,5 +1,45 @@
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { TranscriptionModel } from 'ai';
+import { MockLanguageModelV4, MockTranscriptionModelV4 } from 'ai/test';
+import type { LanguageModelV4CallOptions, TranscriptionModelV4CallOptions } from '@ai-sdk/provider';
+
+/**
+ * A transcription model at the provider boundary (specs/020). It returns what
+ * the test gives it, so it proves where a transcript goes, never that it is
+ * right. It honours the abort signal, as a real provider call does.
+ */
+export function mockTranscriptionModel(
+  opts: { text?: string; durationInSeconds?: number; delayMs?: number; error?: Error } = {},
+) {
+  const calls: TranscriptionModelV4CallOptions[] = [];
+  const mock = new MockTranscriptionModelV4({
+    doGenerate: async (options: TranscriptionModelV4CallOptions) => {
+      calls.push(options);
+      if (opts.delayMs) {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, opts.delayMs);
+          options.abortSignal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        });
+      }
+      if (opts.error) throw opts.error;
+      return {
+        text: opts.text ?? '',
+        segments: [],
+        language: 'en',
+        durationInSeconds: opts.durationInSeconds,
+        warnings: [],
+        response: { timestamp: new Date(), modelId: 'mock-transcriber' },
+      };
+    },
+  });
+  // The mock declares `doStream` as possibly undefined, which the interface
+  // only allows as absent under exactOptionalPropertyTypes. Nothing here
+  // streams, so the difference cannot be observed.
+  const model = mock as unknown as TranscriptionModel;
+  return { model, calls };
+}
 
 /**
  * Builds a mock model returning `object` as the model's JSON output.

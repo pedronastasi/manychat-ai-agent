@@ -4,8 +4,9 @@ import {
   type ManyChatMessage,
 } from '../../contracts/manychat.ts';
 import type { AgentReply, InboundMessage } from '../../contracts/agent.ts';
-import type { ChannelAdapter, RenderContext } from '../port.ts';
+import type { ChannelAdapter, ParseContext, RenderContext } from '../port.ts';
 import type { ManyChatClient } from './client.ts';
+import { matchMediaUrl, mediaUrlShape, mentionsMediaHost } from './media.ts';
 
 /**
  * Renders an AgentReply as a Dynamic Block v2 body.
@@ -60,10 +61,17 @@ export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse
     this.client = client;
   }
 
-  parse(raw: unknown, ctx: { tenantId: string; channel: string }): InboundMessage {
+  parse(raw: unknown, ctx: ParseContext): InboundMessage {
     const parsed = ManyChatInbound.parse(raw);
     const name = [parsed.first_name, parsed.last_name].filter(Boolean).join(' ').trim();
+    // ManyChat sends no field saying the message was media: a file arrives as
+    // its URL in `text` (specs/020).
+    const media = matchMediaUrl(parsed.text);
+    if (!media && mentionsMediaHost(parsed.text)) {
+      ctx.logger?.warn({ shape: mediaUrlShape(parsed.text) }, 'media_url_unmatched');
+    }
     return {
+      ...(media ? { media } : {}),
       tenantId: ctx.tenantId,
       subscriberId: parsed.subscriber_id,
       text: parsed.text,

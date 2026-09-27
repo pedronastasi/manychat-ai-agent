@@ -35,6 +35,12 @@ jobs:
       - name: Validate Renovate config
         run: npx --yes --package renovate renovate-config-validator
 
+      # The video tests of specs/020 run ffmpeg rather than faking it. They skip
+      # on a machine without it, but fail under CI, so a missing binary here
+      # breaks the build instead of silently dropping the tests.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
       # Integration tests run against PGlite (real Postgres, in-process), so no
       # service container is needed. Coverage thresholds are enforced here
       # (specs/004-testing.md); the run fails if they regress.

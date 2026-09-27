@@ -16,10 +16,10 @@ test fails the suite.
 | [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1  | 3     | C4, C6                     | [0010]                         |
 | [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1  | 2     | C7                         | [0001], [0004], [0005], [0012] |
 | [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1  | 2     | C1, C2                     | [0003]                         |
-| [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2  | 6     | C8                         | —                              |
+| [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2  | 7     | C8                         | —                              |
 | [005 — Repository Language](005-language.md)                            | implemented | 2026-09-15  | #3  | 2     | C1, C9                     | —                              |
 | [006 — Pull Requests](006-pull-requests.md)                             | implemented | 2026-09-15  | #6  | 1     | C1, C5, C8, C9             | —                              |
-| [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —   | —     | C2, C3, C6, C7             | [0001], [0002]                 |
+| [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —   | 1     | C2, C3, C6, C7             | [0001], [0002]                 |
 | [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9  | 1     | C8                         | —                              |
 | [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19 | 1     | C1, C6, C8, C9             | —                              |
 | [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22 | 2     | C1, C8, C9                 | —                              |
@@ -32,7 +32,7 @@ test fails the suite.
 | [017 — Inbound Request Trust](017-inbound-request-trust.md)             | implemented | 2026-09-26  | #89 | 1     | C5, C6                     | [0012], [0014]                 |
 | [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | implemented | 2026-09-26  | #91 | 3     | —                          | [0013]                         |
 | [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95 | 7     | C5                         | [0012], [0013]                 |
-| [020 — Inbound Media](020-inbound-media.md)                             | specified   | —           | —   | —     | C1, C2, C4, C5, C6, C7, C9 | —                              |
+| [020 — Inbound Media](020-inbound-media.md)                             | specified   | —           | —   | 6     | C1, C2, C4, C5, C6, C7, C9 | —                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
