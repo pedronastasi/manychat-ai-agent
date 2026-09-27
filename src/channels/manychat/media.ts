@@ -29,26 +29,34 @@ export function matchMediaUrl(text: string): InboundMedia | null {
   return { kind: KIND_BY_EXTENSION[extension] ?? 'unsupported', url };
 }
 
-/**
- * Text that names the media host without matching the shape. The only sign
- * that ManyChat changed its URL format, which would otherwise turn every voice
- * note back into a link the model answers.
- */
-export function mentionsMediaHost(text: string): boolean {
-  return text.toLowerCase().includes(MEDIA_HOST);
-}
+const URL_IN_TEXT = /https?:\/\/\S+/gi;
 
 /**
- * The path of a URL on the media host with its account ID, date and hash
- * reduced to placeholders: enough to see how the format changed, nothing that
- * opens a file or names an account.
+ * The path shape of a URL on the media host that `matchMediaUrl` did not
+ * recognise, or null when the text holds none. The only sign that ManyChat
+ * changed its URL format, which would otherwise turn every voice note back
+ * into a link the model answers.
+ *
+ * The host is compared exactly after parsing, never as a substring: a
+ * lookalike such as `<media host>.example.com` is someone else's URL.
+ *
+ * The account ID, date and hash are reduced to placeholders: enough to see
+ * how the format changed, nothing that opens a file or names an account.
  */
-export function mediaUrlShape(text: string): string {
-  const at = text.toLowerCase().indexOf(MEDIA_HOST);
-  const path = text.slice(at + MEDIA_HOST.length).split(/\s/)[0] ?? '';
-  return path
-    .replace(/[0-9a-f]{12,}|\d+/gi, run => (/^\d+$/.test(run) ? '<n>' : '<hex>'))
-    .slice(0, 120);
+export function unmatchedMediaUrlShape(text: string): string | null {
+  for (const [candidate] of text.matchAll(URL_IN_TEXT)) {
+    let url: URL;
+    try {
+      url = new URL(candidate);
+    } catch {
+      continue;
+    }
+    if (url.hostname !== MEDIA_HOST) continue;
+    return url.pathname
+      .replace(/[0-9a-f]{12,}|\d+/gi, run => (/^\d+$/.test(run) ? '<n>' : '<hex>'))
+      .slice(0, 120);
+  }
+  return null;
 }
 
 const MB = 1024 * 1024;

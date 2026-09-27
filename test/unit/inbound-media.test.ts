@@ -3,7 +3,7 @@ import { ManyChatAdapter } from '../../src/channels/manychat/adapter.ts';
 import {
   ManyChatMediaFetcher,
   matchMediaUrl,
-  mediaUrlShape,
+  unmatchedMediaUrlShape,
 } from '../../src/channels/manychat/media.ts';
 import { MediaFailure } from '../../src/media/port.ts';
 import {
@@ -97,8 +97,23 @@ describe('specs/020 § Media is recognised by exact host and path', () => {
 
   it('keeps the shape of an unmatched URL and nothing that identifies it', () => {
     expect(
-      mediaUrlShape(`see ${HOST}/100000000000001/x/2026/01/15/f_0123456789abcdef.ogg ok`),
+      unmatchedMediaUrlShape(`see ${HOST}/100000000000001/x/2026/01/15/f_0123456789abcdef.ogg ok`),
     ).toBe('/<n>/x/<n>/<n>/<n>/f_<hex>.ogg');
+  });
+
+  it.each([
+    ['a lookalike host that ends in another domain', `${HOST}.example.com/1/wa/original_ab.ogg`],
+    [
+      'the host in the path of another URL',
+      `https://example.com/${HOST.slice(8)}/1/original_ab.ogg`,
+    ],
+    ['the host in a query string', `https://example.com/?next=${HOST}/1/original_ab.ogg`],
+    ['the host without a scheme', `${HOST.slice(8)}/1/wa/original_ab.ogg`],
+    ['plain text', 'hello, how much is the course?'],
+  ])('does not take %s for the media host', (_label, text) => {
+    // Compared as a parsed hostname, never as a substring (CodeQL
+    // js/incomplete-url-substring-sanitization).
+    expect(unmatchedMediaUrlShape(text)).toBeNull();
   });
 });
 
