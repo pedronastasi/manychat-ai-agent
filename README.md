@@ -429,6 +429,13 @@ contact to type. Without that message, the turn hands off to a person. A failed
 download or transcription always hands off. The boot log's `media
 capabilities` line shows what this server can read.
 
+The ManyChat flow has to pass the URL on. A reply step waiting for Text saves
+an image's URL, but it rejects voice notes and videos, which reach only the
+**Default Reply**, in `{Last Text Input}`. Setting the reply field to
+`{Last Text Input}` anywhere else overwrites an image's URL with the previous
+typed text. The setup is in
+[spec 020](specs/020-inbound-media.md#the-tenants-manychat-flow-must-hand-the-url-over-and-two-things-undo-it).
+
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in
 `config/` is ever committed.

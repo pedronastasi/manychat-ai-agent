@@ -271,6 +271,49 @@ Fixtures and tests use invented account IDs, dates and hashes, like the example
 above. A real media URL carries the tenant's ManyChat account ID and opens the
 contact's file for good (C1, C5).
 
+## The tenant's ManyChat flow must hand the URL over, and two things undo it
+
+Everything above starts once the URL is in `text`. Getting it there is the
+tenant's ManyChat flow, which this repository does not hold or test. This was
+observed on devtest on 2026-09-27, with a flow that loops as follows:
+
+1. Send the agent's answer.
+2. Wait for the contact's reply, and save it to a custom field.
+3. Send that field to the agent as `text`.
+
+| The contact sends | Where ManyChat puts the URL                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| An image          | The field a reply step saves to, even one that waits for a Text reply                                                                       |
+| A voice note      | Nowhere the loop sees. A step waiting for a Text reply rejects it, never runs its next step, and the message falls to the **Default Reply** |
+| A video           | Same as a voice note                                                                                                                        |
+
+In the Default Reply, `{Last Text Input}` holds the voice note's or video's URL.
+ManyChat's media support for WhatsApp, released April 2025, covers the Default
+Reply and Data Collection. Anywhere else, `{Last Text Input}` keeps the last
+thing the contact typed. `/fb/subscriber/getInfo` returns the same value, so the
+API cannot recover a URL the flow dropped.
+
+Two things follow for the flow:
+
+- **Never set the reply field to `{Last Text Input}` after a reply step.** Doing
+  so replaced an image's URL with the contact's previous typed text. The agent
+  then answered that text again, and nothing in its logs showed a media turn.
+- **A Default Reply carries voice notes and videos into the loop.** It sets the
+  reply field to `{Last Text Input}`, exactly, and continues the same loop: call
+  the agent, send its answer, wait for the next reply. A stray character before
+  the URL makes it text, which `media_url_unmatched` then reports. Because the
+  Default Reply fires for every contact who matches no automation, it is gated
+  on both of these:
+  - the value being a media URL;
+  - the contact being in the agent's conversation, marked by a tag set when the
+    agent's flow starts and removed when it ends or hands off to a person.
+
+  Its frequency must be "every time", not once a day.
+
+Order matters when a deployment adopts this: change the flow only after the
+agent running this spec is live. An older agent stores the raw URL and answers
+it as text.
+
 ## Verification
 
 1. **Adapter unit tests** cite § Media is recognised by exact host and path.
@@ -309,22 +352,27 @@ What this misses:
 - **The URL shape can change.** Every test uses the shape observed on
   2026-09-27. If ManyChat changes it, the tests still pass and media turns back
   into text. `media_url_unmatched` in the logs is the only warning.
-- **The route is unverified.** ManyChat documents `external_message_callback`
-  as firing on "text messages". Media was observed arriving, but which route
-  delivered it — the callback, or the Dynamic Block after ManyChat's default
-  reply — was not recorded. If only one route carries media, a contact on the
-  other gets no reply at all, and nothing here detects it.
+- **Nothing here checks the tenant's flow.** A flow edit that restores the
+  `{Last Text Input}` step, or removes the Default Reply's branch, turns media
+  back into the contact's previous text or into silence. The agent cannot tell
+  a dropped voice note from a contact repeating themselves, and logs nothing.
+  After any flow change, send a voice note and an image and look for
+  `media read`.
 - **No test proves a transcript is right.** The mock transcriber returns what
   the test gives it. Transcription quality in the tenant's language is checked
-  by listening, not by the suite.
-- **No real WhatsApp video has been observed.** Only `.ogg` and `.jpeg` URLs
-  were seen. The video tests prove ffmpeg handles the committed clip, not that
-  WhatsApp's `.mp4` or `.3gp` files split the same way.
-- **The bucket's `Content-Type` was not recorded.** The download requires
-  `audio/*`, `image/*` or `video/*`. If the bucket serves a voice note as
-  `application/octet-stream`, every one escalates with outcome `error` and the
-  `media unreadable` log line names `content_type`. The first real voice note
-  on devtest settles it.
+  by listening, not by the suite. On 2026-09-27 an English and a Spanish voice
+  note, both invented, were transcribed accurately by
+  `openai:gpt-4o-mini-transcribe`.
+- **The suite proves ffmpeg on the committed clips, not on WhatsApp's.** Real
+  `.mp4` videos, voice notes and images were reported working end to end, on
+  devtest and in production, on 2026-09-27. The bucket served each with a
+  `Content-Type` the download accepts. No `.3gp` has been seen.
+- **Transcription spend is over-counted.** It is billed by the duration the
+  provider reports, and `openai:gpt-4o-mini-transcribe` reports none, so the
+  estimate from the file's size at 8 kbit/s applies. Measured 2026-09-27: a
+  4-second voice note counted as about 30 against the daily budget, which is
+  still under a cent. Voice notes and extracted soundtracks are Ogg Opus, which
+  records its own length, if the cap ever needs to be exact.
 - **Four frames can miss what matters.** A detail shown for a moment between
   two sampled frames never reaches the model, and no test can tell.
 - **Captions are lost before they reach us.** An image with a caption arrives
