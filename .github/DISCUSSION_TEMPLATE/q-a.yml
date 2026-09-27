@@ -1,0 +1,31 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This discussion is public the moment you post it. If your question is
+        about a real deployment, describe what its configuration does rather than
+        pasting it, and reproduce against the fixture tenant where you can.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: Commands you ran and what they printed, against the fixture tenant.
+      render: text
+
+  - type: checkboxes
+    id: no-tenant-data
+    attributes:
+      label: No tenant data
+      options:
+        - label: >-
+            This discussion contains no real transcripts, prices, names, phone
+            numbers, screenshots or `.env` values (C1, C5).
+          required: true

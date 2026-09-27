@@ -1,11 +1,20 @@
 # ManyChat AI Agent
 
+[![CI](https://github.com/pedronastasi/manychat-ai-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/pedronastasi/manychat-ai-agent/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/pedronastasi/manychat-ai-agent)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/pedronastasi/manychat-ai-agent)](https://github.com/pedronastasi/manychat-ai-agent/releases)
+[![Node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpedronastasi%2Fmanychat-ai-agent%2Fmain%2Fpackage.json&query=%24.engines.node&label=node)](package.json)
+
 A production-shaped, provider-agnostic AI agent that answers customer questions
 on WhatsApp through [ManyChat](https://manychat.com), escalating to a human
 rather than guessing.
 
 Switching the model is one environment variable. Switching the chat platform is
 one adapter.
+
+It is for anyone putting an LLM behind a platform that enforces a hard webhook
+timeout: ManyChat is the adapter that ships, and the race and the outbox below
+are what carries over to any other.
 
 ```bash
 git clone https://github.com/pedronastasi/manychat-ai-agent.git
@@ -14,18 +23,10 @@ pnpm install && pnpm bootstrap && pnpm dev
 ```
 
 That runs with **no API key and no database to install** — an offline mock model
-and an embedded [PGlite](https://pglite.dev/) Postgres. In another terminal:
+and an embedded [PGlite](https://pglite.dev/) Postgres. In another terminal,
+`pnpm simulate` answers one question and hands one off:
 
-```bash
-$ pnpm simulate "how much is the foundation course?"
-
-  contact   how much is the foundation course?
-  ------------------------------------------------------------
-  agent     The Foundation Course is $450.00.
-  agent     It runs 24 hours, Tuesdays and Thursdays 6-9pm. Want the link?
-  ------------------------------------------------------------
-  45ms  |  callback: registered  |  quick_replies: omitted
-```
+![pnpm simulate answering a price question from the catalog and escalating a request for a person](docs/assets/demo.svg)
 
 ---
 

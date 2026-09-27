@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-09-28
 constitution: [C1, C9]
 ---
 
@@ -139,16 +140,26 @@ Everything CONTRIBUTING says today stays; it moves below that section.
 The PR template and CI apply to every pull request either way. The on-ramp
 changes the order a newcomer reads the rules in, not which rules apply.
 
-## Conduct reports go to an address that exists only for them
+## Conduct reports go to a private form, not an address
 
 `CODE_OF_CONDUCT.md` is the Contributor Covenant, unmodified except for the
 enforcement contact. An unmodified code is one a contributor already
 recognises; an edited one is a document they have to read to trust.
 
-The contact is an address used for nothing else. A personal address in a
-published file is harvested, and it ties the project's conduct process to one
-person's inbox. This spec does not name the address; it is set when the file is
-written, and it is not a tenant's address (C1).
+The contact is a link to a web form whose responses only the maintainers can
+read. It is not an email address. An address in a published file is harvested
+whether or not it is used for anything else, and it ties the project's conduct
+process to one person's inbox. A form publishes nothing that can be mailed,
+needs no account to fill in, and can be handed to another maintainer by sharing
+its responses.
+
+GitHub's own private route, content reported directly to maintainers, exists
+only for repositories owned by an organization. This one is owned by a personal
+account, so that route is not available. If the repository moves to an
+organization, content reporting replaces the form.
+
+This spec does not name the form. It is set when the file is written, it asks
+for nothing a report does not need, and it is not a tenant's (C1).
 
 ## Repository settings are part of the surface, and the one part no test sees
 
@@ -188,7 +199,8 @@ imports.** Each one is a term someone with the problem would type:
   badges, no coverage badge, and an image under `docs/assets/`.
 - A test asserts that the first `##` section of CONTRIBUTING is the no-spec
   on-ramp, and that it precedes any mention of the Constitution.
-- A test asserts `CODE_OF_CONDUCT.md` exists and names an enforcement contact.
+- A test asserts `CODE_OF_CONDUCT.md` exists, names an HTTPS form as its
+  enforcement contact, and contains no email address.
 
 **What this does not catch.** A required checkbox proves the author clicked
 it, not that they read it; the form makes the rule unavoidable to see, not
@@ -197,6 +209,9 @@ issues is still the enforcement, exactly as `006` says of pull requests.
 
 Nothing checks that the demo recording and the social preview were made from
 the fixture tenant. They are images, and review is the only check.
+
+Nothing checks that the conduct form's responses are private, or that anyone
+reads them. The form lives outside GitHub, like the settings below.
 
 **Settings are manual.** Topics, the social preview, Discussions, the Wiki and
 the homepage live in GitHub, not in git, and no test in this suite can see

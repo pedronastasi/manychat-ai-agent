@@ -1,0 +1,10 @@
+# specs/021-contributor-surface.md: every public text box carries the C1
+# reminder, so the box with no form in it is switched off.
+blank_issues_enabled: false
+contact_links:
+  - name: Questions
+    url: https://github.com/pedronastasi/manychat-ai-agent/discussions/categories/q-a
+    about: How to run, configure or deploy the agent. Ask in Discussions, not the issue tracker.
+  - name: A security issue
+    url: https://github.com/pedronastasi/manychat-ai-agent/security/advisories/new
+    about: Report it privately, as SECURITY.md describes. Never in a public issue.

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="711" height="366" viewBox="0 0 711 366" role="img" aria-labelledby="title">
+<title id="title">pnpm simulate against the fixture tenant and the mock model: one question answered from the catalog, one request for a person escalated</title>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:13px;fill:#c9d1d9;white-space:pre}
+.prompt{fill:#7ee787}.contact{fill:#79c0ff}.agent{fill:#d2a8ff}.rule-line{fill:#484f58}.footer-line{fill:#8b949e}.caption{fill:#8b949e;font-size:12px}
+@keyframes l0{0%,3.32%{clip-path:inset(0 100% 0 0);animation-timing-function:steps(52,end)}18.44%,97%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 100% 0 0)}}
+@keyframes l1{0%,22.59%{opacity:0}22.60%,97%{opacity:1}100%{opacity:0}}
+@keyframes l2{0%,23.34%{opacity:0}23.35%,97%{opacity:1}100%{opacity:0}}
+@keyframes l3{0%,24.09%{opacity:0}24.09%,97%{opacity:1}100%{opacity:0}}
+@keyframes l4{0%,24.83%{opacity:0}24.84%,97%{opacity:1}100%{opacity:0}}
+@keyframes l5{0%,25.58%{opacity:0}25.59%,97%{opacity:1}100%{opacity:0}}
+@keyframes l6{0%,26.33%{opacity:0}26.34%,97%{opacity:1}100%{opacity:0}}
+@keyframes l8{0%,45.35%{clip-path:inset(0 100% 0 0);animation-timing-function:steps(44,end)}58.14%,97%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 100% 0 0)}}
+@keyframes l9{0%,62.29%{opacity:0}62.30%,97%{opacity:1}100%{opacity:0}}
+@keyframes l10{0%,63.04%{opacity:0}63.05%,97%{opacity:1}100%{opacity:0}}
+@keyframes l11{0%,63.79%{opacity:0}63.80%,97%{opacity:1}100%{opacity:0}}
+@keyframes l12{0%,64.53%{opacity:0}64.54%,97%{opacity:1}100%{opacity:0}}
+@keyframes l13{0%,65.28%{opacity:0}65.29%,97%{opacity:1}100%{opacity:0}}
+@keyframes l14{0%,66.03%{opacity:0}66.04%,97%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){text{animation:none!important}}
+</style>
+<rect width="711" height="366" rx="8" fill="#0d1117"/>
+<circle cx="20" cy="18" r="6" fill="#ff5f57"/><circle cx="40" cy="18" r="6" fill="#febc2e"/><circle cx="60" cy="18" r="6" fill="#28c840"/>
+<text x="691" y="22" text-anchor="end" class="caption">fixture tenant · mock model · no API key</text>
+<text x="20" y="69" class="command-line" style="animation:l0 12040ms infinite"><tspan class="prompt">$</tspan> pnpm simulate "how much is the foundation course?"</text>
+<text x="20" y="89" class="contact-line" style="animation:l1 12040ms infinite"><tspan class="contact">  contact   </tspan>how much is the foundation course?</text>
+<text x="20" y="109" class="rule-line" style="animation:l2 12040ms infinite">  ------------------------------------------------------------</text>
+<text x="20" y="129" class="agent-line" style="animation:l3 12040ms infinite"><tspan class="agent">  agent     </tspan>The Foundation Course is $450.00.</text>
+<text x="20" y="149" class="agent-line" style="animation:l4 12040ms infinite">            It runs 24 hours, Tuesdays and Thursdays 6-9pm. Want the link?</text>
+<text x="20" y="169" class="rule-line" style="animation:l5 12040ms infinite">  ------------------------------------------------------------</text>
+<text x="20" y="189" class="footer-line" style="animation:l6 12040ms infinite">  93ms  |  callback: registered  |  quick_replies: omitted</text>
+<text x="20" y="229" class="command-line" style="animation:l8 12040ms infinite"><tspan class="prompt">$</tspan> pnpm simulate "I want to speak to a human"</text>
+<text x="20" y="249" class="contact-line" style="animation:l9 12040ms infinite"><tspan class="contact">  contact   </tspan>I want to speak to a human</text>
+<text x="20" y="269" class="rule-line" style="animation:l10 12040ms infinite">  ------------------------------------------------------------</text>
+<text x="20" y="289" class="agent-line" style="animation:l11 12040ms infinite"><tspan class="agent">  agent     </tspan>Let me put you through to someone on the team who can give you the exact</text>
+<text x="20" y="309" class="agent-line" style="animation:l12 12040ms infinite">            answer. They'll reply here shortly.</text>
+<text x="20" y="329" class="rule-line" style="animation:l13 12040ms infinite">  ------------------------------------------------------------</text>
+<text x="20" y="349" class="footer-line" style="animation:l14 12040ms infinite">  44ms  |  callback: registered  |  quick_replies: omitted</text>
+</svg>

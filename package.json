@@ -13,6 +13,7 @@
     "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env --watch src/main.ts",
     "bootstrap": "node scripts/setup.mjs",
     "spec:index": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/spec-index.ts",
+    "demo:record": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/record-demo.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
@@ -56,6 +57,7 @@
     "prettier": "^3.9.6",
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "yaml": "^2.9.1"
   }
 }
