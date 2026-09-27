@@ -32,6 +32,7 @@ test fails the suite.
 | [017 — Inbound Request Trust](017-inbound-request-trust.md)             | implemented | 2026-09-26  | #89 | 1     | C5, C6                     | [0012], [0014]                 |
 | [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | implemented | 2026-09-26  | #91 | 3     | —                          | [0013]                         |
 | [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95 | 7     | C5                         | [0012], [0013]                 |
+| [020 — Inbound Media](020-inbound-media.md)                             | specified   | —           | —   | —     | C1, C2, C4, C5, C6, C7, C9 | —                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
