@@ -115,6 +115,13 @@ data, with the fence markers stripped first so they cannot be forged. Model
 output is validated before any of it reaches a customer, and replies that leak
 the prompt are dropped. The golden set includes injection attempts.
 
+**A contact's history is theirs, not whoever names them.** The shared secret
+proves a request came from the flow, not which contact it speaks for. Each
+contact has a random token kept in their own ManyChat custom field and stored
+here only as a hash. A request without it is answered from its own message
+alone, so a leaked secret does not expose anyone's conversation
+([spec 019](specs/019-contact-tokens.md)).
+
 **Spend is bounded.** Every turn records tokens, cache hits, and estimated cost.
 Daily token and dollar caps degrade to escalation rather than to an error — a
 bill cap that fails into a human is the correct failure mode for a business.
@@ -262,6 +269,11 @@ object. The agent's reply is in `.content.messages[].text`:
       "url": "https://agent.example.com/v1/channels/manychat/message",
       "method": "post",
       "headers": { "Authorization": "Bearer ..." },
+      "payload": {
+        "text": "{{last_input_text}}",
+        "subscriber_id": "{{contact.id}}",
+        "ai_token": "{{ai_token}}"
+      },
       "timeout": 86400
     }
   }
@@ -270,7 +282,7 @@ object. The agent's reply is in `.content.messages[].text`:
 
 The `external_message_callback` is what keeps the conversation alive: ManyChat
 sends the contact's next message back here, rather than falling through to its
-own flow.
+own flow, with their token filled in from their custom field.
 
 **Continue the conversation** (same `subscriber_id`):
 
@@ -281,6 +293,11 @@ curl -s http://localhost:3000/v1/channels/manychat/message \
   -d '{"subscriber_id": "test-001", "text": "yes, send it"}' \
   | jq .content.messages
 ```
+
+This remembers the first question because `pnpm bootstrap` sets
+`CONTACT_TOKENS_ENFORCED=false`. Locally there is no ManyChat field to hold the
+contact's token, so curl has none to send. With it `true`, as in production, a
+request without the token is answered from its own message alone.
 
 **Trigger an escalation:**
 
@@ -331,6 +348,67 @@ Point a ManyChat **Dynamic Block** (Dev Tools, requires a Pro plan) at
 `POST /v1/channels/manychat/message` and add an `Authorization: Bearer <secret>`
 header matching `MANYCHAT_SHARED_SECRET`. The OpenAPI document is generated from
 the same schemas that validate at runtime.
+
+Create a Text custom field named `ai_token` (or whatever `MANYCHAT_TOKEN_FIELD`
+names), then send it as a top-level key of the Dynamic Block's request body,
+next to the keys you already send:
+
+```json
+{
+  "subscriber_id": "{{contact.id}}",
+  "text": "{{last_input_text}}",
+  "ai_token": "{{ai_token}}"
+}
+```
+
+Insert the value with ManyChat's variable picker rather than typing it, so it
+points at the field. The key is always `ai_token`; any key the service does not
+know is refused with a 400. Nothing else needs configuring: the callback the
+service registers asks for the same field.
+
+### Contact tokens
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Contact
+    participant M as ManyChat
+    participant A as Agent
+    participant F as Caller with the secret only
+
+    C->>M: First message
+    M->>A: Dynamic Block body, ai_token empty
+    Note over A: No token yet: issue one and store only its SHA-256 hash
+    A-)M: setCustomFieldByName writes the token to the contact's field
+    A-->>M: Reply, with a callback that asks for ai_token
+    M->>C: Reply
+    C->>M: Next message
+    M->>A: Callback body, ai_token filled in from the field
+    Note over A: Hash matches: bound, reads the contact's history
+    A-->>M: Reply built on the conversation so far
+    F->>A: Same subscriber_id, no token or a guessed one
+    Note over A: Unbound: no history read, turn stored but kept out of it
+    A-->>F: Reply from that message alone
+```
+
+- **The token never appears in a response or a log line.** It reaches the
+  contact's field only through ManyChat's API, so the only way to present it is
+  to be the contact ManyChat sends it for.
+- **An unbound request repairs itself.** It also writes a fresh token to the
+  contact's field, at most once an hour. That fixes a cleared field or a failed
+  write, and a forger triggering it gains nothing, because the token goes only
+  to the real contact.
+- **The previous token stays valid** until the next one is issued, so a message
+  sent while a new token is being written still binds.
+- **A failed write is retried by the outbox worker** with a fresh token. The
+  token itself is stored nowhere but the contact's field.
+
+Turning tokens on for a deployment that already has contacts takes a flag and a
+backfill, in that order, or everyone loses their context at once. The five steps
+are in
+[spec 019](specs/019-contact-tokens.md#tokens-reach-existing-contacts-before-they-are-required);
+`pnpm tokens:backfill` (`node dist/backfill.js` in the image) is step 2, and its
+`--check` is step 4.
 
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in

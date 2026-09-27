@@ -57,8 +57,8 @@ rotation waits at least 24 hours between updating the flow and removing the old
 secret (`SECURITY.md`). Moving those conversations across would mean handing the
 new secret to whoever presents the old one, which is what this clause removes.
 
-The secret proves the caller, not the contact. The body's `subscriber_id` is
-still believed from any holder of the secret until `019` is implemented.
+The secret proves the caller, not the contact. Which contact's history a
+request may read takes the contact's token (`019`).
 
 ## Authentication runs before the body is read
 

@@ -3,13 +3,23 @@ import type { Database } from '../db/client.ts';
 import { outbox } from '../db/schema.ts';
 import type { AgentReply } from '../contracts/agent.ts';
 
-export interface OutboxRow {
+interface OutboxRowBase {
   id: string;
   tenantId: string;
   subscriberId: string;
-  payload: { messages: string[] };
+  conversationId: string | null;
   attempts: number;
 }
+
+/**
+ * A deferred reply, or the retry of a contact token's write (specs/019). The
+ * token row carries the generation it retries, never the token.
+ */
+export type OutboxRow = OutboxRowBase &
+  (
+    | { kind: 'reply'; payload: { messages: string[] } }
+    | { kind: 'contact_token'; payload: { generation: number } }
+  );
 
 export const MAX_ATTEMPTS = 5;
 
@@ -51,7 +61,9 @@ export class OutboxQueue {
       id: string;
       tenant_id: string;
       subscriber_id: string;
-      payload: { messages: string[] };
+      conversation_id: string | null;
+      kind: OutboxRow['kind'];
+      payload: OutboxRow['payload'];
       attempts: number;
     };
 
@@ -66,20 +78,25 @@ export class OutboxQueue {
         FOR UPDATE SKIP LOCKED
         LIMIT ${limit}
       )
-      RETURNING id, tenant_id, subscriber_id, payload, attempts
+      RETURNING id, tenant_id, subscriber_id, conversation_id, kind, payload, attempts
     `);
 
     const rows: Row[] = Array.isArray(result)
       ? (result as Row[])
       : ((result as { rows?: Row[] }).rows ?? []);
 
-    return rows.map(row => ({
-      id: row.id,
-      tenantId: row.tenant_id,
-      subscriberId: row.subscriber_id,
-      payload: row.payload,
-      attempts: row.attempts,
-    }));
+    return rows.map(
+      row =>
+        ({
+          id: row.id,
+          tenantId: row.tenant_id,
+          subscriberId: row.subscriber_id,
+          conversationId: row.conversation_id,
+          kind: row.kind,
+          payload: row.payload,
+          attempts: row.attempts,
+        }) as OutboxRow,
+    );
   }
 
   async markDelivered(id: string): Promise<void> {

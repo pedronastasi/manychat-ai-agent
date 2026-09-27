@@ -26,6 +26,7 @@ export const REDACT_PATHS = [
   'req.body.text',
   'req.body.first_name',
   'req.body.last_name',
+  'req.body.ai_token',
   'res.headers["set-cookie"]',
   '*.apiKey',
   '*.apiToken',

@@ -25,6 +25,7 @@
     "simulate": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env src/channels/manychat/simulator.ts",
     "eval": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env evals/run.ts",
     "eval:mock": "node --experimental-strip-types --disable-warning=ExperimentalWarning evals/run.ts",
+    "tokens:backfill": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env src/backfill.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "worker": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env src/outbox/worker.ts"

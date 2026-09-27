@@ -6,6 +6,7 @@ import { loadEnv, ConfigStore } from '../../src/config/loader.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { readFileSync } from 'node:fs';
+import { fakeManyChatApi } from '../helpers/manychat.ts';
 
 /** The acknowledgement is tenant copy now (Constitution C9), not a constant. */
 const ACK_MESSAGE = (
@@ -86,6 +87,7 @@ async function makeApp(runner: AgentRunner) {
     db,
     configStore: new ConfigStore('test/fixtures/config'),
     runner,
+    manychatFetch: fakeManyChatApi().fetch,
   });
   await app.ready();
   return app;
@@ -218,7 +220,7 @@ describe('deferred reply (race lost) — ADR-0001', () => {
 
     const claimed = await new OutboxQueue(db).claimBatch(10);
     expect(claimed).toHaveLength(1);
-    expect(claimed[0]!.payload.messages).toEqual(['Late reply']);
+    expect(claimed[0]).toMatchObject({ kind: 'reply', payload: { messages: ['Late reply'] } });
     expect(claimed[0]!.subscriberId).toBe('88');
     await app.close();
   });

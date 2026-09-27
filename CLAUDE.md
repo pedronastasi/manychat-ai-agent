@@ -14,23 +14,24 @@ Runs with no API key and no database (mock model + embedded PGlite).
 
 ## Commands
 
-| Command               | Purpose                                                |
-| --------------------- | ------------------------------------------------------ |
-| `pnpm dev`            | Local dev server (watch mode, `.env` loaded)           |
-| `pnpm build`          | TypeScript compilation                                 |
-| `pnpm typecheck`      | `tsc --noEmit`                                         |
-| `pnpm lint`           | ESLint                                                 |
-| `pnpm format`         | Prettier write                                         |
-| `pnpm format:check`   | Prettier check                                         |
-| `pnpm test`           | `vitest run`                                           |
-| `pnpm test:coverage`  | Vitest with coverage thresholds enforced               |
-| `pnpm test:watch`     | Vitest watch mode                                      |
-| `pnpm eval:mock`      | Golden-set eval with mock model (free, deterministic)  |
-| `pnpm eval`           | Golden-set eval with real model (costs money)          |
-| `pnpm simulate "msg"` | Send a Dynamic Block request to a running local server |
-| `pnpm db:generate`    | Drizzle migration generation                           |
-| `pnpm db:migrate`     | Run Drizzle migrations                                 |
-| `pnpm spec:index`     | Regenerate `specs/README.md` from spec frontmatter     |
+| Command                | Purpose                                                |
+| ---------------------- | ------------------------------------------------------ |
+| `pnpm dev`             | Local dev server (watch mode, `.env` loaded)           |
+| `pnpm build`           | TypeScript compilation                                 |
+| `pnpm typecheck`       | `tsc --noEmit`                                         |
+| `pnpm lint`            | ESLint                                                 |
+| `pnpm format`          | Prettier write                                         |
+| `pnpm format:check`    | Prettier check                                         |
+| `pnpm test`            | `vitest run`                                           |
+| `pnpm test:coverage`   | Vitest with coverage thresholds enforced               |
+| `pnpm test:watch`      | Vitest watch mode                                      |
+| `pnpm eval:mock`       | Golden-set eval with mock model (free, deterministic)  |
+| `pnpm eval`            | Golden-set eval with real model (costs money)          |
+| `pnpm simulate "msg"`  | Send a Dynamic Block request to a running local server |
+| `pnpm db:generate`     | Drizzle migration generation                           |
+| `pnpm db:migrate`      | Run Drizzle migrations                                 |
+| `pnpm tokens:backfill` | Issue contact tokens to existing contacts (`--check`)  |
+| `pnpm spec:index`      | Regenerate `specs/README.md` from spec frontmatter     |
 
 `EVAL_DIR` selects the eval suite (default `evals/golden`) and `CONFIG_DIR` the
 tenant it runs against — see `specs/009-tenant-eval-suites.md`.
@@ -143,5 +144,6 @@ All env vars documented in `.env.example`. Key variables:
 - `DATABASE_URL` — Postgres connection string or `pglite` for embedded
 - `MANYCHAT_SHARED_SECRET` — min 16 chars, comma-separated for rotation
 - `RACE_DEADLINE_MS` — race timeout (default: 8000)
+- `CONTACT_TOKENS_ENFORCED` — `false` only during the specs/019 rollout (default: `true`)
 
 Tenant config (`config/prompt.md`, `catalog.json`, `rules.json`) reloads on `SIGHUP` without restart.

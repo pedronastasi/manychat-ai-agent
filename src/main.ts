@@ -39,6 +39,7 @@ export async function main() {
       baseUrl: env.MANYCHAT_API_BASE,
       replyField: env.MANYCHAT_REPLY_FIELD,
       replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
+      tokenField: env.MANYCHAT_TOKEN_FIELD,
     }),
     logger: app.log,
   }).start();

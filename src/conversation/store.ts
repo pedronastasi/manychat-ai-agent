@@ -2,12 +2,16 @@ import { and, eq, gte, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
 import type { TurnOutcome } from '../contracts/agent.ts';
+import type { TokenState } from './tokens.ts';
 
 export interface ConversationRecord {
   id: string;
   turnCount: number;
   escalatedAt: Date | null;
 }
+
+/** A conversation as found before the turn, with what binding needs (specs/019). */
+export interface KnownConversation extends ConversationRecord, TokenState {}
 
 export interface TurnUsage {
   model?: string | undefined;
@@ -78,21 +82,28 @@ export class ConversationStore {
     return row;
   }
 
-  async recordUserMessage(conversationId: string, text: string) {
-    await this.db.insert(turns).values({ conversationId, role: 'user', text });
+  /**
+   * `bound` says whether the request carried the contact's token. An unbound
+   * turn is kept but never enters history (specs/019), so a caller without the
+   * token cannot plant text in the contact's conversation.
+   */
+  async recordUserMessage(conversationId: string, text: string, turn: { bound: boolean }) {
+    await this.db.insert(turns).values({ conversationId, role: 'user', text, bound: turn.bound });
   }
 
   async recordAgentReply(
     conversationId: string,
     text: string,
     outcome: TurnOutcome,
-    usage: TurnUsage = {},
+    turn: { bound: boolean; usage?: TurnUsage },
   ) {
+    const usage = turn.usage ?? {};
     await this.db.insert(turns).values({
       conversationId,
       role: 'agent',
       text,
       outcome,
+      bound: turn.bound,
       model: usage.model ?? null,
       inputTokens: usage.inputTokens ?? null,
       outputTokens: usage.outputTokens ?? null,
@@ -110,12 +121,17 @@ export class ConversationStore {
   }
 
   /**
-   * The last `limit` turns recorded since `since`, oldest-first, for prompt
-   * history. Older turns are kept, just not shown to the model (specs/018).
+   * The last `limit` bound turns recorded since `since`, oldest-first, for
+   * prompt history. Older turns are kept, just not shown to the model
+   * (specs/018), and unbound ones never are (specs/019).
    */
   async recentTurns(conversationId: string, since: Date, limit = 10) {
     const rows = await this.db.query.turns.findMany({
-      where: and(eq(turns.conversationId, conversationId), gte(turns.createdAt, since)),
+      where: and(
+        eq(turns.conversationId, conversationId),
+        gte(turns.createdAt, since),
+        eq(turns.bound, true),
+      ),
       orderBy: (table, { desc }) => [desc(table.seq)],
       limit,
       columns: { role: true, text: true },
@@ -123,13 +139,19 @@ export class ConversationStore {
     return rows.reverse();
   }
 
-  async find(tenantId: string, subscriberId: string): Promise<ConversationRecord | undefined> {
+  async find(tenantId: string, subscriberId: string): Promise<KnownConversation | undefined> {
     return this.db.query.conversations.findFirst({
       where: and(
         eq(conversations.tenantId, tenantId),
         eq(conversations.subscriberId, subscriberId),
       ),
-      columns: { id: true, turnCount: true, escalatedAt: true },
+      columns: {
+        id: true,
+        turnCount: true,
+        escalatedAt: true,
+        tokenHash: true,
+        previousTokenHash: true,
+      },
     });
   }
 }

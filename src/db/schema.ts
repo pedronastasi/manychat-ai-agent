@@ -11,6 +11,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  boolean,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -29,6 +30,16 @@ export const conversations = pgTable(
     escalatedAt: timestamp('escalated_at', { withTimezone: true }),
     /** The contact's latest message; a gap since it resets the turn cap (specs/018). */
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * SHA-256 of the contact's token, which ManyChat holds in a custom field
+     * (specs/019, ADR-0012). The token itself is never stored.
+     */
+    tokenHash: text('token_hash'),
+    /** The token issued before the current one, still accepted until the next issue. */
+    previousTokenHash: text('previous_token_hash'),
+    tokenIssuedAt: timestamp('token_issued_at', { withTimezone: true }),
+    /** Counts issues, so a retried write can tell whether a newer token superseded it. */
+    tokenGeneration: integer('token_generation').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -49,6 +60,11 @@ export const turns = pgTable(
     text: text('text').notNull(),
     outcome: text('outcome'),
     model: text('model'),
+    /**
+     * Whether the request carried the contact's token. Only bound turns enter
+     * history or the turn cap (specs/019); turns from before it are all bound.
+     */
+    bound: boolean('bound').notNull().default(true),
 
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),
@@ -75,6 +91,10 @@ export const outbox = pgTable(
     conversationId: uuid('conversation_id').references(() => conversations.id, {
       onDelete: 'cascade',
     }),
+    /** A deferred reply, or a contact token whose write has to be retried (specs/019). */
+    kind: text('kind', { enum: ['reply', 'contact_token'] })
+      .notNull()
+      .default('reply'),
     payload: jsonb('payload').notNull(),
     status: text('status', { enum: ['pending', 'delivering', 'delivered', 'failed'] })
       .notNull()

@@ -7,6 +7,8 @@ export interface RenderContext {
   callbackUrl?: string | undefined;
   callbackSecret?: string | undefined;
   callbackTimeoutSeconds?: number | undefined;
+  /** The contact field the channel fills into the callback as `ai_token` (specs/019). */
+  contactTokenField?: string | undefined;
 }
 
 /**

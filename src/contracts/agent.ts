@@ -103,6 +103,8 @@ export const InboundMessage = z.object({
   channel: z.string().min(1),
   contactName: z.string().nullable(),
   locale: z.string().nullable(),
+  /** What the request presented as the contact's token, if anything (specs/019). */
+  contactToken: z.string().nullable(),
   receivedAt: z.date(),
 });
 export type InboundMessage = z.infer<typeof InboundMessage>;

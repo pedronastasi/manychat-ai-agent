@@ -18,6 +18,7 @@ export default defineConfig({
       // rather than any behaviour.
       exclude: [
         'src/agent/mock-provider.ts',
+        'src/backfill.ts',
         'src/channels/manychat/simulator.ts',
         'src/channels/port.ts',
         'src/db/client.ts',

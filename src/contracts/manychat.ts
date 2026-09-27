@@ -19,6 +19,12 @@ export const ManyChatInbound = z
     last_name: z.string().nullish(),
     locale: z.string().nullish(),
     channel: z.string().nullish(),
+    /**
+     * The contact's token, which ManyChat fills in from their custom field
+     * (specs/019). Nullish, not just optional: a contact whose field is empty
+     * must be answered unbound, never refused with a 400.
+     */
+    ai_token: z.string().max(256).nullish(),
   })
   .strict();
 export type ManyChatInbound = z.infer<typeof ManyChatInbound>;

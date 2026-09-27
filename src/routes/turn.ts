@@ -11,6 +11,8 @@ import {
   matchOpeningTrigger,
 } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
+import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
+import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -26,6 +28,10 @@ export interface TurnDeps {
   raceDeadlineMs: number;
   modelAbortMs: number;
   logger: TurnLogger;
+  /** Where an issued token is written for the contact (specs/019). */
+  tokenWriter: ContactTokenWriter;
+  /** CONTACT_TOKENS_ENFORCED: false only while tokens reach existing contacts. */
+  tokensEnforced: boolean;
 }
 
 /**
@@ -43,6 +49,13 @@ export interface TurnResult {
   reply: AgentReply;
   outcome: TurnOutcome;
   conversationId: string;
+  binding: Binding;
+}
+
+/** A write that fails is retried by the outbox; its message could quote the token. */
+function describeWriteError(error: unknown) {
+  if (!(error instanceof Error)) return { name: typeof error };
+  return { name: error.name, ...('status' in error ? { status: error.status } : {}) };
 }
 
 /**
@@ -57,29 +70,75 @@ export class TurnHandler {
   private readonly store: ConversationStore;
   private readonly budget: BudgetGuard;
   private readonly queue: OutboxQueue;
+  private readonly tokens: ContactTokens;
 
   constructor(deps: TurnDeps) {
     this.deps = deps;
     this.store = new ConversationStore(deps.db);
     this.budget = new BudgetGuard(deps.db);
     this.queue = new OutboxQueue(deps.db);
+    this.tokens = new ContactTokens(deps.db, deps.tokenWriter);
   }
 
   async handle(inbound: InboundMessage): Promise<TurnResult> {
-    const { rules } = this.deps;
+    const { rules, tokensEnforced } = this.deps;
     const now = new Date();
 
-    const conversation = await this.store.startTurn(
-      {
-        tenantId: inbound.tenantId,
-        subscriberId: inbound.subscriberId,
-        channel: inbound.channel,
-        idleResetHours: rules.idleResetHours,
-      },
-      now,
-    );
+    // The shared secret proved the caller; the token proves the contact
+    // (specs/019). Without it the request is answered from its own message
+    // alone, and neither reads nor extends the contact's history.
+    const known = await this.store.find(inbound.tenantId, inbound.subscriberId);
+    const binding = bindingFor(known, inbound.contactToken);
+    // During the rollout a request without the token is treated as it was
+    // before specs/019, so nobody loses context before their token lands.
+    const bound = binding !== 'unbound' || !tokensEnforced;
+    // A contact with no token yet starts their history here: whatever came
+    // before was never proved to be theirs.
+    const readsHistory = binding === 'bound' || !tokensEnforced;
+
+    // Only a bound turn counts toward the cap or moves the idle gap; the
+    // per-contact rate limit bounds the rest (specs/019 § Only bound turns
+    // enter history and the turn cap).
+    const conversation =
+      !bound && known
+        ? known
+        : await this.store.startTurn(
+            {
+              tenantId: inbound.tenantId,
+              subscriberId: inbound.subscriberId,
+              channel: inbound.channel,
+              idleResetHours: rules.idleResetHours,
+            },
+            now,
+          );
     const logger = withConversation(this.deps.logger, conversation.id);
-    await this.store.recordUserMessage(conversation.id, inbound.text);
+    const turn = { bound };
+    await this.store.recordUserMessage(conversation.id, inbound.text, turn);
+
+    // Watched as a share of all turns: a flow that stopped sending the field
+    // shows up here and nowhere else.
+    if (binding === 'unbound') logger.info({ binding, enforced: tokensEnforced }, 'unbound turn');
+
+    // A contact without a token gets one, and so does an unbound request,
+    // which repairs a cleared field or a lost write. It goes only to the real
+    // contact's field, so a forger gains nothing by triggering it.
+    if (binding !== 'bound') {
+      const issued = await this.tokens.issue(
+        {
+          tenantId: inbound.tenantId,
+          subscriberId: inbound.subscriberId,
+          conversationId: conversation.id,
+        },
+        now,
+      );
+      issued?.written.catch((error: unknown) => {
+        logger.error({ error: describeWriteError(error) }, 'contact token write failed');
+      });
+    }
+
+    // An unbound request must not change the contact's own state.
+    const markEscalated = () =>
+      bound ? this.store.markEscalated(conversation.id) : Promise.resolve();
 
     // The channel flow's opening sentinel. Fully determined - no contact input
     // to interpret and exactly one correct reply - so it never reaches the
@@ -89,7 +148,7 @@ export class TurnHandler {
     // bound model spend, which a scripted reply does not incur.
     const opening = matchOpeningTrigger(inbound.text, rules);
     if (opening) {
-      await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted');
+      await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted', turn);
       logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
       return {
         reply: {
@@ -103,29 +162,37 @@ export class TurnHandler {
         },
         outcome: 'answered_scripted',
         conversationId: conversation.id,
+        binding,
       };
     }
 
     // Pre-model guards: each denial costs nothing and fails toward a human (C6).
     const guards = [
       checkKeywords(inbound.text, rules),
-      checkTurnCap(conversation.turnCount, rules),
+      bound ? checkTurnCap(conversation.turnCount, rules) : { allowed: true as const },
       await this.budget.checkRateLimit(inbound.tenantId, inbound.subscriberId, rules),
       await this.budget.checkBudget(inbound.tenantId, rules),
     ];
     const denied = guards.find(guard => !guard.allowed);
     if (denied && !denied.allowed) {
       const reply = escalationReply(denied.reason, rules.messages.escalation);
-      await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'escalated_precheck');
-      await this.store.markEscalated(conversation.id);
+      await this.store.recordAgentReply(
+        conversation.id,
+        reply.messages[0]!,
+        'escalated_precheck',
+        turn,
+      );
+      await markEscalated();
       logger.info({ reason: denied.reason, detail: denied.detail }, 'turn escalated before model');
-      return { reply, outcome: 'escalated_precheck', conversationId: conversation.id };
+      return { reply, outcome: 'escalated_precheck', conversationId: conversation.id, binding };
     }
 
     // History outlives the turn cap on purpose: a contact returning after two
     // weeks gets their context and a fresh cap (specs/018, ADR-0013).
     const historySince = new Date(now.getTime() - rules.historyDays * DAY_MS);
-    const history = await this.store.recentTurns(conversation.id, historySince, 10);
+    const history = readsHistory
+      ? await this.store.recentTurns(conversation.id, historySince, 10)
+      : [];
     // recentTurns includes the message just recorded; the runner adds it itself.
     const priorHistory = history.slice(0, -1);
 
@@ -151,17 +218,20 @@ export class TurnHandler {
         result.reply.messages.join('\n'),
         outcome,
         {
-          model: result.model,
-          inputTokens: result.usage.inputTokens,
-          outputTokens: result.usage.outputTokens,
-          cacheReadTokens: result.usage.cacheReadTokens,
-          costUsd: result.usage.costUsd,
-          latencyMs: result.latencyMs,
+          bound,
+          usage: {
+            model: result.model,
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            cacheReadTokens: result.usage.cacheReadTokens,
+            costUsd: result.usage.costUsd,
+            latencyMs: result.latencyMs,
+          },
         },
       );
       const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
       await this.budget.recordSpend(inbound.tenantId, tokens, result.usage.costUsd);
-      if (result.reply.escalate) await this.store.markEscalated(conversation.id);
+      if (result.reply.escalate) await markEscalated();
     };
 
     if (winner === 'deadline') {
@@ -213,6 +283,7 @@ export class TurnHandler {
         },
         outcome: 'deferred',
         conversationId: conversation.id,
+        binding,
       };
     }
 
@@ -222,9 +293,9 @@ export class TurnHandler {
     if (winner.kind === 'error') {
       logger.error({ err: String(winner.error) }, 'model call failed');
       const reply = escalationReply('low_confidence', rules.messages.escalation);
-      await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'error');
-      await this.store.markEscalated(conversation.id);
-      return { reply, outcome: 'error', conversationId: conversation.id };
+      await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'error', turn);
+      await markEscalated();
+      return { reply, outcome: 'error', conversationId: conversation.id, binding };
     }
 
     // A failed call and a deliberate escalation both carry `escalate: true` and
@@ -239,6 +310,6 @@ export class TurnHandler {
     if (winner.result.interventions.length > 0) {
       logger.info({ interventions: winner.result.interventions }, 'guardrails intervened');
     }
-    return { reply: winner.result.reply, outcome, conversationId: conversation.id };
+    return { reply: winner.result.reply, outcome, conversationId: conversation.id, binding };
   }
 }

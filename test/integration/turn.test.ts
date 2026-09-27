@@ -7,13 +7,16 @@ import { RulesSchema } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { BudgetGuard } from '../../src/conversation/budget.ts';
+import { FakeContactFields } from '../helpers/manychat.ts';
 
 /** specs/004-testing.md P2 — the untested branches of the race. */
 
 let db: Database;
 let close: () => Promise<void>;
+let contactFields: FakeContactFields;
 beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
+  contactFields = new FakeContactFields();
 });
 afterEach(async () => {
   await close();
@@ -36,6 +39,8 @@ const inbound = (text: string, subscriberId = 's1'): InboundMessage => ({
   channel: 'whatsapp',
   contactName: null,
   locale: null,
+  // What ManyChat fills in from the contact's field (specs/019).
+  contactToken: contactFields.tokenOf(subscriberId),
   receivedAt: new Date(),
 });
 
@@ -63,6 +68,8 @@ const deps = (
   logger,
   raceDeadlineMs: over.raceDeadlineMs ?? 200,
   modelAbortMs: over.modelAbortMs ?? 5000,
+  tokenWriter: contactFields,
+  tokensEnforced: true,
 });
 
 const fast: AgentRunner = { run: () => Promise.resolve(result(['done'])) };

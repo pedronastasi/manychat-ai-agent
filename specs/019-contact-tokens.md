@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-09-27
+pr: 95
 constitution: [C5]
 adr: [0012, 0013]
 ---
@@ -68,7 +70,9 @@ next issue, so a message sent before the new one landed still binds.
   failed write. It is harmless, because the fresh token goes only to the real
   contact.
 - The first request for a contact with no token starts that contact's history,
-  and its turns are bound. That is the one place a forger can write: the first
+  and its turns are bound. It reads no earlier turns, even where the contact
+  has some: a token was never issued for them, so nothing proves they are this
+  caller's. That is the one place a forger can write: the first
   turn of a contact who has never written, listed in § What a holder of the
   shared secret can still do.
 - Every unbound turn is logged, so a flow that stopped sending the field shows up
@@ -81,8 +85,8 @@ as before this spec.
 ## Only bound turns enter history and the turn cap
 
 `018`'s history window and turn cap count bound turns only. Unbound turns do not
-count toward the cap; the per-contact rate limit bounds them. Until this spec is
-implemented, every turn counts as bound.
+count toward the cap; the per-contact rate limit bounds them. Every turn recorded
+before this spec is bound.
 
 ## Tokens reach existing contacts before they are required
 
@@ -92,11 +96,15 @@ everyone would lose context at once. The rollout is:
 
 1. Set `CONTACT_TOKENS_ENFORCED=false` in the deployment, then deploy. The
    default is `true`, so the order matters.
-2. Run the backfill. It issues a token to every contact with a turn in the past
-   `historyDays`.
+2. Run the backfill: `node dist/backfill.js` in the image, or
+   `pnpm tokens:backfill` from a checkout. It issues a token to every contact
+   with a turn in the past `historyDays`, skips any that already have one, and
+   leaves a failed write to the outbox worker, so it is safe to run again.
 3. Add `"ai_token": "{{ai_token}}"` to the Dynamic Block body in ManyChat.
-4. On devtest, check that entry and callback requests arrive bound, and that no
-   contact with a turn in the past `historyDays` lacks a token hash.
+4. On devtest, check that entry and callback requests arrive bound (`binding`
+   on the `turn complete` log line), and that no contact with a turn in the past
+   `historyDays` lacks a token hash (`--check` on the backfill exits non-zero
+   while any does).
 5. Set `CONTACT_TOKENS_ENFORCED=true` and restart.
 
 Until step 5 the old exposure remains, and `SECURITY.md` says so. After it, a
