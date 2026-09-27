@@ -61,6 +61,9 @@ exists, and which describe code that does not. It is generated - run
 - [`specs/015-test-service.md`](specs/015-test-service.md) defines the
   browser test page: off unless `DEMO_UI=true`, mock model only, and it drives
   the real ManyChat route rather than a shortcut around it.
+- [`specs/021-contributor-surface.md`](specs/021-contributor-surface.md)
+  defines how issues and questions are taken in: forms only, no blank issues,
+  and the same no-tenant-data acknowledgement a pull request carries.
 - Tests cite the spec clause they enforce. If a spec change breaks a test, that
   is a real finding — not a test to update mechanically.
 - New non-obvious decisions get an ADR. "Why not Redis" is more useful to the
