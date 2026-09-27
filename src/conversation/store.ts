@@ -65,9 +65,10 @@ export class ConversationStore {
       .onConflictDoUpdate({
         target: [conversations.tenantId, conversations.subscriberId],
         set: {
-          turnCount: sql`CASE WHEN ${conversations.lastMessageAt} <= ${sql.param(idleSince)} THEN 1 ELSE ${conversations.turnCount} + 1 END`,
+          // The column as encoder: postgres-js would send a bare Date as Date.toString().
+          turnCount: sql`CASE WHEN ${conversations.lastMessageAt} <= ${sql.param(idleSince, conversations.lastMessageAt)} THEN 1 ELSE ${conversations.turnCount} + 1 END`,
           // GREATEST: concurrent requests read their clocks in any order.
-          lastMessageAt: sql`GREATEST(${conversations.lastMessageAt}, ${sql.param(now)})`,
+          lastMessageAt: sql`GREATEST(${conversations.lastMessageAt}, ${sql.param(now, conversations.lastMessageAt)})`,
           updatedAt: sql`now()`,
         },
       })
