@@ -242,9 +242,9 @@ into the release path. When it is made, it is an added step keyed off
 `release-please`'s `release_created` output, and it does not change anything
 specified here.
 
-**Container images.** The deployment artefact is built outside this repository
-(`rossy-nails-deploy`). A release here is a source-level marker; what consumes
-it is that repository's concern. The one image this repository does build is
+**Container images.** The deployment artefact is built outside this repository,
+in each tenant's own deployment repository. A release here is a source-level
+marker; what consumes it is that repository's concern. The one image this repository does build is
 the test-service image of `015-test-service.md`, tagged by commit SHA, never
 by version, and never attached to a release.
 
