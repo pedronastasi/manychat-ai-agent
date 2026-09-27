@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-09-27
+pr: 99
 constitution: [C1, C2, C4, C5, C6, C7, C9]
 ---
 
@@ -24,8 +26,8 @@ that variable to `text` (`002`), so a voice note arrives as:
 ```
 
 ManyChat sends no field saying the message was media. Observed on a real
-deployment on 2026-09-27: audio arrives as `.ogg`, images as `.jpeg`, and the
-URL opens without authentication and does not expire.
+deployment on 2026-09-27: audio arrives as `.ogg`, images as `.jpeg`, videos
+as `.mp4`, and the URL opens without authentication and does not expire.
 
 Today that URL passes through as if it were typed. It is validated as text,
 stored as the contact's message, and handed to the model as their question. The
@@ -60,9 +62,9 @@ The `wa` segment is the WhatsApp channel. The extension decides the kind:
 | `.mp4`, `.3gp`          | `video`       | Frames and soundtrack, both (below) |
 | anything else           | `unsupported` | Fallback, never downloaded          |
 
-Only `.ogg` and `.jpeg` have been observed. The other extensions come from the
+Only `.ogg`, `.jpeg` and `.mp4` have been observed. The others come from the
 formats WhatsApp accepts (ManyChat's media guidelines, updated 2026-08-24), and
-are listed so a `.png` or `.mp4` is not mistaken for text.
+are listed so a `.png` or `.3gp` is not mistaken for text.
 
 A match sets `media: { kind, url }` on `InboundMessage`, which stays
 channel-neutral: nothing past the adapter knows what a ManyChat URL looks like.
@@ -161,9 +163,8 @@ bytes and fixed arguments:
 
 It takes at most 4 frames, the first at or after the middle of each quarter of
 the video, each scaled so its longest side is at most 768 pixels and never
-enlarged. Neither number was measured. They hold a
-video's cost near that of four images, whatever its length, and are revisited
-with a dated measurement from devtest before this spec is marked implemented.
+enlarged. Neither number was measured. They hold a video's cost near that of
+four images, whatever its length.
 
 Each half degrades on its own. The runner is told which halves it received, so
 the model never claims to have seen or heard what it was not given:
@@ -309,24 +310,23 @@ What this misses:
 - **The URL shape can change.** Every test uses the shape observed on
   2026-09-27. If ManyChat changes it, the tests still pass and media turns back
   into text. `media_url_unmatched` in the logs is the only warning.
-- **The route is unverified.** ManyChat documents `external_message_callback`
-  as firing on "text messages". Media was observed arriving, but which route
-  delivered it — the callback, or the Dynamic Block after ManyChat's default
-  reply — was not recorded. If only one route carries media, a contact on the
-  other gets no reply at all, and nothing here detects it.
+- **Voice notes and videos depend on the tenant's ManyChat flow.** Observed on
+  devtest on 2026-09-27: a reply step waiting for Text accepts an image URL but
+  rejects audio and video, which reach only ManyChat's Default Reply, where
+  `{{last_input_text}}` holds their URL. The flow must route that Default Reply
+  into the agent's request. It must also never reset the field the request sends
+  to `{{last_input_text}}` after the reply is saved: that replaces the media URL
+  with the contact's previous typed text. Either mistake looks, in the agent's
+  logs, like a contact repeating themselves. Nothing here detects it.
 - **No test proves a transcript is right.** The mock transcriber returns what
   the test gives it. Transcription quality in the tenant's language is checked
   by listening, not by the suite.
-- **No real WhatsApp video has been observed.** Only `.ogg` and `.jpeg` URLs
-  were seen. The video tests prove ffmpeg handles the committed clip, not that
-  WhatsApp's `.mp4` or `.3gp` files split the same way.
-- **The bucket's `Content-Type` was not recorded.** The download requires
-  `audio/*`, `image/*` or `video/*`. If the bucket serves a voice note as
-  `application/octet-stream`, every one escalates with outcome `error` and the
-  `media unreadable` log line names `content_type`. The first real voice note
-  on devtest settles it.
+- **No `.3gp` video has been observed.** Real voice notes, images and `.mp4`
+  videos were answered end to end in production on 2026-09-27; a `.3gp` has
+  never arrived.
 - **Four frames can miss what matters.** A detail shown for a moment between
-  two sampled frames never reaches the model, and no test can tell.
+  two sampled frames never reaches the model, and no test can tell. The frame
+  count and size were never measured against real video turns.
 - **Captions are lost before they reach us.** An image with a caption arrives
   as the URL alone, per a community report from January 2026. Nothing here
   recovers the caption.
