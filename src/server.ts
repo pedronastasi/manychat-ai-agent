@@ -14,17 +14,22 @@ import {
 import { ManyChatInbound, ManyChatResponse } from './contracts/manychat.ts';
 import { capabilitiesFor } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
+import type { TranscriptionModel } from 'ai';
 import type { Database } from './db/client.ts';
-import { resolveModel } from './agent/registry.ts';
+import { acceptsImages, resolveModel, resolveTranscriptionModel } from './agent/registry.ts';
 import { GenerateTextRunner } from './agent/runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
+import { SdkTranscriber } from './agent/transcriber.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { ManyChatHttpClient } from './channels/manychat/client.ts';
+import { ManyChatMediaFetcher } from './channels/manychat/media.ts';
 import type { ConfigStore } from './config/loader.ts';
+import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
+import { MediaResolver } from './media/resolver.ts';
 import { TurnHandler } from './routes/turn.ts';
 import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
 import { escalationReply } from './agent/guardrails.ts';
-import { REDACT_PATHS, redactText } from './observability/redact.ts';
+import { REDACT_PATHS, mediaScrubbingStream, redactText } from './observability/redact.ts';
 
 const MESSAGE_ROUTE = '/v1/channels/manychat/message';
 
@@ -36,8 +41,12 @@ export interface BuildOptions {
   runner?: AgentRunner;
   /** Injected by tests to read what the service logs. */
   logStream?: { write(line: string): void };
-  /** Injected by tests: the ManyChat HTTP boundary, faked like the model. */
+  /** Injected by tests: the ManyChat HTTP boundary, API and media host alike. */
   manychatFetch?: typeof fetch;
+  /** Injected by tests in place of resolving TRANSCRIPTION_MODEL: the model boundary. */
+  transcriptionModel?: TranscriptionModel;
+  /** Injected by tests to stand in for a server without ffmpeg. */
+  ffmpegPaths?: FfmpegPaths;
 }
 
 /**
@@ -55,7 +64,8 @@ export async function buildServer(opts: BuildOptions) {
       level: env.LOG_LEVEL,
       // Redaction lives here so no call site can forget it (Constitution C5).
       redact: { paths: REDACT_PATHS, remove: true },
-      ...(opts.logStream ? { stream: opts.logStream } : {}),
+      // And media URLs leave every line, whichever field carried them (specs/020).
+      stream: mediaScrubbingStream(opts.logStream ?? process.stdout),
     },
     // ManyChat payloads are small; a large body is a red flag, not a use case.
     bodyLimit: 64 * 1024,
@@ -105,6 +115,32 @@ export async function buildServer(opts: BuildOptions) {
       temperature: env.AGENT_TEMPERATURE,
       reasoningEffort: env.AGENT_REASONING_EFFORT,
     });
+
+  // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
+  // the deploy, and a missing ffmpeg is found at boot rather than per video.
+  const transcriber = env.TRANSCRIPTION_MODEL
+    ? new SdkTranscriber({
+        model: opts.transcriptionModel ?? resolveTranscriptionModel(env.TRANSCRIPTION_MODEL),
+        modelSpec: env.TRANSCRIPTION_MODEL,
+      })
+    : null;
+  const ffmpeg = await detectFfmpeg(opts.ffmpegPaths);
+  const media = new MediaResolver({
+    fetcher: new ManyChatMediaFetcher(opts.manychatFetch),
+    transcriber,
+    splitter: ffmpeg ? new FfmpegVideoSplitter(opts.ffmpegPaths) : null,
+    acceptsImages: acceptsImages(env.AGENT_MODEL),
+  });
+  // Each missing piece is a deliberate state, not an error: the media it
+  // would read asks the contact to type instead (specs/020).
+  app.log.info(
+    {
+      transcription: env.TRANSCRIPTION_MODEL ?? null,
+      images: acceptsImages(env.AGENT_MODEL),
+      ffmpeg,
+    },
+    'media capabilities',
+  );
 
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(underPressure, { maxEventLoopDelay: 1000, exposeStatusRoute: false });
@@ -220,6 +256,7 @@ export async function buildServer(opts: BuildOptions) {
       const inbound = adapter.parse(request.body, {
         tenantId: env.TENANT_ID,
         channel: env.CHANNEL,
+        logger: request.log,
       });
 
       // Constructed per request: `tenant()` re-reads config, which SIGHUP can
@@ -233,6 +270,7 @@ export async function buildServer(opts: BuildOptions) {
         logger: request.log,
         tokenWriter: manychatClient,
         tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
+        media,
       });
       const { reply, outcome, conversationId, binding } = await handler.handle(inbound);
 

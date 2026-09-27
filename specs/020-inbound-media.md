@@ -145,14 +145,23 @@ registry's providers accepts video, so sending it whole would tie video support
 to one provider. Frames work with any model that accepts images.
 
 The split is done by ffmpeg, installed in the runtime image from Alpine's
-package repository, where the image already gets `tini`. It reads from the
-downloaded bytes, never from a URL, with network protocols disabled
-(`-protocol_whitelist pipe`), and is killed by the turn's abort signal. The
+package repository, where the image already gets `tini`. It reads the
+downloaded bytes, never a URL, and is killed by the turn's abort signal. The
 file is untrusted input to a media parser, so nothing is passed to it but the
-bytes and fixed arguments.
+bytes and fixed arguments:
 
-It takes at most 4 frames, evenly spaced across the video, each scaled so its
-longest side is at most 768 pixels. Neither number was measured. They hold a
+- The bytes are written to a private temporary directory, removed when the
+  split ends, not piped. An MP4 whose index (`moov`) follows its data cannot be
+  read from a pipe once it outgrows ffmpeg's buffer. Measured 2026-09-27: a
+  9 MB clip failed from a pipe with "Invalid data found when processing input",
+  and split cleanly from a file.
+- `-protocol_whitelist file` leaves no network protocol to open.
+- `-f mov` forces the MP4/3GP demuxer, so a playlist or script dressed as a
+  video is refused rather than followed to what it lists.
+
+It takes at most 4 frames, the first at or after the middle of each quarter of
+the video, each scaled so its longest side is at most 768 pixels and never
+enlarged. Neither number was measured. They hold a
 video's cost near that of four images, whatever its length, and are revisited
 with a dated measurement from devtest before this spec is marked implemented.
 
@@ -235,13 +244,19 @@ a slow model call already does. That includes an escalation the transcript
 produces. No new timeout is introduced: the abort signal that bounds a runaway
 model call also bounds a runaway download.
 
+A reply decided without the model keeps its own outcome when it lands after the
+deadline: a fallback is recorded as `media_fallback` and a keyword handoff as
+`escalated_precheck`, never as `deferred`, which describes a slow model.
+
 A text turn is unchanged.
 
 ## The URL never reaches storage or logs
 
-`messages` stores the transcript or the marker, never the URL, and gains a
-nullable `media_kind` column (`audio`, `image`, `video`, `unsupported`), so a
-transcript can be told apart from typed text.
+The contact's row in `turns` holds the transcript or the marker, never the URL.
+It is written with the marker when the turn starts, so the message keeps its
+place in the conversation, and the marker is replaced once there is a
+transcript. `turns` gains a nullable `media_kind` column (`audio`, `image`,
+`video`, `unsupported`), so a transcript can be told apart from typed text.
 
 The logger redacts the media URL shape wherever it appears, rather than relying
 on each call site to leave it out (C5). The redaction test gains an invented
@@ -305,6 +320,11 @@ What this misses:
 - **No real WhatsApp video has been observed.** Only `.ogg` and `.jpeg` URLs
   were seen. The video tests prove ffmpeg handles the committed clip, not that
   WhatsApp's `.mp4` or `.3gp` files split the same way.
+- **The bucket's `Content-Type` was not recorded.** The download requires
+  `audio/*`, `image/*` or `video/*`. If the bucket serves a voice note as
+  `application/octet-stream`, every one escalates with outcome `error` and the
+  `media unreadable` log line names `content_type`. The first real voice note
+  on devtest settles it.
 - **Four frames can miss what matters.** A detail shown for a moment between
   two sampled frames never reaches the model, and no test can tell.
 - **Captions are lost before they reach us.** An image with a caption arrives

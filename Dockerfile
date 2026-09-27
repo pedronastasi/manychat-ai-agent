@@ -21,7 +21,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Runs as an unprivileged user. node:alpine ships a `node` user for this.
-RUN apk add --no-cache tini && chown -R node:node /app
+# ffmpeg splits an inbound video into frames and a soundtrack (specs/020);
+# without it every video gets the media fallback.
+RUN apk add --no-cache tini ffmpeg && chown -R node:node /app
 
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist

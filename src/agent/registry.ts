@@ -1,5 +1,5 @@
 import { createProviderRegistry } from 'ai';
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, TranscriptionModel } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
@@ -66,6 +66,41 @@ export function supportsTemperature(modelId: string): boolean {
   return !REASONING_MODEL.test(modelId);
 }
 
+/** OpenAI models that take no image input. */
+const TEXT_ONLY_OPENAI = /^openai:(gpt-3\.5|o1-mini|o3-mini)/;
+
+/**
+ * Whether the answering model accepts images (specs/020). A model that does
+ * not sends images and video frames to the media fallback.
+ *
+ * Every hosted provider in the registry takes images on its current models.
+ * An Ollama model is assumed not to: most local models have no vision, and a
+ * wrong `true` fails the turn, where a wrong `false` only asks the contact to
+ * type (specs/007). An unknown provider is treated the same way.
+ */
+export function acceptsImages(modelId: string): boolean {
+  if (TEXT_ONLY_OPENAI.test(modelId)) return false;
+  return /^(anthropic|openai|google|mock):/.test(modelId);
+}
+
+/**
+ * Per-minute transcription prices, USD. Beside token pricing for the same
+ * reason: they feed the daily budget cap, so a stale value mis-caps spend.
+ */
+const TRANSCRIPTION_PRICING: Record<string, number> = {
+  'openai:gpt-4o-mini-transcribe': 0.003,
+  'openai:gpt-4o-transcribe': 0.006,
+  'openai:whisper-1': 0.006,
+};
+
+/** Deliberately pessimistic, like FALLBACK_PRICING. */
+const FALLBACK_TRANSCRIPTION_PER_MINUTE = 0.02;
+
+export function transcriptionCostUsd(modelId: string, seconds: number): number {
+  const perMinute = TRANSCRIPTION_PRICING[modelId] ?? FALLBACK_TRANSCRIPTION_PER_MINUTE;
+  return (seconds / 60) * perMinute;
+}
+
 export function estimateCostUsd(
   modelId: string,
   usage: {
@@ -85,10 +120,10 @@ export function estimateCostUsd(
 }
 
 export class UnknownProviderError extends Error {
-  constructor(spec: string, cause: unknown) {
+  constructor(spec: string, cause: unknown, variable = 'AGENT_MODEL') {
     super(
       `Cannot resolve model '${spec}'. Expected "provider:model" where provider is one of ` +
-        `anthropic, openai, google, ollama. Check AGENT_MODEL and that the provider's API key is set.`,
+        `anthropic, openai, google, ollama. Check ${variable} and that the provider's API key is set.`,
       { cause },
     );
     this.name = 'UnknownProviderError';
@@ -111,5 +146,18 @@ export function resolveModel(spec: string): LanguageModel {
     return registry.languageModel(spec as Parameters<typeof registry.languageModel>[0]);
   } catch (cause) {
     throw new UnknownProviderError(spec, cause);
+  }
+}
+
+/**
+ * Resolves TRANSCRIPTION_MODEL, at startup for the same reason as
+ * `resolveModel`. Not every provider transcribes (Anthropic does not), and one
+ * that does not fails here rather than on the first voice note.
+ */
+export function resolveTranscriptionModel(spec: string): TranscriptionModel {
+  try {
+    return registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]);
+  } catch (cause) {
+    throw new UnknownProviderError(spec, cause, 'TRANSCRIPTION_MODEL');
   }
 }

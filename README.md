@@ -149,6 +149,7 @@ src/
   agent/          registry (the only provider import), runner, prompt, guardrails
   channels/       the port, plus the ManyChat adapter and a local simulator
   conversation/   store, rate limits, budget caps
+  media/          voice notes, images and videos: resolver and ffmpeg splitter
   outbox/         deferred delivery
   routes/         auth, the turn handler with the race
 evals/            golden set + runner
@@ -409,6 +410,24 @@ are in
 [spec 019](specs/019-contact-tokens.md#tokens-reach-existing-contacts-before-they-are-required);
 `pnpm tokens:backfill` (`node dist/backfill.js` in the image) is step 2, and its
 `--check` is step 4.
+
+### Voice notes, images and videos
+
+WhatsApp media reaches the service as a link in `text`. The service downloads
+the file itself, and the link is never stored, logged or shown to the model
+([spec 020](specs/020-inbound-media.md)):
+
+- **A voice note** is transcribed by `TRANSCRIPTION_MODEL` and then treated as
+  typed text, escalation keywords included.
+- **An image** goes to the answering model once, as bytes. History keeps
+  `[image]` in its place.
+- **A video** is split by ffmpeg, which is part of the image, into up to four
+  frames and a transcript of its soundtrack.
+
+Whatever it cannot read gets `rules.messages.mediaFallback`, which asks the
+contact to type. Without that message, the turn hands off to a person. A failed
+download or transcription always hands off. The boot log's `media
+capabilities` line shows what this server can read.
 
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in

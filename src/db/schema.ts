@@ -65,6 +65,12 @@ export const turns = pgTable(
      * history or the turn cap (specs/019); turns from before it are all bound.
      */
     bound: boolean('bound').notNull().default(true),
+    /**
+     * What the contact sent when it was not typed text, so a transcript can be
+     * told apart from a typed message. `text` then holds the transcript or a
+     * marker such as `[image]`, never the media URL (specs/020).
+     */
+    mediaKind: text('media_kind', { enum: ['audio', 'image', 'video', 'unsupported'] }),
 
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),

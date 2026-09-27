@@ -27,6 +27,57 @@ export class FakeContactFields implements ContactTokenWriter {
   }
 }
 
+/**
+ * An invented media URL in the shape observed on 2026-09-27 (specs/020). The
+ * account ID, date and hash are made up: a real one opens a contact's file for
+ * good and names the tenant's ManyChat account (C1, C5).
+ */
+export const mediaUrl = (extension: string, hash = '0123456789abcdef0123456789abcdef') =>
+  `https://manybot-files.s3.eu-central-1.amazonaws.com/100000000000001/wa/2026/01/15/original_${hash}.${extension}`;
+
+export interface FakeMediaFile {
+  status?: number;
+  contentType?: string | null;
+  body?: Uint8Array;
+  /** Sent as Content-Length when set, whatever the body's real size. */
+  contentLength?: number;
+  location?: string;
+  /** Holds the response back, honouring the request's abort signal as fetch does. */
+  delayMs?: number;
+}
+
+/**
+ * ManyChat's media host, faked at the HTTP boundary like the API (specs/004).
+ * Answers with real `Response` objects, so status, headers and streaming
+ * bodies behave as fetch's do.
+ */
+export function fakeMediaHost() {
+  const files = new Map<string, FakeMediaFile>();
+  const requested: { url: string; redirect: string | undefined }[] = [];
+
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    requested.push({ url: String(url), redirect: init?.redirect });
+    const file = files.get(String(url));
+    if (!file) return new Response('not found', { status: 404 });
+    if (file.delayMs) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, file.delayMs);
+        init?.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        });
+      });
+    }
+    const headers = new Headers();
+    if (file.contentType !== null) headers.set('content-type', file.contentType ?? 'audio/ogg');
+    if (file.contentLength !== undefined) headers.set('content-length', String(file.contentLength));
+    if (file.location) headers.set('location', file.location);
+    return new Response(file.body ?? null, { status: file.status ?? 200, headers });
+  }) as unknown as typeof fetch;
+
+  return { fetch: fetchImpl, files, requested };
+}
+
 export interface ManyChatCall {
   path: string;
   body: Record<string, unknown>;
@@ -41,8 +92,11 @@ export function fakeManyChatApi() {
   const calls: ManyChatCall[] = [];
   const fields = new Map<string, Map<string, string>>();
   const state = { failing: false };
+  const media = fakeMediaHost();
 
-  const fetchImpl = ((url: string, init: { body: string }) => {
+  const fetchImpl = ((url: string, init: { body?: string }) => {
+    // A GET with no body is a media download, the other half of the boundary.
+    if (init.body === undefined) return media.fetch(url, init);
     const path = new URL(url).pathname;
     const body = JSON.parse(init.body) as Record<string, unknown>;
     calls.push({ path, body });
@@ -66,6 +120,7 @@ export function fakeManyChatApi() {
     fetch: fetchImpl,
     calls,
     state,
+    media,
     fieldOf: (subscriberId: string, field = 'ai_token') =>
       fields.get(subscriberId)?.get(field) ?? null,
     /**

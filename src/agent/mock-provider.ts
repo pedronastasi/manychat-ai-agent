@@ -145,17 +145,33 @@ function respondTo(text: string): string {
   );
 }
 
-function lastUserText(options: LanguageModelV4CallOptions): string {
+/**
+ * The contact's words from the last user message, and whether it carried an
+ * image. A media turn also carries the server's MEDIA note; routing on it
+ * would answer the note rather than the contact (specs/020).
+ */
+function lastUserMessage(options: LanguageModelV4CallOptions): { text: string; image: boolean } {
   for (let index = options.prompt.length - 1; index >= 0; index--) {
     const entry = options.prompt[index];
     if (entry?.role === 'user') {
-      const content = entry.content;
-      if (typeof content === 'string') return content;
-      return content.map(part => (part.type === 'text' ? part.text : '')).join(' ');
+      const texts = entry.content.flatMap(part => (part.type === 'text' ? [part.text] : []));
+      const fenced = texts.filter(text => text.includes(FENCE));
+      return {
+        text: (fenced.length > 0 ? fenced : texts).join(' '),
+        image: fenced.length === 0 && entry.content.some(part => part.type === 'file'),
+      };
     }
   }
-  return '';
+  return { text: '', image: false };
 }
+
+/** An image with no words: a correct agent asks what the contact wants to know. */
+const IMAGE_REPLY = reply(
+  ['Thanks for the picture!', 'Which course would you like to know about?'],
+  false,
+  null,
+  0.85,
+);
 
 export function createMockModel(modelId: string): LanguageModelV4 {
   return {
@@ -165,7 +181,8 @@ export function createMockModel(modelId: string): LanguageModelV4 {
     supportedUrls: {},
 
     doGenerate: async (options: LanguageModelV4CallOptions) => {
-      const text = respondTo(lastUserText(options));
+      const message = lastUserMessage(options);
+      const text = message.image ? IMAGE_REPLY : respondTo(message.text);
       // `mock:slow` deliberately exceeds the race deadline so the deferred path
       // can be exercised without a real slow provider.
       if (modelId === 'slow') {
