@@ -34,12 +34,14 @@ test fails the suite.
 | [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95  | 7     | C5                         | [0012], [0013]                 |
 | [020 — Inbound Media](020-inbound-media.md)                             | implemented | 2026-09-27  | #99  | 6     | C1, C2, C4, C5, C6, C7, C9 | —                              |
 | [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                     | —                              |
+| [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | specified   | —           | —    | —     | C5, C7                     | [0001], [0008], [0012]         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
 [0003]: ../docs/adr/0003-contract-first-with-zod.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
 [0005]: ../docs/adr/0005-channel-port-single-adapter.md
+[0008]: ../docs/adr/0008-classes-for-port-implementations.md
 [0010]: ../docs/adr/0010-bounded-tool-loop-with-staged-actions.md
 [0011]: ../docs/adr/0011-model-graded-evals-behind-calibration.md
 [0012]: ../docs/adr/0012-contact-tokens-held-in-manychat.md
