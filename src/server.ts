@@ -36,6 +36,8 @@ export interface BuildOptions {
   runner?: AgentRunner;
   /** Injected by tests to read what the service logs. */
   logStream?: { write(line: string): void };
+  /** Injected by tests: the ManyChat HTTP boundary, faked like the model. */
+  manychatFetch?: typeof fetch;
 }
 
 /**
@@ -75,6 +77,8 @@ export async function buildServer(opts: BuildOptions) {
         baseUrl: env.MANYCHAT_API_BASE,
         replyField: env.MANYCHAT_REPLY_FIELD,
         replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
+        tokenField: env.MANYCHAT_TOKEN_FIELD,
+        ...(opts.manychatFetch ? { fetchImpl: opts.manychatFetch } : {}),
       })
     : {
         // Without a token the deferred path cannot deliver. Fail loudly at use
@@ -83,6 +87,8 @@ export async function buildServer(opts: BuildOptions) {
           Promise.reject(
             new Error('MANYCHAT_API_TOKEN is not set; cannot deliver deferred replies'),
           ),
+        writeToken: () =>
+          Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot write contact tokens')),
       };
 
   const adapter = new ManyChatAdapter(manychatClient);
@@ -135,6 +141,8 @@ export async function buildServer(opts: BuildOptions) {
     // The secret this caller presented, not always the first: handing back
     // secrets[0] gave a caller holding a retired secret its replacement.
     callbackSecret: presentedSecret,
+    // ManyChat fills the contact's token in, so a callback binds like an entry.
+    contactTokenField: env.MANYCHAT_TOKEN_FIELD,
   });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
@@ -223,13 +231,16 @@ export async function buildServer(opts: BuildOptions) {
         raceDeadlineMs: env.RACE_DEADLINE_MS,
         modelAbortMs: env.MODEL_ABORT_MS,
         logger: request.log,
+        tokenWriter: manychatClient,
+        tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
       });
-      const { reply, outcome, conversationId } = await handler.handle(inbound);
+      const { reply, outcome, conversationId, binding } = await handler.handle(inbound);
 
       // The conversation's random ID, never anything derived from the
-      // subscriber ID (ADR-0014).
+      // subscriber ID (ADR-0014). `binding` gives the share of unbound turns
+      // that shows a flow has stopped sending the token (specs/019).
       request.log.info(
-        { conversation: conversationId, outcome, escalated: reply.escalate },
+        { conversation: conversationId, outcome, binding, escalated: reply.escalate },
         'turn complete',
       );
 

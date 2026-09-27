@@ -38,6 +38,7 @@ function clientCapturing(
     apiToken: 'tok',
     replyField: 'ai_message',
     replyFlowNs: 'content123_456',
+    tokenField: 'ai_token',
     requestsPerSecond: 1000,
     fetchImpl,
   });
@@ -147,6 +148,7 @@ describe('deferred delivery', () => {
       baseUrl: 'https://proxy.example.com/',
       replyField: 'ai_message',
       replyFlowNs: 'flow',
+      tokenField: 'ai_token',
       requestsPerSecond: 1000,
       fetchImpl: ((url: string, init: { headers: Record<string, string>; body: string }) => {
         calls.push({
@@ -159,5 +161,27 @@ describe('deferred delivery', () => {
     });
     await client.sendText('123', ['hello']);
     expect(calls[0]!.url).toBe('https://proxy.example.com/fb/subscriber/setCustomFieldByName');
+  });
+});
+
+describe("specs/019 § Each contact's token lives in ManyChat, never in a response", () => {
+  it("writes the token to the contact's own field through the per-subscriber endpoint", async () => {
+    const calls: Call[] = [];
+    await clientCapturing(calls).writeToken('123', 'the-token');
+    expect(calls).toEqual([
+      {
+        url: 'https://api.manychat.com/fb/subscriber/setCustomFieldByName',
+        headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
+        body: { subscriber_id: '123', field_name: 'ai_token', field_value: 'the-token' },
+      },
+    ]);
+  });
+
+  it('throws on a refused write, so the outbox retries it', async () => {
+    const failing = clientCapturing([], { ok: false, status: 503, text: 'down' });
+    await expect(failing.writeToken('123', 'the-token')).rejects.toMatchObject({
+      status: 503,
+      retryable: true,
+    });
   });
 });

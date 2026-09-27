@@ -5,6 +5,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { loadEnv, ConfigStore, ConfigError } from '../../src/config/loader.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
+import { fakeManyChatApi } from '../helpers/manychat.ts';
 
 /**
  * specs/017-inbound-request-trust.md. Every app here comes from `buildServer`,
@@ -77,6 +78,7 @@ async function makeApp(
     db: options.database ?? db,
     configStore: new ConfigStore('test/fixtures/config'),
     runner: options.runner ?? fastRunner,
+    manychatFetch: fakeManyChatApi().fetch,
     ...(logs ? { logStream: { write: (line: string) => void logs.push(line) } } : {}),
   });
   await app.ready();

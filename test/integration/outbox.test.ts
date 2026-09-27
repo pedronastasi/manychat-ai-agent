@@ -68,6 +68,7 @@ function stubClient(behaviour: (subscriberId: string) => void = () => {}): ManyC
       sent.push({ subscriberId, messages });
       return Promise.resolve();
     },
+    writeToken: () => Promise.resolve(),
   };
 }
 
@@ -199,6 +200,7 @@ describe('drainOnce', () => {
             ? new ManyChatApiError(503, 'unavailable', true)
             : new ManyChatApiError(400, 'bad request', false),
         ),
+      writeToken: () => Promise.resolve(),
     };
 
     const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
@@ -207,7 +209,10 @@ describe('drainOnce', () => {
 
   it('treats an unknown error as retryable rather than discarding the reply', async () => {
     await enqueue();
-    const client: ManyChatClient = { sendText: () => Promise.reject(new Error('socket hang up')) };
+    const client: ManyChatClient = {
+      sendText: () => Promise.reject(new Error('socket hang up')),
+      writeToken: () => Promise.resolve(),
+    };
     const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result.retrying).toBe(1);
     expect(result.deadLettered).toBe(0);
@@ -218,6 +223,7 @@ describe('drainOnce', () => {
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const client: ManyChatClient = {
       sendText: () => Promise.reject(new ManyChatApiError(401, 'unauthorized', false)),
+      writeToken: () => Promise.resolve(),
     };
     await new OutboxWorker({ db, client, logger }).drainOnce();
     expect(logger.error).toHaveBeenCalledOnce();

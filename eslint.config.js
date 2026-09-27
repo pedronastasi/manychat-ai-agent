@@ -41,6 +41,7 @@ export default tseslint.config(
       'evals/**/*.ts',
       'scripts/**/*.ts',
       'src/channels/manychat/simulator.ts',
+      'src/backfill.ts',
       '*.config.ts',
     ],
     rules: { 'no-console': 'off' },

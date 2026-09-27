@@ -22,6 +22,13 @@
       "when": 1790390862464,
       "tag": "0002_bumpy_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790393005620,
+      "tag": "0003_worthless_swarm",
+      "breakpoints": true
     }
   ]
 }
