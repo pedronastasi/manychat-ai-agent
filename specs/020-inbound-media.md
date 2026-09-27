@@ -39,8 +39,8 @@ unauthenticated link to the contact's voice or photo. It also puts what the
 server fetches, and how large it is, in the model provider's hands.
 
 So the server resolves the URL itself, before anything else reads the message.
-The model receives a transcript or an image. The URL is never stored and never
-logged.
+The model receives a transcript, an image, or both for a video. The URL is
+never stored and never logged.
 
 ## Media is recognised by exact host and path, in the ManyChat adapter
 
@@ -53,19 +53,16 @@ https://manybot-files.s3.eu-central-1.amazonaws.com/<digits>/wa/<yyyy>/<mm>/<dd>
 
 The `wa` segment is the WhatsApp channel. The extension decides the kind:
 
-| Extension               | Kind          | Handling                       |
-| ----------------------- | ------------- | ------------------------------ |
-| `.ogg`                  | `audio`       | Transcribed (below)            |
-| `.mp4`                  | `video`       | Soundtrack transcribed (below) |
-| `.jpeg`, `.jpg`, `.png` | `image`       | Sent to the model (below)      |
-| `.3gp`                  | `video`       | Fallback, never downloaded     |
-| anything else           | `unsupported` | Fallback, never downloaded     |
+| Extension               | Kind          | Handling                            |
+| ----------------------- | ------------- | ----------------------------------- |
+| `.ogg`                  | `audio`       | Transcribed (below)                 |
+| `.jpeg`, `.jpg`, `.png` | `image`       | Sent to the model (below)           |
+| `.mp4`, `.3gp`          | `video`       | Frames and soundtrack, both (below) |
+| anything else           | `unsupported` | Fallback, never downloaded          |
 
 Only `.ogg` and `.jpeg` have been observed. The other extensions come from the
 formats WhatsApp accepts (ManyChat's media guidelines, updated 2026-08-24), and
-are listed so a `.png` or `.mp4` is not mistaken for text. `.3gp` is a video
-container transcription APIs do not commonly accept, so it is recognised and
-then sent to the fallback rather than converted.
+are listed so a `.png` or `.mp4` is not mistaken for text.
 
 A match sets `media: { kind, url }` on `InboundMessage`, which stays
 channel-neutral: nothing past the adapter knows what a ManyChat URL looks like.
@@ -87,33 +84,22 @@ message would get:
 - it is recorded as the contact's message, enters history and counts toward
   the turn cap.
 
-The runner is told the message was a transcribed voice note or video, so the
-prompt can tell the model that a name or a number in it may have been misheard,
-and to confirm rather than assume.
+The runner is told the message was a transcript, so the prompt can tell the
+model that a name or a number in it may have been misheard, and to confirm
+rather than assume.
 
-A video is handled by its soundtrack alone. The `.mp4` is sent to the
-transcription model as it is, with no conversion. A contact who records a
-spoken question on camera gets the same answer a voice note would get. What the
-video only shows, never says, is lost, and the runner is told the transcript
-came from a video, so the model does not claim to have seen it.
-
-The answering model does not receive the video itself. Only one of the
-registry's providers accepts video, it would be the most expensive input the
-agent takes, and the soundtrack carries the case that matters: a question.
-
-An empty transcript, from a silent video or a voice note with nothing said, is
-not a failure. The contact sent something the agent cannot read, so it takes
-the fallback below.
+An empty transcript, from a voice note with nothing said, is not a failure. The
+contact sent something the agent cannot read, so it takes the fallback below.
 
 The opening trigger (`001`) never matches a transcript. That sentinel is sent by
 the tenant's flow, not spoken by a contact.
 
 Transcription uses `TRANSCRIPTION_MODEL`, in the same `provider:model` form as
 `AGENT_MODEL`, and resolved only in `registry.ts` (C2). It is a second model,
-not a setting on the first: the default answering model takes no audio, and
-voice support should not depend on which model answers. When
-`TRANSCRIPTION_MODEL` is unset, voice notes and videos take the fallback. That
-keeps `pnpm dev` working with no key.
+not a setting on the first: not every answering model takes audio, and voice
+support should not depend on which model answers. When
+`TRANSCRIPTION_MODEL` is unset, voice notes take the fallback. That keeps
+`pnpm dev` working with no key.
 
 Transcription cost is recorded as spend and counts against the daily budget.
 Its pricing sits in the registry beside token pricing, and an unknown model
@@ -141,6 +127,53 @@ the `provider:model` string like `supportsTemperature`. A model that does not
 accept them, such as a local model without vision (`007`), sends images to the
 fallback.
 
+## A video is read as still frames and a transcript of its soundtrack
+
+A contact who films a nail design and asks "can I learn this?" needs the model
+to see the design and hear the question. The soundtrack alone loses the first;
+the frames alone lose the second. So a video is split into both, and each goes
+where the same content would go if the contact had sent it separately:
+
+- **Frames** go to the answering model as images, under every rule of the image
+  section above, including that nothing in them is evidence of a catalog fact.
+- **The soundtrack** goes to `TRANSCRIPTION_MODEL`, and its transcript is
+  treated like a voice note's: keywords, fencing, history and the turn cap.
+
+The answering model does not receive the video file itself. Only one of the
+registry's providers accepts video, so sending it whole would tie video support
+to one provider. Frames work with any model that accepts images.
+
+The split is done by ffmpeg, installed in the runtime image from Alpine's
+package repository, where the image already gets `tini`. It reads from the
+downloaded bytes, never from a URL, with network protocols disabled
+(`-protocol_whitelist pipe`), and is killed by the turn's abort signal. The
+file is untrusted input to a media parser, so nothing is passed to it but the
+bytes and fixed arguments.
+
+It takes at most 4 frames, evenly spaced across the video, each scaled so its
+longest side is at most 768 pixels. Neither number was measured. They hold a
+video's cost near that of four images, whatever its length, and are revisited
+with a dated measurement from devtest before this spec is marked implemented.
+
+Each half degrades on its own. The runner is told which halves it received, so
+the model never claims to have seen or heard what it was not given:
+
+| Answering model accepts images | `TRANSCRIPTION_MODEL` set | The model receives    |
+| ------------------------------ | ------------------------- | --------------------- |
+| yes                            | yes                       | frames and transcript |
+| yes                            | no                        | frames only           |
+| no                             | yes                       | transcript only       |
+| no                             | no                        | nothing: fallback     |
+
+A silent video is not a failure: the model gets the frames, and it takes the
+fallback only when there are no frames either. A server without ffmpeg sends
+every video to the fallback, and logs that once at boot, the way an unset
+`TRANSCRIPTION_MODEL` is a deliberate state rather than an error.
+
+The contact's message is recorded as the transcript with `media_kind = 'video'`,
+or as `[video]` when there is none. Frames are never stored, and later turns do
+not see them, for the same reason an image is sent once.
+
 ## Media the agent cannot read gets the tenant's "please type it" reply
 
 The fallback reply is `rules.messages.mediaFallback`: tenant copy, not source
@@ -156,19 +189,22 @@ person (C6).
 
 ## A failure we caused hands off; a format we don't support asks the contact to type
 
-| What happened                                           | Result              |
-| ------------------------------------------------------- | ------------------- |
-| `.3gp` or an unrecognised extension                     | Fallback            |
-| Audio or video with no `TRANSCRIPTION_MODEL` configured | Fallback            |
-| Empty transcript                                        | Fallback            |
-| Answering model does not accept images                  | Fallback            |
-| Download fails, wrong `Content-Type`, redirect          | Escalation, `error` |
-| File over the size limit                                | Escalation, `error` |
-| Transcription fails                                     | Escalation, `error` |
+| What happened                                                  | Result              |
+| -------------------------------------------------------------- | ------------------- |
+| Unrecognised extension                                         | Fallback            |
+| Voice note with no `TRANSCRIPTION_MODEL`, or empty transcript  | Fallback            |
+| Image when the answering model does not accept images          | Fallback            |
+| Video with neither frames nor transcript available (see above) | Fallback            |
+| Server has no ffmpeg (video only)                              | Fallback            |
+| Download fails, wrong `Content-Type`, redirect                 | Escalation, `error` |
+| File over the size limit                                       | Escalation, `error` |
+| Transcription fails                                            | Escalation, `error` |
+| ffmpeg fails on a video                                        | Escalation, `error` |
 
 The fallback asks the contact to do something they can do: type the question.
-A failed download or transcription is not something the contact can fix, and
-asking them to type would blame them for our failure. Those hand off (C6).
+A failed download, transcription or frame extraction is not something the
+contact can fix, and asking them to type would blame them for our failure.
+Those hand off (C6).
 
 The size limits are WhatsApp's own: 5 MB for an image and 16 MB for audio or
 video (ManyChat's media guidelines, updated 2026-08-24). A file over them
@@ -187,7 +223,7 @@ For a media turn, the order is:
 1. Rate limit, turn cap and budget: these need no text, so a contact who is
    already over a limit costs no download.
 2. The deadline starts.
-3. Download, then transcription for audio and video.
+3. Download; for a video, frame and soundtrack extraction; then transcription.
 4. Escalation keywords, now on the transcript.
 5. The model.
 
@@ -233,15 +269,19 @@ contact's file for good (C1, C5).
    escalates.
 4. **An image test** asserts the runner receives image bytes, the row holds
    `[image]`, and the next turn's history contains the marker and no image.
-5. **A video test** asserts an `.mp4` is transcribed like a voice note and the
-   row holds the transcript with `media_kind = 'video'`.
-6. **Fallback tests** assert a `.3gp` makes no fetch, and that it, an empty
-   transcript and an unset `TRANSCRIPTION_MODEL` each reply with
-   `mediaFallback` and record `media_fallback`. Without `mediaFallback`, the
-   turn escalates.
+5. **Video tests**, one per row of the degradation table, run ffmpeg on a
+   small invented clip committed as a fixture. Each asserts which of frames and
+   transcript the runner receives, that it is told which it received, that at
+   most 4 frames arrive, and that the row holds the transcript or `[video]` with
+   `media_kind = 'video'`. A clip with no audio track still reaches the model
+   as frames.
+6. **Fallback tests** assert an unrecognised extension makes no fetch, and that
+   it, an empty voice-note transcript, an unset `TRANSCRIPTION_MODEL` and a
+   missing ffmpeg each reply with `mediaFallback` and record `media_fallback`.
+   Without `mediaFallback`, the turn escalates.
 7. **Failure tests**: a 500 from the fetch, a redirect, a wrong
-   `Content-Type`, an oversized body and a throwing transcriber each produce an
-   escalation with outcome `error`.
+   `Content-Type`, an oversized body, a throwing transcriber and a corrupt
+   video ffmpeg rejects each produce an escalation with outcome `error`.
 8. **A race test**: a transcriber slower than the deadline produces the
    acknowledgement, and the reply lands in the outbox.
 9. **The redaction test** asserts an invented media URL is scrubbed.
@@ -260,8 +300,12 @@ What this misses:
   other gets no reply at all, and nothing here detects it.
 - **No test proves a transcript is right.** The mock transcriber returns what
   the test gives it. Transcription quality in the tenant's language is checked
-  by listening, not by the suite. Nor does any test prove a real `.mp4` from
-  WhatsApp transcribes: only the `.ogg` and `.jpeg` shapes were observed.
+  by listening, not by the suite.
+- **No real WhatsApp video has been observed.** Only `.ogg` and `.jpeg` URLs
+  were seen. The video tests prove ffmpeg handles the committed clip, not that
+  WhatsApp's `.mp4` or `.3gp` files split the same way.
+- **Four frames can miss what matters.** A detail shown for a moment between
+  two sampled frames never reaches the model, and no test can tell.
 - **Captions are lost before they reach us.** An image with a caption arrives
   as the URL alone, per a community report from January 2026. Nothing here
   recovers the caption.
