@@ -35,8 +35,13 @@ export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatR
       url: ctx.callbackUrl,
       method: 'post',
       ...(ctx.callbackSecret ? { headers: { Authorization: `Bearer ${ctx.callbackSecret}` } } : {}),
-      // ManyChat substitutes the contact's next message into this field.
-      payload: { text: '{{last_input_text}}', subscriber_id: '{{contact.id}}' },
+      // ManyChat substitutes the contact's next message, and their token from
+      // their own custom field, when it calls back (specs/019).
+      payload: {
+        text: '{{last_input_text}}',
+        subscriber_id: '{{contact.id}}',
+        ...(ctx.contactTokenField ? { ai_token: `{{${ctx.contactTokenField}}}` } : {}),
+      },
       timeout: ctx.callbackTimeoutSeconds ?? 86_400,
     };
   }
@@ -65,6 +70,8 @@ export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse
       channel: parsed.channel ?? ctx.channel,
       contactName: name.length > 0 ? name : null,
       locale: parsed.locale ?? null,
+      // An empty field arrives as an empty string, which is no token at all.
+      contactToken: parsed.ai_token || null,
       receivedAt: new Date(),
     };
   }

@@ -93,7 +93,7 @@ describe('Dynamic Block v2 rendering', () => {
 });
 
 describe('inbound parsing', () => {
-  const adapter = new ManyChatAdapter({ sendText: async () => {} });
+  const adapter = new ManyChatAdapter({ sendText: async () => {}, writeToken: async () => {} });
   const ctx = { tenantId: 'demo', channel: 'whatsapp' };
 
   it('normalizes a ManyChat payload', () => {
@@ -117,5 +117,37 @@ describe('inbound parsing', () => {
 
   it('rejects a payload with no subscriber id', () => {
     expect(() => adapter.parse({ text: 'hi' }, ctx)).toThrow();
+  });
+});
+
+describe("specs/019 § Each contact's token lives in ManyChat, never in a response", () => {
+  const adapter = new ManyChatAdapter({ sendText: async () => {}, writeToken: async () => {} });
+  const ctx = { tenantId: 'demo', channel: 'whatsapp' };
+
+  it('carries the ai_token ManyChat filled in', () => {
+    const inbound = adapter.parse({ subscriber_id: '1', text: 'hi', ai_token: 'tok-1' }, ctx);
+    expect(inbound.contactToken).toBe('tok-1');
+  });
+
+  it.each([
+    ['absent', {}],
+    ['null', { ai_token: null }],
+    ['empty, as an unset field arrives', { ai_token: '' }],
+  ])('treats a token that is %s as no token, never as a 400', (_label, extra) => {
+    const inbound = adapter.parse({ subscriber_id: '1', text: 'hi', ...extra }, ctx);
+    expect(inbound.contactToken).toBeNull();
+  });
+
+  it("asks ManyChat to fill the contact's field into the callback", () => {
+    const body = renderManyChat(reply, {
+      capabilities: capabilitiesFor('whatsapp'),
+      callbackUrl: 'https://agent.example.com/hook',
+      contactTokenField: 'custom_token',
+    });
+    expect(body.content.external_message_callback?.payload).toEqual({
+      text: '{{last_input_text}}',
+      subscriber_id: '{{contact.id}}',
+      ai_token: '{{custom_token}}',
+    });
   });
 });

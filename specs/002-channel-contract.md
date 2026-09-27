@@ -73,7 +73,8 @@ All URLs must be HTTPS. Media ≤ 25 MB.
 The response may include `external_message_callback`, which registers a URL that
 ManyChat calls when the contact sends their **next** message (`timeout` in
 seconds, default and max 86400). `{{last_input_text}}` in the payload is replaced
-with the contact's message text.
+with the contact's message text, and `{{ai_token}}` with the contact's token
+from their custom field (specs/019).
 
 This is what keeps the conversation loop in this service rather than in
 ManyChat's visual flow builder, and is the reason the agent stays portable across
@@ -176,7 +177,9 @@ whole. Retry and dead-lettering are unchanged — see ADR-0004.
 ## Inbound payload
 
 ManyChat sends the fields configured in the Dynamic Block UI. We require at
-minimum a stable subscriber identifier and the message text. Inbound schemas are
+minimum a stable subscriber identifier and the message text. The body also
+carries `"ai_token": "{{ai_token}}"`, the contact's token, without which a
+request reads none of the contact's history (specs/019). Inbound schemas are
 `.strict()`: unknown keys are rejected rather than silently ignored, so a
 ManyChat-side change surfaces as a 400 instead of as degraded behavior.
 

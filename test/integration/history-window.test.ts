@@ -8,13 +8,17 @@ import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import { RulesSchema } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { ConversationStore } from '../../src/conversation/store.ts';
+import { ContactTokens } from '../../src/conversation/tokens.ts';
+import { FakeContactFields } from '../helpers/manychat.ts';
 
 /** specs/018-history-window-and-turn-cap.md § Verification. */
 
 let db: Database;
 let close: () => Promise<void>;
+let contactFields: FakeContactFields;
 beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
+  contactFields = new FakeContactFields();
 });
 afterEach(async () => {
   await close();
@@ -37,6 +41,8 @@ const inbound = (text: string): InboundMessage => ({
   channel: 'whatsapp',
   contactName: null,
   locale: null,
+  // Every turn here is the contact's own; binding is specs/019's to test.
+  contactToken: contactFields.tokenOf('s1'),
   receivedAt: new Date(),
 });
 
@@ -73,6 +79,8 @@ const handler = (runner: AgentRunner) =>
     logger: { info: vi.fn(), error: vi.fn() },
     raceDeadlineMs: 1000,
     modelAbortMs: 5000,
+    tokenWriter: contactFields,
+    tokensEnforced: true,
   });
 
 const contact = { tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp', idleResetHours: 24 };
@@ -129,6 +137,10 @@ describe('turn cap', () => {
 describe('history', () => {
   async function seed(entries: { text: string; ageMs: number }[]) {
     const conversation = await new ConversationStore(db).startTurn(contact);
+    await new ContactTokens(db, contactFields).issue({
+      ...contact,
+      conversationId: conversation.id,
+    });
     for (const entry of entries) {
       await db.insert(turns).values({
         conversationId: conversation.id,

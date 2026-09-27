@@ -84,15 +84,18 @@ describe('conversation store', () => {
       channel: 'whatsapp',
       idleResetHours: 24,
     });
-    await store.recordUserMessage(conversation.id, 'first');
+    await store.recordUserMessage(conversation.id, 'first', { bound: true });
     await store.recordAgentReply(conversation.id, 'reply', 'answered_inline', {
-      inputTokens: 10,
-      outputTokens: 5,
-      cacheReadTokens: 8,
-      costUsd: 0.0001,
-      model: 'anthropic:claude-haiku-4-5',
+      bound: true,
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        cacheReadTokens: 8,
+        costUsd: 0.0001,
+        model: 'anthropic:claude-haiku-4-5',
+      },
     });
-    await store.recordUserMessage(conversation.id, 'second');
+    await store.recordUserMessage(conversation.id, 'second', { bound: true });
     const history = await store.recentTurns(conversation.id, new Date(0));
     expect(history.map(turn => turn.text)).toEqual(['first', 'reply', 'second']);
   });
@@ -106,6 +109,32 @@ describe('conversation store', () => {
     });
     await store.markEscalated(conversation.id);
     expect((await store.find('demo', 's1'))?.escalatedAt).toBeInstanceOf(Date);
+  });
+
+  it('never hands the driver a raw Date', async () => {
+    // specs/018-history-window-and-turn-cap.md § A turn cap that never resets.
+    // Drizzle's postgres-js driver makes timestamp serializers pass-through, so a
+    // Date reaches Postgres as Date.toString() and the upsert fails. PGlite
+    // serializes it fine, which is why the rest of this suite cannot see it.
+    const params: unknown[] = [];
+    const logged = await createTestDatabase({
+      logger: { logQuery: (_query, queryParams) => params.push(...queryParams) },
+    });
+    try {
+      const loggedStore = new ConversationStore(logged.db);
+      const input = {
+        tenantId: 'demo',
+        subscriberId: 's1',
+        channel: 'whatsapp',
+        idleResetHours: 24,
+      };
+      await loggedStore.startTurn(input);
+      await loggedStore.startTurn(input);
+    } finally {
+      await logged.close();
+    }
+    expect(params.length).toBeGreaterThan(0);
+    expect(params.filter(param => param instanceof Date)).toEqual([]);
   });
 });
 

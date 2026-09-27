@@ -31,11 +31,11 @@ several of its claims did not hold:
 
 [specs/017](specs/017-inbound-request-trust.md) fixes the last two, and every
 control listed below has a test that makes it fire through the server a process
-runs. [specs/019](specs/019-contact-tokens.md) specifies the fix for the first:
-each contact has a token that ManyChat holds and sends back, and a request
-without it reads no history. Until 019 is implemented and
-`CONTACT_TOKENS_ENFORCED` is on, a holder of the secret can read any contact's
-history. The controls that hold today:
+runs. [specs/019](specs/019-contact-tokens.md) fixes the first: each contact
+has a token that ManyChat holds in a custom field and sends back, and a request
+without it reads none of that contact's history. While `CONTACT_TOKENS_ENFORCED`
+is `false`, which is only for the rollout in specs/019, a holder of the secret
+can still read any contact's history. The controls that hold today:
 
 - Constant-time comparison (`crypto.timingSafeEqual`), never `===`, before the
   body is parsed, so an unauthenticated caller learns nothing about the schema
@@ -47,13 +47,31 @@ history. The controls that hold today:
   separate budgets for requests with and without the secret, so a flood that
   cannot authenticate cannot lock ManyChat out. The address is believed from
   `X-Forwarded-For` only when the peer is listed in `TRUST_PROXY`
+- Only a request carrying the contact's token reads or extends their history.
+  The token is stored only as a hash, compared in constant time, and never
+  appears in a response or a log line. A request without it is answered from
+  its own message alone, and its turns never enter history or the turn cap
 - Per-subscriber turn limits, enforced in the database
 - Daily token and cost caps bound the worst case to finite spend
 - An unhandled error on the message route hands the contact to a person, and no
   response carries error text
 
-What a holder of the secret can still do once specs/019 is implemented is
-listed there, under "What a holder of the shared secret can still do".
+What a holder of the secret can still do, without a contact's token
+([specs/019](specs/019-contact-tokens.md)):
+
+- spend any contact's hourly turn allowance, which escalates them until the
+  hour ends;
+- have a reply delivered to any contact, because a request that loses the race
+  is delivered through the outbox to the named `subscriber_id`;
+- spend up to the tenant's daily token and cost caps, after which every contact
+  is escalated until the next UTC day;
+- write the first turn of a contact who has never written to the bot, which
+  that contact will then have in their history;
+- cause a token to be reissued at most once an hour per contact, costing a
+  contact whose message is in flight at that moment its history for that one
+  message.
+
+Rotation is the only remedy for a leak.
 
 If ManyChat adds request signing, this decision should be revisited immediately.
 

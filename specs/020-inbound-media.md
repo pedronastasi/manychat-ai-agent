@@ -81,8 +81,9 @@ message would get:
 - escalation keywords match against it, so a spoken "I want to talk to a
   person" hands off;
 - it is fenced as untrusted contact input (C4);
-- it is recorded as the contact's message, enters history and counts toward
-  the turn cap.
+- it is recorded as the contact's message, and enters history and the turn
+  cap exactly as a typed message would (`019` § Only bound turns enter history
+  and the turn cap).
 
 The runner is told the message was a transcript, so the prompt can tell the
 model that a name or a number in it may have been misheard, and to confirm

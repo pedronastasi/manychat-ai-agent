@@ -7,6 +7,7 @@ import { buildSystemPrompt } from '../../src/agent/prompt.ts';
 import { TurnHandler } from '../../src/routes/turn.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
+import { FakeContactFields } from '../helpers/manychat.ts';
 
 /**
  * specs/005-language.md § Tests.
@@ -40,6 +41,7 @@ const inbound = (text: string, subscriberId = 's1'): InboundMessage => ({
   channel: 'whatsapp',
   contactName: null,
   locale: null,
+  contactToken: null,
   receivedAt: new Date(),
 });
 
@@ -75,6 +77,8 @@ const deps = (runner: AgentRunner, rules: typeof DEFAULT_TENANT.rules) => ({
   raceDeadlineMs: 150,
   modelAbortMs: 5000,
   logger: { info: () => {}, error: () => {} },
+  tokenWriter: new FakeContactFields(),
+  tokensEnforced: true,
 });
 
 describe('no customer-facing copy is hardcoded (C9)', () => {

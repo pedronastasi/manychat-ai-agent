@@ -1,3 +1,5 @@
+import type { ContactTokenWriter } from '../../conversation/tokens.ts';
+
 /**
  * ManyChat delivery client — the deferred path (ADR-0001).
  *
@@ -11,9 +13,15 @@
  * exists to stay well under ManyChat's documented ~25 rps rather than to push
  * against it. Note each message now costs two requests.
  */
-export interface ManyChatClient {
+export interface ManyChatClient extends ContactTokenWriter {
   sendText(subscriberId: string, messages: string[]): Promise<void>;
 }
+
+/**
+ * Bounds a token write well inside the outbox's retry delay, so a hung write
+ * cannot land after the worker has replaced the token it carries (specs/019).
+ */
+const TOKEN_WRITE_TIMEOUT_MS = 10_000;
 
 export class ManyChatApiError extends Error {
   readonly status: number;
@@ -67,6 +75,8 @@ export interface ManyChatClientOptions {
   replyField: string;
   /** Namespace of the flow that renders `replyField`. */
   replyFlowNs: string;
+  /** Custom field that holds the contact's token (specs/019). */
+  tokenField: string;
   /** Well under the documented ~25 rps ceiling. */
   requestsPerSecond?: number;
   fetchImpl?: typeof fetch;
@@ -77,6 +87,7 @@ export class ManyChatHttpClient implements ManyChatClient {
   private readonly apiToken: string;
   private readonly replyField: string;
   private readonly replyFlowNs: string;
+  private readonly tokenField: string;
   private readonly bucket: TokenBucket;
   private readonly doFetch: typeof fetch;
 
@@ -85,13 +96,14 @@ export class ManyChatHttpClient implements ManyChatClient {
     this.apiToken = opts.apiToken;
     this.replyField = opts.replyField;
     this.replyFlowNs = opts.replyFlowNs;
+    this.tokenField = opts.tokenField;
     this.bucket = new TokenBucket(5, opts.requestsPerSecond ?? 10);
     // Bound deliberately: reaching native fetch through `this.doFetch(...)`
     // would call it with the instance as its receiver, which it rejects.
     this.doFetch = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
-  private async post(path: string, payload: unknown): Promise<void> {
+  private async post(path: string, payload: unknown, signal?: AbortSignal): Promise<void> {
     await this.bucket.take();
     const res = await this.doFetch(`${this.base}${path}`, {
       method: 'POST',
@@ -100,6 +112,7 @@ export class ManyChatHttpClient implements ManyChatClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      ...(signal ? { signal } : {}),
     });
 
     if (!res.ok) {
@@ -128,6 +141,19 @@ export class ManyChatHttpClient implements ManyChatClient {
       subscriber_id: subscriberId,
       flow_ns: this.replyFlowNs,
     });
+  }
+
+  /**
+   * Writes the contact's token to their own custom field, the same
+   * per-subscriber endpoint as a reply, so ManyChat can send it back
+   * (specs/019 § Each contact's token lives in ManyChat, never in a response).
+   */
+  async writeToken(subscriberId: string, token: string): Promise<void> {
+    await this.post(
+      '/fb/subscriber/setCustomFieldByName',
+      { subscriber_id: subscriberId, field_name: this.tokenField, field_value: token },
+      AbortSignal.timeout(TOKEN_WRITE_TIMEOUT_MS),
+    );
   }
 
   async sendText(subscriberId: string, messages: string[]): Promise<void> {

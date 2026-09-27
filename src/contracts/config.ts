@@ -230,6 +230,16 @@ export const EnvSchema = z
     // (specs/002-channel-contract.md § Verification).
     MANYCHAT_REPLY_FIELD: z.string().min(1).default('ai_message'),
     MANYCHAT_REPLY_FLOW_NS: optionalString,
+    /** The contact's custom field that holds their token (specs/019, ADR-0012). */
+    MANYCHAT_TOKEN_FIELD: z.string().min(1).default('ai_token'),
+    /**
+     * For the rollout only. False lets a request without the contact's token
+     * read history as before specs/019, while tokens reach existing contacts.
+     */
+    CONTACT_TOKENS_ENFORCED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform(value => value === 'true'),
 
     DATABASE_URL: z.string().min(1),
     TENANT_ID: z.string().min(1).default('demo'),
