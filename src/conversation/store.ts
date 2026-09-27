@@ -61,9 +61,9 @@ export class ConversationStore {
       .onConflictDoUpdate({
         target: [conversations.tenantId, conversations.subscriberId],
         set: {
-          turnCount: sql`CASE WHEN ${conversations.lastMessageAt} <= ${idleSince} THEN 1 ELSE ${conversations.turnCount} + 1 END`,
+          turnCount: sql`CASE WHEN ${conversations.lastMessageAt} <= ${sql.param(idleSince)} THEN 1 ELSE ${conversations.turnCount} + 1 END`,
           // GREATEST: concurrent requests read their clocks in any order.
-          lastMessageAt: sql`GREATEST(${conversations.lastMessageAt}, ${now})`,
+          lastMessageAt: sql`GREATEST(${conversations.lastMessageAt}, ${sql.param(now)})`,
           updatedAt: sql`now()`,
         },
       })
