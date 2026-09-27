@@ -17,7 +17,7 @@ import { buildServer } from './server.ts';
 
 export async function main() {
   const env = loadEnv();
-  const configStore = new ConfigStore();
+  const configStore = new ConfigStore(process.env.CONFIG_DIR ?? 'config');
 
   let db: Database;
   if (isEmbedded(env.DATABASE_URL)) {
