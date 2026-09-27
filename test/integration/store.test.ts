@@ -107,6 +107,32 @@ describe('conversation store', () => {
     await store.markEscalated(conversation.id);
     expect((await store.find('demo', 's1'))?.escalatedAt).toBeInstanceOf(Date);
   });
+
+  it('never hands the driver a raw Date', async () => {
+    // specs/018-history-window-and-turn-cap.md § A turn cap that never resets.
+    // Drizzle's postgres-js driver makes timestamp serializers pass-through, so a
+    // Date reaches Postgres as Date.toString() and the upsert fails. PGlite
+    // serializes it fine, which is why the rest of this suite cannot see it.
+    const params: unknown[] = [];
+    const logged = await createTestDatabase({
+      logger: { logQuery: (_query, queryParams) => params.push(...queryParams) },
+    });
+    try {
+      const loggedStore = new ConversationStore(logged.db);
+      const input = {
+        tenantId: 'demo',
+        subscriberId: 's1',
+        channel: 'whatsapp',
+        idleResetHours: 24,
+      };
+      await loggedStore.startTurn(input);
+      await loggedStore.startTurn(input);
+    } finally {
+      await logged.close();
+    }
+    expect(params.length).toBeGreaterThan(0);
+    expect(params.filter(param => param instanceof Date)).toEqual([]);
+  });
 });
 
 describe('guards', () => {
