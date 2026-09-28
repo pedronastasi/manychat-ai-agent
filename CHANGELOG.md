@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.8.0...manychat-ai-agent-v0.8.1) (2026-09-28)
+
+
+### Specs and Docs
+
+* specify moving ManyChat calls onto manychat-sdk (spec 022) ([c5cc136](https://github.com/pedronastasi/manychat-ai-agent/commit/c5cc136368e84476738cb1da9952831b44986e1a))
+
+
+### Dependencies
+
+* **deps:** update dependency @types/node to v24.19.0 ([cb0187b](https://github.com/pedronastasi/manychat-ai-agent/commit/cb0187b2a5e2a94416acfaaaa3696035790138de))
+* **deps:** update dependency @types/node to v24.19.0 ([bc76a52](https://github.com/pedronastasi/manychat-ai-agent/commit/bc76a52507c08f6dcfe82ad45b289619fe6d7e44))
+* **deps:** update patch dependencies ([ca6f447](https://github.com/pedronastasi/manychat-ai-agent/commit/ca6f447685f64553e3e64a87ce751f6dc66cdc7c))
+* **deps:** update patch dependencies ([cb25a1a](https://github.com/pedronastasi/manychat-ai-agent/commit/cb25a1ac497a655241fffd59fea69154dcaabd5c))
+
 ## [0.8.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.7.0...manychat-ai-agent-v0.8.0) (2026-09-27)
 
 
