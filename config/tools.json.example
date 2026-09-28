@@ -1,0 +1,24 @@
+{
+  "flows": [
+    {
+      "id": "foundation_brochure",
+      "flowNs": "content00000000000000_000001",
+      "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it."
+    }
+  ],
+  "tags": [
+    {
+      "id": "interested_foundation",
+      "tag": "interested-foundation-course",
+      "description": "The contact showed interest in the Foundation Course."
+    }
+  ],
+  "fields": [
+    {
+      "id": "preferred_schedule",
+      "field": "preferred_schedule",
+      "values": ["weekday_evenings", "weekends"],
+      "description": "Whether the contact said weekday evenings or weekends suit them."
+    }
+  ]
+}

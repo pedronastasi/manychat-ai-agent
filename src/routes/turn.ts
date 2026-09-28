@@ -21,11 +21,16 @@ import {
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
 import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
+import { ActionStage } from '../agent/tools.ts';
+import type { HistoryTurn } from '../agent/runner.ts';
+import type { ActionPerformer } from '../channels/manychat/client.ts';
+import { performActions } from '../conversation/actions.ts';
 
 const DAY_MS = 86_400_000;
 
 export interface TurnLogger {
   info: (o: object, m: string) => void;
+  warn: (o: object, m: string) => void;
   error: (o: object, m: string) => void;
 }
 
@@ -40,6 +45,8 @@ export interface TurnDeps {
   tokenWriter: ContactTokenWriter;
   /** CONTACT_TOKENS_ENFORCED: false only while tokens reach existing contacts. */
   tokensEnforced: boolean;
+  /** Performs what the agent staged, once the reply has gone out (specs/012). */
+  actions: ActionPerformer;
   /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
   media?: MediaResolver | undefined;
 }
@@ -71,6 +78,7 @@ type Completion =
 function withConversation(logger: TurnLogger, conversation: string): TurnLogger {
   return {
     info: (fields, message) => logger.info({ conversation, ...fields }, message),
+    warn: (fields, message) => logger.warn({ conversation, ...fields }, message),
     error: (fields, message) => logger.error({ conversation, ...fields }, message),
   };
 }
@@ -80,6 +88,12 @@ export interface TurnResult {
   outcome: TurnOutcome;
   conversationId: string;
   binding: Binding;
+  /**
+   * Performs the actions staged on an inline turn. The caller runs it once the
+   * response has been sent, never before (specs/012 § Actions follow the
+   * text). It never throws.
+   */
+  afterResponse?: () => Promise<void>;
 }
 
 /** A write that fails is retried by the outbox; its message could quote the token. */
@@ -234,6 +248,24 @@ export class TurnHandler {
     // recentTurns includes the message just recorded; the runner adds it itself.
     const priorHistory = history.slice(0, -1);
 
+    // What the model stages this turn. Held here rather than in the runner, so
+    // it is still known when the call is aborted and never returns.
+    const stage = new ActionStage();
+
+    /**
+     * Staged actions are performed only when the final reply, after the
+     * guardrails, does not escalate. Every other ending lands here (specs/012
+     * § Guardrails run before any action is performed).
+     */
+    const discard = () => {
+      if (stage.staged.length > 0) {
+        logger.info({ discarded: stage.staged.length }, 'staged actions discarded');
+      }
+      return stage.staged.length + stage.dropped.length > 0
+        ? stage.records('discarded')
+        : undefined;
+    };
+
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.deps.modelAbortMs);
 
@@ -252,9 +284,10 @@ export class TurnHandler {
           history: priorHistory,
           signal: abort.signal,
           logger,
+          stage,
         })
       : this.deps.runner
-          .run({ text: inbound.text, history: priorHistory, signal: abort.signal })
+          .run({ text: inbound.text, history: priorHistory, signal: abort.signal, stage })
           .then(result => ({ kind: 'model' as const, result }));
     const completion = work
       .then(done => ({ kind: 'done' as const, done }))
@@ -262,9 +295,19 @@ export class TurnHandler {
 
     const winner = await Promise.race([completion, deadline]);
 
-    /** Persists usage and spend. Shared by the inline and deferred paths. */
+    /**
+     * Persists usage, spend and what was staged. Shared by the inline and
+     * deferred paths. Returns the agent turn's id.
+     */
     const settle = async (result: AgentResult, outcome: TurnOutcome) => {
-      await this.store.recordAgentReply(
+      // Null when no tool was offered, so it reads apart from "offered, none
+      // chosen" (specs/012 § Every staged action is recorded on its turn).
+      const actions = !result.toolsOffered
+        ? null
+        : result.reply.escalate
+          ? (discard() ?? [])
+          : stage.records('staged');
+      const turnId = await this.store.recordAgentReply(
         conversation.id,
         result.reply.messages.join('\n'),
         outcome,
@@ -278,11 +321,13 @@ export class TurnHandler {
             costUsd: result.usage.costUsd,
             latencyMs: result.latencyMs,
           },
+          actions,
         },
       );
       const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
       await this.budget.recordSpend(inbound.tenantId, tokens, result.usage.costUsd);
       if (result.reply.escalate) await markEscalated();
+      return turnId;
     };
 
     /**
@@ -314,14 +359,21 @@ export class TurnHandler {
         clearTimeout(abortTimer);
         try {
           if (outcome.kind === 'error') {
+            // MODEL_ABORT_MS lands here, with whatever it had staged.
+            discard();
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');
             return;
           }
           const { done } = outcome;
+          let deferred: { staged: typeof stage.staged; turnId: string } | undefined;
           if (done.kind === 'decided') {
             await conclude(done);
           } else {
-            await settle(done.result, 'deferred');
+            const turnId = await settle(done.result, 'deferred');
+            // Deferred with the reply, never dropped from it: the worker
+            // performs them once the text is delivered (specs/012 § The whole
+            // loop runs inside the race).
+            if (!done.result.reply.escalate) deferred = { staged: stage.staged, turnId };
             // The inline path logs these below. Without the same line here a
             // guardrail or a failed call on a deferred turn left no trace in
             // the logs at all, which is most of them whenever the model runs
@@ -338,6 +390,7 @@ export class TurnHandler {
             subscriberId: inbound.subscriberId,
             conversationId: conversation.id,
             reply: done.kind === 'decided' ? done.reply : done.result.reply,
+            actions: deferred,
           });
         } catch (error) {
           logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
@@ -365,7 +418,10 @@ export class TurnHandler {
     if (winner.kind === 'error') {
       logger.error({ err: String(winner.error) }, 'model call failed');
       const reply = escalationReply('low_confidence', rules.messages.escalation);
-      await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'error', turn);
+      await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'error', {
+        ...turn,
+        actions: discard(),
+      });
       await markEscalated();
       return { reply, outcome: 'error', conversationId: conversation.id, binding };
     }
@@ -384,11 +440,39 @@ export class TurnHandler {
       : done.result.reply.escalate
         ? 'escalated_model'
         : 'answered_inline';
-    await settle(done.result, outcome);
+    const turnId = await settle(done.result, outcome);
     if (done.result.interventions.length > 0) {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
-    return { reply: done.result.reply, outcome, conversationId: conversation.id, binding };
+    const performing = !done.result.reply.escalate && stage.staged.length > 0;
+    return {
+      reply: done.result.reply,
+      outcome,
+      conversationId: conversation.id,
+      binding,
+      ...(performing
+        ? { afterResponse: () => this.performInline(inbound.subscriberId, stage, turnId, logger) }
+        : {}),
+    };
+  }
+
+  /**
+   * The inline path's actions, run in-process after the response. A crash
+   * before they finish loses them, which specs/012 accepts: a late action is
+   * worse than a missing one.
+   */
+  private async performInline(
+    subscriberId: string,
+    stage: ActionStage,
+    turnId: string,
+    logger: TurnLogger,
+  ): Promise<void> {
+    try {
+      const outcomes = await performActions(this.deps.actions, subscriberId, stage.staged, logger);
+      await this.store.resolveStaged(turnId, outcomes);
+    } catch (error) {
+      logger.error({ err: String(error) }, 'inline actions not recorded');
+    }
   }
 
   /**
@@ -400,9 +484,10 @@ export class TurnHandler {
     ctx: {
       userTurnId: string;
       tenantId: string;
-      history: { role: 'user' | 'agent'; text: string }[];
+      history: HistoryTurn[];
       signal: AbortSignal;
       logger: TurnLogger;
+      stage: ActionStage;
     },
   ): Promise<Completion> {
     const { rules } = this.deps;
@@ -467,6 +552,7 @@ export class TurnHandler {
       text: transcript ?? '',
       history: ctx.history,
       signal: ctx.signal,
+      stage: ctx.stage,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

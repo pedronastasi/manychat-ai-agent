@@ -6,7 +6,7 @@ import {
 } from '../contracts/agent.ts';
 import type { EscalationReason } from '../contracts/agent.ts';
 import type { Catalog, Rules } from '../contracts/config.ts';
-import { FENCE, FENCE_END, PROMPT_MARKERS } from './prompt.ts';
+import { ACTION_NOTE_LINE, FENCE, FENCE_END, PROMPT_MARKERS } from './prompt.ts';
 
 export interface GuardedReply {
   reply: AgentReply;
@@ -51,20 +51,27 @@ const FIELD_ECHO = new RegExp(
 );
 
 /**
+ * A reply field written into the text, or a copy of the note the server adds
+ * to earlier turns to say what it performed (specs/012). History shows the
+ * model that note under its own replies, which invites it to write one.
+ */
+const echoes = (line: string) => FIELD_ECHO.test(line) || ACTION_NOTE_LINE.test(line);
+
+/**
  * Whether a message carries a line that echoes a reply field.
  *
  * Exported for the eval suite, which fails any reply that still carries one: a
  * suite with its own copy would pass while the request path let one through.
  */
 export function hasFieldEcho(text: string): boolean {
-  return text.split('\n').some(line => FIELD_ECHO.test(line));
+  return text.split('\n').some(echoes);
 }
 
 /** The text without its field-echo lines, and without the gap they leave. */
 function stripFieldEchoes(text: string): string {
   return text
     .split('\n')
-    .filter(line => !FIELD_ECHO.test(line))
+    .filter(line => !echoes(line))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

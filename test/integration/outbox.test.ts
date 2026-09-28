@@ -69,6 +69,7 @@ function stubClient(behaviour: (subscriberId: string) => void = () => {}): ManyC
       return Promise.resolve();
     },
     writeToken: () => Promise.resolve(),
+    performAction: () => Promise.resolve(),
   };
 }
 
@@ -201,6 +202,7 @@ describe('drainOnce', () => {
             : new ManyChatApiError(400, 'bad request', false),
         ),
       writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
     };
 
     const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
@@ -212,6 +214,7 @@ describe('drainOnce', () => {
     const client: ManyChatClient = {
       sendText: () => Promise.reject(new Error('socket hang up')),
       writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
     };
     const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result.retrying).toBe(1);
@@ -224,6 +227,7 @@ describe('drainOnce', () => {
     const client: ManyChatClient = {
       sendText: () => Promise.reject(new ManyChatApiError(401, 'unauthorized', false)),
       writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
     };
     await new OutboxWorker({ db, client, logger }).drainOnce();
     expect(logger.error).toHaveBeenCalledOnce();

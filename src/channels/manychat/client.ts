@@ -1,4 +1,14 @@
 import type { ContactTokenWriter } from '../../conversation/tokens.ts';
+import type { StagedAction } from '../../contracts/agent.ts';
+
+/**
+ * Performs an action the agent staged on a turn (specs/012), one request per
+ * action through the same rate limiter as delivery. Called only after the
+ * reply's text has gone out.
+ */
+export interface ActionPerformer {
+  performAction(subscriberId: string, action: StagedAction): Promise<void>;
+}
 
 /**
  * ManyChat delivery client — the deferred path (ADR-0001).
@@ -13,7 +23,7 @@ import type { ContactTokenWriter } from '../../conversation/tokens.ts';
  * exists to stay well under ManyChat's documented ~25 rps rather than to push
  * against it. Note each message now costs two requests.
  */
-export interface ManyChatClient extends ContactTokenWriter {
+export interface ManyChatClient extends ContactTokenWriter, ActionPerformer {
   sendText(subscriberId: string, messages: string[]): Promise<void>;
 }
 
@@ -22,6 +32,12 @@ export interface ManyChatClient extends ContactTokenWriter {
  * cannot land after the worker has replaced the token it carries (specs/019).
  */
 const TOKEN_WRITE_TIMEOUT_MS = 10_000;
+
+/**
+ * An action on the inline path runs after the response, with no request left
+ * to bound it, so it gets a bound of its own. Same figure as a token write.
+ */
+const ACTION_TIMEOUT_MS = 10_000;
 
 export class ManyChatApiError extends Error {
   readonly status: number;
@@ -154,6 +170,38 @@ export class ManyChatHttpClient implements ManyChatClient {
       { subscriber_id: subscriberId, field_name: this.tokenField, field_value: token },
       AbortSignal.timeout(TOKEN_WRITE_TIMEOUT_MS),
     );
+  }
+
+  /**
+   * Every endpoint here is per-subscriber and takes the turn's own contact, so
+   * an action cannot land on anyone else (specs/012 § The subscriber is never
+   * a parameter).
+   */
+  async performAction(subscriberId: string, action: StagedAction): Promise<void> {
+    const signal = AbortSignal.timeout(ACTION_TIMEOUT_MS);
+    const subscriber = { subscriber_id: subscriberId };
+    switch (action.tool) {
+      case 'send_flow':
+        return this.post('/fb/sending/sendFlow', { ...subscriber, flow_ns: action.flowNs }, signal);
+      case 'add_tag':
+        return this.post(
+          '/fb/subscriber/addTagByName',
+          { ...subscriber, tag_name: action.tag },
+          signal,
+        );
+      case 'remove_tag':
+        return this.post(
+          '/fb/subscriber/removeTagByName',
+          { ...subscriber, tag_name: action.tag },
+          signal,
+        );
+      case 'set_field':
+        return this.post(
+          '/fb/subscriber/setCustomFieldByName',
+          { ...subscriber, field_name: action.field, field_value: action.value },
+          signal,
+        );
+    }
   }
 
   async sendText(subscriberId: string, messages: string[]): Promise<void> {

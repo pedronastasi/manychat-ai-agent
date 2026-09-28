@@ -99,6 +99,8 @@ export async function buildServer(opts: BuildOptions) {
           ),
         writeToken: () =>
           Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot write contact tokens')),
+        performAction: () =>
+          Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot perform actions')),
       };
 
   const adapter = new ManyChatAdapter(manychatClient);
@@ -241,10 +243,20 @@ export async function buildServer(opts: BuildOptions) {
     }
   });
 
+  /** Each inline turn's staged actions, until its response has been sent. */
+  const afterResponse = new WeakMap<object, () => Promise<void>>();
+
   app.post(
     MESSAGE_ROUTE,
     {
       onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
+      // After the Dynamic Block response is sent, never before: the text the
+      // actions follow has to leave first (specs/012 § Actions follow the text).
+      onResponse: async request => {
+        const perform = afterResponse.get(request);
+        afterResponse.delete(request);
+        if (perform) await perform();
+      },
       schema: {
         summary: 'ManyChat Dynamic Block webhook',
         body: ManyChatInbound,
@@ -270,9 +282,12 @@ export async function buildServer(opts: BuildOptions) {
         logger: request.log,
         tokenWriter: manychatClient,
         tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
+        actions: manychatClient,
         media,
       });
-      const { reply, outcome, conversationId, binding } = await handler.handle(inbound);
+      const turn = await handler.handle(inbound);
+      const { reply, outcome, conversationId, binding } = turn;
+      if (turn.afterResponse) afterResponse.set(request, turn.afterResponse);
 
       // The conversation's random ID, never anything derived from the
       // subscriber ID (ADR-0014). `binding` gives the share of unbound turns

@@ -4,6 +4,9 @@ import { ManyChatApiError } from '../channels/manychat/client.ts';
 import { OutboxQueue } from './queue.ts';
 import type { OutboxRow } from './queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
+import { ConversationStore } from '../conversation/store.ts';
+import { performActions } from '../conversation/actions.ts';
+import { recordOf } from '../agent/tools.ts';
 
 export interface WorkerLogger {
   info: (obj: object, msg: string) => void;
@@ -30,6 +33,7 @@ export class OutboxWorker {
   private readonly opts: WorkerOptions;
   private readonly queue: OutboxQueue;
   private readonly tokens: ContactTokens;
+  private readonly store: ConversationStore;
   private running = false;
   private settled: Promise<void> = Promise.resolve();
 
@@ -37,6 +41,48 @@ export class OutboxWorker {
     this.opts = opts;
     this.queue = new OutboxQueue(opts.db);
     this.tokens = new ContactTokens(opts.db, opts.client);
+    this.store = new ConversationStore(opts.db);
+  }
+
+  /**
+   * The actions deferred with a reply, performed once, after its first
+   * successful delivery (specs/012 § A failed action is logged, never
+   * retried). The row is already marked delivered, so a crash here loses the
+   * actions rather than sending the text again.
+   */
+  private async performDeferred(row: Extract<OutboxRow, { kind: 'reply' }>): Promise<void> {
+    const { actions, turnId } = row.payload;
+    if (!actions || actions.length === 0) return;
+    try {
+      const outcomes = await performActions(
+        this.opts.client,
+        row.subscriberId,
+        actions,
+        this.opts.logger,
+      );
+      if (turnId) await this.store.resolveStaged(turnId, outcomes);
+    } catch (error) {
+      this.opts.logger.error(
+        { outboxId: row.id, err: error instanceof Error ? error.message : String(error) },
+        'deferred actions not recorded',
+      );
+    }
+  }
+
+  /** Media without the reply that introduces it is worse than neither. */
+  private async dropDeferred(row: OutboxRow): Promise<void> {
+    if (row.kind !== 'reply' || !row.payload.actions || !row.payload.turnId) return;
+    try {
+      await this.store.resolveStaged(
+        row.payload.turnId,
+        row.payload.actions.map(action => recordOf(action, 'dead_lettered')),
+      );
+    } catch (error) {
+      this.opts.logger.error(
+        { outboxId: row.id, err: error instanceof Error ? error.message : String(error) },
+        'dropped actions not recorded',
+      );
+    }
   }
 
   private async deliver(row: OutboxRow): Promise<void> {
@@ -71,6 +117,7 @@ export class OutboxWorker {
         await this.deliver(row);
         await this.queue.markDelivered(row.id);
         result.delivered++;
+        if (row.kind === 'reply') await this.performDeferred(row);
       } catch (error) {
         const retryable = error instanceof ManyChatApiError ? error.retryable : true;
         // A token write's error is kept to its status: ManyChat's answer to it
@@ -84,6 +131,7 @@ export class OutboxWorker {
         const outcome = await this.queue.markFailed(row.id, row.attempts, message, retryable);
         if (outcome === 'dead-lettered') {
           result.deadLettered++;
+          await this.dropDeferred(row);
           // Dead letters are the signal that a contact never got their reply.
           logger.error(
             { outboxId: row.id, kind: row.kind, attempts: row.attempts },

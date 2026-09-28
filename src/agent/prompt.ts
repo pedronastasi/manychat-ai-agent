@@ -1,5 +1,7 @@
 import type { Catalog, Rules } from '../contracts/config.ts';
 import { MAX_MESSAGES_PER_REPLY } from '../contracts/agent.ts';
+import type { ActionRecord, StagedAction } from '../contracts/agent.ts';
+import { MAX_ACTIONS_PER_TURN, describeAction } from './tools.ts';
 
 /**
  * Delimiter used to fence untrusted contact text. Chosen to be something a
@@ -63,6 +65,8 @@ export function buildSystemPrompt(
   persona: string,
   catalog: Catalog,
   rules: Rules,
+  /** Whether this tenant's `tools.json` offers any tool (specs/012). */
+  withTools = false,
 ): SystemPromptParts {
   const staticPrefix = [
     persona.trim(),
@@ -105,10 +109,68 @@ export function buildSystemPrompt(
     'end of `messages`. Send null only when a question does not belong — a handoff,',
     'a delicate or health matter, a contact who already has the payment link, or',
     'someone who has declined twice. Null is a decision, not a way to skip the field.',
+    ...(withTools ? ACTIONS_SECTION : []),
   ].join('\n');
 
   return { staticPrefix, catalogBlock: renderCatalog(catalog) };
 }
+
+const ACTION_NOTE_OPEN = '[actions performed:';
+
+/**
+ * How the model is told to use its tools (specs/012). Only present when a tool
+ * is offered, so a tenant without `tools.json` gets the prompt it had before.
+ */
+const ACTIONS_SECTION = [
+  '',
+  'ACTIONS',
+  'Your tools send the contact a flow, tag them, or record a choice they made.',
+  `Call them before writing the reply, at most ${MAX_ACTIONS_PER_TURN} per turn, and only when their`,
+  'description says the moment has come. A call only stages the action: it is',
+  'performed after your reply is sent, and not at all if you escalate. So never',
+  'say something has been sent. Say what you are sending, the way a person does',
+  'before pressing send.',
+  `An earlier reply of yours may end with ${ACTION_NOTE_OPEN} ...]. The system`,
+  'writes that line, not you: it lists what reached ManyChat on that turn. Do not',
+  'repeat those actions unless the contact asks, and never write such a line.',
+];
+
+/**
+ * Tells the model, before it writes the reply, what its tool calls staged.
+ * Step two sees this instead of its own tool calls, so it can offer no tools
+ * on any provider (specs/012 § The loop is bounded at two steps).
+ */
+export function stagedNotice(stage: {
+  staged: readonly StagedAction[];
+  dropped: readonly StagedAction[];
+}): string {
+  const lines = [
+    stage.staged.length > 0
+      ? `ACTIONS: Staged, to be performed after your reply is sent unless the turn escalates: ${stage.staged.map(describeAction).join(', ')}.`
+      : 'ACTIONS: None of your tool calls were staged.',
+    stage.dropped.length > 0
+      ? `Not staged, over the limit of ${MAX_ACTIONS_PER_TURN} per turn: ${stage.dropped.map(describeAction).join(', ')}.`
+      : null,
+    'Nothing has been sent yet. Now write the reply.',
+  ];
+  return lines.filter(Boolean).join(' ');
+}
+
+/**
+ * The server's note on an earlier turn of what it performed, or null when it
+ * performed nothing (specs/012 § Performed actions reach the model on later
+ * turns). Only `performed` entries: a discarded, failed or still-staged action
+ * is left out, so the model never believes something reached the contact that
+ * did not. Ids, not descriptions, so history stays short.
+ */
+export function actionsNote(actions: readonly ActionRecord[] | null | undefined): string | null {
+  const performed = (actions ?? []).filter(action => action.status === 'performed');
+  if (performed.length === 0) return null;
+  return `${ACTION_NOTE_OPEN} ${performed.map(describeAction).join(', ')}]`;
+}
+
+/** A line that copies the note above into a reply. */
+export const ACTION_NOTE_LINE = /^\s*\[actions (?:performed|staged)\s*:/i;
 
 /**
  * Wraps untrusted contact text. The fence markers are stripped from the input

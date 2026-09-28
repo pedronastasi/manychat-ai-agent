@@ -7,7 +7,7 @@
  * database - which is why it is excluded from coverage rather than covered by
  * assertions that would only restate the wiring (specs/004-testing.md).
  */
-import { loadEnv, ConfigStore } from './config/loader.ts';
+import { loadEnv, ConfigStore, reservedNames } from './config/loader.ts';
 import { createDatabase, createEmbeddedDatabase, isEmbedded } from './db/client.ts';
 import type { Database } from './db/client.ts';
 import { runMigrations } from './db/migrate.ts';
@@ -17,7 +17,9 @@ import { buildServer } from './server.ts';
 
 export async function main() {
   const env = loadEnv();
-  const configStore = new ConfigStore();
+  // A tool aimed at the reply flow or field fails the boot, and a reload that
+  // introduces one is refused (specs/012).
+  const configStore = new ConfigStore('config', reservedNames(env));
 
   let db: Database;
   if (isEmbedded(env.DATABASE_URL)) {

@@ -149,6 +149,59 @@ export const RulesSchema = z.object({
 });
 export type Rules = z.infer<typeof RulesSchema>;
 
+/**
+ * What the model names an entry by. Kept to plain identifiers because it
+ * becomes an enum value in a tool's parameter schema, which every provider
+ * renders into JSON Schema.
+ */
+const ToolEntryId = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9_-]*$/, 'Expected lowercase letters, digits, "_" or "-"');
+
+/** Guidance the model reads: what the entry is and when to use it. Tenant copy. */
+const ToolDescription = z.string().min(1);
+
+const uniqueIds = (entries: { id: string }[]) =>
+  new Set(entries.map(entry => entry.id)).size === entries.length;
+
+/**
+ * The flows, tags and field values the agent may act with (specs/012). The
+ * model sees `id` and `description` only; `flowNs`, `tag` and `field` name
+ * objects in the tenant's ManyChat account and stay server-side, so renaming
+ * one there is a config edit no prompt depends on.
+ */
+export const ToolsSchema = z.object({
+  flows: z
+    .array(z.object({ id: ToolEntryId, flowNs: z.string().min(1), description: ToolDescription }))
+    .default([])
+    .refine(uniqueIds, 'flow ids must be unique'),
+  tags: z
+    .array(z.object({ id: ToolEntryId, tag: z.string().min(1), description: ToolDescription }))
+    .default([])
+    .refine(uniqueIds, 'tag ids must be unique'),
+  fields: z
+    .array(
+      z.object({
+        id: ToolEntryId,
+        field: z.string().min(1),
+        // Never free text: a value the model composed would reach a field a
+        // flow may render to the contact (specs/012 § Free-text field values
+        // are refused).
+        values: z
+          .array(z.string().min(1))
+          .min(1)
+          .refine(values => new Set(values).size === values.length, 'values must be unique'),
+        description: ToolDescription,
+      }),
+    )
+    .default([])
+    .refine(uniqueIds, 'field ids must be unique'),
+});
+export type Tools = z.infer<typeof ToolsSchema>;
+
+/** A deployment with no `tools.json`: no tools are offered (specs/012). */
+export const NO_TOOLS: Tools = { flows: [], tags: [], fields: [] };
+
 /* -------------------------------------------------------------------------- */
 /* Environment                                                                 */
 /* -------------------------------------------------------------------------- */

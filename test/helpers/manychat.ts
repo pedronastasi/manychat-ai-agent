@@ -1,4 +1,22 @@
 import type { ContactTokenWriter } from '../../src/conversation/tokens.ts';
+import type { ActionPerformer } from '../../src/channels/manychat/client.ts';
+import type { StagedAction } from '../../src/contracts/agent.ts';
+
+/**
+ * ManyChat's action endpoints at the port (specs/012). Records what it was
+ * asked to perform, for whom, and in what order; `failing` makes each request
+ * fail as ManyChat does when it refuses one.
+ */
+export class FakeActions implements ActionPerformer {
+  readonly performed: { subscriberId: string; action: StagedAction }[] = [];
+  failing = false;
+
+  performAction(subscriberId: string, action: StagedAction): Promise<void> {
+    if (this.failing) return Promise.reject(new Error('ManyChat refused the request'));
+    this.performed.push({ subscriberId, action });
+    return Promise.resolve();
+  }
+}
 
 /**
  * ManyChat's contact fields, as far as contact tokens need them (specs/019).

@@ -1,7 +1,7 @@
 import { and, eq, gte, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
-import type { MediaKind, TurnOutcome } from '../contracts/agent.ts';
+import type { ActionRecord, MediaKind, TurnOutcome } from '../contracts/agent.ts';
 import type { TokenState } from './tokens.ts';
 
 export interface ConversationRecord {
@@ -115,26 +115,56 @@ export class ConversationStore {
     await this.db.update(turns).set({ text }).where(eq(turns.id, turnId));
   }
 
+  /**
+   * `actions` is null when no tool was offered, so "no tools" stays apart from
+   * "tools offered, none chosen" (specs/012). Returns the row's id, which the
+   * staged actions are resolved against once they run.
+   */
   async recordAgentReply(
     conversationId: string,
     text: string,
     outcome: TurnOutcome,
-    turn: { bound: boolean; usage?: TurnUsage },
-  ) {
+    turn: { bound: boolean; usage?: TurnUsage; actions?: ActionRecord[] | null | undefined },
+  ): Promise<string> {
     const usage = turn.usage ?? {};
-    await this.db.insert(turns).values({
-      conversationId,
-      role: 'agent',
-      text,
-      outcome,
-      bound: turn.bound,
-      model: usage.model ?? null,
-      inputTokens: usage.inputTokens ?? null,
-      outputTokens: usage.outputTokens ?? null,
-      cacheReadTokens: usage.cacheReadTokens ?? null,
-      costUsd: usage.costUsd != null ? usage.costUsd.toFixed(6) : null,
-      latencyMs: usage.latencyMs ?? null,
+    const [row] = await this.db
+      .insert(turns)
+      .values({
+        conversationId,
+        role: 'agent',
+        text,
+        outcome,
+        bound: turn.bound,
+        model: usage.model ?? null,
+        inputTokens: usage.inputTokens ?? null,
+        outputTokens: usage.outputTokens ?? null,
+        cacheReadTokens: usage.cacheReadTokens ?? null,
+        costUsd: usage.costUsd != null ? usage.costUsd.toFixed(6) : null,
+        latencyMs: usage.latencyMs ?? null,
+        actions: turn.actions ?? null,
+      })
+      .returning({ id: turns.id });
+    if (!row) throw new Error('recordAgentReply: insert returned no row');
+    return row.id;
+  }
+
+  /**
+   * Replaces the turn's `staged` entries, in order, with what became of them.
+   * The entries were written in the order the actions were staged, which is
+   * the order they are performed in, so the nth outcome belongs to the nth
+   * staged entry. Entries already settled (`dropped_over_cap`) are kept.
+   */
+  async resolveStaged(turnId: string, outcomes: ActionRecord[]) {
+    const row = await this.db.query.turns.findFirst({
+      where: eq(turns.id, turnId),
+      columns: { actions: true },
     });
+    if (!row?.actions) return;
+    let next = 0;
+    const actions = row.actions.map(entry =>
+      entry.status === 'staged' && next < outcomes.length ? outcomes[next++]! : entry,
+    );
+    await this.db.update(turns).set({ actions }).where(eq(turns.id, turnId));
   }
 
   async markEscalated(conversationId: string) {
@@ -158,7 +188,7 @@ export class ConversationStore {
       ),
       orderBy: (table, { desc }) => [desc(table.seq)],
       limit,
-      columns: { role: true, text: true },
+      columns: { role: true, text: true, actions: true },
     });
     return rows.reverse();
   }

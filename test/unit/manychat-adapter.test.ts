@@ -93,7 +93,11 @@ describe('Dynamic Block v2 rendering', () => {
 });
 
 describe('inbound parsing', () => {
-  const adapter = new ManyChatAdapter({ sendText: async () => {}, writeToken: async () => {} });
+  const adapter = new ManyChatAdapter({
+    sendText: async () => {},
+    writeToken: async () => {},
+    performAction: async () => {},
+  });
   const ctx = { tenantId: 'demo', channel: 'whatsapp' };
 
   it('normalizes a ManyChat payload', () => {
@@ -121,7 +125,11 @@ describe('inbound parsing', () => {
 });
 
 describe("specs/019 § Each contact's token lives in ManyChat, never in a response", () => {
-  const adapter = new ManyChatAdapter({ sendText: async () => {}, writeToken: async () => {} });
+  const adapter = new ManyChatAdapter({
+    sendText: async () => {},
+    writeToken: async () => {},
+    performAction: async () => {},
+  });
   const ctx = { tenantId: 'demo', channel: 'whatsapp' };
 
   it('carries the ai_token ManyChat filled in', () => {

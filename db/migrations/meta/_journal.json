@@ -36,6 +36,13 @@
       "when": 1790519860599,
       "tag": "0004_lucky_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790551636631,
+      "tag": "0005_lumpy_black_panther",
+      "breakpoints": true
     }
   ]
 }
