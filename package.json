@@ -1,6 +1,6 @@
 {
   "name": "manychat-ai-agent",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "A provider-agnostic conversational AI agent gateway that bridges no-code chat platforms to any LLM.",
   "license": "MIT",
@@ -13,6 +13,7 @@
     "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env --watch src/main.ts",
     "bootstrap": "node scripts/setup.mjs",
     "spec:index": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/spec-index.ts",
+    "demo:record": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/record-demo.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
@@ -50,12 +51,13 @@
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
-    "@vitest/coverage-v8": "5.0.1",
+    "@vitest/coverage-v8": "5.0.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.10.0",
     "prettier": "^3.9.6",
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "yaml": "^2.9.1"
   }
 }

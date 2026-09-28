@@ -1,0 +1,41 @@
+name: Feature request
+description: Behaviour the agent or the service does not have yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is public the moment you submit it. Describe the need in terms
+        of what a deployment does, not by quoting one.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what stops you today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: The behaviour you want. Name any spec in `specs/` it would change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve it, and why they fall short.
+
+  - type: checkboxes
+    id: no-tenant-data
+    attributes:
+      label: No tenant data
+      options:
+        - label: >-
+            This issue contains no real transcripts, prices, names, phone numbers,
+            screenshots or `.env` values (C1, C5).
+          required: true

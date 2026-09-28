@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.7.0...manychat-ai-agent-v0.8.0) (2026-09-27)
+
+
+### Features
+
+* take issues, questions and conduct reports through forms (spec 021) ([2c76e7b](https://github.com/pedronastasi/manychat-ai-agent/commit/2c76e7b65ffa32539b34e511d691c4131fabaedc))
+* take issues, questions and conduct reports through forms (spec 021) ([81fac30](https://github.com/pedronastasi/manychat-ai-agent/commit/81fac302065fb2f33d9c2d67cb8429db9b2e3365))
+
+
+### Specs and Docs
+
+* mark spec 020 implemented ([220e9ea](https://github.com/pedronastasi/manychat-ai-agent/commit/220e9eab5e9c422789962edf8f3c3b2be8f2ccff))
+* mark spec 020 implemented ([f8ab943](https://github.com/pedronastasi/manychat-ai-agent/commit/f8ab943dac3fe0580b0ef6e6473d0a3770cd1443))
+* record PR 105 in spec 021 ([aed5794](https://github.com/pedronastasi/manychat-ai-agent/commit/aed579492b1e7c029154d7b900ca1e481b436b39))
+* specify the contributor surface ([e7809ec](https://github.com/pedronastasi/manychat-ai-agent/commit/e7809ec8be8ba127388238f017e3efb705666188))
+* specify the contributor surface ([ca479b2](https://github.com/pedronastasi/manychat-ai-agent/commit/ca479b299d64048e93df1be6fcbfbaaf28c9d914))
+* stop naming the deployment repository in spec 010 ([aa0f6cf](https://github.com/pedronastasi/manychat-ai-agent/commit/aa0f6cf9f6177814a66069ec8c7d8bcb986d45ad))
+* stop naming the deployment repository in spec 010 ([481e328](https://github.com/pedronastasi/manychat-ai-agent/commit/481e3286267f5af1cf2822f925ac0a36893db9f6))
+
 ## [0.7.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.6.0...manychat-ai-agent-v0.7.0) (2026-09-27)
 
 

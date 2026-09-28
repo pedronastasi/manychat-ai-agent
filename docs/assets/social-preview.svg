@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title">
+  <title id="title">ManyChat AI Agent: the model races an 8-second deadline; the loser's reply completes into an outbox</title>
+  <!-- specs/021 § Repository settings: the social preview, drawn with fixture values only. Export at 1280x640 PNG to upload. -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, 'Ubuntu Sans', 'DejaVu Sans', sans-serif; fill: #e6edf3; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+    .title { font-size: 54px; font-weight: 700; }
+    .subtitle { font-size: 24px; fill: #8b949e; }
+    .box { fill: #161b22; stroke: #30363d; stroke-width: 2; }
+    .race { fill: #1f2a3a; stroke: #58a6ff; stroke-width: 2; }
+    .good { fill: #12261e; stroke: #3fb950; stroke-width: 2; }
+    .slow { fill: #2b2111; stroke: #d29922; stroke-width: 2; }
+    .human { fill: #2d1618; stroke: #f85149; stroke-width: 2; }
+    .label { font-size: 20px; font-weight: 600; }
+    .detail { font-size: 16px; fill: #8b949e; }
+    .edge { font-size: 16px; fill: #c9d1d9; }
+    .line { stroke: #8b949e; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  </style>
+
+  <rect width="1280" height="640" fill="#0d1117"/>
+
+  <text x="60" y="100" class="title">ManyChat AI Agent</text>
+  <text x="60" y="144" class="subtitle">An LLM behind a hard webhook timeout. Race the model against the deadline;</text>
+  <text x="60" y="176" class="subtitle">never drop the reply, and hand off to a human rather than guess.</text>
+
+  <rect x="60" y="300" width="250" height="100" rx="12" class="box"/>
+  <text x="185" y="340" text-anchor="middle" class="label">inbound message</text>
+  <text x="185" y="372" text-anchor="middle" class="detail mono">how much is the</text>
+  <text x="185" y="392" text-anchor="middle" class="detail mono">foundation course?</text>
+
+  <path d="M310,350 L378,350" class="line"/>
+
+  <rect x="380" y="300" width="230" height="100" rx="12" class="box"/>
+  <text x="495" y="340" text-anchor="middle" class="label">guards</text>
+  <text x="495" y="370" text-anchor="middle" class="detail">keywords · turn cap</text>
+  <text x="495" y="390" text-anchor="middle" class="detail">rate limit · daily budget</text>
+
+  <path d="M495,400 L495,478" class="line"/>
+  <text x="507" y="446" class="edge">denied</text>
+  <rect x="380" y="480" width="230" height="80" rx="12" class="human"/>
+  <text x="495" y="516" text-anchor="middle" class="label">escalate to a human</text>
+  <text x="495" y="542" text-anchor="middle" class="detail">the model never runs</text>
+
+  <path d="M610,350 L678,350" class="line"/>
+
+  <rect x="680" y="310" width="190" height="80" rx="12" class="race"/>
+  <text x="775" y="358" text-anchor="middle" class="label mono">Promise.race</text>
+
+  <path d="M870,330 C905,330 900,270 928,270" class="line"/>
+  <text x="876" y="262" class="edge">&lt; 8 s</text>
+  <rect x="930" y="230" width="310" height="80" rx="12" class="good"/>
+  <text x="1085" y="264" text-anchor="middle" class="label">model answered: reply inline</text>
+  <text x="1085" y="292" text-anchor="middle" class="detail">The Foundation Course is $450.00.</text>
+
+  <path d="M870,370 C905,370 900,430 928,430" class="line"/>
+  <text x="878" y="458" class="edge">= 8 s</text>
+  <rect x="930" y="390" width="310" height="80" rx="12" class="slow"/>
+  <text x="1085" y="424" text-anchor="middle" class="label">deadline hit: short ack</text>
+  <text x="1085" y="452" text-anchor="middle" class="detail">Give me one second while I check that.</text>
+
+  <path d="M1085,470 L1085,518" class="line"/>
+  <text x="1240" y="550" text-anchor="end" class="edge">model keeps running → outbox → worker → Send API</text>
+  <text x="1240" y="576" text-anchor="end" class="detail">the reply is deferred, never dropped</text>
+</svg>

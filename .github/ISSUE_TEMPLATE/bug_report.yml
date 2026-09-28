@@ -1,0 +1,57 @@
+name: Bug report
+description: The agent or the service did something the specs say it should not.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is public the moment you submit it, and deleting it later does
+        not remove it from notification emails or search indexes. Reproduce the
+        bug against the fixture tenant and describe it from there, rather than
+        pasting a conversation from a real deployment.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What the agent or the service did, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: |
+        The message you sent and the reply you received, from `pnpm simulate`
+        against the fixture tenant and the mock model:
+
+        ```
+        AGENT_MODEL=mock:demo CONFIG_DIR=test/fixtures/config pnpm dev
+        pnpm simulate "your message"
+        ```
+
+        If the bug only appears with a real tenant's configuration, describe what
+        that configuration does (for example "a course whose FAQ answer mentions a
+        second price") instead of quoting it.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: A release tag such as `v0.7.0`, or the commit you ran.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: no-tenant-data
+    attributes:
+      label: No tenant data
+      options:
+        - label: >-
+            This issue contains no real transcripts, prices, names, phone numbers,
+            screenshots or `.env` values (C1, C5).
+          required: true

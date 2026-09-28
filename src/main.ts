@@ -19,7 +19,7 @@ export async function main() {
   const env = loadEnv();
   // A tool aimed at the reply flow or field fails the boot, and a reload that
   // introduces one is refused (specs/012).
-  const configStore = new ConfigStore('config', reservedNames(env));
+  const configStore = new ConfigStore(process.env.CONFIG_DIR ?? 'config', reservedNames(env));
 
   let db: Database;
   if (isEmbedded(env.DATABASE_URL)) {

@@ -7,6 +7,29 @@ pnpm install && pnpm bootstrap && pnpm dev
 Runs offline by default — a mock model and an embedded Postgres, so no API key or
 database is needed to work on it.
 
+## Changes that need no spec and no ADR
+
+Open a pull request directly for any of these:
+
+- **Documentation fixes**: a wrong command, a stale path, an unclear sentence.
+- **New or stronger tests**, including ones that pin behaviour a spec already
+  describes.
+- **New eval cases** in [`evals/golden/`](evals/golden/), written against the
+  fixture tenant.
+- **Bug fixes that restore specified behaviour**: the spec says one thing, the
+  code does another, and the fix makes the code agree.
+
+A spec is required when a change adds behaviour or changes what existing
+behaviour is: write it in [`specs/`](specs/) first. An ADR is required when a
+change picks between defensible options that a later reader would question:
+record it in [`docs/adr/`](docs/adr/). Either way, the pull request template and
+CI apply to every pull request; this section changes what you write first, not
+which rules apply.
+
+To report a bug instead of fixing it, the issue form asks for a reproduction
+with `pnpm simulate` against the fixture tenant (`CONFIG_DIR=test/fixtures/config`)
+and the mock model, never a transcript from a real deployment.
+
 ## Before opening a PR
 
 ```bash
@@ -115,6 +138,13 @@ provider-facing usage shape (`{ total, noCache, cacheRead, cacheWrite }`), which
 the SDK flattens for callers. Using the flattened shape in a mock silently yields
 undefined token counts and makes the budget cap a no-op. Use the helpers in
 `test/helpers/model.ts`.
+
+**The README's images are made from the fixture tenant.** `pnpm demo:record`
+regenerates `docs/assets/demo.svg` by running the simulator against the fixture
+tenant and the mock model; it cannot be pointed at anything else.
+`docs/assets/social-preview.svg` is the source of the repository's social
+preview, uploaded by hand as a 1280x640 PNG. No test can read an image, so a
+reviewer checks both for real tenant copy (specs/021).
 
 ## Adding a channel
 
