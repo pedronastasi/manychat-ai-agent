@@ -18,6 +18,7 @@ config/
   prompt.md        persona, tone, rules      (gitignored)
   catalog.json     courses, prices, schedule (gitignored)
   rules.json       thresholds, escalation    (gitignored)
+  tools.json       optional agent actions    (gitignored)
   *.example        committed scaffolds for the fictional demo tenant
 .env               credentials and model selection (gitignored)
 ```
@@ -45,6 +46,27 @@ JSON edit and a restart — no prompt editing, no deploy.
 - `rate_limit` — per-subscriber turns per window
 - `historyDays` — how far back the model's history reaches, default 30
 - `idleResetHours` — hours of silence after which the turn cap resets, default 24 (`018`)
+
+## `tools.json`
+
+Optional. The flows, tags and field values the agent may act with (`012`). Absent,
+the agent is offered no tools and behaves as it did before `012`.
+
+- `flows[]` — `id`, `flowNs`, `description`
+- `tags[]` — `id`, `tag`, `description`
+- `fields[]` — `id`, `field`, `values` (at least one, unique), `description`
+
+Every list defaults to empty, and an empty list offers no tool. An `id` is
+lowercase letters, digits, `_` and `-`, unique within its list, because it
+becomes an enum value in a tool's parameter schema. The model sees `id` and
+`description` only. `flowNs`, `tag` and `field` name objects in the tenant's
+ManyChat account and stay server-side.
+
+Loading also refuses a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, and a
+field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`. Firing the
+reply flow or writing either field as an action would resend a stale reply,
+overwrite one in flight, or replace the contact's token. Like any other invalid
+config, this fails the boot, and a reload that introduces it is refused.
 
 ## `.env`
 

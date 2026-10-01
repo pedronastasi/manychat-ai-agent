@@ -163,10 +163,12 @@ through the existing `ManyChatClient` and its rate limiter.
 ## The flow set may not include the reply flow or field
 
 `flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, and `fields[].field`
-may not equal `MANYCHAT_REPLY_FIELD`. The reply flow renders whatever the reply
-field holds, so firing it as a tool would resend a stale reply, and writing that
-field as a tool would overwrite a reply in flight (`002 § The two calls are one
-delivery`). Either collision is a startup failure, not a runtime surprise.
+may not equal `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`. The reply flow
+renders whatever the reply field holds, so firing it as a tool would resend a
+stale reply, and writing that field as a tool would overwrite a reply in flight
+(`002 § The two calls are one delivery`). Writing the token field would replace
+the contact's token (`019`). Any collision is a startup failure, not a runtime
+surprise.
 
 ## A failed action is logged, never retried
 
@@ -204,16 +206,17 @@ the model staged, whatever became of it.
 
 | `status`           | Meaning                                                |
 | ------------------ | ------------------------------------------------------ |
-| `staged`           | Deferred path; waiting for the outbox worker           |
+| `staged`           | Not yet performed; waiting for the response or outbox  |
 | `performed`        | ManyChat accepted the request                          |
 | `failed`           | ManyChat rejected it; `error` holds the reason         |
 | `discarded`        | The turn escalated (see "Guardrails run before…")      |
 | `dropped_over_cap` | Staged past the per-turn limit and never sent          |
 | `dead_lettered`    | Its outbox row was dead-lettered, so it was never sent |
 
-On the inline path the entries are written once the actions have run. On the
-deferred path they are written as `staged` with the turn, and the outbox worker
-updates them after it has sent them. The column is `null` on turns where no tool
+On both paths the entries are written as `staged` with the turn and updated once
+the actions have run: on the inline path after the response, and on the
+deferred path by the outbox worker after it has sent them. An inline turn whose
+process dies before its actions run therefore stays `staged`. The column is `null` on turns where no tool
 was offered, so "no tools" and "tools offered, none chosen" (`[]`) are distinct.
 
 Entries hold only configured ids and values, never `flowNs`, tag or field names,
