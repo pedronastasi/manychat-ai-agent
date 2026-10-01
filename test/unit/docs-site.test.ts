@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMarkdownRenderer } from 'vitepress';
+
+import { mermaidDiagrams, mermaidTag } from '../../.vitepress/diagrams.ts';
 
 import {
   API_PAGE,
@@ -137,8 +140,9 @@ describe('links outside the site point at GitHub (specs/014 § Links outside the
 });
 
 describe('the sidebar is derived (specs/014 § The sidebar is derived, never hand-listed)', () => {
-  const siteFiles = readdirSync('.vitepress')
-    .filter(name => /\.[cm]?[jt]s$/.test(name))
+  const siteFiles = readdirSync('.vitepress', { recursive: true, encoding: 'utf8' })
+    .filter(name => !/^(cache|dist)\b/.test(name))
+    .filter(name => /\.([cm]?[jt]s|vue)$/.test(name))
     .map(name => join('.vitepress', name));
 
   it('found the site configuration to check', () => {
@@ -172,5 +176,28 @@ describe('the OpenAPI document is generated, never committed (specs/014 § The A
   it('is written where git ignores it', () => {
     // check-ignore exits non-zero, and throws here, for a path git would track.
     expect(() => execFileSync('git', ['check-ignore', '--quiet', API_PAGE])).not.toThrow();
+  });
+});
+
+describe('mermaid fences render as diagrams (specs/014 § The site renders files where they already live)', () => {
+  // GitHub draws these; served as code, the site would read worse than the
+  // repository it publishes.
+  it('hands a mermaid fence to the diagram component, and leaves other fences as code', async () => {
+    const md = await createMarkdownRenderer(root, { config: mermaidDiagrams });
+    // Quotes, braces and brackets that would otherwise be read as markup.
+    const diagram = 'sequenceDiagram\n  A->>B: "{{ greeting }}" <b>now</b>\n';
+    const html = md.render(
+      ['```mermaid', diagram + '```', '', '```json', '{ "a": 1 }', '```'].join('\n'),
+    );
+
+    expect(html).toContain(mermaidTag(diagram));
+    expect(html).not.toContain('{{ greeting }}');
+    expect(html).toContain('language-json');
+  });
+
+  it('carries the diagram source through unchanged', () => {
+    const diagram = 'graph TD\n  A["x & y"] --> B{{"z"}}\n';
+    const encoded = mermaidTag(diagram).match(/source="([^"]*)"/)?.[1] ?? '';
+    expect(decodeURIComponent(encoded)).toBe(diagram);
   });
 });

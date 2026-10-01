@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { posix, relative, resolve } from 'node:path';
 import { defineConfig, type MarkdownOptions } from 'vitepress';
 
+import { mermaidDiagrams } from './diagrams.ts';
 import {
   BRANCH,
   REPOSITORY,
@@ -69,7 +70,12 @@ export default defineConfig({
   cleanUrls: true,
   // `ignoreDeadLinks` is deliberately never set (specs/014).
 
-  markdown: { config: publishedLinks },
+  markdown: {
+    config: md => {
+      publishedLinks(md);
+      mermaidDiagrams(md);
+    },
+  },
 
   themeConfig: {
     sidebar: deriveSidebar(root),
