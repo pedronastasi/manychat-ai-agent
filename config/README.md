@@ -116,6 +116,27 @@ chosen. Otherwise it has one entry per staged action:
 [{ "tool": "send_flow", "id": "foundation_brochure", "status": "performed" }]
 ```
 
+How an action reaches each status. The rounded boxes are the statuses you will
+see in the column:
+
+```mermaid
+flowchart TD
+    call["The model calls a tool"] --> cap{"3 actions already staged this turn?"}
+    cap -- yes --> over(["dropped_over_cap"])
+    cap -- no --> handoff{"Does the turn end in a handoff?"}
+    handoff -- yes --> discarded(["discarded"])
+    handoff -- no --> staged(["staged"])
+    staged --> deadline{"Reply ready before the 8 s race deadline?"}
+    deadline -- yes --> inline["Dynamic Block response sent"]
+    deadline -- no --> outbox{"Outbox delivers the reply?"}
+    outbox -- "no, dead-lettered" --> dead(["dead_lettered"])
+    outbox -- yes --> run
+    inline --> run["One request to ManyChat, 10 s timeout"]
+    run --> accepted{"ManyChat accepts it?"}
+    accepted -- yes --> performed(["performed"])
+    accepted -- "no, or timed out" --> failed(["failed"])
+```
+
 | `status`           | Meaning                                                    |
 | ------------------ | ---------------------------------------------------------- |
 | `staged`           | Waiting to be performed, after the response or the outbox  |
