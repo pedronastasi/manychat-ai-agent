@@ -1,6 +1,6 @@
 ---
 status: implemented
-implemented: 2026-10-01
+implemented: 2026-10-02
 pr: 119
 constitution: [C1, C9]
 ---
