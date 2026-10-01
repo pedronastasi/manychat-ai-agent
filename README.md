@@ -1,6 +1,7 @@
 # ManyChat AI Agent
 
 [![CI](https://github.com/pedronastasi/manychat-ai-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/pedronastasi/manychat-ai-agent/actions/workflows/ci.yml)
+[![Docs](https://github.com/pedronastasi/manychat-ai-agent/actions/workflows/docs.yml/badge.svg)](https://pedronastasi.github.io/manychat-ai-agent/)
 [![License](https://img.shields.io/github/license/pedronastasi/manychat-ai-agent)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/pedronastasi/manychat-ai-agent)](https://github.com/pedronastasi/manychat-ai-agent/releases)
 [![Node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpedronastasi%2Fmanychat-ai-agent%2Fmain%2Fpackage.json&query=%24.engines.node&label=node)](package.json)

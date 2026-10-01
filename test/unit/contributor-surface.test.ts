@@ -130,11 +130,19 @@ describe("the README's first screen (specs/021 § The README's first screen)", (
 
   it.each([
     ['CI for ci.yml', /\/actions\/workflows\/ci\.yml\/badge\.svg$/],
+    ['the docs site deploy for docs.yml', /\/actions\/workflows\/docs\.yml\/badge\.svg$/],
     ['the license', /img\.shields\.io\/github\/license\//],
     ['the latest release', /img\.shields\.io\/github\/v\/release\//],
     ['the Node version from engines.node', /img\.shields\.io\/.*\$\.engines\.node/],
   ])('shows a badge for %s', (_badge, pattern) => {
     expect(images.some(url => pattern.test(url))).toBe(true);
+  });
+
+  it('links the docs badge to the site, not to the workflow', () => {
+    // specs/021 § Badges: the badge is how a README reader finds the docs site.
+    expect(firstScreen).toMatch(
+      /\[!\[Docs\]\([^)]*\/docs\.yml\/badge\.svg\)\]\(https:\/\/pedronastasi\.github\.io\/manychat-ai-agent\/\)/,
+    );
   });
 
   it('shows no coverage badge, since a passing CI badge already says coverage held', () => {
