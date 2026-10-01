@@ -73,6 +73,16 @@ describe('the sidebar is the derivation', () => {
     const sidebar = site.site.themeConfig.sidebar as SidebarItem[];
     expect(links(sidebar).sort()).toEqual(ALLOWLIST.map(routeOf).sort());
   });
+
+  it('lists each README as an entry heading its group, not behind the group heading', () => {
+    const sidebar = site.site.themeConfig.sidebar as SidebarItem[];
+    // A heading that is also a link reads as a label, so a page reachable only
+    // that way is a page nobody finds.
+    expect(sidebar.filter(group => group.link !== undefined)).toEqual([]);
+    const firsts = sidebar.map(group => group.items?.[0]?.link);
+    expect(firsts).toContain(routeOf('README.md'));
+    expect(firsts).toContain(routeOf('specs/README.md'));
+  });
 });
 
 describe('the API reference', () => {

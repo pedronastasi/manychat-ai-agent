@@ -118,22 +118,21 @@ export interface SidebarItem {
 
 /**
  * specs/014 § The sidebar is derived, never hand-listed. One group per
- * allowlist section. A page served as its directory's index is the group's own
- * link rather than an entry in it, the way a README heads a GitHub directory.
+ * allowlist section, each page an entry under its `#` title, in filename
+ * order. A page served as its directory's index comes first, the way a README
+ * heads a directory on GitHub. It is an entry like the rest: as the group's
+ * own link it was reachable only by clicking a heading nobody reads as one.
  */
 export function deriveSidebar(root: string): SidebarItem[] {
+  const isIndex = (page: string): boolean => posix.basename(servedAs(page)) === 'index.md';
   return ALLOWLIST.flatMap(section => {
     const pages = sectionPages(root, section);
     if (pages.length === 0) return [];
-    const index = pages.find(page => posix.basename(servedAs(page)) === 'index.md');
-    const items = pages
-      .filter(page => page !== index)
-      .map(page => ({ text: titleOf(root, page), link: routeOf(page) }));
+    const ordered = [...pages.filter(isIndex), ...pages.filter(page => !isIndex(page))];
     return [
       {
         text: section.label,
-        ...(index ? { link: routeOf(index) } : {}),
-        ...(items.length > 0 ? { items } : {}),
+        items: ordered.map(page => ({ text: titleOf(root, page), link: routeOf(page) })),
       },
     ];
   });
