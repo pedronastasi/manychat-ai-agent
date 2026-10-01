@@ -98,10 +98,17 @@ visitor who stops there has to leave knowing three things: that the project is
 maintained, who it is for, and that it runs without accounts.
 
 **Badges, and which ones.** Directly under the title: CI status for
-`ci.yml`, the license, the latest release, and the Node version from
-`engines.node`. The CI badge is GitHub's own workflow badge; the other three are
-shields.io reading public repository metadata. No badge sends anything from CI
-to a third party.
+`ci.yml`, the documentation site's deploy status for `docs.yml`, the license,
+the latest release, and the Node version from `engines.node`. The CI and docs
+badges are GitHub's own workflow badges; the other three are shields.io reading
+public repository metadata. No badge sends anything from CI to a third party.
+
+The docs badge links to the site (`014-docs-site.md`), not to the workflow. It
+is the one place in the repository that says the specs and decisions can be
+read as a set, with search; GitHub links a Pages site only from the About box,
+which a visitor reading the README does not look at. On the site, where the
+README is the home page, the badge links to the page it is on. That costs
+nothing, and editing the README for the site is what 014 forbids.
 
 There is deliberately no coverage badge. CI fails below the thresholds in
 `vitest.config.ts`, so a passing CI badge already says coverage held. A
@@ -196,8 +203,9 @@ imports.** Each one is a term someone with the problem would type:
   phone numbers.
 - A test asserts the bug form's reproduction field names `pnpm simulate` and
   the fixture tenant.
-- A test asserts that the README above its first `##` heading contains the four
-  badges, no coverage badge, and an image under `docs/assets/`.
+- A test asserts that the README above its first `##` heading contains the five
+  badges, the docs badge linking to the site, no coverage badge, and an image
+  under `docs/assets/`.
 - A test asserts that the first `##` section of CONTRIBUTING is the no-spec
   on-ramp, and that it precedes any mention of the Constitution.
 - A test asserts `CODE_OF_CONDUCT.md` exists, names an HTTPS form as its
