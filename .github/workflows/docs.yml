@@ -1,0 +1,54 @@
+name: Docs
+
+# specs/014-docs-site.md. Every push to main rebuilds the documentation site and
+# deploys it to GitHub Pages, so the site always matches main. Pull requests run
+# the same build in ci.yml, without deploying it.
+#
+# GitHub Pages must be set to deploy from "GitHub Actions" in the repository
+# settings, once. Until it is, the deploy job fails visibly.
+on:
+  push: { branches: [main] }
+
+permissions:
+  contents: read
+
+# One deployment at a time. A newer push queues behind a running deployment
+# rather than cancelling it half way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Synced to the deploy repo along with every other workflow, like
+    # release.yml. The site belongs to the public repository only.
+    if: github.repository == 'pedronastasi/manychat-ai-agent'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build site
+        run: pnpm docs:build
+
+      - uses: actions/upload-pages-artifact@v5
+        with: { path: .vitepress/dist }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Scoped to this job: publishing to Pages, and the OIDC token Pages
+    # requires. The build job, which runs the repository's code, holds neither.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

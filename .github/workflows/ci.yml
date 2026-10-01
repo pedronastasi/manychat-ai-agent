@@ -61,6 +61,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # specs/014-docs-site.md. The site is built, not deployed, on every pull
+      # request: a renamed spec that breaks a link fails the PR that renamed
+      # it, rather than the live site afterwards. docs.yml deploys from main.
+      - name: Docs build (dead-link check)
+        run: pnpm docs:build
+
   secrets:
     runs-on: ubuntu-latest
     steps:

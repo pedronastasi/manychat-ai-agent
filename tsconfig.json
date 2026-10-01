@@ -34,7 +34,8 @@
     "evals/**/*.ts",
     "db/**/*.ts",
     "scripts/**/*.ts",
-    "*.config.ts"
+    "*.config.ts",
+    ".vitepress/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

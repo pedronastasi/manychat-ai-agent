@@ -1,6 +1,9 @@
 dist/
 node_modules/
 coverage/
+.vitepress/cache/
+.vitepress/dist/
+/api/
 pnpm-lock.yaml
 db/migrations/
 CHANGELOG.md
