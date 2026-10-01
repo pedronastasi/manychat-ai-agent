@@ -33,6 +33,8 @@ Runs with no API key and no database (mock model + embedded PGlite).
 | `pnpm tokens:backfill` | Issue contact tokens to existing contacts (`--check`)  |
 | `pnpm spec:index`      | Regenerate `specs/README.md` from spec frontmatter     |
 | `pnpm demo:record`     | Re-record the README demo against the fixture tenant   |
+| `pnpm docs:build`      | Build the docs site (specs/014); fails on dead links   |
+| `pnpm docs:dev`        | Docs site dev server                                   |
 
 `EVAL_DIR` selects the eval suite (default `evals/golden`) and `CONFIG_DIR` the
 tenant it runs against — see `specs/009-tenant-eval-suites.md`.
@@ -83,6 +85,7 @@ test/
   helpers/             # db.ts (PGlite factory), model.ts (mock models), manychat.ts, ffmpeg.ts
   fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
+.vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
 docs/adr/              # Architecture Decision Records (0001–0008)
 specs/                 # Specification documents (000–008)
 evals/golden/          # Golden eval cases (cases.jsonl)
@@ -138,7 +141,7 @@ Nine non-negotiable clauses:
 
 ## CI
 
-GitHub Actions (`ci.yml`): typecheck → lint → format:check → test:coverage → eval:mock → build, plus Gitleaks (secrets scan) and CodeQL.
+GitHub Actions (`ci.yml`): typecheck → lint → format:check → test:coverage → eval:mock → build → docs:build, plus Gitleaks (secrets scan) and CodeQL. `docs.yml` deploys the docs site to GitHub Pages on every push to `main`.
 
 ## Environment
 

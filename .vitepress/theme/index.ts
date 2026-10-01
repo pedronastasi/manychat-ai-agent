@@ -1,0 +1,15 @@
+/**
+ * The default theme, plus the one component the Markdown needs to render as it
+ * does on GitHub: Mermaid diagrams (../diagrams.ts).
+ */
+import DefaultTheme from 'vitepress/theme';
+import type { Theme } from 'vitepress';
+
+import Mermaid from './Mermaid.vue';
+
+export default {
+  extends: DefaultTheme,
+  enhanceApp({ app }) {
+    app.component('Mermaid', Mermaid);
+  },
+} satisfies Theme;

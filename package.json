@@ -13,6 +13,10 @@
     "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file=.env --watch src/main.ts",
     "bootstrap": "node scripts/setup.mjs",
     "spec:index": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/spec-index.ts",
+    "docs:api": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/export-openapi.ts",
+    "docs:build": "pnpm docs:api && vitepress build",
+    "docs:dev": "pnpm docs:api && vitepress dev",
+    "docs:preview": "vitepress preview",
     "demo:record": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/record-demo.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/main.js",
@@ -54,10 +58,13 @@
     "@vitest/coverage-v8": "5.0.3",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.10.0",
+    "mermaid": "^12.0.0",
     "prettier": "^3.9.6",
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.70.0",
+    "vitepress": "^1.6.4",
     "vitest": "^5.0.0",
+    "vue": "^3.5.43",
     "yaml": "^2.9.1"
   }
 }

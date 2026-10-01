@@ -13,6 +13,13 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# --- Documentation site (specs/014) -----------------------------------------
+# The API reference is generated from the Zod contracts on every build; a
+# committed copy would be a second source of truth for the wire contract.
+.vitepress/cache/
+.vitepress/dist/
+/api/
+
 # --- Test / tooling ----------------------------------------------------------
 coverage/
 .vitest/
