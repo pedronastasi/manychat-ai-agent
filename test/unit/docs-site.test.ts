@@ -35,13 +35,17 @@ describe('publication is an allowlist (specs/014 § Publication is an allowlist)
     'specs/README.md',
     'specs/014-docs-site.md',
     'docs/adr/0003-contract-first-with-zod.md',
+    'config/README.md',
     API_PAGE,
   ])('publishes %s', path => {
     expect(isPublished(path)).toBe(true);
   });
 
   it.each([
-    'config/README.md',
+    // Where a deployment's real persona sits, gitignored but on disk. Only
+    // config/README.md is published from config/, by name.
+    'config/prompt.md',
+    'config/notes.md',
     'test/fixtures/config/prompt.md',
     'CLAUDE.md',
     '.claude/skills/spec/SKILL.md',
@@ -60,8 +64,9 @@ describe('publication is an allowlist (specs/014 § Publication is an allowlist)
   it('hands VitePress every other Markdown file in the tree as excluded', () => {
     const excluded = unpublishedPatterns(root);
     // Guards the loop below against an empty walk, which would pass anything.
-    expect(excluded).toContain('config/README.md');
+    expect(excluded).toContain('test/fixtures/config/prompt.md');
     expect(excluded).toContain('CLAUDE.md');
+    expect(excluded).not.toContain('config/README.md');
     for (const path of markdownFiles(root)) {
       expect(excluded.includes(path)).toBe(!isPublished(path));
     }
@@ -79,9 +84,19 @@ describe('links outside the site point at GitHub (specs/014 § Links outside the
   });
 
   it('sends a link to an unpublished Markdown file to GitHub rather than serving it', () => {
-    expect(resolveLink(root, pages, 'README.md', 'config/README.md')).toEqual({
+    expect(resolveLink(root, pages, 'README.md', 'CLAUDE.md')).toEqual({
       kind: 'rewritten',
-      href: github('blob', 'config/README.md'),
+      href: github('blob', 'CLAUDE.md'),
+    });
+  });
+
+  it('sends a link to a configuration example to GitHub, keeping the guide on the site', () => {
+    expect(resolveLink(root, pages, 'config/README.md', 'tools.json.example')).toEqual({
+      kind: 'rewritten',
+      href: github('blob', 'config/tools.json.example'),
+    });
+    expect(resolveLink(root, pages, 'README.md', 'config/README.md')).toEqual({
+      kind: 'unchanged',
     });
   });
 

@@ -24,6 +24,7 @@ const ALLOWLIST = [
   'CHANGELOG.md',
   ...markdownIn('specs'),
   ...markdownIn('docs/adr'),
+  'config/README.md',
   API_PAGE,
 ].sort();
 
@@ -47,8 +48,12 @@ describe('the site publishes exactly the allowlist', () => {
     expect([...site.pages].sort()).toEqual(ALLOWLIST);
   });
 
-  it.each(['config/', 'test/', '.claude/', '.github/'])('serves nothing under %s', prefix => {
+  it.each(['test/', '.claude/', '.github/'])('serves nothing under %s', prefix => {
     expect(site.pages.filter(page => page.startsWith(prefix))).toEqual([]);
+  });
+
+  it('serves nothing under config/ but its README', () => {
+    expect(site.pages.filter(page => page.startsWith('config/'))).toEqual(['config/README.md']);
   });
 
   it('does not serve the agent instructions', () => {

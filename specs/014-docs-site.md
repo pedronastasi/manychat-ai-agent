@@ -68,12 +68,11 @@ Adding a spec or an ADR adds it to the site without touching `.vitepress/`.
 The repository contains Markdown that was never written for a public audience
 and must not become one:
 
-| Tracked file                   | Why it stays off the site                                  |
-| ------------------------------ | ---------------------------------------------------------- |
-| `config/README.md`             | Setup notes for the directory a tenant's real config fills |
-| `test/fixtures/**/prompt.md`   | Fixture personas; invented (C1), but not documentation     |
-| `CLAUDE.md`, `.claude/skills/` | Instructions to an agent, not to a reader                  |
-| `.github/*.md`                 | Templates GitHub renders into forms                        |
+| Tracked file                   | Why it stays off the site                              |
+| ------------------------------ | ------------------------------------------------------ |
+| `test/fixtures/**/prompt.md`   | Fixture personas; invented (C1), but not documentation |
+| `CLAUDE.md`, `.claude/skills/` | Instructions to an agent, not to a reader              |
+| `.github/*.md`                 | Templates GitHub renders into forms                    |
 
 A denylist of those paths would publish the next one somebody adds. C1 makes
 the direction of failure matter: a file wrongly left off the site is a missing
@@ -89,6 +88,7 @@ So the published set is **exactly** these, and nothing else:
 | `CHANGELOG.md`                                | Release history   |
 | `specs/*.md` (`specs/README.md` as its index) | Specs section     |
 | `docs/adr/*.md`                               | Decisions section |
+| `config/README.md`, by name                   | Configuration     |
 | The OpenAPI document (generated, see below)   | API reference     |
 
 A Markdown file outside those paths is unpublished until a change to this spec
@@ -98,6 +98,15 @@ is a C1 decision, not a configuration tweak.
 The CHANGELOG is included because it has already been reviewed as a diff before
 the tag existed (`010-release-workflow.md`). The site adds a place it can be
 read, not a new way for text to reach it.
+
+`config/README.md` is included by name, and nothing else under `config/` is.
+It started as setup notes for the directory a tenant's real config fills, and
+was kept off the site for that reason. It has since become the operator's guide
+to `tools.json` (`012-agent-tools.md`), written for the same reader as the
+README, with invented values only. The directory around it is where a
+deployment's real prompt, catalog and rules live, gitignored but present on
+disk. Publishing the directory would put one copy-paste between those files and
+the site; naming the one file does not.
 
 ## Links outside the site point at GitHub, not at nothing
 
@@ -154,9 +163,10 @@ The site's own configuration is English (C9), like everything else committed.
   by a rename.
 - A test builds the site's page list from the same configuration VitePress uses
   and asserts it equals the allowlist above. In particular, nothing under
-  `config/`, `test/`, `.claude/` or `.github/`, and not `CLAUDE.md`, is
-  published. It also asserts the rewritten `README.md` and `specs/README.md`
-  are the pages served at the site root and the specs index.
+  `test/`, `.claude/` or `.github/`, nothing under `config/` but its README,
+  and not `CLAUDE.md`, is published. It also asserts the rewritten `README.md`
+  and `specs/README.md` are the pages served at the site root and the specs
+  index.
 - A test asserts that `.vitepress/` contains no hand-written sidebar entries:
   the sidebar is the output of the derivation, not a literal.
 - A test asserts that no OpenAPI document is tracked in git.
