@@ -434,7 +434,36 @@ capabilities` line shows what this server can read.
 
 With an optional `config/tools.json`, the agent can also act on the contact in
 ManyChat: send one of the tenant's flows, add or remove a tag, or record one of a
-field's allowed values ([spec 012](specs/012-agent-tools.md)):
+field's allowed values ([spec 012](specs/012-agent-tools.md)).
+
+A turn where the contact asks for something to read, answered inside the
+deadline:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Contact
+    participant M as ManyChat
+    participant A as Agent
+    participant L as Model
+
+    C->>M: "Can you send me something to read?"
+    M->>A: Dynamic Block request
+    A->>L: Step 1, tools offered
+    L-->>A: Calls send_flow foundation_brochure
+    Note over A: Staged only. Nothing has been sent to ManyChat
+    A->>L: Step 2, no tools, told what was staged
+    L-->>A: Reply: "Sending you the brochure now"
+    Note over A: Guardrails run. A handoff here would discard the action
+    A-->>M: Dynamic Block response with the reply
+    M->>C: Reply
+    A-)M: sendFlow, only after the response has been sent
+    M->>C: The brochure flow
+    Note over A: turns.actions records it as performed
+```
+
+When the model misses the deadline, the contact gets the holding message, and
+the outbox worker performs the action after it has delivered the reply.
 
 - **A tool call only stages the action.** Nothing reaches ManyChat while the
   model is running, and a turn that ends in a handoff discards everything it
