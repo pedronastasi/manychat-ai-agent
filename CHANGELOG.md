@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.8.1...manychat-ai-agent-v0.9.0) (2026-10-01)
+
+
+### Features
+
+* implement agent tools (spec 012) ([8018337](https://github.com/pedronastasi/manychat-ai-agent/commit/801833742e89c8b81f2f0360cbf815f09c0c4832))
+
+
+### Specs and Docs
+
+* explain how agent tools work (spec 012) ([8df85ce](https://github.com/pedronastasi/manychat-ai-agent/commit/8df85ce2e59bc6e48d54075c4df977581e778340))
+
 ## [0.8.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.8.0...manychat-ai-agent-v0.8.1) (2026-09-28)
 
 
