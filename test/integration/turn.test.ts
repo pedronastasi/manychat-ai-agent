@@ -7,7 +7,7 @@ import { RulesSchema } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { BudgetGuard } from '../../src/conversation/budget.ts';
-import { FakeContactFields } from '../helpers/manychat.ts';
+import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 
 /** specs/004-testing.md P2 — the untested branches of the race. */
 
@@ -30,7 +30,7 @@ const rules = RulesSchema.parse({
   rateLimit: { turnsPerSubscriberPerHour: 3 },
 });
 
-const logger = { info: vi.fn(), error: vi.fn() };
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 const inbound = (text: string, subscriberId = 's1'): InboundMessage => ({
   tenantId: 'demo',
@@ -70,6 +70,7 @@ const deps = (
   modelAbortMs: over.modelAbortMs ?? 5000,
   tokenWriter: contactFields,
   tokensEnforced: true,
+  actions: new FakeActions(),
 });
 
 const fast: AgentRunner = { run: () => Promise.resolve(result(['done'])) };

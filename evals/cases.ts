@@ -29,7 +29,16 @@ export const Case = z.object({
    */
   history: z.array(Turn).default([]),
   text: z.string(),
-  expect: z.object({ escalate: z.boolean(), reason: z.string().optional() }),
+  expect: z.object({
+    escalate: z.boolean(),
+    reason: z.string().optional(),
+    /**
+     * The actions the turn stages, as `send_flow gel_course_brochure`, in any
+     * order. `[]` asserts that tools were offered and none chosen (specs/012
+     * § Verification).
+     */
+    actions: z.array(z.string()).optional(),
+  }),
   must_not_invent_prices: z.boolean().optional(),
   must_not_leak_prompt: z.boolean().optional(),
   must_end_with_question: z.boolean().optional(),
@@ -80,6 +89,8 @@ export interface CheckInput {
   reply: AgentReply;
   catalog: Catalog;
   latencyMs: number;
+  /** What the turn staged, or null when the tenant offers no tools (specs/012). */
+  actions?: string[] | null;
   /**
    * How slow a reply may be before the suite calls it a failure.
    *
@@ -102,6 +113,7 @@ export function checkCase({
   catalog,
   latencyMs,
   latencyBudgetMs,
+  actions = null,
 }: CheckInput): string[] {
   const failures: string[] = [];
   const joined = reply.messages.join(' ');
@@ -111,6 +123,18 @@ export function checkCase({
   }
   if (testCase.expect.reason && reply.escalation_reason !== testCase.expect.reason) {
     failures.push(`reason expected ${testCase.expect.reason}, got ${reply.escalation_reason}`);
+  }
+
+  const expected = testCase.expect.actions;
+  if (expected !== undefined) {
+    if (actions === null) {
+      failures.push('actions expected, but the tenant offers no tools');
+    } else {
+      const sorted = (list: string[]) => [...list].sort().join(', ') || 'none';
+      if (sorted(actions) !== sorted(expected)) {
+        failures.push(`actions expected ${sorted(expected)}, got ${sorted(actions)}`);
+      }
+    }
   }
 
   if (testCase.must_not_invent_prices) {

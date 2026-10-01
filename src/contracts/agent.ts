@@ -138,3 +138,51 @@ export const TurnOutcome = z.enum([
   'media_fallback', // media the agent cannot read; contact asked to type (specs/020)
 ]);
 export type TurnOutcome = z.infer<typeof TurnOutcome>;
+
+/** The four things the agent can do on a turn (specs/012). */
+export const ToolName = z.enum(['send_flow', 'add_tag', 'remove_tag', 'set_field']);
+export type ToolName = z.infer<typeof ToolName>;
+
+/**
+ * An action the model staged, resolved against `tools.json` at the moment it
+ * was staged. Carries the ManyChat names it will be performed with, so it
+ * never leaves the server except as a request to ManyChat: the outbox holds
+ * it, the `turns` record does not (see `ActionRecord`).
+ */
+export const StagedAction = z.discriminatedUnion('tool', [
+  z.object({ tool: z.literal('send_flow'), id: z.string(), flowNs: z.string() }),
+  z.object({ tool: z.literal('add_tag'), id: z.string(), tag: z.string() }),
+  z.object({ tool: z.literal('remove_tag'), id: z.string(), tag: z.string() }),
+  z.object({
+    tool: z.literal('set_field'),
+    id: z.string(),
+    field: z.string(),
+    value: z.string(),
+  }),
+]);
+export type StagedAction = z.infer<typeof StagedAction>;
+
+/** What became of a staged action (specs/012 § Every staged action is recorded on its turn). */
+export const ActionStatus = z.enum([
+  'staged', // deferred path; waiting for the outbox worker
+  'performed', // ManyChat accepted the request
+  'failed', // ManyChat rejected it; `error` holds the reason
+  'discarded', // the turn escalated
+  'dropped_over_cap', // staged past the per-turn limit and never sent
+  'dead_lettered', // its outbox row was dead-lettered, so it was never sent
+]);
+export type ActionStatus = z.infer<typeof ActionStatus>;
+
+/**
+ * One entry of a turn's `actions` column. Configured ids and values only,
+ * never a flow namespace, tag or field name, or contact text, so the record
+ * needs no redaction (C5).
+ */
+export const ActionRecord = z.object({
+  tool: ToolName,
+  id: z.string(),
+  value: z.string().optional(),
+  status: ActionStatus,
+  error: z.string().optional(),
+});
+export type ActionRecord = z.infer<typeof ActionRecord>;

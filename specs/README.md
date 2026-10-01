@@ -24,7 +24,7 @@ test fails the suite.
 | [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19  | 1     | C1, C6, C8, C9             | —                              |
 | [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22  | 2     | C1, C8, C9                 | —                              |
 | [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24  | 1     | C1, C8                     | —                              |
-| [012 — Agent Tools](012-agent-tools.md)                                 | specified   | —           | —    | —     | C3, C4, C5, C6, C7         | [0010]                         |
+| [012 — Agent Tools](012-agent-tools.md)                                 | specified   | —           | —    | 3     | C3, C4, C5, C6, C7         | [0010]                         |
 | [013 — No Verbatim Repetition](013-no-verbatim-repetition.md)           | specified   | —           | —    | —     | C9                         | —                              |
 | [014 — Documentation Site](014-docs-site.md)                            | specified   | —           | —    | —     | C1, C9                     | —                              |
 | [015 — Test Service](015-test-service.md)                               | specified   | —           | —    | —     | C1, C3, C5, C7, C9         | [0001], [0005]                 |

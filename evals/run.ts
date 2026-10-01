@@ -17,6 +17,7 @@
 import { loadEnv, loadTenantConfig } from '../src/config/loader.ts';
 import { resolveModel } from '../src/agent/registry.ts';
 import { GenerateTextRunner } from '../src/agent/runner.ts';
+import { ActionStage, describeAction } from '../src/agent/tools.ts';
 import { checkCase, classify, evalDir, loadCases, type Status } from './cases.ts';
 
 interface Outcome {
@@ -65,13 +66,18 @@ async function main() {
 
   const outcomes: Outcome[] = [];
   for (const testCase of cases) {
-    const result = await runner.run({ text: testCase.text, history: testCase.history });
+    // Nothing staged here is performed: the suite reads the choice, and no
+    // ManyChat account is involved (specs/012).
+    const stage = new ActionStage();
+    const result = await runner.run({ text: testCase.text, history: testCase.history, stage });
+    const actions = result.toolsOffered ? stage.staged.map(describeAction) : null;
     const failures = checkCase({
       testCase,
       reply: result.reply,
       catalog: tenant.catalog,
       latencyMs: result.latencyMs,
       latencyBudgetMs,
+      actions,
     });
 
     const status = classify(failures, testCase.review);
@@ -90,6 +96,8 @@ async function main() {
     for (const failure of failures) console.log(`        ${RED}${failure}${RESET}`);
     if (result.interventions.length > 0)
       console.log(`        ${DIM}interventions: ${result.interventions.join(', ')}${RESET}`);
+    if (actions !== null && actions.length > 0)
+      console.log(`        ${DIM}actions: ${actions.join(', ')}${RESET}`);
     // The criterion is printed next to the reply so the person already reading
     // the output is told what to look for, rather than left to notice drift.
     if (testCase.review !== undefined)

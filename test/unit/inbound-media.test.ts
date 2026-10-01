@@ -57,7 +57,11 @@ describe('specs/020 § Media is recognised by exact host and path', () => {
     expect(matchMediaUrl(text)).toBeNull();
   });
 
-  const adapter = new ManyChatAdapter({ sendText: async () => {}, writeToken: async () => {} });
+  const adapter = new ManyChatAdapter({
+    sendText: async () => {},
+    writeToken: async () => {},
+    performAction: async () => {},
+  });
 
   it('sets media on the inbound message, and leaves typed text without it', () => {
     const logger = { warn: vi.fn() };

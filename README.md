@@ -430,14 +430,36 @@ contact to type. Without that message, the turn hands off to a person. A failed
 download or transcription always hands off. The boot log's `media
 capabilities` line shows what this server can read.
 
+### Agent tools
+
+With an optional `config/tools.json`, the agent can also act on the contact in
+ManyChat: send one of the tenant's flows, add or remove a tag, or record one of a
+field's allowed values ([spec 012](specs/012-agent-tools.md)):
+
+- **A tool call only stages the action.** Nothing reaches ManyChat while the
+  model is running, and a turn that ends in a handoff discards everything it
+  staged.
+- **The text goes first.** Actions run after the reply has gone out, either as
+  the Dynamic Block response or through the outbox. A turn has at most three
+  actions, and each gets one attempt.
+- **The model only picks from the config.** It names entries by `id`, never a
+  ManyChat name or free text, and every action lands on the contact whose
+  message it is answering.
+- **Every action is recorded** on its turn with what became of it, and the next
+  turn's history tells the model what it already sent.
+
+How to configure tools, read the record, and what to check before enabling them
+is in [config/README.md](config/README.md#toolsjson-actions-the-agent-can-take-optional).
+
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in
 `config/` is ever committed.
 
 ## Status
 
-MVP. Answers and escalates; it does not book, take payment, or call tools. The
-`AgentRunner` port exists so adding those does not change any caller.
+MVP. Answers, escalates, and can send a tenant's ManyChat flows, tags and field
+values; it does not book or take payment. The `AgentRunner` port exists so
+adding those does not change any caller.
 
 ## License
 

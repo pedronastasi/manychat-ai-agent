@@ -9,7 +9,7 @@ import { RulesSchema } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { ConversationStore } from '../../src/conversation/store.ts';
 import { ContactTokens } from '../../src/conversation/tokens.ts';
-import { FakeContactFields } from '../helpers/manychat.ts';
+import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 
 /** specs/018-history-window-and-turn-cap.md § Verification. */
 
@@ -76,11 +76,12 @@ const handler = (runner: AgentRunner) =>
     db,
     runner,
     rules,
-    logger: { info: vi.fn(), error: vi.fn() },
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     raceDeadlineMs: 1000,
     modelAbortMs: 5000,
     tokenWriter: contactFields,
     tokensEnforced: true,
+    actions: new FakeActions(),
   });
 
 const contact = { tenantId: 'demo', subscriberId: 's1', channel: 'whatsapp', idleResetHours: 24 };

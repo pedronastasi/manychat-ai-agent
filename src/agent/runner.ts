@@ -1,10 +1,18 @@
-import { generateText, Output, type LanguageModel, type ModelMessage } from 'ai';
-import { AgentReplyForModel, type AgentReply } from '../contracts/agent.ts';
+import { generateText, isStepCount, Output, type LanguageModel, type ModelMessage } from 'ai';
+import { AgentReplyForModel, type ActionRecord, type AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
+import { NO_TOOLS } from '../contracts/config.ts';
 import type { MediaImage } from '../media/port.ts';
-import { buildSystemPrompt, fenceUserText, mediaNotice } from './prompt.ts';
+import {
+  actionsNote,
+  buildSystemPrompt,
+  fenceUserText,
+  mediaNotice,
+  stagedNotice,
+} from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
+import { ActionStage, buildTools, MAX_STEPS } from './tools.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -34,6 +42,12 @@ export interface AgentResult {
    * spend cannot be attributed after a model switch.
    */
   model: string;
+  /**
+   * Whether any tool was offered, so the turn can record "no tools" (null)
+   * apart from "tools offered, none chosen" (specs/012). What was staged is
+   * on the `ActionStage` the caller passed in. Absent means none were.
+   */
+  toolsOffered?: boolean;
 }
 
 /** What the contact sent when it was not typed, as the model receives it (specs/020). */
@@ -45,12 +59,43 @@ export interface TurnMedia {
   transcript: boolean;
 }
 
+/** A turn of history. An agent turn carries what the server did on it (specs/012). */
+export interface HistoryTurn {
+  role: 'user' | 'agent';
+  text: string;
+  actions?: ActionRecord[] | null | undefined;
+}
+
 export interface AgentTurnInput {
   /** The contact's message, or a transcript of it. Empty for an image alone. */
   text: string;
-  history: { role: 'user' | 'agent'; text: string }[];
+  history: HistoryTurn[];
   signal?: AbortSignal | undefined;
   media?: TurnMedia | undefined;
+  /**
+   * Where the tools record what they stage. Owned by the caller, so it still
+   * knows what was staged when the call is aborted and never returns.
+   */
+  stage?: ActionStage | undefined;
+}
+
+/**
+ * An earlier turn as the model reads it. An agent turn is followed by the
+ * server's note of what it performed, written from the `actions` column and
+ * never from the model's own text. Outside the fence: it is the system's
+ * account, not the contact's (C4).
+ */
+function historyMessage(turn: HistoryTurn): ModelMessage {
+  if (turn.role === 'user') return { role: 'user', content: fenceUserText(turn.text) };
+  const note = actionsNote(turn.actions);
+  if (note === null) return { role: 'assistant', content: turn.text };
+  return {
+    role: 'assistant',
+    content: [
+      { type: 'text', text: turn.text },
+      { type: 'text', text: note },
+    ],
+  };
 }
 
 /**
@@ -82,9 +127,9 @@ function currentMessage(text: string, media: TurnMedia | undefined): ModelMessag
 }
 
 /**
- * The port every caller depends on. v1 implements it with a single
- * `generateText` call; a tool-using implementation can replace it later
- * without touching callers (ADR-0007).
+ * The port every caller depends on. Implemented with `generateText`: a single
+ * step when the tenant configures no tools, and a loop of at most two when it
+ * does (ADR-0010).
  */
 export interface AgentRunner {
   run(input: AgentTurnInput): Promise<AgentResult>;
@@ -114,7 +159,9 @@ export interface RunnerOptions {
 
 export class GenerateTextRunner implements AgentRunner {
   private readonly opts: RunnerOptions;
-  private cached: { config: TenantConfig; staticPrefix: string; catalogBlock: string } | undefined;
+  private cached:
+    | { config: TenantConfig; staticPrefix: string; catalogBlock: string; withTools: boolean }
+    | undefined;
 
   constructor(opts: RunnerOptions) {
     this.opts = opts;
@@ -128,31 +175,55 @@ export class GenerateTextRunner implements AgentRunner {
   private current() {
     const config = this.opts.config();
     if (this.cached?.config !== config) {
-      this.cached = { config, ...buildSystemPrompt(config.persona, config.catalog, config.rules) };
+      const { flows, tags, fields } = config.tools ?? NO_TOOLS;
+      const withTools = flows.length + tags.length + fields.length > 0;
+      this.cached = {
+        config,
+        withTools,
+        ...buildSystemPrompt(config.persona, config.catalog, config.rules, withTools),
+      };
     }
     return this.cached;
   }
 
-  async run({ text, history, signal, media }: AgentTurnInput): Promise<AgentResult> {
+  async run({
+    text,
+    history,
+    signal,
+    media,
+    stage = new ActionStage(),
+  }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
-    const { config, staticPrefix, catalogBlock } = this.current();
+    const { config, staticPrefix, catalogBlock, withTools } = this.current();
+    const tools = withTools ? buildTools(config.tools ?? NO_TOOLS, stage) : undefined;
 
-    const messages: ModelMessage[] = [
-      ...history.map((turn): ModelMessage =>
-        turn.role === 'user'
-          ? { role: 'user', content: fenceUserText(turn.text) }
-          : { role: 'assistant', content: turn.text },
-      ),
-      currentMessage(text, media),
-    ];
+    const messages: ModelMessage[] = [...history.map(historyMessage), currentMessage(text, media)];
+
+    // Step two offers no tools, so it must produce the reply. It sees a note
+    // of what was staged in place of its own tool calls: a provider that drops
+    // its tools when told to use none would otherwise receive tool calls with
+    // no tools to match them (specs/012 § The loop is bounded at two steps).
+    const loop = tools
+      ? {
+          tools,
+          stopWhen: isStepCount(MAX_STEPS),
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber === MAX_STEPS - 1
+              ? {
+                  activeTools: [],
+                  messages: [...messages, { role: 'user' as const, content: stagedNotice(stage) }],
+                }
+              : undefined,
+        }
+      : {};
 
     const outputSpec = Output.object({ schema: AgentReplyForModel });
-    type Empty = Record<string, never>;
-    let result: Awaited<ReturnType<typeof generateText<Empty, Empty, typeof outputSpec>>>;
+    let output: unknown;
+    let usage: Omit<AgentUsage, 'costUsd'>;
     try {
-      result = await generateText({
+      const result = await generateText({
         model: this.opts.model,
         output: outputSpec,
         system: `${staticPrefix}\n\n${catalogBlock}`,
@@ -171,7 +242,16 @@ export class GenerateTextRunner implements AgentRunner {
             ? { openai: { reasoningEffort: this.opts.reasoningEffort } }
             : {}),
         },
+        ...loop,
       });
+      // Read inside the try: a loop whose last step produced no reply throws
+      // here, and fails closed exactly as a schema failure does.
+      output = result.output;
+      usage = {
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
+      };
     } catch (error) {
       // generateText validates against the output schema and throws when the
       // model does not comply, so this is the common failure, not an exotic one.
@@ -187,6 +267,7 @@ export class GenerateTextRunner implements AgentRunner {
         modelError: name,
         latencyMs: Date.now() - started,
         model: this.opts.modelSpec,
+        toolsOffered: tools !== undefined,
         usage: {
           inputTokens: undefined,
           outputTokens: undefined,
@@ -196,19 +277,14 @@ export class GenerateTextRunner implements AgentRunner {
       };
     }
 
-    const usage = {
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
-    };
-
-    const guarded = applyGuardrails(result.output, config.rules);
+    const guarded = applyGuardrails(output, config.rules);
 
     return {
       reply: guarded.reply,
       interventions: guarded.interventions,
       latencyMs: Date.now() - started,
       model: this.opts.modelSpec,
+      toolsOffered: tools !== undefined,
       usage: { ...usage, costUsd: estimateCostUsd(this.opts.modelSpec, usage) },
     };
   }

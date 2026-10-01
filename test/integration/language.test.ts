@@ -7,7 +7,7 @@ import { buildSystemPrompt } from '../../src/agent/prompt.ts';
 import { TurnHandler } from '../../src/routes/turn.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
-import { FakeContactFields } from '../helpers/manychat.ts';
+import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 
 /**
  * specs/005-language.md § Tests.
@@ -76,9 +76,10 @@ const deps = (runner: AgentRunner, rules: typeof DEFAULT_TENANT.rules) => ({
   rules,
   raceDeadlineMs: 150,
   modelAbortMs: 5000,
-  logger: { info: () => {}, error: () => {} },
+  logger: { info: () => {}, warn: () => {}, error: () => {} },
   tokenWriter: new FakeContactFields(),
   tokensEnforced: true,
+  actions: new FakeActions(),
 });
 
 describe('no customer-facing copy is hardcoded (C9)', () => {

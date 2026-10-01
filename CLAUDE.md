@@ -152,4 +152,4 @@ All env vars documented in `.env.example`. Key variables:
 - `TRANSCRIPTION_MODEL` — `provider:model` for voice notes and video soundtracks
   (specs/020); unset sends them to `rules.messages.mediaFallback`
 
-Tenant config (`config/prompt.md`, `catalog.json`, `rules.json`) reloads on `SIGHUP` without restart.
+Tenant config (`config/prompt.md`, `catalog.json`, `rules.json`, optional `tools.json`) reloads on `SIGHUP` without restart.

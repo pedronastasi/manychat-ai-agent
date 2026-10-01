@@ -155,6 +155,8 @@ function lastUserMessage(options: LanguageModelV4CallOptions): { text: string; i
     const entry = options.prompt[index];
     if (entry?.role === 'user') {
       const texts = entry.content.flatMap(part => (part.type === 'text' ? [part.text] : []));
+      // Step two's note of what was staged is the server's, not the contact's.
+      if (texts.length > 0 && texts.every(text => text.startsWith('ACTIONS:'))) continue;
       const fenced = texts.filter(text => text.includes(FENCE));
       return {
         text: (fenced.length > 0 ? fenced : texts).join(' '),
@@ -164,6 +166,53 @@ function lastUserMessage(options: LanguageModelV4CallOptions): { text: string; i
   }
   return { text: '', image: false };
 }
+
+/**
+ * A request for something to read. With a flow configured, a correct agent
+ * sends it (specs/012); without one it has nothing to send, and answers as it
+ * would any other question.
+ */
+const WANTS_TO_READ = /(brochure|syllabus|something to read)/;
+
+/** The first flow `send_flow` offers, read from its parameter schema. */
+function offeredFlow(options: LanguageModelV4CallOptions): string | undefined {
+  const sendFlow = options.tools?.find(
+    tool => tool.type === 'function' && tool.name === 'send_flow',
+  );
+  if (sendFlow?.type !== 'function') return undefined;
+  const flow = sendFlow.inputSchema.properties?.flow;
+  const ids = typeof flow === 'object' ? flow.enum : undefined;
+  return typeof ids?.[0] === 'string' ? ids[0] : undefined;
+}
+
+/**
+ * Step two of a tool turn: the server's note says a flow was staged. A correct
+ * agent says what it is sending, never that it arrived.
+ */
+function stagedFlow(options: LanguageModelV4CallOptions): boolean {
+  return options.prompt.some(
+    entry =>
+      entry.role === 'user' &&
+      entry.content.some(
+        part =>
+          part.type === 'text' &&
+          part.text.startsWith('ACTIONS: Staged') &&
+          part.text.includes('send_flow'),
+      ),
+  );
+}
+
+const SENDING_REPLY = reply(
+  ["I'm sending you the brochure now - it has the full syllabus."],
+  false,
+  null,
+  0.9,
+);
+
+const USAGE = {
+  inputTokens: { total: 1200, noCache: 200, cacheRead: 1000, cacheWrite: 0 },
+  outputTokens: { total: 60, text: 60, reasoning: 0 },
+};
 
 /** An image with no words: a correct agent asks what the contact wants to know. */
 const IMAGE_REPLY = reply(
@@ -182,7 +231,27 @@ export function createMockModel(modelId: string): LanguageModelV4 {
 
     doGenerate: async (options: LanguageModelV4CallOptions) => {
       const message = lastUserMessage(options);
-      const text = message.image ? IMAGE_REPLY : respondTo(message.text);
+      const flow = offeredFlow(options);
+      if (flow !== undefined && WANTS_TO_READ.test(message.text.toLowerCase())) {
+        return {
+          content: [
+            {
+              type: 'tool-call' as const,
+              toolCallId: 'mock-send-flow',
+              toolName: 'send_flow',
+              input: JSON.stringify({ flow }),
+            },
+          ],
+          finishReason: { unified: 'tool-calls' as const, raw: 'tool_use' },
+          usage: USAGE,
+          warnings: [],
+        };
+      }
+      const text = stagedFlow(options)
+        ? SENDING_REPLY
+        : message.image
+          ? IMAGE_REPLY
+          : respondTo(message.text);
       // `mock:slow` deliberately exceeds the race deadline so the deferred path
       // can be exercised without a real slow provider.
       if (modelId === 'slow') {
@@ -197,10 +266,7 @@ export function createMockModel(modelId: string): LanguageModelV4 {
       return {
         content: [{ type: 'text' as const, text }],
         finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 1200, noCache: 200, cacheRead: 1000, cacheWrite: 0 },
-          outputTokens: { total: 60, text: 60, reasoning: 0 },
-        },
+        usage: USAGE,
         warnings: [],
       };
     },

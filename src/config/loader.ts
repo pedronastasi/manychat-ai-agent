@@ -1,12 +1,40 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CatalogSchema, EnvSchema, RulesSchema } from '../contracts/config.ts';
-import type { Catalog, Env, Rules } from '../contracts/config.ts';
+import {
+  CatalogSchema,
+  EnvSchema,
+  NO_TOOLS,
+  RulesSchema,
+  ToolsSchema,
+} from '../contracts/config.ts';
+import type { Catalog, Env, Rules, Tools } from '../contracts/config.ts';
 
 export interface TenantConfig {
   persona: string;
   catalog: Catalog;
   rules: Rules;
+  /** What the agent may act with (specs/012). Empty or absent: no tools are offered. */
+  tools?: Tools;
+}
+
+/**
+ * ManyChat objects this service already writes or fires for its own delivery.
+ * A tool aimed at one would resend a stale reply, overwrite a reply in flight,
+ * or replace the contact's token (specs/012 § The flow set may not include the
+ * reply flow or field).
+ */
+export interface ReservedNames {
+  replyFlowNs?: string | undefined;
+  replyField?: string | undefined;
+  tokenField?: string | undefined;
+}
+
+export function reservedNames(env: Env): ReservedNames {
+  return {
+    replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS,
+    replyField: env.MANYCHAT_REPLY_FIELD,
+    tokenField: env.MANYCHAT_TOKEN_FIELD,
+  };
 }
 
 export class ConfigError extends Error {
@@ -47,7 +75,43 @@ function readJson(path: string, label: string): unknown {
   }
 }
 
-export function loadTenantConfig(dir = 'config'): TenantConfig {
+/**
+ * `tools.json` is optional: a deployment without it is offered no tools and
+ * behaves exactly as before specs/012.
+ */
+function loadTools(dir: string, reserved: ReservedNames): Tools {
+  const path = join(dir, 'tools.json');
+  if (!existsSync(path)) return NO_TOOLS;
+
+  const tools = ToolsSchema.safeParse(readJson(path, 'tools'));
+  if (!tools.success) {
+    throw new ConfigError(
+      `Invalid tools.json:\n` +
+        tools.error.issues.map(issue => `  ${issue.path.join('.')}: ${issue.message}`).join('\n'),
+    );
+  }
+
+  const collisions = [
+    ...tools.data.flows
+      .filter(flow => flow.flowNs === reserved.replyFlowNs)
+      .map(flow => `flow '${flow.id}' is MANYCHAT_REPLY_FLOW_NS`),
+    ...tools.data.fields
+      .filter(field => field.field === reserved.replyField)
+      .map(field => `field '${field.id}' is MANYCHAT_REPLY_FIELD`),
+    ...tools.data.fields
+      .filter(field => field.field === reserved.tokenField)
+      .map(field => `field '${field.id}' is MANYCHAT_TOKEN_FIELD`),
+  ];
+  if (collisions.length > 0) {
+    throw new ConfigError(
+      `Invalid tools.json: it names objects this service uses for delivery:\n` +
+        collisions.map(collision => `  ${collision}`).join('\n'),
+    );
+  }
+  return tools.data;
+}
+
+export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): TenantConfig {
   const personaPath = join(dir, 'prompt.md');
   if (!existsSync(personaPath)) {
     throw new ConfigError(`Missing persona at ${personaPath}. Copy prompt.md.example.`);
@@ -73,6 +137,7 @@ export function loadTenantConfig(dir = 'config'): TenantConfig {
     persona: readFileSync(personaPath, 'utf8'),
     catalog: catalog.data,
     rules: rules.data,
+    tools: loadTools(dir, reserved),
   };
 }
 
@@ -89,10 +154,12 @@ export function loadTenantConfig(dir = 'config'): TenantConfig {
 export class ConfigStore {
   private current: TenantConfig;
   private readonly dir: string;
+  private readonly reserved: ReservedNames;
 
-  constructor(dir = 'config') {
+  constructor(dir = 'config', reserved: ReservedNames = {}) {
     this.dir = dir;
-    this.current = loadTenantConfig(dir);
+    this.reserved = reserved;
+    this.current = loadTenantConfig(dir, reserved);
   }
 
   get(): TenantConfig {
@@ -101,7 +168,7 @@ export class ConfigStore {
 
   reload(): { ok: true } | { ok: false; error: string } {
     try {
-      this.current = loadTenantConfig(this.dir);
+      this.current = loadTenantConfig(this.dir, this.reserved);
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };

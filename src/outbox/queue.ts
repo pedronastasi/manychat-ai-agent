@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { outbox } from '../db/schema.ts';
-import type { AgentReply } from '../contracts/agent.ts';
+import type { AgentReply, StagedAction } from '../contracts/agent.ts';
 
 interface OutboxRowBase {
   id: string;
@@ -12,12 +12,22 @@ interface OutboxRowBase {
 }
 
 /**
+ * A deferred reply and the actions staged with it (specs/012), performed once
+ * the text is delivered and resolved on the agent turn `turnId`.
+ */
+export interface ReplyPayload {
+  messages: string[];
+  actions?: StagedAction[];
+  turnId?: string;
+}
+
+/**
  * A deferred reply, or the retry of a contact token's write (specs/019). The
  * token row carries the generation it retries, never the token.
  */
 export type OutboxRow = OutboxRowBase &
   (
-    | { kind: 'reply'; payload: { messages: string[] } }
+    | { kind: 'reply'; payload: ReplyPayload }
     | { kind: 'contact_token'; payload: { generation: number } }
   );
 
@@ -35,14 +45,21 @@ export class OutboxQueue {
     subscriberId: string;
     conversationId: string | null;
     reply: AgentReply;
+    /** Deferred with the reply, never dropped from it (specs/012). */
+    actions?: { staged: readonly StagedAction[]; turnId: string } | undefined;
   }): Promise<string> {
+    const payload: ReplyPayload = { messages: input.reply.messages };
+    if (input.actions && input.actions.staged.length > 0) {
+      payload.actions = [...input.actions.staged];
+      payload.turnId = input.actions.turnId;
+    }
     const [row] = await this.db
       .insert(outbox)
       .values({
         tenantId: input.tenantId,
         subscriberId: input.subscriberId,
         conversationId: input.conversationId,
-        payload: { messages: input.reply.messages },
+        payload,
       })
       .returning({ id: outbox.id });
     if (!row) throw new Error('enqueue: insert returned no row');

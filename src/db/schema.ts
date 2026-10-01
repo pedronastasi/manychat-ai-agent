@@ -13,6 +13,7 @@ import {
   primaryKey,
   boolean,
 } from 'drizzle-orm/pg-core';
+import type { ActionRecord } from '../contracts/agent.ts';
 
 /**
  * All tables are tenant-scoped from the first migration. Retrofitting a tenant
@@ -71,6 +72,12 @@ export const turns = pgTable(
      * marker such as `[image]`, never the media URL (specs/020).
      */
     mediaKind: text('media_kind', { enum: ['audio', 'image', 'video', 'unsupported'] }),
+    /**
+     * Every action the agent staged on this turn and what became of it
+     * (specs/012). Null when no tool was offered, `[]` when tools were offered
+     * and none chosen. Configured ids only, so it needs no redaction.
+     */
+    actions: jsonb('actions').$type<ActionRecord[]>(),
 
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),

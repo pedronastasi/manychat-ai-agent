@@ -14,6 +14,7 @@ import { FENCE } from '../../src/agent/prompt.ts';
 import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { BudgetGuard } from '../../src/conversation/budget.ts';
 import {
+  FakeActions,
   FakeContactFields,
   fakeManyChatApi,
   fakeMediaHost,
@@ -128,7 +129,7 @@ function setup(over: Setup = {}) {
     acceptsImages: over.acceptsImages ?? true,
   });
 
-  const logger = { info: vi.fn(), error: vi.fn() };
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const handler = new TurnHandler({
     db,
     runner,
@@ -138,13 +139,18 @@ function setup(over: Setup = {}) {
     logger,
     tokenWriter: contactFields,
     tokensEnforced: true,
+    actions: new FakeActions(),
     media,
   });
 
   return { handler, host, answering, transcription, logger };
 }
 
-const adapter = new ManyChatAdapter({ sendText: async () => {}, writeToken: async () => {} });
+const adapter = new ManyChatAdapter({
+  sendText: async () => {},
+  writeToken: async () => {},
+  performAction: async () => {},
+});
 
 /** What ManyChat POSTs, parsed as the route parses it. */
 const inbound = (text: string, subscriberId = 's1') =>
