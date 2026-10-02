@@ -20,6 +20,7 @@ import { EscalationReason } from '../../src/contracts/agent.ts';
 import type { ActionRecord } from '../../src/contracts/agent.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { mockModel } from '../helpers/model.ts';
+import { createMockModel } from '../../src/agent/mock-provider.ts';
 
 /**
  * specs/023-sales-funnel.md § Verification items 1, 2, 3 and 6, against the
@@ -395,5 +396,32 @@ describe('no price absent from the catalog, paymentOptions included (specs/023 V
     expect(CatalogSchema.safeParse({ ...base, paymentOptions: [twice, twice] }).success).toBe(
       false,
     );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The mock model honours the objection rows it stands in for                 */
+/* -------------------------------------------------------------------------- */
+
+describe('the mock presents payment options only when the catalog has them (specs/023)', () => {
+  const ask = async (catalog: typeof tenant.catalog) => {
+    const runner = new GenerateTextRunner({
+      model: createMockModel('demo'),
+      modelSpec: 'mock:demo',
+      config: () => ({ ...tenant, catalog }),
+      maxOutputTokens: 400,
+      temperature: 0,
+    });
+    return (await runner.run({ text: 'can I pay in instalments?', history: [] })).reply;
+  };
+
+  it('answers from paymentOptions when the tenant publishes them', async () => {
+    expect((await ask(tenant.catalog)).escalate).toBe(false);
+  });
+
+  it('escalates as price_negotiation when the tenant publishes none', async () => {
+    const reply = await ask({ ...tenant.catalog, paymentOptions: [] });
+    expect(reply.escalate).toBe(true);
+    expect(reply.escalation_reason).toBe('price_negotiation');
   });
 });

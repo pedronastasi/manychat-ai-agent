@@ -308,10 +308,15 @@ function stagedReply(note: string): string {
   return reply(["I'm sending you the brochure now - it has the full syllabus."], false, null, 0.9);
 }
 
-/** Whether the tenant published payment options, read from the system prompt. */
+/**
+ * Whether the tenant published payment options, read from the system prompt.
+ * The catalog's heading is a line of its own; the operating rules mention the
+ * section in every prompt, so a substring match would find it for every
+ * tenant.
+ */
 function hasPaymentOptions(options: LanguageModelV4CallOptions): boolean {
   return options.prompt.some(
-    entry => entry.role === 'system' && entry.content.includes('PAYMENT OPTIONS'),
+    entry => entry.role === 'system' && entry.content.split('\n').includes('PAYMENT OPTIONS'),
   );
 }
 
