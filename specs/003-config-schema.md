@@ -38,6 +38,9 @@ JSON edit and a restart — no prompt editing, no deploy.
 
 ## `rules.json`
 
+- `messages.acknowledgement` — sent when the reply is deferred to the outbox
+- `messages.escalation` — sent on every handoff
+- `messages.mediaFallback` — sent when media cannot be read; optional, falls back to `escalation` (`020`)
 - `confidence_threshold` — below this, force escalation
 - `max_turns_per_conversation` — after which every turn escalates, counted since
   the contact's last gap of `idleResetHours` (`018`)
@@ -79,8 +82,9 @@ config, this fails the boot, and a reload that introduces it is refused.
 | `MANYCHAT_REPLY_FIELD`    | Custom field the reply text is written to                          |
 | `MANYCHAT_REPLY_FLOW_NS`  | Flow triggered to render that field                                |
 | `PUBLIC_BASE_URL`         | HTTPS base for `external_message_callback`; boot refuses `http://` |
-| `MANYCHAT_TOKEN_FIELD`    | Contact field holding the token; `019`, not yet implemented        |
-| `CONTACT_TOKENS_ENFORCED` | Rollout flag for contact tokens; `019`, not yet implemented        |
+| `MANYCHAT_TOKEN_FIELD`    | Contact field holding the token (`019`)                            |
+| `CONTACT_TOKENS_ENFORCED` | Rollout flag for contact tokens (`019`); default `true`            |
+| `TRANSCRIPTION_MODEL`     | `provider:model` for voice notes and video soundtracks (`020`)     |
 | `TRUST_PROXY`             | Proxies whose `X-Forwarded-For` is believed (`017`)                |
 | `DATABASE_URL`            | Postgres                                                           |
 | `CHANNEL`                 | Capability profile, e.g. `whatsapp`                                |
