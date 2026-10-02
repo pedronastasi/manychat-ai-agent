@@ -485,6 +485,65 @@ the outbox worker performs the action after it has delivered the reply.
 How to configure tools, read the record, and what to check before enabling them
 is in [config/README.md](config/README.md#toolsjson-actions-the-agent-can-take-optional).
 
+### Sales funnel
+
+With a funnel field and a payment-link flow in `tools.json`, the agent takes a
+new lead from their first reply to the payment link instead of only answering
+questions ([spec 023](specs/023-sales-funnel.md),
+[ADR-0015](docs/adr/0015-the-agent-closes-the-sale.md)). It replaces a drip
+sequence: each piece the drip used to send on a timer becomes a flow the agent
+sends when the conversation calls for it.
+
+The agent records where the sale stands in a ManyChat field, one stage at a time:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> new: first reply
+    new --> qualifying: agent asks what it needs
+    qualifying --> nurturing: fit known, content sent
+    nurturing --> offered: course and catalog price put
+    offered --> link_sent: payment-link flow performed
+    new --> link_sent: contact asks for the link
+    qualifying --> link_sent
+    nurturing --> link_sent
+    link_sent --> enrolled: a person confirms payment
+    note right of link_sent: Written by the server, never by the model
+    note right of enrolled: Set in ManyChat by a person, not by this service
+```
+
+- **The stage only moves forward.** A write to an earlier stage than the last
+  one performed is refused, so a confused turn cannot send a lead back to
+  `qualifying` after the offer. The model is told the contact's current stage
+  on every turn.
+- **The agent qualifies before it sends content**, one question per turn, and
+  records each answer with `set_field`. A direct question is answered first,
+  and a contact who asks for the link gets it, qualified or not.
+- **Each flow is sent at most once per contact** within the history window. A
+  flow already performed is removed from the model's choices on the next turn,
+  unless it is marked `repeatable`, as the payment link usually is.
+- **The server, not the model, writes `link_sent`.** It is a follow-on of the
+  payment-link flow: it runs only once ManyChat accepted the flow, and a failed
+  flow writes no stage. It does not count against the three-actions cap.
+- **Objections are answered from the catalog.** "Too expensive" or "can I pay
+  in parts?" gets the catalog's `paymentOptions`; "I don't have time" gets the
+  content flow that addresses it. A discount request that no payment option
+  answers still escalates as `price_negotiation`.
+- **It asks for the sale, and never invents a reason to buy now.** Once the
+  stage is `offered`, the closing question asks for the enrolment plainly. No
+  invented scarcity or deadline, no promised job outcome, no price absent from
+  the catalog: a deposit or instalment figure is allowed only because it is in
+  `paymentOptions`.
+- **Payment is a person's job.** A contact who says they have paid, or sends a
+  receipt, is escalated as `payment_reported`. The agent cannot see the payment
+  and never confirms it.
+
+The stage rules are system instructions, the same for every tenant. How the
+agent sounds while selling is the tenant's, in `config/prompt.md` and each
+flow's `description`. Setup, the rollout checklist and how to measure the
+result are in
+[config/README.md](config/README.md#the-sales-funnel-optional).
+
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in
 `config/` is ever committed.
