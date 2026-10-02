@@ -20,11 +20,15 @@ never committing is the only guarantee that holds.
 
 ## C2. Provider access only through the registry
 
-No module imports `@ai-sdk/anthropic`, `@ai-sdk/openai`, or `@ai-sdk/google`
-directly except `src/agent/registry.ts`. Everything else depends on the
-`AgentRunner` port. The active model is resolved at runtime from configuration.
+In each codebase, one registry module is the only one that imports a model
+provider's package or resolves a model from its `provider:model` string:
+`src/agent/registry.ts` in TypeScript and `agent/registry.py` in the Python
+service, so the rule holds in both while both run (ADR-0018). Everything else
+depends on the `AgentRunner` port. The active model is resolved at runtime from
+configuration.
 
-_Enforced by:_ lint rule + unit test asserting a model swap changes no source.
+_Enforced by:_ a lint rule in each codebase + a unit test asserting a model
+swap changes no source.
 _Rationale:_ model-agnosticism is a hard requirement, not an aspiration. A single
 direct import silently destroys it.
 
@@ -46,8 +50,8 @@ field may alter tool availability, model selection, or system instructions.
 Phone numbers, names, emails, and full message bodies are redacted at the logger,
 not at the call site. A new log statement cannot opt out.
 
-_Enforced by:_ pino redaction config + a test asserting known PII shapes are
-scrubbed.
+_Enforced by:_ the logger's redaction config in each codebase + a test asserting
+known PII shapes are scrubbed.
 
 ## C6. Fail closed, toward a human
 

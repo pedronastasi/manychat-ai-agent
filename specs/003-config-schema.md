@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-09-14
 pr: 1
 constitution: [C1, C2]
-adr: [0003]
+adr: [0018]
 ---
 
 # 003 — Tenant Configuration

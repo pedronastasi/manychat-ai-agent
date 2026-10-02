@@ -1,6 +1,6 @@
 # ADR-0002 — Provider-agnostic model layer
 
-**Status:** accepted · **Date:** 2026-09-14
+**Status:** superseded by ADR-0018 · **Date:** 2026-09-14
 
 ## Context
 
