@@ -26,7 +26,11 @@ import { ActionStage, contactActionsFrom } from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
-import { ManyChatApiError, ManyChatConnectionError } from '../channels/manychat/client.ts';
+import {
+  ManyChatApiError,
+  ManyChatConnectionError,
+  ManyChatResponseError,
+} from '../channels/manychat/client.ts';
 import { performActions } from '../conversation/actions.ts';
 
 const DAY_MS = 86_400_000;
@@ -112,6 +116,7 @@ function describeWriteError(error: unknown) {
     name: error.name,
     ...(error instanceof ManyChatApiError ? { status: error.status } : {}),
     ...(error instanceof ManyChatConnectionError ? { reason: error.reason } : {}),
+    ...(error instanceof ManyChatResponseError ? { endpoint: error.endpoint } : {}),
   };
 }
 
