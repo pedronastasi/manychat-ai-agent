@@ -114,8 +114,15 @@ request that implements this spec.
 | "Can you do it cheaper?" / "any discount?"   | Escalates as `price_negotiation`, unless a `paymentOptions` entry answers it |
 | Anything the catalog cannot answer           | Escalates as `out_of_scope`, as today                                        |
 
-`001 § Escalation` is unchanged. This only makes explicit that a payment
-option the tenant has published is a catalog fact, not a negotiation.
+A payment option the tenant has published is a catalog fact, not a
+negotiation. With no `paymentOptions`, "can I pay in parts?" escalates as
+`price_negotiation`, exactly as today.
+
+This narrows `001 § Escalation`, whose `price_negotiation` trigger lists
+instalments and payment plans outright. In the pull request that implements
+this spec, alongside `§ Role`, that trigger becomes: discounts, "is that the
+best?", and instalments or payment plans that no `paymentOptions` entry
+covers.
 
 ## The sale ends at the payment-link flow
 

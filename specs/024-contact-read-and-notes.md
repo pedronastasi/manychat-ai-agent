@@ -119,6 +119,14 @@ declares is never rendered to the contact (ADR-0017):
       "neverRendered": true,
       "description": "Why the contact wants the course, in one sentence.",
     },
+    {
+      "id": "handoff_summary",
+      "field": "agent_note_handoff",
+      "maxLength": 500,
+      "neverRendered": true,
+      "onEscalation": true,
+      "description": "What the person taking over needs to know, in two or three sentences.",
+    },
   ],
 }
 ```
@@ -129,7 +137,11 @@ thing this repository cannot check.
 
 The intended notes are `goal`, `objections` and `handoff_summary`; the ids are
 the tenant's to choose. `maxLength` may not exceed **500**, chosen to fit a
-ManyChat text field with room to spare.
+ManyChat text field with room to spare. `onEscalation` is optional and
+defaults to `false`; its meaning is in "A handoff summary survives the
+escalation it describes". Any note may carry it, but it exists for the
+handoff summary, and a note that is only useful before a sale (`goal`) should
+not.
 
 `write_note` takes a note id and text. It is staged like any `012` write. The
 note's `field` may not equal `MANYCHAT_REPLY_FIELD`, `MANYCHAT_TOKEN_FIELD`,
@@ -162,6 +174,14 @@ leak checks. A note on a turn that escalated because of a leak, a schema
 failure, a thrown call or an abort is discarded with everything else, since
 the text it carries is exactly what failed. All other staged actions are
 discarded as `012` says.
+
+Such a note is performed after the escalation message is delivered, on
+whichever path delivers it, as any action follows its text. In `turns.actions`
+it is written as `staged` and moves to `performed` or `failed`, like an action
+on a turn that did not escalate. It is the one entry on an escalated turn that
+is not `discarded`, so `012`'s status table needs no new value: `discarded`
+keeps meaning "dropped because the turn escalated", and an `onEscalation` note
+that was dropped for a leak or a failure is recorded as `discarded` too.
 
 ## Note text never reaches the record or the logs
 
@@ -205,8 +225,10 @@ never the text.
 6. A unit test asserts the cleaning: an invented phone number, email and URL
    are replaced, and text over `maxLength` is cut at a word boundary.
 7. A test drives each escalation path and asserts an `onEscalation` note is
-   performed for model and confidence escalations and discarded for leak,
-   schema, error and abort.
+   performed after the escalation message for model and confidence
+   escalations, recorded `performed`, and recorded `discarded` for leak,
+   schema, error and abort. A note without `onEscalation` is `discarded` on
+   every escalation path.
 8. An integration test asserts a note's `turns.actions` entry has `length` and
    no text, and a log-capture test asserts the text is absent from every log
    line of the turn.
