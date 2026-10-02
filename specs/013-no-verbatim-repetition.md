@@ -80,12 +80,25 @@ agent needs to close the conversation, not hand it off. Escalation on a
 The `closer` message is tenant configuration, not source (C9). It is
 added to `MessagesSchema` alongside `acknowledgement` and `escalation`.
 
+`closer` is optional, as `mediaFallback` is (`020`), so no deployed
+`rules.json` fails to load when this ships. Without it the duplicate is
+sent as it is and the intervention `"duplicate_detected"` is recorded.
+Escalating instead would spend a person on a resolved conversation, the
+outcome this section rules out.
+
+The check is skipped when the reply escalates: the tenant's escalation
+copy is the same on every handoff, and closing on it would undo the
+handoff.
+
 ## Verification
 
 1. **Eval cases**: the golden set includes at least two cases where the
    contact sends a conversational closer after a resolved question. The
    expected output is a natural acknowledgment, not a repetition of the
-   prior answer.
+   prior answer. Because the guardrail would replace a repetition with
+   the closer, the reply alone cannot show whether the model repeated
+   itself; the suite fails any case on which `"duplicate_replaced"` or
+   `"duplicate_detected"` was recorded.
 2. **Guardrail unit test**: a test drives `applyGuardrails` with a
    response identical to a prior turn's message and asserts the output
    is replaced with the configured closer.

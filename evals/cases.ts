@@ -91,6 +91,8 @@ export interface CheckInput {
   latencyMs: number;
   /** What the turn staged, or null when the tenant offers no tools (specs/012). */
   actions?: string[] | null;
+  /** What the guardrails adjusted after the model returned. */
+  interventions?: string[];
   /**
    * How slow a reply may be before the suite calls it a failure.
    *
@@ -114,6 +116,7 @@ export function checkCase({
   latencyMs,
   latencyBudgetMs,
   actions = null,
+  interventions = [],
 }: CheckInput): string[] {
   const failures: string[] = [];
   const joined = reply.messages.join(' ');
@@ -154,6 +157,17 @@ export function checkCase({
   // guardrail strips them, so one here means the request path let it through
   // (specs/001 § Reply fields never reach the contact).
   if (reply.messages.some(hasFieldEcho)) failures.push('reply field written into the text');
+
+  // Unconditional, and read from the interventions rather than the reply: the
+  // guardrail swaps a repetition for the tenant's closer, so the reply alone
+  // looks right even when the model replayed an earlier answer. The prompt rule
+  // is what the suite samples (specs/013 § Verification).
+  if (
+    interventions.includes('duplicate_replaced') ||
+    interventions.includes('duplicate_detected')
+  ) {
+    failures.push('reply repeated an earlier one word for word');
+  }
 
   // Case-sensitive: the strings worth pinning down are URLs, identifiers and
   // formatted figures, not prose. A case-insensitive match on a short token

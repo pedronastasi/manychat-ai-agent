@@ -111,6 +111,16 @@ export const MessagesSchema = z.object({
     .min(1)
     .optional()
     .describe('Sent when the contact sent media the agent cannot read.'),
+  /**
+   * Replaces a reply that repeats an earlier one verbatim (specs/013). Optional
+   * so no existing rules.json fails to load; without it the repetition is
+   * recorded and sent as it is.
+   */
+  closer: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Sent in place of a reply that repeats an earlier one word for word.'),
 });
 export type Messages = z.infer<typeof MessagesSchema>;
 

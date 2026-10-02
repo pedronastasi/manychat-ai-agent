@@ -78,6 +78,7 @@ async function main() {
       latencyMs: result.latencyMs,
       latencyBudgetMs,
       actions,
+      interventions: result.interventions,
     });
 
     const status = classify(failures, testCase.review);
