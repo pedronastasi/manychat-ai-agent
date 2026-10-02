@@ -32,6 +32,12 @@ describe('redactText', () => {
     expect(out).not.toContain('5491123456789');
   });
 
+  it('removes links, the shape note cleaning shares with it (specs/024)', () => {
+    expect(redactText('see https://example.test/profile/robin and www.example.test')).toBe(
+      'see [url] and [url]',
+    );
+  });
+
   it('is a no-op on empty input', () => {
     expect(redactText('')).toBe('');
   });

@@ -76,6 +76,24 @@ function readJson(path: string, label: string): unknown {
 }
 
 /**
+ * A note is free text, so it may write only a field nothing else writes: not
+ * the reply or token field, not an enum field, and not another note's
+ * (specs/024 § Three free-text notes, declared and bounded).
+ */
+function noteCollisions(tools: Tools, reserved: ReservedNames): string[] {
+  const enumFields = new Set(tools.fields.map(field => field.field));
+  return tools.notes.flatMap((note, index) => [
+    ...(note.field === reserved.replyField ? [`note '${note.id}' is MANYCHAT_REPLY_FIELD`] : []),
+    ...(note.field === reserved.tokenField ? [`note '${note.id}' is MANYCHAT_TOKEN_FIELD`] : []),
+    ...(enumFields.has(note.field) ? [`note '${note.id}' writes an enum field's field`] : []),
+    ...tools.notes
+      .slice(0, index)
+      .filter(earlier => earlier.field === note.field)
+      .map(earlier => `note '${note.id}' writes the field of note '${earlier.id}'`),
+  ]);
+}
+
+/**
  * `tools.json` is optional: a deployment without it is offered no tools and
  * behaves exactly as before specs/012.
  */
@@ -101,6 +119,7 @@ function loadTools(dir: string, reserved: ReservedNames): Tools {
     ...tools.data.fields
       .filter(field => field.field === reserved.tokenField)
       .map(field => `field '${field.id}' is MANYCHAT_TOKEN_FIELD`),
+    ...noteCollisions(tools.data, reserved),
   ];
   if (collisions.length > 0) {
     throw new ConfigError(

@@ -208,66 +208,135 @@ export const LINK_SENT = 'link_sent';
  * objects in the tenant's ManyChat account and stay server-side, so renaming
  * one there is a config edit no prompt depends on.
  */
-export const ToolsSchema = z.object({
-  flows: z
-    .array(
-      z.object({
-        id: ToolEntryId,
-        flowNs: z.string().min(1),
-        description: ToolDescription,
-        /** Exempt from "sent at most once per contact" (specs/023). */
-        repeatable: z.boolean().optional(),
-        /** Performing it writes the funnel field to `link_sent` (specs/023). */
-        role: z.literal('payment_link').optional(),
-      }),
-    )
-    .default([])
-    .refine(uniqueIds, 'flow ids must be unique')
-    .refine(
-      flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
-      'only one flow may have role "payment_link"',
-    ),
-  tags: z
-    .array(z.object({ id: ToolEntryId, tag: z.string().min(1), description: ToolDescription }))
-    .default([])
-    .refine(uniqueIds, 'tag ids must be unique'),
-  fields: z
-    .array(
-      z.object({
-        id: ToolEntryId,
-        field: z.string().min(1),
-        // Never free text: a value the model composed would reach a field a
-        // flow may render to the contact (specs/012 § Free-text field values
-        // are refused).
-        values: z
-          .array(z.string().min(1))
-          .min(1)
-          .refine(values => new Set(values).size === values.length, 'values must be unique'),
-        description: ToolDescription,
-        /** The field the agent's position in the sale is kept in (specs/023). */
-        funnel: z.boolean().optional(),
-      }),
-    )
-    .default([])
-    .refine(uniqueIds, 'field ids must be unique')
-    .refine(
-      fields => fields.filter(field => field.funnel).length <= 1,
-      'only one field may be marked "funnel"',
-    )
-    // Forward-only is decided by position in this list, so a list out of
-    // order would let the agent move a lead backwards.
-    .refine(
-      fields =>
-        fields
-          .filter(field => field.funnel)
-          .every(field => field.values.join() === FUNNEL_STAGES.join()),
-      `a "funnel" field's values must be ${FUNNEL_STAGES.join(', ')}, in that order`,
-    ),
+/** An enum field: the model reads and writes only its configured `values` (specs/012). */
+const EnumFieldEntry = z.object({
+  id: ToolEntryId,
+  field: z.string().min(1),
+  // Never free text: a value the model composed would reach a field a
+  // flow may render to the contact (specs/012 § Free-text field values
+  // are refused).
+  values: z
+    .array(z.string().min(1))
+    .min(1)
+    .refine(values => new Set(values).size === values.length, 'values must be unique'),
+  description: ToolDescription,
 });
+
+const TagEntry = z.object({
+  id: ToolEntryId,
+  tag: z.string().min(1),
+  description: ToolDescription,
+});
+
+/**
+ * The longest note the agent may write: a ManyChat text field with room to
+ * spare. Chosen, not measured (specs/024 § Three free-text notes).
+ */
+export const MAX_NOTE_LENGTH = 500;
+
+/**
+ * A free-text field the agent may write, which the tenant declares no flow
+ * renders to the contact (specs/024, ADR-0017). `neverRendered` checks
+ * nothing; it makes the tenant say so in the file.
+ */
+const NoteEntry = z.object({
+  id: ToolEntryId,
+  field: z.string().min(1),
+  maxLength: z.number().int().positive().max(MAX_NOTE_LENGTH),
+  neverRendered: z.literal(true, 'a note must declare "neverRendered": true'),
+  /** Still written when the model or the confidence threshold escalates the turn. */
+  onEscalation: z.boolean().default(false),
+  description: ToolDescription,
+});
+
+export const ToolsSchema = z
+  .object({
+    flows: z
+      .array(
+        z.object({
+          id: ToolEntryId,
+          flowNs: z.string().min(1),
+          description: ToolDescription,
+          /** Exempt from "sent at most once per contact" (specs/023). */
+          repeatable: z.boolean().optional(),
+          /** Performing it writes the funnel field to `link_sent` (specs/023). */
+          role: z.literal('payment_link').optional(),
+        }),
+      )
+      .default([])
+      .refine(uniqueIds, 'flow ids must be unique')
+      .refine(
+        flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
+        'only one flow may have role "payment_link"',
+      ),
+    tags: z.array(TagEntry).default([]).refine(uniqueIds, 'tag ids must be unique'),
+    fields: z
+      .array(
+        EnumFieldEntry.extend({
+          /** The field the agent's position in the sale is kept in (specs/023). */
+          funnel: z.boolean().optional(),
+        }),
+      )
+      .default([])
+      .refine(uniqueIds, 'field ids must be unique')
+      .refine(
+        fields => fields.filter(field => field.funnel).length <= 1,
+        'only one field may be marked "funnel"',
+      )
+      // Forward-only is decided by position in this list, so a list out of
+      // order would let the agent move a lead backwards.
+      .refine(
+        fields =>
+          fields
+            .filter(field => field.funnel)
+            .every(field => field.values.join() === FUNNEL_STAGES.join()),
+        `a "funnel" field's values must be ${FUNNEL_STAGES.join(', ')}, in that order`,
+      ),
+    /**
+     * Tags and enum fields the tenant's own flows set, which `get_contact`
+     * returns but no tool writes (specs/024).
+     */
+    readable: z
+      .object({
+        tags: z.array(TagEntry).default([]),
+        fields: z.array(EnumFieldEntry).default([]),
+      })
+      .default({ tags: [], fields: [] }),
+    notes: z.array(NoteEntry).default([]).refine(uniqueIds, 'note ids must be unique'),
+  })
+  // `get_contact` returns writable and readable entries side by side, by id.
+  .refine(tools => uniqueIds([...tools.tags, ...tools.readable.tags]), {
+    message: 'tag ids must be unique across tags and readable.tags',
+    path: ['readable', 'tags'],
+  })
+  .refine(tools => uniqueIds([...tools.fields, ...tools.readable.fields]), {
+    message: 'field ids must be unique across fields and readable.fields',
+    path: ['readable', 'fields'],
+  });
 export type Tools = z.infer<typeof ToolsSchema>;
+export type Note = Tools['notes'][number];
 
 /** A deployment with no `tools.json`: no tools are offered (specs/012). */
-export const NO_TOOLS: Tools = { flows: [], tags: [], fields: [] };
+export const NO_TOOLS: Tools = {
+  flows: [],
+  tags: [],
+  fields: [],
+  readable: { tags: [], fields: [] },
+  notes: [],
+};
+
+/** Whether `tools.json` gives the agent anything to act with or read. */
+export function offersTools(tools: Tools): boolean {
+  return (
+    tools.flows.length +
+      tools.tags.length +
+      tools.fields.length +
+      tools.notes.length +
+      tools.readable.tags.length +
+      tools.readable.fields.length >
+    0
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* Environment                                                                 */

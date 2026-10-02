@@ -2,6 +2,7 @@ import { ManyChat } from 'manychat-sdk';
 import type { ContactTokenWriter } from '../../conversation/tokens.ts';
 import type { StagedAction } from '../../contracts/agent.ts';
 import type { Env } from '../../contracts/config.ts';
+import { ContactRecord } from '../../contracts/manychat.ts';
 
 // The worker retries on `ManyChatError.retryable` (specs/022 § Retries follow
 // the SDK's retryable, not instanceof), and only this file imports the SDK.
@@ -19,6 +20,14 @@ export {
  */
 export interface ActionPerformer {
   performAction(subscriberId: string, action: StagedAction): Promise<void>;
+}
+
+/**
+ * Reads the turn's own contact for `get_contact` (specs/024). Returns tag names
+ * and custom field values only: the subscriber's identifiers stop here.
+ */
+export interface ContactReader {
+  readContact(subscriberId: string, signal: AbortSignal): Promise<ContactRecord>;
 }
 
 /**
@@ -76,7 +85,7 @@ export interface ManyChatClientOptions {
  * the ManyChatClient port). Build one per process and share it: the rate limit
  * belongs to the SDK instance, so two of them send at twice the rate.
  */
-export class ManyChatHttpClient implements ManyChatClient {
+export class ManyChatHttpClient implements ManyChatClient, ContactReader {
   private readonly api: ManyChat;
   private readonly replyField: string;
   private readonly replyFlowNs: string;
@@ -147,7 +156,28 @@ export class ManyChatHttpClient implements ManyChatClient {
           field_name: action.field,
           field_value: action.value,
         });
+      // A note is a field write like any other; only its value is free text
+      // (specs/024 § Three free-text notes, declared and bounded).
+      case 'write_note':
+        return this.api.subscriber.setCustomFieldByName({
+          ...subscriber,
+          field_name: action.field,
+          field_value: action.text,
+        });
     }
+  }
+
+  /**
+   * `getInfo` for the turn's own contact, through the same rate limiter as
+   * every other call. Parsed down to tags and fields before it is returned
+   * (C3), so nothing past this file holds the contact's name or number.
+   */
+  async readContact(subscriberId: string, signal: AbortSignal): Promise<ContactRecord> {
+    const subscriber = await this.api.subscriber.getInfo(
+      { subscriber_id: subscriberId },
+      { signal },
+    );
+    return ContactRecord.parse(subscriber);
   }
 
   async sendText(subscriberId: string, messages: string[]): Promise<void> {
@@ -172,7 +202,10 @@ export class ManyChatHttpClient implements ManyChatClient {
  * then cannot deliver, so each call fails loudly rather than silently dropping
  * a contact's reply.
  */
-export function manychatClientFor(env: Env, fetchImpl?: typeof fetch): ManyChatClient {
+export function manychatClientFor(
+  env: Env,
+  fetchImpl?: typeof fetch,
+): ManyChatClient & ContactReader {
   if (!env.MANYCHAT_API_TOKEN) {
     return {
       sendText: () =>
@@ -181,6 +214,8 @@ export function manychatClientFor(env: Env, fetchImpl?: typeof fetch): ManyChatC
         Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot write contact tokens')),
       performAction: () =>
         Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot perform actions')),
+      readContact: () =>
+        Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot read contacts')),
     };
   }
   return new ManyChatHttpClient({
