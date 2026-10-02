@@ -13,7 +13,7 @@
 import { loadEnv, loadTenantConfig } from './config/loader.ts';
 import { createDatabase, createEmbeddedDatabase, isEmbedded } from './db/client.ts';
 import type { Database } from './db/client.ts';
-import { ManyChatHttpClient } from './channels/manychat/client.ts';
+import { manychatClientFor } from './channels/manychat/client.ts';
 import { ContactTokens } from './conversation/tokens.ts';
 import { backfillContactTokens, countContactsWithoutTokens } from './conversation/backfill.ts';
 
@@ -50,13 +50,8 @@ async function run() {
     return 1;
   }
 
-  const client = new ManyChatHttpClient({
-    apiToken: env.MANYCHAT_API_TOKEN,
-    baseUrl: env.MANYCHAT_API_BASE,
-    replyField: env.MANYCHAT_REPLY_FIELD,
-    replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
-    tokenField: env.MANYCHAT_TOKEN_FIELD,
-  });
+  // A separate process, so its own instance, with the server's options.
+  const client = manychatClientFor(env);
   const result = await backfillContactTokens(db, new ContactTokens(db, client), scope);
   console.log(`tokens written: ${result.written}`);
   console.log(`tokens queued for the outbox worker to retry: ${result.queued}`);

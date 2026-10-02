@@ -26,6 +26,7 @@ import { ActionStage, contactActionsFrom } from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
+import { ManyChatApiError, ManyChatConnectionError } from '../channels/manychat/client.ts';
 import { performActions } from '../conversation/actions.ts';
 
 const DAY_MS = 86_400_000;
@@ -100,10 +101,18 @@ export interface TurnResult {
   afterResponse?: () => Promise<void>;
 }
 
-/** A write that fails is retried by the outbox; its message could quote the token. */
+/**
+ * A write that fails is retried by the outbox. Its message is never logged:
+ * ManyChat's answer could quote the token it was sent (specs/022 § Error text
+ * stays within what C5 and 019 allow).
+ */
 function describeWriteError(error: unknown) {
   if (!(error instanceof Error)) return { name: typeof error };
-  return { name: error.name, ...('status' in error ? { status: error.status } : {}) };
+  return {
+    name: error.name,
+    ...(error instanceof ManyChatApiError ? { status: error.status } : {}),
+    ...(error instanceof ManyChatConnectionError ? { reason: error.reason } : {}),
+  };
 }
 
 /**

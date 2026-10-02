@@ -31,7 +31,7 @@ spec applies that rule to the whole port:
 
 The parity target is the TypeScript service at the commit the gate runs
 against, which means the specs marked `implemented`. Specs still `specified`
-(`007`, `015`, `016`, `022`, `023`, `024`, `025`) are not in the target.
+(`007`, `015`, `016`, `023`, `024`, `025`) are not in the target.
 Where this spec mentions one, it says what must already hold when it lands.
 Whichever codebase implements such a spec first, the other matches it before
 traffic moves again (ADR-0018).
@@ -221,8 +221,8 @@ same pending row, which is the race ADR-0004 exists to avoid.
 
 What does not coexist is anything held in memory:
 
-- **The ManyChat rate limit.** Each client has its own token bucket, and
-  TypeScript already runs two, the server's and the worker's
+- **The ManyChat rate limit.** Each process has its own token bucket.
+  TypeScript runs one, shared by the server and the worker
   (`022 § One instance per process`). A Python process adds its own. While both
   serve, the sum of every bucket's rate stays at what TypeScript sends alone
   today, for example by halving each.

@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-02
 constitution: [C5, C7]
 adr: [0001, 0008, 0012]
 ---

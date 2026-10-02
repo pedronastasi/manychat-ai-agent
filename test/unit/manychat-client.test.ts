@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { ManyChatHttpClient, ManyChatApiError } from '../../src/channels/manychat/client.ts';
+import { manychatAnswer } from '../helpers/manychat.ts';
 
 /**
  * specs/002-channel-contract.md § Deferred delivery goes through a flow,
@@ -17,29 +20,24 @@ interface Call {
   body: Record<string, unknown>;
 }
 
-function clientCapturing(
-  calls: Call[],
-  response: { ok: boolean; status: number; text?: string } = { ok: true, status: 200 },
-) {
+function clientCapturing(calls: Call[], response?: { status: number; text: string }) {
   const fetchImpl = ((url: string, init: { headers: Record<string, string>; body: string }) => {
     calls.push({
       url,
       headers: init.headers,
       body: JSON.parse(init.body) as Record<string, unknown>,
     });
-    return Promise.resolve({
-      ok: response.ok,
-      status: response.status,
-      text: () => Promise.resolve(response.text ?? ''),
-    });
+    return Promise.resolve(
+      response ? manychatAnswer(response.status, response.text) : manychatAnswer(),
+    );
   }) as unknown as typeof fetch;
 
   return new ManyChatHttpClient({
     apiToken: 'tok',
+    baseUrl: 'https://api.manychat.com',
     replyField: 'ai_message',
     replyFlowNs: 'content123_456',
     tokenField: 'ai_token',
-    requestsPerSecond: 1000,
     fetchImpl,
   });
 }
@@ -116,27 +114,25 @@ describe('deferred delivery', () => {
     // Triggering anyway would render whatever the field happens to hold, which
     // after an intervening turn is the previous reply.
     const calls: Call[] = [];
-    const client = clientCapturing(calls, { ok: false, status: 400, text: 'no such field' });
+    const client = clientCapturing(calls, { status: 400, text: 'no such field' });
     await expect(client.sendText('123', ['hello'])).rejects.toThrow(ManyChatApiError);
     expect(calls.some(call => call.url.includes('sendFlow'))).toBe(false);
   });
 
   it('marks 5xx and 429 retryable, other 4xx not', async () => {
     await expect(
-      clientCapturing([], { ok: false, status: 503, text: 'upstream' }).sendText('123', ['x']),
+      clientCapturing([], { status: 503, text: 'upstream' }).sendText('123', ['x']),
     ).rejects.toMatchObject({ retryable: true });
     await expect(
-      clientCapturing([], { ok: false, status: 429, text: 'slow down' }).sendText('123', ['x']),
+      clientCapturing([], { status: 429, text: 'slow down' }).sendText('123', ['x']),
     ).rejects.toMatchObject({ retryable: true });
     await expect(
-      clientCapturing([], { ok: false, status: 400, text: 'Validation error' }).sendText('123', [
-        'x',
-      ]),
+      clientCapturing([], { status: 400, text: 'Validation error' }).sendText('123', ['x']),
     ).rejects.toMatchObject({ retryable: false });
   });
 
   it('carries the status and body on the error, so a dead letter says why', async () => {
-    const failing = clientCapturing([], { ok: false, status: 400, text: 'flow_ns not found' });
+    const failing = clientCapturing([], { status: 400, text: 'flow_ns not found' });
     await expect(failing.sendText('123', ['x'])).rejects.toThrow(/400/);
     await expect(failing.sendText('123', ['x'])).rejects.toThrow(/flow_ns not found/);
   });
@@ -149,14 +145,13 @@ describe('deferred delivery', () => {
       replyField: 'ai_message',
       replyFlowNs: 'flow',
       tokenField: 'ai_token',
-      requestsPerSecond: 1000,
       fetchImpl: ((url: string, init: { headers: Record<string, string>; body: string }) => {
         calls.push({
           url,
           headers: init.headers,
           body: JSON.parse(init.body) as Record<string, unknown>,
         });
-        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('') });
+        return Promise.resolve(manychatAnswer());
       }) as unknown as typeof fetch,
     });
     await client.sendText('123', ['hello']);
@@ -178,10 +173,26 @@ describe("specs/019 § Each contact's token lives in ManyChat, never in a respon
   });
 
   it('throws on a refused write, so the outbox retries it', async () => {
-    const failing = clientCapturing([], { ok: false, status: 503, text: 'down' });
+    const failing = clientCapturing([], { status: 503, text: 'down' });
     await expect(failing.writeToken('123', 'the-token')).rejects.toMatchObject({
       status: 503,
       retryable: true,
     });
+  });
+});
+
+describe('specs/022 § The SDK sits behind the ManyChatClient port, and only client.ts imports it', () => {
+  it('is imported by no file under src/ but the client', () => {
+    // `page.setBotField` sits beside `subscriber.setCustomFieldByName` in the
+    // SDK, and choosing between them decides whether one contact's reply can
+    // reach another. Keeping the import in one file keeps that choice in view.
+    const importers = readdirSync('src', { recursive: true, encoding: 'utf8' })
+      .filter(path => path.endsWith('.ts'))
+      .filter(path =>
+        /(?:from\s+|import\s*\(\s*|import\s+)['"]manychat-sdk['"]/.test(
+          readFileSync(join('src', path), 'utf8'),
+        ),
+      );
+    expect(importers).toEqual([join('channels', 'manychat', 'client.ts')]);
   });
 });

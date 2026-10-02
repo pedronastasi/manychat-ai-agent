@@ -1,6 +1,6 @@
 import type { Database } from '../db/client.ts';
 import type { ManyChatClient } from '../channels/manychat/client.ts';
-import { ManyChatApiError } from '../channels/manychat/client.ts';
+import { ManyChatApiError, ManyChatError } from '../channels/manychat/client.ts';
 import { OutboxQueue } from './queue.ts';
 import type { OutboxRow } from './queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
@@ -119,7 +119,10 @@ export class OutboxWorker {
         result.delivered++;
         if (row.kind === 'reply') await this.performDeferred(row);
       } catch (error) {
-        const retryable = error instanceof ManyChatApiError ? error.retryable : true;
+        // ManyChat's own verdict when it is ManyChat's error, and a retry
+        // otherwise: an unknown failure, such as the database, must not
+        // discard a reply (specs/022 § Retries follow the SDK's retryable).
+        const retryable = error instanceof ManyChatError ? error.retryable : true;
         // A token write's error is kept to its status: ManyChat's answer to it
         // could quote the value it was sent (specs/019).
         const message =

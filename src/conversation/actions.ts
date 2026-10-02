@@ -1,6 +1,5 @@
 import type { ActionRecord, StagedAction } from '../contracts/agent.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
-import { ManyChatApiError } from '../channels/manychat/client.ts';
 import { recordOf } from '../agent/tools.ts';
 import { redactText } from '../observability/redact.ts';
 
@@ -14,12 +13,9 @@ export interface ActionLogger {
  * the turn (C5).
  */
 function reasonFor(error: unknown, subscriberId: string): string {
-  const raw =
-    error instanceof ManyChatApiError
-      ? `ManyChat API ${error.status}: ${error.body}`
-      : error instanceof Error
-        ? error.message
-        : String(error);
+  // A ManyChat error's message already names the endpoint, the status and
+  // ManyChat's own message.
+  const raw = error instanceof Error ? error.message : String(error);
   return redactText(raw.split(subscriberId).join('[subscriber]')).slice(0, 200);
 }
 
