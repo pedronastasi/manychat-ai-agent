@@ -35,7 +35,7 @@ test fails the suite.
 | [020 — Inbound Media](020-inbound-media.md)                             | implemented | 2026-09-27  | #99  | 6     | C1, C2, C4, C5, C6, C7, C9 | —                              |
 | [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                     | —                              |
 | [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | specified   | —           | —    | —     | C5, C7                     | [0001], [0008], [0012]         |
-| [023 — Sales Funnel](023-sales-funnel.md)                               | implemented | 2026-10-02  | —    | 2     | C1, C6, C9                 | [0015]                         |
+| [023 — Sales Funnel](023-sales-funnel.md)                               | implemented | 2026-10-02  | #132 | 2     | C1, C6, C9                 | [0015]                         |
 | [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | specified   | —           | —    | —     | C3, C4, C5, C6, C7         | [0010], [0016], [0017]         |
 | [025 — In-Window Nudge](025-in-window-nudge.md)                         | specified   | —           | —    | —     | C4, C5, C6, C9             | [0010], [0015]                 |
 
