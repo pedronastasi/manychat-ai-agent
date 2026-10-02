@@ -78,6 +78,45 @@ function stripFieldEchoes(text: string): string {
 }
 
 /**
+ * Emoji anywhere in a message, with the joiners and modifiers that compose them.
+ * Digits stay for the reason given on TRAILING_DECORATION.
+ */
+const EMOJI = /\p{Extended_Pictographic}|\u{FE0F}|\u{200D}|[\u{1F3FB}-\u{1F3FF}]/gu;
+
+/**
+ * A message as the repetition check compares it: lowercase, without emoji, with
+ * whitespace collapsed and trimmed (specs/013 § A server-side guardrail catches
+ * what the prompt misses).
+ *
+ * Collapsing whitespace also makes the separator irrelevant: an earlier reply
+ * is stored as its messages joined by newlines, and the same reply split into
+ * messages again must still compare equal.
+ */
+export function normalizeForRepetition(text: string): string {
+  return text.toLowerCase().replace(EMOJI, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Whether a reply repeats an earlier one: any message on its own, or the whole
+ * reply as delivered, equal to an earlier agent reply once normalized.
+ *
+ * Whole replies only, never lines within them. A reply that quotes a price the
+ * last one also quoted is a different reply; matching on lines would replace
+ * every answer that shares a sentence with its predecessor.
+ */
+function repeatsEarlierReply(
+  body: readonly string[],
+  delivered: readonly string[],
+  earlier: readonly string[],
+): boolean {
+  const seen = new Set(earlier.map(normalizeForRepetition).filter(text => text.length > 0));
+  if (seen.size === 0) return false;
+  return [...body, delivered.join('\n')]
+    .map(normalizeForRepetition)
+    .some(text => text.length > 0 && seen.has(text));
+}
+
+/**
  * Deterministic escalation used whenever the model must not or cannot decide.
  *
  * The message is supplied by the caller from tenant configuration; this module
@@ -98,8 +137,15 @@ export function escalationReply(reason: EscalationReason, message: string): Agen
  * Applies everything that must hold regardless of what the model produced
  * (Constitution C3). Model output is untrusted input: it is validated, clamped,
  * and checked for leakage before any of it can reach a customer.
+ *
+ * `earlierReplies` is the text of the agent's earlier turns in the
+ * conversation, which the repetition check compares against (specs/013).
  */
-export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
+export function applyGuardrails(
+  raw: unknown,
+  rules: Rules,
+  earlierReplies: readonly string[] = [],
+): GuardedReply {
   const interventions: string[] = [];
 
   const parsed = AgentReply.safeParse(raw);
@@ -193,12 +239,38 @@ export function applyGuardrails(raw: unknown, rules: Rules): GuardedReply {
   //
   // The body's own question wins because it is the one written in context. What
   // matters is that exactly one question ends the turn, not which.
-  const body = reply.messages.at(-1);
+  const bodyMessages = reply.messages;
+  const body = bodyMessages.at(-1);
   if (reply.closing_question !== null && !reply.escalate) {
     if (body !== undefined && endsWithQuestion(body)) {
       interventions.push('closing_question_already_in_body');
     } else {
       reply = { ...reply, messages: [...reply.messages, reply.closing_question] };
+    }
+  }
+
+  // Verbatim repetition, most often an earlier answer replayed in reply to a
+  // "thanks" (specs/013). Checked last, on what would be delivered: an earlier
+  // reply is stored after its closing question was appended, so a replay only
+  // compares equal once this one has its question too. The body's messages are
+  // checked alone as well, so an earlier answer replayed under a new question
+  // is still caught; the appended question is not, since a question asked once
+  // before as a whole reply is not an answer repeated.
+  //
+  // Skipped on an escalation: the tenant's handoff copy is the same every time,
+  // and a second handoff is not a repetition to close on.
+  if (!reply.escalate && repeatsEarlierReply(bodyMessages, reply.messages, earlierReplies)) {
+    const closer = rules.messages.closer;
+    if (closer === undefined) {
+      // No closer configured: the repetition is recorded and goes out as it
+      // is. Handing off instead would spend a person on a resolved conversation,
+      // which is the outcome the spec rules out.
+      interventions.push('duplicate_detected');
+    } else {
+      // The question was already answered; what is left is to close, so there
+      // is nothing to ask and nothing to hand off.
+      interventions.push('duplicate_replaced');
+      reply = { ...reply, messages: [closer], closing_question: null };
     }
   }
 

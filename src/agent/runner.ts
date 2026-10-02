@@ -277,7 +277,8 @@ export class GenerateTextRunner implements AgentRunner {
       };
     }
 
-    const guarded = applyGuardrails(output, config.rules);
+    const earlierReplies = history.filter(turn => turn.role === 'agent').map(turn => turn.text);
+    const guarded = applyGuardrails(output, config.rules, earlierReplies);
 
     return {
       reply: guarded.reply,

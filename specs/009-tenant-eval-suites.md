@@ -250,8 +250,9 @@ cannot afford — the suite is where that shows up as a number.
 - A unit test parses every `evals/*/cases.jsonl` against the `Case` schema, so a
   malformed suite fails in CI rather than after a paid model run. In this
   repository that covers the golden set; in an overlay it covers the tenant's.
-- A unit test asserts the golden set parses with no `history` key present, which
-  is the claim that this change is additive.
+- A unit test asserts that a golden case with no `history` key parses with an
+  empty history, which is the claim that this change is additive. (The golden
+  set held no `history` key at all until `013` added closer cases.)
 - `pnpm eval:mock` continues to pass unchanged against the demo tenant. If it
   does not, the default path was altered, which this spec forbids.
 - The runner's summary reports passed, failed and reviewed as three separate
