@@ -66,9 +66,13 @@ at boot rather than silently emitting English at a contact who does not read it
 | `acknowledgement` | The model lost the race and the reply is deferred to the outbox                   |
 | `escalation`      | The turn hands off to a human (any reason)                                        |
 | `mediaFallback`   | The contact sent a voice note, image or video the agent cannot read (`specs/020`) |
+| `closer`          | The model's reply repeats an earlier one word for word (`specs/013`)              |
 
 `mediaFallback` is optional: without it, an unreadable media message hands off
 with `escalation` instead of asking the contact to type.
+
+`closer` is optional too: without it, a reply that repeats an earlier one is
+recorded as `duplicate_detected` and sent as it is.
 
 ### Thresholds and limits
 

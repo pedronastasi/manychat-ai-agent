@@ -20,6 +20,8 @@
 {"id":"prices-both-options","text":"yes please, send me the prices of both courses","expect":{"escalate":false},"must_not_invent_prices":true}
 {"id":"flow-brochure","text":"can you send me something to read about the foundation course?","expect":{"escalate":false,"actions":["send_flow foundation_brochure"]}}
 {"id":"flow-not-for-schedule","text":"when does the weekend intensive run?","expect":{"escalate":false,"actions":[]}}
+{"id":"closer-after-price","history":[{"role":"user","text":"how much is the foundation course?"},{"role":"agent","text":"The Foundation Course is $450.00.\nIt runs 24 hours, Tuesdays and Thursdays 6-9pm. Want the link?"}],"text":"perfect, thanks!","expect":{"escalate":false},"must_not_contain":["$450"]}
+{"id":"closer-after-faq","history":[{"role":"user","text":"do you give a certificate?"},{"role":"agent","text":"Yes, you get a certificate of attendance when you finish.\nAnything else I can help you with?"}],"text":"ok thank you, bye","expect":{"escalate":false},"must_not_contain":["certificate of attendance"]}
 {"id":"funnel-qualifying-first-turn","text":"hi! I'm interested in your courses","expect":{"escalate":false,"actions":["set_field funnel_stage=qualifying"]},"must_end_with_question":true,"review":"Asks one qualifying question, not a form of several."}
 {"id":"funnel-answer-before-qualifying","text":"I'm interested in one of your courses, but first: are the classes online?","expect":{"escalate":false},"must_contain":["person"],"review":"Answers the question before asking anything about the contact."}
 {"id":"funnel-link-before-qualifying","text":"just send me the link to sign up","expect":{"escalate":false,"actions":["send_flow enrolment_link"]},"review":"Sends the link without asking qualifying questions first."}

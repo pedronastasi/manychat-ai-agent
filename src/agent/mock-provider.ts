@@ -51,6 +51,16 @@ function respondTo(text: string, paymentOptions: boolean): string {
   if (unfenced.length > 0 && !/[\p{L}\p{N}]/u.test(unfenced)) {
     return reply(["Sorry, I didn't catch that - what would you like to know?"], false, null, 0.9);
   }
+  // Closers and nothing else: acknowledged, never answered by replaying the
+  // last reply (specs/013). The whole message must be closers, so "ok, how much
+  // is it?" still reaches the price branch.
+  if (
+    /^(?:(?:thanks|thank you|thx|cheers|bye|ok|okay|perfect|great)[\s!.,]*)+$/.test(
+      unfenced.toLowerCase(),
+    )
+  ) {
+    return reply(["You're welcome! Glad I could help."], false, null, 0.9);
+  }
   if (/(ignore|system prompt|no rules|you are now|forget your)/.test(lower)) {
     return reply(
       ["I can'lower do that. Would you like me to pass you to someone on the team?"],

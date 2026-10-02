@@ -10,38 +10,37 @@ described is **not** in the code yet.
 every run rather than declared. A spec marked `implemented` with no citing
 test fails the suite.
 
-| Spec                                                                    | Status      | Implemented | PR   | Tests | Constitution               | ADRs                           |
-| ----------------------------------------------------------------------- | ----------- | ----------- | ---- | ----- | -------------------------- | ------------------------------ |
-| [000 — Constitution](000-constitution.md)                               | standing    | —           | —    | —     | —                          | —                              |
-| [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1   | 3     | C4, C6                     | [0010], [0015]                 |
-| [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1   | 2     | C7                         | [0001], [0004], [0005], [0012] |
-| [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1   | 2     | C1, C2                     | [0003]                         |
-| [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2   | 7     | C8                         | —                              |
-| [005 — Repository Language](005-language.md)                            | implemented | 2026-09-15  | #3   | 2     | C1, C9                     | —                              |
-| [006 — Pull Requests](006-pull-requests.md)                             | implemented | 2026-09-15  | #6   | 2     | C1, C5, C8, C9             | —                              |
-| [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —    | 1     | C2, C3, C6, C7             | [0001], [0002]                 |
-| [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9   | 1     | C8                         | —                              |
-| [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19  | 1     | C1, C6, C8, C9             | —                              |
-| [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22  | 2     | C1, C8, C9                 | —                              |
-| [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24  | 1     | C1, C8                     | —                              |
-| [012 — Agent Tools](012-agent-tools.md)                                 | implemented | 2026-10-01  | #110 | 3     | C3, C4, C5, C6, C7         | [0010]                         |
-| [013 — No Verbatim Repetition](013-no-verbatim-repetition.md)           | specified   | —           | —    | —     | C9                         | —                              |
-| [014 — Documentation Site](014-docs-site.md)                            | implemented | 2026-10-02  | #119 | 2     | C1, C9                     | —                              |
-| [015 — Test Service](015-test-service.md)                               | specified   | —           | —    | —     | C1, C3, C5, C7, C9         | [0001], [0005]                 |
-| [016 — Model-Graded Evals](016-model-graded-evals.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C6, C8, C9 | [0011]                         |
-| [017 — Inbound Request Trust](017-inbound-request-trust.md)             | implemented | 2026-09-26  | #89  | 1     | C5, C6                     | [0012], [0014]                 |
-| [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | implemented | 2026-09-26  | #91  | 3     | —                          | [0013]                         |
-| [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95  | 7     | C5                         | [0012], [0013]                 |
-| [020 — Inbound Media](020-inbound-media.md)                             | implemented | 2026-09-27  | #99  | 6     | C1, C2, C4, C5, C6, C7, C9 | —                              |
-| [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                     | —                              |
-| [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | specified   | —           | —    | —     | C5, C7                     | [0001], [0008], [0012]         |
-| [023 — Sales Funnel](023-sales-funnel.md)                               | implemented | 2026-10-02  | #132 | 2     | C1, C6, C9                 | [0015]                         |
-| [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | specified   | —           | —    | —     | C3, C4, C5, C6, C7         | [0010], [0016], [0017]         |
-| [025 — In-Window Nudge](025-in-window-nudge.md)                         | specified   | —           | —    | —     | C4, C5, C6, C9             | [0010], [0015]                 |
+| Spec                                                                    | Status      | Implemented | PR   | Tests | Constitution                       | ADRs                                                                           |
+| ----------------------------------------------------------------------- | ----------- | ----------- | ---- | ----- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| [000 — Constitution](000-constitution.md)                               | standing    | —           | —    | —     | —                                  | —                                                                              |
+| [001 — Agent Behavior](001-agent-behavior.md)                           | implemented | 2026-09-14  | #1   | 3     | C4, C6                             | [0010], [0015]                                                                 |
+| [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md) | implemented | 2026-09-14  | #1   | 2     | C7                                 | [0001], [0004], [0005], [0012]                                                 |
+| [003 — Tenant Configuration](003-config-schema.md)                      | implemented | 2026-09-14  | #1   | 2     | C1, C2                             | [0018]                                                                         |
+| [004 — Testing](004-testing.md)                                         | implemented | 2026-09-14  | #2   | 7     | C8                                 | —                                                                              |
+| [005 — Repository Language](005-language.md)                            | implemented | 2026-09-15  | #3   | 2     | C1, C9                             | —                                                                              |
+| [006 — Pull Requests](006-pull-requests.md)                             | implemented | 2026-09-15  | #6   | 2     | C1, C5, C8, C9                     | —                                                                              |
+| [007 — Local Model (Ollama)](007-local-model.md)                        | specified   | —           | —    | 1     | C2, C3, C6, C7                     | [0001], [0018]                                                                 |
+| [008 — Spec Metadata](008-spec-metadata.md)                             | implemented | 2026-09-15  | #9   | 1     | C8                                 | —                                                                              |
+| [009 — Tenant Eval Suites](009-tenant-eval-suites.md)                   | implemented | 2026-09-16  | #19  | 1     | C1, C6, C8, C9                     | —                                                                              |
+| [010 — Release Workflow](010-release-workflow.md)                       | implemented | 2026-09-16  | #22  | 2     | C1, C8, C9                         | —                                                                              |
+| [011 — Dependency Updates](011-dependency-updates.md)                   | implemented | 2026-09-16  | #24  | 1     | C1, C8                             | —                                                                              |
+| [012 — Agent Tools](012-agent-tools.md)                                 | implemented | 2026-10-01  | #110 | 3     | C3, C4, C5, C6, C7                 | [0010]                                                                         |
+| [013 — No Verbatim Repetition](013-no-verbatim-repetition.md)           | implemented | 2026-10-02  | #131 | 2     | C9                                 | —                                                                              |
+| [014 — Documentation Site](014-docs-site.md)                            | implemented | 2026-10-02  | #119 | 2     | C1, C9                             | —                                                                              |
+| [015 — Test Service](015-test-service.md)                               | specified   | —           | —    | —     | C1, C3, C5, C7, C9                 | [0001], [0005]                                                                 |
+| [016 — Model-Graded Evals](016-model-graded-evals.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C6, C8, C9         | [0011]                                                                         |
+| [017 — Inbound Request Trust](017-inbound-request-trust.md)             | implemented | 2026-09-26  | #89  | 1     | C5, C6                             | [0012], [0014]                                                                 |
+| [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | implemented | 2026-09-26  | #91  | 3     | —                                  | [0013]                                                                         |
+| [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95  | 7     | C5                                 | [0012], [0013]                                                                 |
+| [020 — Inbound Media](020-inbound-media.md)                             | implemented | 2026-09-27  | #99  | 6     | C1, C2, C4, C5, C6, C7, C9         | —                                                                              |
+| [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                             | —                                                                              |
+| [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | specified   | —           | —    | —     | C5, C7                             | [0001], [0008], [0012]                                                         |
+| [023 — Sales Funnel](023-sales-funnel.md)                               | implemented | 2026-10-02  | #132 | 2     | C1, C6, C9                         | [0015]                                                                         |
+| [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | specified   | —           | —    | —     | C3, C4, C5, C6, C7                 | [0010], [0016], [0017]                                                         |
+| [025 — In-Window Nudge](025-in-window-nudge.md)                         | specified   | —           | —    | —     | C4, C5, C6, C9                     | [0010], [0015]                                                                 |
+| [026 — Python Port Parity](026-python-port-parity.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7, C8, C9 | [0018], [0001], [0004], [0008], [0010], [0012], [0013], [0014], [0016], [0017] |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
-[0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
-[0003]: ../docs/adr/0003-contract-first-with-zod.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
 [0005]: ../docs/adr/0005-channel-port-single-adapter.md
 [0008]: ../docs/adr/0008-classes-for-port-implementations.md
@@ -53,3 +52,4 @@ test fails the suite.
 [0015]: ../docs/adr/0015-the-agent-closes-the-sale.md
 [0016]: ../docs/adr/0016-reads-are-performed-inside-the-loop.md
 [0017]: ../docs/adr/0017-bounded-free-text-notes.md
+[0018]: ../docs/adr/0018-port-to-python-beside-typescript-on-one-database.md

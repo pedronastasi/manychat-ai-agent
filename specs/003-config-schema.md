@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-09-14
 pr: 1
 constitution: [C1, C2]
-adr: [0003]
+adr: [0018]
 ---
 
 # 003 — Tenant Configuration
@@ -47,6 +47,7 @@ JSON edit and a restart — no prompt editing, no deploy.
 - `messages.acknowledgement` — sent when the reply is deferred to the outbox
 - `messages.escalation` — sent on every handoff
 - `messages.mediaFallback` — sent when media cannot be read; optional, falls back to `escalation` (`020`)
+- `messages.closer` — sent in place of a reply that repeats an earlier one; optional, without it the repetition is sent (`013`)
 - `confidence_threshold` — below this, force escalation
 - `max_turns_per_conversation` — after which every turn escalates, counted since
   the contact's last gap of `idleResetHours` (`018`)
