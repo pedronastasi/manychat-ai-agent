@@ -109,9 +109,9 @@ export function manychatAnswer(status = 200, body = MANYCHAT_SUCCESS): Response 
 }
 
 /** ManyChat's refusal as the client throws it; `retryable` follows from the status. */
-export const manychatError = (status: number, message: string) =>
+export const manychatError = (status: number, message: string, endpoint = '/fb/sending/sendFlow') =>
   new ManyChatApiError({
-    endpoint: '/fb/sending/sendFlow',
+    endpoint,
     status,
     message,
     code: undefined,
