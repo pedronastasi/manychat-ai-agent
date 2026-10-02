@@ -5,6 +5,7 @@ import {
   endsWithQuestion,
   escalationReply,
   findUngroundedPrices,
+  normalizeForRepetition,
 } from '../../src/agent/guardrails.ts';
 import { buildSystemPrompt, fenceUserText, FENCE, FENCE_END } from '../../src/agent/prompt.ts';
 import {
@@ -353,6 +354,165 @@ describe('closing question (specs/001 § the reply advances the conversation)', 
     const { reply, interventions } = applyGuardrails({ ...base, confidence: 0.9 }, rules);
     expect(interventions[0]).toContain('schema_invalid');
     expect(reply.escalate).toBe(true);
+  });
+});
+
+describe('verbatim repetition (specs/013)', () => {
+  const withCloser = RulesSchema.parse({
+    ...rules,
+    messages: { ...rules.messages, closer: 'Glad to help. Write any time.' },
+  });
+  const earlier = 'The Foundation Course is $450.\nIt runs on Tuesdays. Want the link?';
+  const answer = (
+    messages: string[],
+    closing_question: string | null = null,
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    messages,
+    escalate: false,
+    escalation_reason: null,
+    confidence: 0.85,
+    closing_question,
+    ...overrides,
+  });
+
+  it('replaces a replayed reply with the configured closer (§ A caught duplicate becomes a natural closer)', () => {
+    const { reply, interventions } = applyGuardrails(
+      answer(['The Foundation Course is $450.', 'It runs on Tuesdays. Want the link?']),
+      withCloser,
+      [earlier],
+    );
+    expect(reply).toEqual({
+      messages: ['Glad to help. Write any time.'],
+      escalate: false,
+      escalation_reason: null,
+      confidence: 0.85,
+      closing_question: null,
+    });
+    expect(interventions).toContain('duplicate_replaced');
+  });
+
+  it('compares the reply as delivered, with its closing question appended', () => {
+    // An earlier reply is stored after its question was appended, so the
+    // model's body alone never equals it; the delivered reply does.
+    const { reply } = applyGuardrails(
+      answer(['The Foundation Course is $450.', 'It runs on Tuesdays.'], 'Want the link?'),
+      withCloser,
+      ['The Foundation Course is $450.\nIt runs on Tuesdays.\nWant the link?'],
+    );
+    expect(reply.messages).toEqual(['Glad to help. Write any time.']);
+  });
+
+  it('catches an earlier reply replayed as one message beside new ones', () => {
+    const { interventions } = applyGuardrails(answer([earlier, 'Anything else?']), withCloser, [
+      earlier,
+    ]);
+    expect(interventions).toContain('duplicate_replaced');
+  });
+
+  it('is not bypassed by emoji, whitespace or case (§ Normalize)', () => {
+    const { interventions } = applyGuardrails(
+      answer([
+        '  THE FOUNDATION course is $450. \u{2728}\n\n It runs on   Tuesdays. Want the link? \u{1F44D}\u{1F3FD}',
+      ]),
+      withCloser,
+      [earlier],
+    );
+    expect(interventions).toContain('duplicate_replaced');
+  });
+
+  it('keeps the digits of a price when stripping emoji', () => {
+    expect(normalizeForRepetition('It is $450 \u{1F90D}')).toBe('it is $450');
+    expect(normalizeForRepetition('It is $450')).not.toBe(normalizeForRepetition('It is $45'));
+  });
+
+  it('leaves a reply that only shares content with an earlier one (§ Verification 4)', () => {
+    // Quoting the same price again is a different reply, not a repetition.
+    const { reply, interventions } = applyGuardrails(
+      answer(['The Foundation Course is $450.', 'The Advanced Course is $680.']),
+      withCloser,
+      [earlier],
+    );
+    expect(reply.messages).toEqual([
+      'The Foundation Course is $450.',
+      'The Advanced Course is $680.',
+    ]);
+    expect(interventions).not.toContain('duplicate_replaced');
+  });
+
+  it('does not count an earlier question asked alone as the answer repeated', () => {
+    const { reply } = applyGuardrails(
+      answer(['The Advanced Course is $680.'], 'Want the link?'),
+      withCloser,
+      ['Want the link?'],
+    );
+    expect(reply.messages).toEqual(['The Advanced Course is $680.', 'Want the link?']);
+  });
+
+  it('never matches on an emoji-only message', () => {
+    const { interventions } = applyGuardrails(answer(['\u{1F44B}']), withCloser, ['\u{1F64F}']);
+    expect(interventions).not.toContain('duplicate_replaced');
+  });
+
+  it('leaves a repeated handoff as a handoff', () => {
+    // The tenant's escalation copy is identical every time; closing on it
+    // would undo the handoff.
+    const { reply } = applyGuardrails(
+      answer(['Passing you to a person.'], null, {
+        escalate: true,
+        escalation_reason: 'complaint',
+      }),
+      withCloser,
+      ['Passing you to a person.'],
+    );
+    expect(reply.escalate).toBe(true);
+    expect(reply.messages).toEqual(['Passing you to a person.']);
+  });
+
+  it('sends the repetition and records it when no closer is configured', () => {
+    const { reply, interventions } = applyGuardrails(
+      answer(['The Foundation Course is $450.', 'It runs on Tuesdays. Want the link?']),
+      rules,
+      [earlier],
+    );
+    expect(reply.escalate).toBe(false);
+    expect(reply.messages).toHaveLength(2);
+    expect(interventions).toContain('duplicate_detected');
+  });
+
+  it('reaches the guardrail from the runner with the agent turns of history', async () => {
+    const { model } = mockModel(
+      answer(['The Foundation Course is $450.', 'It runs on Tuesdays. Want the link?']),
+    );
+    const runner = new GenerateTextRunner({
+      model,
+      modelSpec: 'anthropic:claude-haiku-4-5',
+      config: () => ({ persona: 'You are the front desk.', catalog, rules: withCloser }),
+      maxOutputTokens: 400,
+      temperature: 0.3,
+    });
+    const replayed = await runner.run({
+      text: 'thanks!',
+      history: [
+        { role: 'user', text: 'how much is it?' },
+        { role: 'agent', text: earlier },
+      ],
+    });
+    expect(replayed.reply.messages).toEqual(['Glad to help. Write any time.']);
+    expect(replayed.interventions).toContain('duplicate_replaced');
+
+    // The contact's own words are not the agent repeating itself.
+    const quoted = await runner.run({
+      text: 'is that right?',
+      history: [{ role: 'user', text: earlier }],
+    });
+    expect(quoted.interventions).not.toContain('duplicate_replaced');
+  });
+
+  it('tells the model not to restate and to answer closers naturally (§ Prompt instruction)', () => {
+    const { staticPrefix } = buildSystemPrompt('P.', catalog, rules);
+    expect(staticPrefix).toContain('Never restate a reply you already sent');
+    expect(staticPrefix).toMatch(/thanks, bye, ok, perfect/);
   });
 });
 

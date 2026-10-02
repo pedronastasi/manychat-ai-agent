@@ -2,7 +2,8 @@
   "messages": {
     "acknowledgement": "Give me one second while I check that.",
     "escalation": "Let me put you through to someone on the team who can give you the exact answer. They'll reply here shortly.",
-    "mediaFallback": "I couldn't make out that message. Could you type your question for me?"
+    "mediaFallback": "I couldn't make out that message. Could you type your question for me?",
+    "closer": "You're welcome! Write to me here whenever you need anything else."
   },
   "confidenceThreshold": 0.6,
   "maxTurnsPerConversation": 25,
