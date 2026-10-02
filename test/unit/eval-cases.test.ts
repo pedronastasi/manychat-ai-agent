@@ -51,16 +51,20 @@ describe('suite loading (specs/009 § A suite is selected the way the config alr
 });
 
 describe('history (specs/009 § A case carries history)', () => {
-  it('is absent from the golden set, which is what makes the change additive', () => {
+  it('defaults to none for a golden case that declares none, which is what makes the change additive', () => {
+    // Every golden case predated the field until specs/013 added cases whose
+    // point is the turn before. The claim this guards is narrower than "no case
+    // has history": a case written without the key still parses as it did.
     const lines = readFileSync(`${DEFAULT_EVAL_DIR}/cases.jsonl`, 'utf8')
       .split('\n')
       .filter(line => line.trim());
+    const parsed = loadCases(DEFAULT_EVAL_DIR);
 
-    for (const line of lines) {
-      expect(Object.keys(JSON.parse(line) as object)).not.toContain('history');
-    }
-    // ...and every one of them still parses, defaulted to no history.
-    for (const parsed of loadCases(DEFAULT_EVAL_DIR)) expect(parsed.history).toEqual([]);
+    const undeclared = lines.flatMap((line, index) =>
+      Object.keys(JSON.parse(line) as object).includes('history') ? [] : [parsed[index]],
+    );
+    expect(undeclared.length).toBeGreaterThan(0);
+    for (const testCase of undeclared) expect(testCase?.history).toEqual([]);
   });
 
   it('carries prior turns through when declared', () => {
@@ -219,5 +223,21 @@ describe('existing assertions still hold (specs/009 § additive)', () => {
     expect(
       check({ ...base, expect: { escalate: true, reason: 'price_negotiation' } }, escalated),
     ).toEqual(['reason expected price_negotiation, got complaint']);
+  });
+});
+
+describe('repetition (specs/013 § Verification)', () => {
+  it('fails a case whose reply the guardrail caught repeating an earlier one', () => {
+    // By then the reply is the tenant's closer and passes every other check;
+    // only the intervention says the model replayed an earlier answer.
+    const reply = replyOf(["You're welcome!"]);
+    const testCase = Case.parse(base);
+    const failures = (interventions: string[]) =>
+      checkCase({ testCase, reply, catalog, latencyMs: 100, latencyBudgetMs: 8000, interventions });
+
+    expect(failures([])).toEqual([]);
+    for (const intervention of ['duplicate_replaced', 'duplicate_detected']) {
+      expect(failures([intervention])).toEqual(['reply repeated an earlier one word for word']);
+    }
   });
 });
