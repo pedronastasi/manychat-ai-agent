@@ -32,6 +32,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
+          # Otherwise checkout leaves the read-only GITHUB_TOKEN in git's
+          # credentials, and it wins over the Claude App token the action
+          # pushes with: pushes fail as github-actions[bot] with a 403. The
+          # job keeps contents: read (specs/010 § What a release contains).
+          persist-credentials: false
 
       - uses: anthropics/claude-code-action@v1
         with:
