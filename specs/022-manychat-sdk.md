@@ -151,8 +151,9 @@ still quote a value it was sent, so the existing limits stay in force:
 - A failed token write's outbox row records the status and nothing else
   (`019`).
 - The turn handler logs a failed token write by the error's name and status,
-  plus the `reason` of a connection failure (`timeout`, `aborted`, `network`).
-  It does not log the message.
+  plus the `reason` of a connection failure (`timeout`, `aborted`, `network`)
+  or the `endpoint` of a response error (ManyChat answered 200 but the body is
+  not what the SDK expects). It does not log the message.
 - A failed reply's outbox row records the error's message, as it does today.
   The field value in that request is the reply, which the outbox already holds.
 
