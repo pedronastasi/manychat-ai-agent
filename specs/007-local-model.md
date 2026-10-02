@@ -1,7 +1,7 @@
 ---
 status: specified
 constitution: [C2, C3, C6, C7]
-adr: [0001, 0002]
+adr: [0001, 0018]
 ---
 
 # 007 — Local Model (Ollama)
