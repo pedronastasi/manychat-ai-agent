@@ -16,7 +16,7 @@ export const MAX_STEPS = 2;
  */
 export const MAX_ACTIONS_PER_TURN = 3;
 
-/** `send_flow gel_course_brochure`, `set_field preferred_shift=evening`. */
+/** `send_flow intro_course_brochure`, `set_field preferred_shift=evening`. */
 export function describeAction(action: { tool: string; id: string; value?: string | undefined }) {
   return action.value === undefined
     ? `${action.tool} ${action.id}`

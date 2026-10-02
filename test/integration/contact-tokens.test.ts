@@ -590,6 +590,25 @@ describe('specs/022 § Error text stays within what C5 and 019 allow', () => {
     await app.close();
   });
 
+  it('logs a response error by its name and endpoint, and records no message', async () => {
+    // ManyChat returned 200 OK but the body does not match the SDK's expected
+    // shape. Rare, but the log should still say which endpoint answered.
+    api.state.respond = () => Promise.resolve(manychatAnswer(200, '<html>OK</html>'));
+    const app = await makeApp();
+    await send(app, 'hello');
+    await vi.waitFor(() => expect(logged('contact token write failed')).toHaveLength(1));
+    expect(logged('contact token write failed')[0]!.error).toEqual({
+      name: 'ManyChatResponseError',
+      endpoint: '/fb/subscriber/setCustomFieldByName',
+    });
+
+    await db.update(outbox).set({ nextAttemptAt: sql`now()` });
+    await worker([]).drainOnce();
+    const [job] = await tokenJobs();
+    expect(job!.lastError).toBe('contact token write failed');
+    await app.close();
+  });
+
   it('logs a connection failure by its reason, and records no message', async () => {
     api.state.respond = () => Promise.reject(new TypeError('fetch failed'));
     const app = await makeApp();
