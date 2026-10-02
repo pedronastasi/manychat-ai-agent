@@ -68,16 +68,16 @@ implements this spec. Shape, with values invented for the demo tenant:
 {
   "flows": [
     {
-      "id": "gel_course_brochure",
+      "id": "intro_course_brochure",
       "flowNs": "content00000000000000_000001",
-      "description": "PDF brochure for the gel course. Send when the contact asks for details, a syllabus or something to read.",
+      "description": "PDF brochure for the intro course. Send when the contact asks for details, a syllabus or something to read.",
     },
   ],
   "tags": [
     {
-      "id": "interested_gel",
-      "tag": "interested-gel-course",
-      "description": "Contact showed interest in the gel course.",
+      "id": "interested_intro",
+      "tag": "interested-intro-course",
+      "description": "Contact showed interest in the intro course.",
     },
   ],
   "fields": [
