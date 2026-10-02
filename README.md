@@ -439,7 +439,9 @@ capabilities` line shows what this server can read.
 
 With an optional `config/tools.json`, the agent can also act on the contact in
 ManyChat: send one of the tenant's flows, add or remove a tag, or record one of a
-field's allowed values ([spec 012](specs/012-agent-tools.md)).
+field's allowed values ([spec 012](specs/012-agent-tools.md)). It can also read
+what is recorded on the contact and write short notes for the team
+([spec 024](specs/024-contact-read-and-notes.md)).
 
 A turn where the contact asks for something to read, answered inside the
 deadline:
@@ -457,7 +459,7 @@ sequenceDiagram
     A->>L: Step 1, tools offered
     L-->>A: Calls send_flow foundation_brochure
     Note over A: Staged only. Nothing has been sent to ManyChat
-    A->>L: Step 2, no tools, told what was staged
+    A->>L: Last step, no tools, told what was staged
     L-->>A: Reply: "Sending you the brochure now"
     Note over A: Guardrails run. A handoff here would discard the action
     A-->>M: Dynamic Block response with the reply
@@ -474,13 +476,57 @@ the outbox worker performs the action after it has delivered the reply.
   model is running, and a turn that ends in a handoff discards everything it
   staged.
 - **The text goes first.** Actions run after the reply has gone out, either as
-  the Dynamic Block response or through the outbox. A turn has at most three
-  actions, and each gets one attempt.
+  the Dynamic Block response or through the outbox. A turn has at most four
+  model steps and eight actions, and each action gets one attempt.
 - **The model only picks from the config.** It names entries by `id`, never a
   ManyChat name or free text, and every action lands on the contact whose
   message it is answering.
 - **Every action is recorded** on its turn with what became of it, and the next
   turn's history tells the model what it already sent.
+
+#### Reading the contact and writing notes
+
+`get_contact` is the one tool performed while the model runs (ADR-0016): reading
+changes nothing on the contact, so there is nothing for a handoff to undo.
+`write_note` stages free text like any other write (ADR-0017).
+
+- **A read returns a whitelist.** The client parses ManyChat's `getInfo` down to
+  tag names and field values, so the contact's name, phone and email never
+  reach the model. It returns only the tags, fields and notes `tools.json`
+  lists, by id. A field holding a value outside its list reads as `other`.
+- **Notes come back fenced.** A note summarises the contact's words, so it is
+  returned inside the same fence as their messages and treated as data (C4).
+- **A read never blocks the reply.** It gives up after 1.5 seconds and returns
+  `{ available: false }`, and the turn goes on. A turn reads at most twice, and
+  only when it carries the contact's token (specs/019).
+- **Notes are bounded and cleaned.** A note field must be declared
+  `"neverRendered": true` and capped at 500 characters. Links, emails, phone
+  numbers and long numbers are replaced by `[removed]` before it is staged. The
+  turn record holds the note's length, never its text, and so do the logs.
+- **A handoff summary survives the handoff.** A note marked `onEscalation` is
+  still written after the escalation message, but only when the model or the
+  confidence threshold escalated. On a leak, an invalid reply or a failed call
+  it is discarded with everything else.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as ManyChat
+    participant A as Agent
+    participant L as Model
+
+    A->>L: Step 1, tools offered
+    L-->>A: Calls get_contact
+    A->>M: getInfo, 1.5 s timeout
+    M-->>A: Whole subscriber record
+    Note over A: Cut to configured ids, notes fenced
+    A-->>L: { tags, fields, notes }
+    L-->>A: Calls write_note handoff_summary, escalates
+    Note over A: Guardrails: a model escalation keeps onEscalation notes
+    A-->>M: Escalation message
+    A-)M: setCustomFieldByName for the note, after the message
+    Note over A: turns.actions records write_note with its length only
+```
 
 How to configure tools, read the record, and what to check before enabling them
 is in [config/README.md](config/README.md#toolsjson-actions-the-agent-can-take-optional).
