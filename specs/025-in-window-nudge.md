@@ -38,6 +38,7 @@ decides whether it is still allowed when the time comes.**
       { "id": "later_today", "minutes": 120 },
       { "id": "tomorrow", "minutes": 1200 },
     ],
+    "humanActiveTag": "human-handling",
   },
 }
 ```
@@ -46,6 +47,14 @@ decides whether it is still allowed when the time comes.**
 present. It is a write, and is staged like any `012` action: discarded if the
 turn escalates, performed after the reply is delivered. Performing it means
 inserting a row in a `nudges` table, not a ManyChat request.
+
+`humanActiveTag` is optional: the name of a tag in the tenant's ManyChat
+account that their team or flows set while a person is handling the contact.
+Like `tags[].tag` in `012`, it names a ManyChat object and is never shown to
+the model. At load it must be a non-empty string and may not equal any
+`tags[].tag`, so the agent can never add or remove the tag that silences it.
+It is not checked against the ManyChat account: nothing in `012` calls
+ManyChat at load, and this does not start to.
 
 A delay over **1380 minutes** (23 hours) is a load failure. A nudge has to be
 delivered inside the 24-hour window, and the hour of margin, chosen, not
@@ -77,8 +86,8 @@ A pending nudge is cancelled, recorded with the reason, when:
 contact's tags through the `024` read path just before running the turn. If
 the read fails, the nudge is cancelled as `read_failed`: an unprompted
 message on top of a human conversation is worse than a missed follow-up (C6).
-A tenant who sets no `humanActiveTag` gets no such check, and the spec says so
-rather than pretending to detect a takeover it cannot see.
+A tenant who sets no `humanActiveTag` gets no such check and no read, and
+the spec says so rather than pretending to detect a takeover it cannot see.
 
 A cap never escalates a nudge. The contact asked nothing, so there is nothing
 to hand off.
@@ -123,7 +132,8 @@ helps rather than annoys.
 
 ## Verification
 
-1. A config test asserts a delay over 1380 minutes fails at load, and
+1. A config test asserts a delay over 1380 minutes fails at load, as does an
+   empty `humanActiveTag` or one equal to a `tags[].tag`, and that
    `schedule_nudge` is absent without a `nudge` section.
 2. A test asserts scheduling twice leaves one pending row, and a nudge turn is
    offered no `schedule_nudge`.
@@ -142,6 +152,8 @@ What this misses: the 24-hour window is computed from this service's record of
 the last inbound message. A contact who wrote to the tenant through a flow
 this service never saw has a later window than the one computed here, which
 errs toward cancelling, not toward an undeliverable send. A human takeover
-the tenant does not tag is invisible. And whether a nudge reads as helpful or
+the tenant does not tag is invisible, and so is one tagged with a name that
+does not match `humanActiveTag` exactly: a misspelt tag means the check never
+fires, and nothing here notices. And whether a nudge reads as helpful or
 as pressure is a judgement no assertion makes; reading real nudge
 conversations is the check.
