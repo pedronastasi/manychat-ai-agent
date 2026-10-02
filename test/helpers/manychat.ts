@@ -1,5 +1,6 @@
 import type { ContactTokenWriter } from '../../src/conversation/tokens.ts';
 import type { ActionPerformer } from '../../src/channels/manychat/client.ts';
+import { ManyChatApiError } from '../../src/channels/manychat/client.ts';
 import type { StagedAction } from '../../src/contracts/agent.ts';
 
 /**
@@ -96,6 +97,34 @@ export function fakeMediaHost() {
   return { fetch: fetchImpl, files, requested };
 }
 
+/** ManyChat's answer to a request it accepted (specs/022 § Tests fake fetch). */
+export const MANYCHAT_SUCCESS = '{"status":"success"}';
+
+/**
+ * A response as ManyChat sends it: a real `Response`, so the SDK reads its
+ * status and body as it reads fetch's.
+ */
+export function manychatAnswer(status = 200, body = MANYCHAT_SUCCESS): Response {
+  return new Response(body, { status, headers: { 'content-type': 'application/json' } });
+}
+
+/** ManyChat's refusal as the client throws it; `retryable` follows from the status. */
+export const manychatError = (status: number, message: string) =>
+  new ManyChatApiError({
+    endpoint: '/fb/sending/sendFlow',
+    status,
+    message,
+    code: undefined,
+    details: [],
+  });
+
+/** Never answers, until the request's signal aborts, as a hung connection does. */
+export function neverAnswers(init?: RequestInit): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason as Error));
+  });
+}
+
 export interface ManyChatCall {
   path: string;
   body: Record<string, unknown>;
@@ -104,34 +133,33 @@ export interface ManyChatCall {
 /**
  * The ManyChat API at its HTTP boundary, for `buildServer`: it records every
  * call, keeps each contact's custom fields, and answers as ManyChat does when
- * it accepts a request.
+ * it accepts a request. `failing` answers 503, as when ManyChat is down, and
+ * `respond`, when set, answers every API request in its place.
  */
 export function fakeManyChatApi() {
   const calls: ManyChatCall[] = [];
   const fields = new Map<string, Map<string, string>>();
-  const state = { failing: false };
+  const state = {
+    failing: false,
+    respond: null as ((init: RequestInit) => Promise<Response>) | null,
+  };
   const media = fakeMediaHost();
 
-  const fetchImpl = ((url: string, init: { body?: string }) => {
+  const fetchImpl = ((url: string, init: RequestInit) => {
     // A GET with no body is a media download, the other half of the boundary.
     if (init.body === undefined) return media.fetch(url, init);
     const path = new URL(url).pathname;
-    const body = JSON.parse(init.body) as Record<string, unknown>;
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     calls.push({ path, body });
-    if (state.failing) {
-      return Promise.resolve({ ok: false, status: 503, text: () => Promise.resolve('down') });
-    }
+    if (state.respond) return state.respond(init);
+    if (state.failing) return Promise.resolve(manychatAnswer(503, 'down'));
     if (path === '/fb/subscriber/setCustomFieldByName') {
       const subscriber = String(body.subscriber_id);
       const contact = fields.get(subscriber) ?? new Map<string, string>();
       contact.set(String(body.field_name), String(body.field_value));
       fields.set(subscriber, contact);
     }
-    return Promise.resolve({
-      ok: true,
-      status: 200,
-      text: () => Promise.resolve('{"status":"success"}'),
-    });
+    return Promise.resolve(manychatAnswer());
   }) as unknown as typeof fetch;
 
   return {

@@ -11,7 +11,7 @@ import { loadEnv, ConfigStore, reservedNames } from './config/loader.ts';
 import { createDatabase, createEmbeddedDatabase, isEmbedded } from './db/client.ts';
 import type { Database } from './db/client.ts';
 import { runMigrations } from './db/migrate.ts';
-import { ManyChatHttpClient } from './channels/manychat/client.ts';
+import { manychatClientFor } from './channels/manychat/client.ts';
 import { OutboxWorker } from './outbox/worker.ts';
 import { buildServer } from './server.ts';
 
@@ -29,20 +29,17 @@ export async function main() {
     db = createDatabase(env.DATABASE_URL);
   }
 
-  const { app } = await buildServer({ env, db, configStore });
+  // One client, and so one rate limiter, for the server and the worker alike:
+  // one each would send at twice the configured rate (specs/022).
+  const manychat = manychatClientFor(env);
+  const { app } = await buildServer({ env, db, configStore, manychat });
 
   const migrated = await runMigrations(db);
   if (migrated.length > 0) app.log.info({ migrations: migrated }, 'migrations applied');
 
   const stopWorker = new OutboxWorker({
     db,
-    client: new ManyChatHttpClient({
-      apiToken: env.MANYCHAT_API_TOKEN ?? '',
-      baseUrl: env.MANYCHAT_API_BASE,
-      replyField: env.MANYCHAT_REPLY_FIELD,
-      replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
-      tokenField: env.MANYCHAT_TOKEN_FIELD,
-    }),
+    client: manychat,
     logger: app.log,
   }).start();
 

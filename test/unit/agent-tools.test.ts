@@ -17,6 +17,7 @@ import { mkdtempSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
+import { manychatAnswer } from '../helpers/manychat.ts';
 
 /**
  * specs/012-agent-tools.md § Verification.
@@ -101,15 +102,15 @@ describe('execute makes no request (specs/012 V2)', () => {
     const calls: unknown[] = [];
     const fetchSpy = ((...args: unknown[]) => {
       calls.push(args);
-      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('') });
+      return Promise.resolve(manychatAnswer());
     }) as unknown as typeof fetch;
 
     const client = new ManyChatHttpClient({
       apiToken: 'tok',
+      baseUrl: 'https://api.manychat.com',
       replyField: 'ai_message',
       replyFlowNs: 'flow',
       tokenField: 'ai_token',
-      requestsPerSecond: 1000,
       fetchImpl: fetchSpy,
     });
 
@@ -187,13 +188,13 @@ describe('performAction request bodies (specs/012 V5)', () => {
   function clientCapturing(calls: Call[]) {
     return new ManyChatHttpClient({
       apiToken: 'tok',
+      baseUrl: 'https://api.manychat.com',
       replyField: 'ai_message',
       replyFlowNs: 'content123_456',
       tokenField: 'ai_token',
-      requestsPerSecond: 1000,
       fetchImpl: ((url: string, init: { body: string }) => {
         calls.push({ url, body: JSON.parse(init.body) as Record<string, unknown> });
-        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('') });
+        return Promise.resolve(manychatAnswer());
       }) as unknown as typeof fetch,
     });
   }

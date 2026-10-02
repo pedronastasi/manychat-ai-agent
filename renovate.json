@@ -19,6 +19,13 @@
       "groupName": "minor dependencies"
     },
     {
+      "matchPackageNames": ["manychat-sdk"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": null,
+      "automerge": false,
+      "description": "Before 1.0, manychat-sdk ships breaking changes as minors: each gets its own PR and is never auto-merged (specs/022)"
+    },
+    {
       "matchUpdateTypes": ["major"]
     },
     {
