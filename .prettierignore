@@ -8,3 +8,4 @@ pnpm-lock.yaml
 db/migrations/
 CHANGELOG.md
 CODE_OF_CONDUCT.md
+.claude/worktrees/

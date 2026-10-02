@@ -49,13 +49,13 @@ on `main` (branch first, ideally in a worktree under `.claude/worktrees/`).
    pnpm test:coverage && pnpm typecheck && pnpm lint && pnpm format:check
    AGENT_MODEL=mock:demo PUBLIC_BASE_URL=https://ci.example.com \
      MANYCHAT_SHARED_SECRET=ci-secret-ci-secret-ci-secret-xx DATABASE_URL=pglite \
-     pnpm eval:mock
+     CONFIG_DIR=test/fixtures/config pnpm eval:mock
    ```
 
-   `eval:mock` takes CI's environment from the shell, not `.env`, and needs
-   `config/tools.json` (`cp -n config/tools.json.example config/tools.json`). If
-   cases fail on a branch that touches no behaviour, suspect the local setup
-   before the code.
+   These are the values `.github/workflows/ci.yml` sets. `eval:mock` reads them
+   from the shell, not `.env`, and without `CONFIG_DIR` it runs against your
+   local `config/` instead of the fixture tenant CI checks. Copy env values from
+   `ci.yml` rather than from memory: that is how they drift.
 
    Add `pnpm build && pnpm docs:build` when `src/`, `specs/`, `docs/` or
    `.vitepress/` changed. Record counts ("761 passed, 17 skipped; 92.96%

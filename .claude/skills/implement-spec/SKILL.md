@@ -47,12 +47,8 @@ implement in the shared checkout at the repository root.
 3. **Bootstrap, then prove the base is green** before touching anything:
 
    ```sh
-   pnpm install --frozen-lockfile && pnpm bootstrap \
-     && cp -n config/tools.json.example config/tools.json && pnpm test
+   pnpm install --frozen-lockfile && pnpm bootstrap && pnpm test
    ```
-
-   `bootstrap` does not copy `tools.json`, and without it the `flow-*` and
-   `funnel-*` eval cases fail for reasons that have nothing to do with you.
 
    A failure here belongs to `main`, not to you. Report it, and do not fold a
    fix into this branch unless the user agrees.
@@ -91,12 +87,13 @@ implement in the shared checkout at the repository root.
    pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:coverage \
      && AGENT_MODEL=mock:demo PUBLIC_BASE_URL=https://ci.example.com \
         MANYCHAT_SHARED_SECRET=ci-secret-ci-secret-ci-secret-xx DATABASE_URL=pglite \
-        pnpm eval:mock \
+        CONFIG_DIR=test/fixtures/config pnpm eval:mock \
      && pnpm build && pnpm docs:build
    ```
 
    `eval:mock` reads its environment from the shell, not from `.env`. These are
-   the values `.github/workflows/ci.yml` sets.
+   the values `.github/workflows/ci.yml` sets. `CONFIG_DIR` matters most: without
+   it the eval runs against your local `config/`, which is not what CI checks.
 
    Coverage thresholds are 85/75/85/85. If `eval:mock` fails, extend the mock
    model (`src/agent/mock-provider.ts`) so it models the correct behaviour. Do not weaken
@@ -142,6 +139,6 @@ implement in the shared checkout at the repository root.
 ## Worked example
 
 `feat/spec-023-sales-funnel` (PR #132):
-`git log --oneline --no-merges 69c8d27^1..69c8d27^2` shows the shape. One `feat:` commit implements the spec, amends 001 and 003, and
+`gh pr view 132 --json commits -q '.commits[].messageHeadline'` shows the shape. One `feat:` commit implements the spec, amends 001 and 003, and
 flips 023 to `implemented`. A second commit, `docs: record PR 132 in spec 023`,
 adds `pr:` once the number exists.
