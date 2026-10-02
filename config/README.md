@@ -117,8 +117,10 @@ opening. See `specs/001-agent-behavior.md`.
 
 Without `tools.json` the agent only replies. With it, the agent can also act on
 the contact in ManyChat while it answers: send one of your flows, tag the
-contact, or record a choice they made. The design is in
-`specs/012-agent-tools.md` and `docs/adr/0010-bounded-tool-loop-with-staged-actions.md`.
+contact, record a choice they made, read what is recorded on them, or write a
+note for your team. The design is in `specs/012-agent-tools.md`,
+`specs/024-contact-read-and-notes.md` and
+`docs/adr/0010-bounded-tool-loop-with-staged-actions.md`.
 
 `pnpm bootstrap` does not create this file, because tools are opt-in. To turn
 them on:
@@ -131,12 +133,14 @@ Then edit the file and restart, or send `kill -HUP <pid>`.
 
 ### What you configure
 
-| Tool         | What it does in ManyChat                  | Configured by |
-| ------------ | ----------------------------------------- | ------------- |
-| `send_flow`  | Sends the contact one of your flows       | `flows`       |
-| `add_tag`    | Adds one of your tags to the contact      | `tags`        |
-| `remove_tag` | Removes one of your tags from the contact | `tags`        |
-| `set_field`  | Writes one allowed value to a field       | `fields`      |
+| Tool          | What it does in ManyChat                      | Configured by                            |
+| ------------- | --------------------------------------------- | ---------------------------------------- |
+| `send_flow`   | Sends the contact one of your flows           | `flows`                                  |
+| `add_tag`     | Adds one of your tags to the contact          | `tags`                                   |
+| `remove_tag`  | Removes one of your tags from the contact     | `tags`                                   |
+| `set_field`   | Writes one allowed value to a field           | `fields`                                 |
+| `get_contact` | Reads the contact's tags, fields and notes    | `tags`, `fields`, `readable` and `notes` |
+| `write_note`  | Writes a short free-text note to a note field | `notes`                                  |
 
 A list you leave empty or omit offers no tool for it. Each entry has:
 
@@ -176,6 +180,36 @@ can see inside your flows, so this is yours to check. And turn off any drip
 sequence that sends the same flows on a timer, or contacts will get each piece
 twice.
 
+### Reading the contact and writing notes (optional)
+
+`get_contact` lets the agent read what is recorded on the contact right now,
+including what your own flows set. It returns ids only: the tags you list that
+the contact has, the value of each field you list, and each note's text. It
+never returns the contact's name, phone, email or anything you did not list. A
+field holding a value that is not one of its `values` reads as `other`.
+
+- **`readable`** lists tags and fields your flows set that the agent may see
+  but never write, in the same shape as `tags` and `fields`. For example a tag
+  your ad flow adds.
+- **`notes`** lists free-text fields the agent may write, for whoever follows
+  up. Each has `id`, `field`, `description`, `maxLength` (at most 500) and
+  `"neverRendered": true`. The last is your promise that no flow ever shows
+  that field to a contact: nothing here can check it, so the file refuses to
+  load without it.
+- **`onEscalation: true`** on a note, usually a handoff summary, means it is
+  still written when the agent hands the contact to a person. Every other
+  action is dropped on a handoff.
+
+Before a note is written, links, emails, phone numbers and long numbers are
+replaced by `[removed]`, whitespace is collapsed, and the text is cut to
+`maxLength` at a word. A name or any other detail in prose is not removed. A
+note replaces what the field held. The turn record and the logs hold the
+note's length, never its text.
+
+The agent reads only on a turn that carries the contact's token, at most twice
+a turn, and gives up on a read after 1.5 seconds. A failed read is logged at
+`warn` as `contact read failed` and the turn goes on without it.
+
 ### Startup checks
 
 `tools.json` is validated like the other config files: a malformed file fails
@@ -184,25 +218,30 @@ file is also refused if it names an object this service already uses for
 delivery:
 
 - a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`;
-- a field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`.
+- a field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`;
+- a note whose `field` is either of those, a `fields` entry's `field`, or
+  another note's.
 
 It is also refused if more than one field is marked `funnel`, if a funnel field's
 values are not the five stages in order, or if more than one flow has
-`role: "payment_link"`.
+`role: "payment_link"`. A note without `"neverRendered": true` or with a
+`maxLength` over 500 is refused too.
 
 ### What happens on a turn
 
 1. **The model chooses.** It may call tools before writing its reply. A call
    only stages the action. Nothing reaches ManyChat while the model is running.
-   A turn stages at most 3 actions, and identical calls count once. A call past
-   the limit is dropped.
+   A turn stages at most 8 actions, and identical calls count once. A call past
+   the limit is dropped. The model gets up to three rounds of tool calls before
+   it must write the reply, so it can read, act and read again.
 2. **The model writes the reply.** It is told what was staged and that nothing
    has been sent yet, so it says what it is sending rather than claiming it
    has sent it.
 3. **The guardrails decide.** If the turn ends in a handoff for any reason, every
    staged action is discarded. The reasons are: the model escalated,
    confidence was too low, a prompt leak, an invalid reply, a failed model call,
-   or `MODEL_ABORT_MS`.
+   or `MODEL_ABORT_MS`. A note marked `onEscalation` is the one exception: it is
+   still written when the model escalated or confidence was too low.
 4. **The text goes first, then the actions.** On an inline reply, the actions run
    after the response to ManyChat has been sent. On a deferred reply, the outbox
    worker runs them after it has delivered the text, and if the reply is
@@ -233,7 +272,7 @@ see in the column:
 
 ```mermaid
 flowchart TD
-    call["The model calls a tool"] --> cap{"3 actions already staged this turn?"}
+    call["The model calls a tool"] --> cap{"8 actions already staged this turn?"}
     cap -- yes --> over(["dropped_over_cap"])
     cap -- no --> handoff{"Does the turn end in a handoff?"}
     handoff -- yes --> discarded(["discarded"])
@@ -255,10 +294,11 @@ flowchart TD
 | `performed`        | ManyChat accepted the request                              |
 | `failed`           | ManyChat refused it or it timed out; `error` says why      |
 | `discarded`        | The turn ended in a handoff                                |
-| `dropped_over_cap` | Staged past the limit of 3 and never sent                  |
+| `dropped_over_cap` | Staged past the limit of 8 and never sent                  |
 | `dead_lettered`    | Its deferred reply was dead-lettered, so it was never sent |
 
-Entries hold ids and values only, never ManyChat names or contact text. An entry
+Entries hold ids and values only, never ManyChat names or contact text. A note's
+entry holds its `length` instead of its text. An entry
 that stays `staged` means the process stopped before the action ran. That action
 is never retried.
 
@@ -271,9 +311,9 @@ ORDER BY t.seq;
 
 ### Before turning tools on in production
 
-- **Expect slower replies.** A tool turn takes two model calls. In a local run on
-  2026-09-28 with `openai:gpt-5-mini` at low reasoning effort, four tool turns
-  took 8.4 to 15.5 seconds. All of them missed the 8-second deadline, so each
+- **Expect slower replies.** A tool turn takes two to four model calls. In a
+  local run on 2026-09-28 with `openai:gpt-5-mini` at low reasoning effort,
+  four two-call tool turns took 8.4 to 15.5 seconds. All of them missed the 8-second deadline, so each
   contact got the holding message first and the answer through the outbox.
   The same model answered a question with no tools offered in 5.8 seconds.
 - **Test the descriptions.** No check can tell whether a `description` leads the

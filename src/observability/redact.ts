@@ -18,15 +18,31 @@ const LONG_DIGITS = /\b\d{7,}\b/g;
  */
 const MEDIA_URL = /https?:\/\/manybot-files\.s3[\w.-]*\.amazonaws\.com[^\s"'\\<>]*/gi;
 
+/** Any other link: a profile, a booking page, a document the contact shared. */
+const URL = /\b(?:https?:\/\/|www\.)[^\s"'\\<>]+/gi;
+
+/**
+ * The identifier shapes this service removes, in the order they are applied:
+ * a URL can hold an email or digits, and an email can hold digits. Shared with
+ * the cleaning of agent notes, so a change here is a change to both (specs/024
+ * § Note text is cleaned before it is written).
+ */
+export const IDENTIFIER_SHAPES = [
+  { shape: URL, label: '[url]' },
+  { shape: EMAIL, label: '[email]' },
+  { shape: PHONE, label: '[phone]' },
+  { shape: LONG_DIGITS, label: '[number]' },
+] as const;
+
 export function redactMediaUrls(input: string): string {
   return input.replace(MEDIA_URL, '[media-url]');
 }
 
 export function redactText(input: string): string {
-  return redactMediaUrls(input)
-    .replace(EMAIL, '[email]')
-    .replace(PHONE, '[phone]')
-    .replace(LONG_DIGITS, '[number]');
+  return IDENTIFIER_SHAPES.reduce(
+    (text, { shape, label }) => text.replace(shape, label),
+    redactMediaUrls(input),
+  );
 }
 
 /**

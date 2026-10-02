@@ -9,14 +9,16 @@ export interface ActionLogger {
 
 /**
  * Why ManyChat refused, with the contact taken out: its answer can quote the
- * subscriber it was asked about, and this reason is both logged and stored on
- * the turn (C5).
+ * subscriber it was asked about, or the note it was sent, and this reason is
+ * both logged and stored on the turn (C5, specs/024 § Note text never reaches
+ * the record or the logs).
  */
-function reasonFor(error: unknown, subscriberId: string): string {
+function reasonFor(error: unknown, subscriberId: string, action: StagedAction): string {
   // A ManyChat error's message already names the endpoint, the status and
   // ManyChat's own message.
   const raw = error instanceof Error ? error.message : String(error);
-  return redactText(raw.split(subscriberId).join('[subscriber]')).slice(0, 200);
+  const unquoted = action.tool === 'write_note' ? raw.split(action.text).join('[note]') : raw;
+  return redactText(unquoted.split(subscriberId).join('[subscriber]')).slice(0, 200);
 }
 
 /**
@@ -44,7 +46,7 @@ export async function performActions(
       await performer.performAction(subscriberId, action);
       return recordOf(action, 'performed');
     } catch (error) {
-      const reason = reasonFor(error, subscriberId);
+      const reason = reasonFor(error, subscriberId, action);
       logger.warn({ tool: action.tool, id: action.id, error: reason }, 'action failed');
       return recordOf(action, 'failed', reason);
     }

@@ -141,8 +141,12 @@ export const TurnOutcome = z.enum([
 ]);
 export type TurnOutcome = z.infer<typeof TurnOutcome>;
 
-/** The four things the agent can do on a turn (specs/012). */
-export const ToolName = z.enum(['send_flow', 'add_tag', 'remove_tag', 'set_field']);
+/**
+ * The things the agent can do to a contact on a turn (specs/012, specs/024).
+ * `get_contact` is not one: it reads, is performed when called, and leaves no
+ * record on the turn.
+ */
+export const ToolName = z.enum(['send_flow', 'add_tag', 'remove_tag', 'set_field', 'write_note']);
 export type ToolName = z.infer<typeof ToolName>;
 
 /**
@@ -174,6 +178,18 @@ export const StagedAction = z.discriminatedUnion('tool', [
   z.object({ tool: z.literal('add_tag'), id: z.string(), tag: z.string() }),
   z.object({ tool: z.literal('remove_tag'), id: z.string(), tag: z.string() }),
   SetFieldAction,
+  /**
+   * Free text, already cleaned when it was staged (specs/024 § Note text is
+   * cleaned before it is written). `onEscalation` lets it outlive an
+   * escalation the model or the confidence threshold made.
+   */
+  z.object({
+    tool: z.literal('write_note'),
+    id: z.string(),
+    field: z.string(),
+    text: z.string(),
+    onEscalation: z.boolean(),
+  }),
 ]);
 export type StagedAction = z.infer<typeof StagedAction>;
 
@@ -191,12 +207,14 @@ export type ActionStatus = z.infer<typeof ActionStatus>;
 /**
  * One entry of a turn's `actions` column. Configured ids and values only,
  * never a flow namespace, tag or field name, or contact text, so the record
- * needs no redaction (C5).
+ * needs no redaction (C5). A note is recorded by its length, never its text
+ * (specs/024 § Note text never reaches the record or the logs).
  */
 export const ActionRecord = z.object({
   tool: ToolName,
   id: z.string(),
   value: z.string().optional(),
+  length: z.number().int().nonnegative().optional(),
   status: ActionStatus,
   error: z.string().optional(),
 });

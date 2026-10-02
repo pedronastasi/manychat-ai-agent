@@ -50,5 +50,39 @@
       "values": ["weekday_evenings", "weekends"],
       "description": "Whether the contact said weekday evenings or weekends suit them. Ask before sending content."
     }
+  ],
+  "readable": {
+    "tags": [
+      {
+        "id": "came_from_ad",
+        "tag": "source-ad",
+        "description": "The contact arrived by clicking an ad."
+      }
+    ],
+    "fields": []
+  },
+  "notes": [
+    {
+      "id": "goal",
+      "field": "agent_note_goal",
+      "maxLength": 280,
+      "neverRendered": true,
+      "description": "Why the contact wants the course, in one sentence."
+    },
+    {
+      "id": "objections",
+      "field": "agent_note_objections",
+      "maxLength": 280,
+      "neverRendered": true,
+      "description": "What is holding the contact back, in one or two sentences."
+    },
+    {
+      "id": "handoff_summary",
+      "field": "agent_note_handoff",
+      "maxLength": 500,
+      "neverRendered": true,
+      "onEscalation": true,
+      "description": "What the person taking over needs to know, in two or three sentences."
+    }
   ]
 }
