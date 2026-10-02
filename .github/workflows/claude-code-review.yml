@@ -12,6 +12,10 @@ jobs:
       github.repository == 'pedronastasi/manychat-ai-agent' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !github.event.pull_request.draft
+    # CLAUDE_CODE_OAUTH_TOKEN is an environment secret of `CI`, not a
+    # repository secret; a job reads an environment's secrets only when it
+    # names the environment.
+    environment: CI
     runs-on: ubuntu-latest
     permissions:
       contents: read

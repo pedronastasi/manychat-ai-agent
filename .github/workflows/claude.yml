@@ -21,6 +21,10 @@ jobs:
         (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
       )
+    # CLAUDE_CODE_OAUTH_TOKEN is an environment secret of `CI`, not a
+    # repository secret; a job reads an environment's secrets only when it
+    # names the environment.
+    environment: CI
     runs-on: ubuntu-latest
     permissions:
       contents: read
