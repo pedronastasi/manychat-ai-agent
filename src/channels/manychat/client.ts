@@ -22,6 +22,15 @@ export interface ActionPerformer {
 }
 
 /**
+ * Reads the names of the tags a contact has, for the nudge worker's check that
+ * no person has taken the conversation over (specs/025). Only the names: the
+ * rest of the subscriber record is PII this service has no use for.
+ */
+export interface ContactTagReader {
+  readTags(subscriberId: string): Promise<string[]>;
+}
+
+/**
  * ManyChat delivery client — the deferred path (ADR-0001).
  *
  * Delivery is two calls, not one: the reply text is written to a per-subscriber
@@ -76,7 +85,7 @@ export interface ManyChatClientOptions {
  * the ManyChatClient port). Build one per process and share it: the rate limit
  * belongs to the SDK instance, so two of them send at twice the rate.
  */
-export class ManyChatHttpClient implements ManyChatClient {
+export class ManyChatHttpClient implements ManyChatClient, ContactTagReader {
   private readonly api: ManyChat;
   private readonly replyField: string;
   private readonly replyFlowNs: string;
@@ -147,7 +156,20 @@ export class ManyChatHttpClient implements ManyChatClient {
           field_name: action.field,
           field_value: action.value,
         });
+      case 'schedule_nudge':
+        // A row in `nudges`, written by NudgingPerformer (specs/025). Reaching
+        // ManyChat with one means the wrapper was left out.
+        throw new Error('schedule_nudge is not a ManyChat action');
     }
+  }
+
+  /**
+   * `GET /fb/subscriber/getInfo`, validated by the SDK's schema (C3), reduced
+   * to tag names before it leaves this method (specs/025).
+   */
+  async readTags(subscriberId: string): Promise<string[]> {
+    const subscriber = await this.api.subscriber.getInfo({ subscriber_id: subscriberId });
+    return subscriber.tags.map(tag => tag.name);
   }
 
   async sendText(subscriberId: string, messages: string[]): Promise<void> {
@@ -172,7 +194,10 @@ export class ManyChatHttpClient implements ManyChatClient {
  * then cannot deliver, so each call fails loudly rather than silently dropping
  * a contact's reply.
  */
-export function manychatClientFor(env: Env, fetchImpl?: typeof fetch): ManyChatClient {
+export function manychatClientFor(
+  env: Env,
+  fetchImpl?: typeof fetch,
+): ManyChatClient & ContactTagReader {
   if (!env.MANYCHAT_API_TOKEN) {
     return {
       sendText: () =>
@@ -181,6 +206,9 @@ export function manychatClientFor(env: Env, fetchImpl?: typeof fetch): ManyChatC
         Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot write contact tokens')),
       performAction: () =>
         Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot perform actions')),
+      // A nudge whose check cannot be made is cancelled, never sent (specs/025).
+      readTags: () =>
+        Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot read contact tags')),
     };
   }
   return new ManyChatHttpClient({

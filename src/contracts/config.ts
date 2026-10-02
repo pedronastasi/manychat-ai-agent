@@ -203,67 +203,106 @@ export const FUNNEL_STAGES = ['new', 'qualifying', 'nurturing', 'offered', 'link
 export const LINK_SENT = 'link_sent';
 
 /**
+ * The latest a nudge may be scheduled for: an hour inside WhatsApp's 24-hour
+ * window, for the worker's poll, a deferred delivery and the model call. Chosen,
+ * not measured (specs/025 § The agent schedules a nudge; it does not send one).
+ */
+export const MAX_NUDGE_MINUTES = 1380;
+
+/**
+ * When the agent may follow up on a lead who went quiet (specs/025). The model
+ * names a delay by `id`; `humanActiveTag` names a tag in the tenant's ManyChat
+ * account and is never shown to it.
+ */
+export const NudgeSchema = z.object({
+  delays: z
+    .array(
+      z.object({
+        id: ToolEntryId,
+        minutes: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_NUDGE_MINUTES, `a nudge delay may not exceed ${MAX_NUDGE_MINUTES} minutes`),
+      }),
+    )
+    .min(1)
+    .refine(uniqueIds, 'delay ids must be unique'),
+  humanActiveTag: z.string().min(1).optional(),
+});
+export type Nudge = z.infer<typeof NudgeSchema>;
+
+/**
  * The flows, tags and field values the agent may act with (specs/012). The
  * model sees `id` and `description` only; `flowNs`, `tag` and `field` name
  * objects in the tenant's ManyChat account and stay server-side, so renaming
  * one there is a config edit no prompt depends on.
  */
-export const ToolsSchema = z.object({
-  flows: z
-    .array(
-      z.object({
-        id: ToolEntryId,
-        flowNs: z.string().min(1),
-        description: ToolDescription,
-        /** Exempt from "sent at most once per contact" (specs/023). */
-        repeatable: z.boolean().optional(),
-        /** Performing it writes the funnel field to `link_sent` (specs/023). */
-        role: z.literal('payment_link').optional(),
-      }),
-    )
-    .default([])
-    .refine(uniqueIds, 'flow ids must be unique')
-    .refine(
-      flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
-      'only one flow may have role "payment_link"',
-    ),
-  tags: z
-    .array(z.object({ id: ToolEntryId, tag: z.string().min(1), description: ToolDescription }))
-    .default([])
-    .refine(uniqueIds, 'tag ids must be unique'),
-  fields: z
-    .array(
-      z.object({
-        id: ToolEntryId,
-        field: z.string().min(1),
-        // Never free text: a value the model composed would reach a field a
-        // flow may render to the contact (specs/012 § Free-text field values
-        // are refused).
-        values: z
-          .array(z.string().min(1))
-          .min(1)
-          .refine(values => new Set(values).size === values.length, 'values must be unique'),
-        description: ToolDescription,
-        /** The field the agent's position in the sale is kept in (specs/023). */
-        funnel: z.boolean().optional(),
-      }),
-    )
-    .default([])
-    .refine(uniqueIds, 'field ids must be unique')
-    .refine(
-      fields => fields.filter(field => field.funnel).length <= 1,
-      'only one field may be marked "funnel"',
-    )
-    // Forward-only is decided by position in this list, so a list out of
-    // order would let the agent move a lead backwards.
-    .refine(
-      fields =>
-        fields
-          .filter(field => field.funnel)
-          .every(field => field.values.join() === FUNNEL_STAGES.join()),
-      `a "funnel" field's values must be ${FUNNEL_STAGES.join(', ')}, in that order`,
-    ),
-});
+export const ToolsSchema = z
+  .object({
+    flows: z
+      .array(
+        z.object({
+          id: ToolEntryId,
+          flowNs: z.string().min(1),
+          description: ToolDescription,
+          /** Exempt from "sent at most once per contact" (specs/023). */
+          repeatable: z.boolean().optional(),
+          /** Performing it writes the funnel field to `link_sent` (specs/023). */
+          role: z.literal('payment_link').optional(),
+        }),
+      )
+      .default([])
+      .refine(uniqueIds, 'flow ids must be unique')
+      .refine(
+        flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
+        'only one flow may have role "payment_link"',
+      ),
+    tags: z
+      .array(z.object({ id: ToolEntryId, tag: z.string().min(1), description: ToolDescription }))
+      .default([])
+      .refine(uniqueIds, 'tag ids must be unique'),
+    fields: z
+      .array(
+        z.object({
+          id: ToolEntryId,
+          field: z.string().min(1),
+          // Never free text: a value the model composed would reach a field a
+          // flow may render to the contact (specs/012 § Free-text field values
+          // are refused).
+          values: z
+            .array(z.string().min(1))
+            .min(1)
+            .refine(values => new Set(values).size === values.length, 'values must be unique'),
+          description: ToolDescription,
+          /** The field the agent's position in the sale is kept in (specs/023). */
+          funnel: z.boolean().optional(),
+        }),
+      )
+      .default([])
+      .refine(uniqueIds, 'field ids must be unique')
+      .refine(
+        fields => fields.filter(field => field.funnel).length <= 1,
+        'only one field may be marked "funnel"',
+      )
+      // Forward-only is decided by position in this list, so a list out of
+      // order would let the agent move a lead backwards.
+      .refine(
+        fields =>
+          fields
+            .filter(field => field.funnel)
+            .every(field => field.values.join() === FUNNEL_STAGES.join()),
+        `a "funnel" field's values must be ${FUNNEL_STAGES.join(', ')}, in that order`,
+      ),
+    /** Absent: `schedule_nudge` is not offered (specs/025). */
+    nudge: NudgeSchema.optional(),
+  })
+  // The agent may add or remove any configured tag, so the tag that silences
+  // it must not be one of them (specs/025).
+  .refine(tools => !tools.tags.some(entry => entry.tag === tools.nudge?.humanActiveTag), {
+    message: 'nudge.humanActiveTag may not be a tag the agent writes',
+    path: ['nudge'],
+  });
 export type Tools = z.infer<typeof ToolsSchema>;
 
 /** A deployment with no `tools.json`: no tools are offered (specs/012). */

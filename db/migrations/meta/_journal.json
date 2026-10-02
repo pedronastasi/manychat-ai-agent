@@ -43,6 +43,13 @@
       "when": 1790551636631,
       "tag": "0005_lumpy_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790982613265,
+      "tag": "0006_next_tattoo",
+      "breakpoints": true
     }
   ]
 }

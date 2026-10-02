@@ -32,6 +32,8 @@ import {
   ManyChatResponseError,
 } from '../channels/manychat/client.ts';
 import { performActions } from '../conversation/actions.ts';
+import { NudgeStore } from '../nudge/store.ts';
+import { NudgingPerformer } from '../nudge/performer.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -133,6 +135,7 @@ export class TurnHandler {
   private readonly budget: BudgetGuard;
   private readonly queue: OutboxQueue;
   private readonly tokens: ContactTokens;
+  private readonly nudges: NudgeStore;
 
   constructor(deps: TurnDeps) {
     this.deps = deps;
@@ -140,6 +143,7 @@ export class TurnHandler {
     this.budget = new BudgetGuard(deps.db);
     this.queue = new OutboxQueue(deps.db);
     this.tokens = new ContactTokens(deps.db, deps.tokenWriter);
+    this.nudges = new NudgeStore(deps.db);
   }
 
   async handle(inbound: InboundMessage): Promise<TurnResult> {
@@ -175,6 +179,9 @@ export class TurnHandler {
           );
     const logger = withConversation(this.deps.logger, conversation.id);
     const turn = { bound };
+    // The contact wrote, so the follow-up waiting for their silence is moot
+    // (specs/025). Any message, bound or not: it errs toward sending nothing.
+    await this.nudges.cancel(conversation.id, 'contact_replied');
     const media = inbound.media;
     const userTurnId = await this.store.recordUserMessage(
       conversation.id,
@@ -203,9 +210,13 @@ export class TurnHandler {
       });
     }
 
-    // An unbound request must not change the contact's own state.
-    const markEscalated = () =>
-      bound ? this.store.markEscalated(conversation.id) : Promise.resolve();
+    // An unbound request must not change the contact's own state. Any
+    // escalation cancels a waiting nudge, though: it can only err toward
+    // sending nothing (specs/025).
+    const markEscalated = async () => {
+      await this.nudges.cancel(conversation.id, 'escalated');
+      if (bound) await this.store.markEscalated(conversation.id);
+    };
 
     // The channel flow's opening sentinel. Fully determined - no contact input
     // to interpret and exactly one correct reply - so it never reaches the
@@ -479,7 +490,10 @@ export class TurnHandler {
       conversationId: conversation.id,
       binding,
       ...(performing
-        ? { afterResponse: () => this.performInline(inbound.subscriberId, stage, turnId, logger) }
+        ? {
+            afterResponse: () =>
+              this.performInline(inbound.subscriberId, conversation.id, stage, turnId, logger),
+          }
         : {}),
     };
   }
@@ -491,12 +505,14 @@ export class TurnHandler {
    */
   private async performInline(
     subscriberId: string,
+    conversationId: string,
     stage: ActionStage,
     turnId: string,
     logger: TurnLogger,
   ): Promise<void> {
     try {
-      const outcomes = await performActions(this.deps.actions, subscriberId, stage.staged, logger);
+      const performer = new NudgingPerformer(this.deps.actions, this.nudges, conversationId);
+      const outcomes = await performActions(performer, subscriberId, stage.staged, logger);
       await this.store.resolveStaged(turnId, outcomes);
     } catch (error) {
       logger.error({ err: String(error) }, 'inline actions not recorded');

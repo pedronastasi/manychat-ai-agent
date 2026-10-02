@@ -50,5 +50,18 @@
       "values": ["weekday_evenings", "weekends"],
       "description": "Whether the contact said weekday evenings or weekends suit them. Ask before sending content."
     }
-  ]
+  ],
+  "nudge": {
+    "delays": [
+      {
+        "id": "later_today",
+        "minutes": 120
+      },
+      {
+        "id": "tomorrow",
+        "minutes": 1200
+      }
+    ],
+    "humanActiveTag": "human-handling"
+  }
 }

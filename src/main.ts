@@ -13,6 +13,7 @@ import type { Database } from './db/client.ts';
 import { runMigrations } from './db/migrate.ts';
 import { manychatClientFor } from './channels/manychat/client.ts';
 import { OutboxWorker } from './outbox/worker.ts';
+import { NudgeWorker } from './nudge/worker.ts';
 import { buildServer } from './server.ts';
 
 export async function main() {
@@ -32,7 +33,7 @@ export async function main() {
   // One client, and so one rate limiter, for the server and the worker alike:
   // one each would send at twice the configured rate (specs/022).
   const manychat = manychatClientFor(env);
-  const { app } = await buildServer({ env, db, configStore, manychat });
+  const { app, runner } = await buildServer({ env, db, configStore, manychat });
 
   const migrated = await runMigrations(db);
   if (migrated.length > 0) app.log.info({ migrations: migrated }, 'migrations applied');
@@ -41,6 +42,17 @@ export async function main() {
     db,
     client: manychat,
     logger: app.log,
+  }).start();
+
+  // Follow-ups the agent scheduled (specs/025). Idle for a tenant without a
+  // `nudge` section: nothing schedules one.
+  const stopNudges = new NudgeWorker({
+    db,
+    runner,
+    config: () => configStore.get(),
+    tags: manychat,
+    logger: app.log,
+    modelAbortMs: env.MODEL_ABORT_MS,
   }).start();
 
   // Prompt edits dominate the first weeks; a restart per wording tweak is the
@@ -53,6 +65,7 @@ export async function main() {
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
+    await stopNudges();
     await stopWorker();
     await app.close();
     process.exit(0);

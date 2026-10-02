@@ -9,11 +9,12 @@ import {
   fenceUserText,
   funnelNotice,
   mediaNotice,
+  nudgeNotice,
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
-import { ActionStage, buildTools, funnelField, MAX_STEPS } from './tools.ts';
+import { ActionStage, buildTools, funnelField, MAX_STEPS, offersTools } from './tools.ts';
 import type { ContactActions } from './tools.ts';
 
 export interface AgentUsage {
@@ -84,6 +85,11 @@ export interface AgentTurnInput {
    * the sale (specs/023). Absent, the contact is treated as new.
    */
   contact?: ContactActions | undefined;
+  /**
+   * Set on a nudge turn: no contact wrote, and the model decides whether to
+   * follow up on silence since this time (specs/025). `text` is then unused.
+   */
+  nudge?: { since: Date } | undefined;
 }
 
 /**
@@ -146,6 +152,20 @@ function currentMessage(
 }
 
 /**
+ * A nudge turn's message: the server's trigger note, after the funnel note if
+ * there is one. All of it is the system's, so none of it is fenced (C4).
+ */
+function nudgeMessage(since: Date, funnel: string | null): ModelMessage {
+  return {
+    role: 'user',
+    content: [...(funnel === null ? [] : [funnel]), nudgeNotice(since)].map(text => ({
+      type: 'text' as const,
+      text,
+    })),
+  };
+}
+
+/**
  * The port every caller depends on. Implemented with `generateText`: a single
  * step when the tenant configures no tools, and a loop of at most two when it
  * does (ADR-0010).
@@ -195,7 +215,7 @@ export class GenerateTextRunner implements AgentRunner {
     const config = this.opts.config();
     if (this.cached?.config !== config) {
       const tools = config.tools ?? NO_TOOLS;
-      const withTools = tools.flows.length + tools.tags.length + tools.fields.length > 0;
+      const withTools = offersTools(tools);
       this.cached = {
         config,
         withTools,
@@ -212,19 +232,22 @@ export class GenerateTextRunner implements AgentRunner {
     media,
     stage = new ActionStage(),
     contact,
+    nudge,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
     const { config, staticPrefix, catalogBlock, withTools } = this.current();
-    const tools = withTools ? buildTools(config.tools ?? NO_TOOLS, stage, contact) : undefined;
+    const tools = withTools
+      ? buildTools(config.tools ?? NO_TOOLS, stage, contact, { nudgeTurn: nudge !== undefined })
+      : undefined;
     const funnel = funnelField(config.tools ?? NO_TOOLS)
       ? funnelNotice(contact?.funnelStage)
       : null;
 
     const messages: ModelMessage[] = [
       ...history.map(historyMessage),
-      currentMessage(text, media, funnel),
+      nudge ? nudgeMessage(nudge.since, funnel) : currentMessage(text, media, funnel),
     ];
 
     // Step two offers no tools, so it must produce the reply. It sees a note

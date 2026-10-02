@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, max, ne, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
 import type { ActionRecord, MediaKind, TurnOutcome } from '../contracts/agent.ts';
@@ -197,7 +197,8 @@ export class ConversationStore {
   /**
    * The last `limit` bound turns recorded since `since`, oldest-first, for
    * prompt history. Older turns are kept, just not shown to the model
-   * (specs/018), and unbound ones never are (specs/019).
+   * (specs/018), and unbound ones never are (specs/019). Nor is a nudge the
+   * model declined: nothing of it reached the contact (specs/025).
    */
   async recentTurns(conversationId: string, since: Date, limit = 10) {
     const rows = await this.db.query.turns.findMany({
@@ -205,12 +206,50 @@ export class ConversationStore {
         eq(turns.conversationId, conversationId),
         gte(turns.createdAt, since),
         eq(turns.bound, true),
+        or(isNull(turns.outcome), ne(turns.outcome, 'nudge_skipped')),
       ),
       orderBy: (table, { desc }) => [desc(table.seq)],
       limit,
       columns: { role: true, text: true, actions: true },
     });
     return rows.reverse();
+  }
+
+  /** A conversation by its id, with the contact it belongs to: the nudge worker's lookup (specs/025). */
+  async byId(conversationId: string) {
+    return this.db.query.conversations.findFirst({
+      where: eq(conversations.id, conversationId),
+      columns: {
+        id: true,
+        tenantId: true,
+        subscriberId: true,
+        turnCount: true,
+        escalatedAt: true,
+      },
+    });
+  }
+
+  /**
+   * When the contact last wrote, bound or not: WhatsApp's 24-hour window opens
+   * on any message, not only those that carried the token (specs/025).
+   */
+  async lastInbound(conversationId: string): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ at: max(turns.createdAt) })
+      .from(turns)
+      .where(and(eq(turns.conversationId, conversationId), eq(turns.role, 'user')));
+    return row?.at ? new Date(row.at) : null;
+  }
+
+  /**
+   * Counts a turn no contact started toward the turn cap, without moving the
+   * idle gap: a nudge is not the contact writing (specs/025).
+   */
+  async countTurn(conversationId: string) {
+    await this.db
+      .update(conversations)
+      .set({ turnCount: sql`${conversations.turnCount} + 1`, updatedAt: sql`now()` })
+      .where(eq(conversations.id, conversationId));
   }
 
   async find(tenantId: string, subscriberId: string): Promise<KnownConversation | undefined> {

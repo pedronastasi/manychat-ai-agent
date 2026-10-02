@@ -252,7 +252,7 @@ What does not coexist is anything held in memory:
 | Tenant config                   | `003`        | Files in `CONFIG_DIR`, loaded per process                                                                     | Load the same files; a `SIGHUP` goes to both processes, because each reloads only itself          |
 | Notes (`024`, specified)        | `024`        | ManyChat note fields; `turns.actions` holds id and length                                                     | Nothing new in Postgres                                                                           |
 | Funnel stage (`023`, specified) | `023`        | A ManyChat field; "earlier stage" and "sent once" read `turns.actions`                                        | Read the record the other service wrote                                                           |
-| Nudges (`025`, specified)       | `025`        | A new `nudges` table, and a worker                                                                            | See the next section                                                                              |
+| Nudges (`025`)                  | `025`        | A new `nudges` table, and a worker                                                                            | See the next section                                                                              |
 
 The token is the case that most needs both sides to agree. A contact whose
 token one service issued writes next through the other, and is bound only if

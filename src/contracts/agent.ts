@@ -138,11 +138,19 @@ export const TurnOutcome = z.enum([
   'failed_validation', // model output failed the schema; escalated
   'error', // unexpected failure; escalated
   'media_fallback', // media the agent cannot read; contact asked to type (specs/020)
+  'nudge_sent', // a follow-up the agent started, delivered through the outbox (specs/025)
+  'nudge_skipped', // a follow-up the model declined by escalating; nothing sent (specs/025)
 ]);
 export type TurnOutcome = z.infer<typeof TurnOutcome>;
 
-/** The four things the agent can do on a turn (specs/012). */
-export const ToolName = z.enum(['send_flow', 'add_tag', 'remove_tag', 'set_field']);
+/** What the agent can do on a turn (specs/012, specs/025). */
+export const ToolName = z.enum([
+  'send_flow',
+  'add_tag',
+  'remove_tag',
+  'set_field',
+  'schedule_nudge',
+]);
 export type ToolName = z.infer<typeof ToolName>;
 
 /**
@@ -174,6 +182,11 @@ export const StagedAction = z.discriminatedUnion('tool', [
   z.object({ tool: z.literal('add_tag'), id: z.string(), tag: z.string() }),
   z.object({ tool: z.literal('remove_tag'), id: z.string(), tag: z.string() }),
   SetFieldAction,
+  /**
+   * A follow-up `minutes` after the reply is delivered. Performed as a row in
+   * `nudges`, never as a ManyChat request (specs/025).
+   */
+  z.object({ tool: z.literal('schedule_nudge'), id: z.string(), minutes: z.number() }),
 ]);
 export type StagedAction = z.infer<typeof StagedAction>;
 

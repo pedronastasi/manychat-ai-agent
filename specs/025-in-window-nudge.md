@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-02
 constitution: [C4, C5, C6, C9]
 adr: [0010, 0015]
 ---
@@ -63,8 +64,11 @@ model call itself.
 
 ## At most one nudge waits per contact, and a nudge never schedules another
 
-Scheduling a nudge replaces any pending one for the same contact. A nudge turn
-is offered no `schedule_nudge` tool. Together these bound the outcome: after a
+Scheduling a nudge replaces any pending one for the same contact, in one
+upsert against a unique index on pending rows per conversation, so two
+processes scheduling at once cannot each insert one (`026 § A scheduled job
+runs where its claim is atomic`). A nudge turn is offered no `schedule_nudge`
+tool. Together these bound the outcome: after a
 contact's last message, they receive at most one unprompted turn, and then
 nothing until they write again.
 
@@ -72,18 +76,21 @@ nothing until they write again.
 
 A pending nudge is cancelled, recorded with the reason, when:
 
-| Reason            | Checked                                                              |
-| ----------------- | -------------------------------------------------------------------- |
-| `contact_replied` | Any inbound message, at the start of the turn                        |
-| `escalated`       | Any turn of the contact's conversation escalates                     |
-| `link_sent`       | The funnel field reaches `link_sent` (`023`)                         |
-| `window_closing`  | Due time is past the contact's last inbound + 1380 minutes           |
-| `human_active`    | At due time, the contact has the tag named in `nudge.humanActiveTag` |
-| `read_failed`     | At due time, the `human_active` check could not be made              |
-| `cap_reached`     | At due time, a budget, rate or turn cap would refuse the turn        |
+| Reason            | Checked                                                                |
+| ----------------- | ---------------------------------------------------------------------- |
+| `contact_replied` | Any inbound message, at the start of the turn, or while the model runs |
+| `escalated`       | Any turn of the contact's conversation escalates                       |
+| `link_sent`       | The funnel field reaches `link_sent` (`023`)                           |
+| `window_closing`  | At due time, past the contact's last inbound + 1380 minutes            |
+| `human_active`    | At due time, the contact has the tag named in `nudge.humanActiveTag`   |
+| `read_failed`     | At due time, the `human_active` check could not be made                |
+| `cap_reached`     | At due time, a budget, rate or turn cap would refuse the turn          |
 
 `human_active` is the only check that needs ManyChat. The worker reads the
-contact's tags through the `024` read path just before running the turn. If
+contact's tags with `GET /fb/subscriber/getInfo` just before running the turn,
+through the shared `ManyChatClient` and its rate limiter, and keeps only the
+tag names: `024`, which specifies the whole read, was not implemented when
+this was, so this is the one slice of it built here, and `024` reuses it. If
 the read fails, the nudge is cancelled as `read_failed`: an unprompted
 message on top of a human conversation is worse than a missed follow-up (C6).
 A tenant who sets no `humanActiveTag` gets no such check and no read, and
@@ -92,10 +99,18 @@ the spec says so rather than pretending to detect a takeover it cannot see.
 A cap never escalates a nudge. The contact asked nothing, so there is nothing
 to hand off.
 
+`escalated` and `link_sent` are also checked at due time, against the
+conversation's `escalated_at` and the `performed` funnel writes in
+`turns.actions`, because a nudge and the turn that makes it wrong can be
+performed in either order. A message that arrives while the nudge's model call
+runs cancels it as `contact_replied` before anything is enqueued: the
+contact's own turn answers them.
+
 ## A nudge turn is a model turn on a system-authored trigger
 
-At due time the worker claims the row with `FOR UPDATE SKIP LOCKED`, as the
-outbox worker does, and runs the agent with the conversation history and, in
+At due time the worker, polling every 15 seconds, claims the row with
+`FOR UPDATE SKIP LOCKED`, as the outbox worker does, moving it to `running`,
+and runs the agent with the conversation history and, in
 place of an inbound message, a system note such as
 `[no reply from the contact since <time>; decide whether to follow up]`. The
 note is English and system-facing, never shown to the contact (C9), and sits
@@ -104,7 +119,9 @@ outside the contact fence because no contact wrote it (C4).
 The model may send a follow-up, with any tool except `schedule_nudge`. If it
 sets `escalate: true`, nothing is sent: no escalation message, because the
 contact asked nothing. The turn is recorded with outcome `nudge_skipped` and
-no human is notified.
+no human is notified. A model call that fails or throws ends the same way.
+A `nudge_skipped` turn never enters the model's history, since none of it
+reached the contact.
 
 A nudge turn has no race. Nobody is waiting on a Dynamic Block response, so the
 reply goes straight to the deferred path in `002 § Deferred delivery goes
@@ -119,15 +136,21 @@ Two outcomes are added to the turn outcome set: `nudge_sent` and
 the reason from the table above, with the conversation id and no contact data
 (C5).
 
-| Column            | Holds                                       |
-| ----------------- | ------------------------------------------- |
-| `conversation_id` | The conversation the nudge belongs to       |
-| `due_at`          | When it may run                             |
-| `status`          | `pending`, `sent`, `skipped` or `cancelled` |
-| `cancel_reason`   | One of the reasons above, when `cancelled`  |
+| Column            | Holds                                                  |
+| ----------------- | ------------------------------------------------------ |
+| `conversation_id` | The conversation the nudge belongs to                  |
+| `due_at`          | When it may run                                        |
+| `status`          | `pending`, `running`, `sent`, `skipped` or `cancelled` |
+| `cancel_reason`   | One of the reasons above, when `cancelled`             |
+| `scheduled_at`    | When it was last scheduled                             |
 
-The reply rate to a nudge (a contact turn within 24 hours of a `nudge_sent`)
-is reported beside `023`'s two measures. It is the only evidence a nudge
+`running` is the worker's claim. A row is never claimed twice, so a process
+that dies mid-turn leaves it `running` and the nudge is lost, never sent
+twice.
+
+The reply rate to a nudge (a contact turn within 24 hours of a `nudge_sent`
+turn, over all `nudge_sent` turns, both read from `turns`) is reported beside
+`023`'s two measures. It is the only evidence a nudge
 helps rather than annoys.
 
 ## Verification

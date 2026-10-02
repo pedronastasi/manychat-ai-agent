@@ -60,6 +60,7 @@ Ports-and-adapters (hexagonal). Key boundaries:
 - **Registry** (`src/agent/registry.ts`) — the ONLY file that imports provider packages.
 - **Contracts** (`src/contracts/`) — Zod schemas are the source of truth; types are inferred.
 - **Outbox** (`src/outbox/`) — Postgres outbox with `FOR UPDATE SKIP LOCKED` for deferred delivery.
+- **Nudges** (`src/nudge/`) — follow-ups the agent schedules, run by a worker at due time (specs/025).
 
 Ports are implemented as classes; pure functions stay as functions (ADR-0008).
 
@@ -76,6 +77,7 @@ src/
   conversation/        # Budget enforcement, conversation/turn persistence
   db/                  # DB client factory, migrations, Drizzle schema
   media/               # Inbound voice notes, images, videos: resolver, ffmpeg splitter
+  nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
   observability/       # PII redaction
   outbox/              # Deferred reply queue + polling worker
   routes/              # Auth middleware, turn handler (the race)

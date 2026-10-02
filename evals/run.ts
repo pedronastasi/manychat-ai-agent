@@ -28,6 +28,9 @@ interface Outcome {
   costUsd: number;
 }
 
+/** When a nudge case's contact went quiet (specs/025). Invented, and fixed. */
+const NUDGE_SINCE = new Date('2026-01-15T10:00:00Z');
+
 const GREEN = '\x1b[32m';
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -69,7 +72,13 @@ async function main() {
     // Nothing staged here is performed: the suite reads the choice, and no
     // ManyChat account is involved (specs/012).
     const stage = new ActionStage();
-    const result = await runner.run({ text: testCase.text, history: testCase.history, stage });
+    const result = await runner.run({
+      text: testCase.text,
+      history: testCase.history,
+      stage,
+      // A fixed time, so the trigger note is the same on every run.
+      nudge: testCase.nudge ? { since: NUDGE_SINCE } : undefined,
+    });
     const actions = result.toolsOffered ? stage.staged.map(describeAction) : null;
     const failures = checkCase({
       testCase,
