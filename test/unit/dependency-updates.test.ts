@@ -16,7 +16,8 @@ type PackageRule = {
   matchUpdateTypes?: string[];
   matchManagers?: string[];
   matchDepTypes?: string[];
-  groupName?: string;
+  matchPackageNames?: string[];
+  groupName?: string | null;
   automerge?: boolean;
   dependencyDashboardApproval?: boolean;
 };
@@ -121,5 +122,35 @@ describe('updates are batched, not continuous', () => {
     // titles stop parsing, and specs/010's version bump silently stops seeing
     // dependency updates.
     expect(config.extends).toContain(':semanticCommits');
+  });
+});
+
+describe('specs/022 § A 0.x release of the SDK is a major, and gets its own pull request', () => {
+  const index = rules.findIndex(rule => rule.matchPackageNames?.includes('manychat-sdk'));
+  const rule = rules[index];
+
+  it('has a rule for manychat-sdk minors', () => {
+    expect(rule?.matchUpdateTypes).toEqual(['minor']);
+  });
+
+  it('never auto-merges one', () => {
+    expect(rule?.automerge).toBe(false);
+  });
+
+  it('takes it out of the minor group, so it gets its own pull request', () => {
+    // A null groupName is falsy where Renovate names the branch, so the
+    // update is not batched with the other minors.
+    expect(rule).toHaveProperty('groupName', null);
+  });
+
+  it('sits after the minor rule, so it overrides it rather than being overridden', () => {
+    expect(index).toBeGreaterThan(rules.indexOf(ruleFor('minor')!));
+  });
+
+  it('is declared with a caret on a 0.x version, which admits patches only', () => {
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(manifest.dependencies['manychat-sdk']).toMatch(/^\^0\.\d+\.\d+$/);
   });
 });

@@ -81,8 +81,7 @@ export class ManyChatMediaFetcher implements MediaFetcher {
   private readonly doFetch: typeof fetch;
 
   constructor(fetchImpl?: typeof fetch) {
-    // Bound for the same reason as ManyChatHttpClient's: native fetch rejects
-    // any receiver but the global.
+    // Bound deliberately: native fetch rejects any receiver but the global.
     this.doFetch = fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 

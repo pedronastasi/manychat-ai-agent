@@ -8,7 +8,7 @@ import type { InboundMessage, ActionRecord } from '../../src/contracts/agent.ts'
 import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { ConversationStore } from '../../src/conversation/store.ts';
-import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
+import { FakeActions, FakeContactFields, manychatError } from '../helpers/manychat.ts';
 import { ActionStage } from '../../src/agent/tools.ts';
 
 /**
@@ -263,9 +263,8 @@ describe('delivery ordering (specs/012 V6)', () => {
       },
     });
 
-    const { ManyChatApiError } = await import('../../src/channels/manychat/client.ts');
     const failClient = {
-      sendText: () => Promise.reject(new ManyChatApiError(400, 'bad', false)),
+      sendText: () => Promise.reject(manychatError(400, 'bad')),
       writeToken: () => Promise.resolve(),
       performAction: () => Promise.resolve(),
     };

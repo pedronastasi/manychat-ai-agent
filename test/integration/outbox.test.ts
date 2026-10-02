@@ -4,7 +4,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { OutboxQueue, MAX_ATTEMPTS } from '../../src/outbox/queue.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
-import { ManyChatApiError } from '../../src/channels/manychat/client.ts';
+import { manychatError } from '../helpers/manychat.ts';
 import type { ManyChatClient } from '../../src/channels/manychat/client.ts';
 import type { AgentReply } from '../../src/contracts/agent.ts';
 
@@ -198,8 +198,8 @@ describe('drainOnce', () => {
       sendText: subscriberId =>
         Promise.reject(
           subscriberId === 'retry-me'
-            ? new ManyChatApiError(503, 'unavailable', true)
-            : new ManyChatApiError(400, 'bad request', false),
+            ? manychatError(503, 'unavailable')
+            : manychatError(400, 'bad request'),
         ),
       writeToken: () => Promise.resolve(),
       performAction: () => Promise.resolve(),
@@ -225,7 +225,7 @@ describe('drainOnce', () => {
     await enqueue();
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const client: ManyChatClient = {
-      sendText: () => Promise.reject(new ManyChatApiError(401, 'unauthorized', false)),
+      sendText: () => Promise.reject(manychatError(401, 'unauthorized')),
       writeToken: () => Promise.resolve(),
       performAction: () => Promise.resolve(),
     };
@@ -237,7 +237,7 @@ describe('drainOnce', () => {
     await enqueue('bad');
     await enqueue('good');
     const client = stubClient(subscriberId => {
-      if (subscriberId === 'bad') throw new ManyChatApiError(400, 'nope', false);
+      if (subscriberId === 'bad') throw manychatError(400, 'nope');
     });
     const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
     expect(result.delivered).toBe(1);

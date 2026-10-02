@@ -2,12 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { buildServer } from '../../src/server.ts';
 import { createTestDatabase } from '../helpers/db.ts';
-import { fakeManyChatApi } from '../helpers/manychat.ts';
+import { fakeManyChatApi, manychatAnswer } from '../helpers/manychat.ts';
 import type { Database } from '../../src/db/client.ts';
 import { conversations, outbox, turns } from '../../src/db/schema.ts';
 import { loadEnv, ConfigStore, ConfigError } from '../../src/config/loader.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
-import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
+import { ManyChatHttpClient, manychatClientFor } from '../../src/channels/manychat/client.ts';
+import type { ManyChatClient } from '../../src/channels/manychat/client.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { ContactTokens, hashToken } from '../../src/conversation/tokens.ts';
 import {
@@ -89,8 +90,11 @@ afterEach(async () => {
   await close();
 });
 
-async function makeApp(options: { env?: Record<string, string>; database?: Database } = {}) {
+async function makeApp(
+  options: { env?: Record<string, string>; database?: Database; manychat?: ManyChatClient } = {},
+) {
   const { app } = await buildServer({
+    ...(options.manychat ? { manychat: options.manychat } : {}),
     env: loadEnv({ ...baseEnv, ...options.env }),
     db: options.database ?? db,
     configStore: new ConfigStore('test/fixtures/config'),
@@ -231,6 +235,7 @@ describe("specs/019 § Each contact's token lives in ManyChat, never in a respon
       db,
       client: new ManyChatHttpClient({
         apiToken: 'tok',
+        baseUrl: 'https://api.manychat.com',
         replyField: 'ai_message',
         replyFlowNs: 'flow',
         tokenField: 'ai_token',
@@ -257,6 +262,7 @@ describe("specs/019 § Each contact's token lives in ManyChat, never in a respon
       db,
       client: new ManyChatHttpClient({
         apiToken: 'tok',
+        baseUrl: 'https://api.manychat.com',
         replyField: 'ai_message',
         replyFlowNs: 'flow',
         tokenField: 'ai_token',
@@ -292,6 +298,7 @@ describe("specs/019 § Each contact's token lives in ManyChat, never in a respon
       db,
       client: new ManyChatHttpClient({
         apiToken: 'tok',
+        baseUrl: 'https://api.manychat.com',
         replyField: 'ai_message',
         replyFlowNs: 'flow',
         tokenField: 'ai_token',
@@ -493,10 +500,10 @@ describe('specs/019 § Tokens reach existing contacts before they are required',
     const client = () =>
       new ManyChatHttpClient({
         apiToken: 'tok',
+        baseUrl: 'https://api.manychat.com',
         replyField: 'ai_message',
         replyFlowNs: 'flow',
         tokenField: 'ai_token',
-        requestsPerSecond: 1000,
         fetchImpl: api.fetch,
       });
     const scope = () => ({ tenantId: 'demo', since: new Date(Date.now() - 30 * DAY_MS) });
@@ -540,5 +547,75 @@ describe('specs/019 § Tokens reach existing contacts before they are required',
       expect(seen.at(-1)).toEqual([`asked by ${CONTACT}`]);
       await app.close();
     });
+  });
+});
+
+describe('specs/022 § Error text stays within what C5 and 019 allow', () => {
+  // A distinctive string ManyChat's refusal quotes back, as it may quote the
+  // value it was sent.
+  const QUOTED = 'quoted-by-manychat';
+
+  const worker = (lines: string[]) => {
+    const record = (fields: object, message: string) =>
+      void lines.push(JSON.stringify({ ...fields, msg: message }));
+    return new OutboxWorker({
+      db,
+      client: manychatClientFor(loadEnv(baseEnv), api.fetch),
+      logger: { info: record, warn: record, error: record },
+    });
+  };
+
+  it("keeps ManyChat's error text out of a failed token write's log line and outbox row", async () => {
+    const refusal = JSON.stringify({
+      status: 'error',
+      message: `Value ${QUOTED} is not valid`,
+      details: { messages: [{ message: QUOTED }] },
+    });
+    api.state.respond = () => Promise.resolve(manychatAnswer(400, refusal));
+    const app = await makeApp();
+    await send(app, 'hello');
+    await vi.waitFor(() => expect(logged('contact token write failed')).toHaveLength(1));
+    expect(logged('contact token write failed')[0]!.error).toEqual({
+      name: 'ManyChatApiError',
+      status: 400,
+    });
+
+    await db.update(outbox).set({ nextAttemptAt: sql`now()` });
+    const workerLines: string[] = [];
+    await worker(workerLines).drainOnce();
+
+    const [job] = await tokenJobs();
+    expect(job!.lastError).toBe('contact token write failed: 400');
+    for (const line of [...logs, ...workerLines]) expect(line).not.toContain(QUOTED);
+    await app.close();
+  });
+
+  it('logs a connection failure by its reason, and records no message', async () => {
+    api.state.respond = () => Promise.reject(new TypeError('fetch failed'));
+    const app = await makeApp();
+    await send(app, 'hello');
+    await vi.waitFor(() => expect(logged('contact token write failed')).toHaveLength(1));
+    expect(logged('contact token write failed')[0]!.error).toEqual({
+      name: 'ManyChatConnectionError',
+      reason: 'network',
+    });
+
+    await db.update(outbox).set({ nextAttemptAt: sql`now()` });
+    await worker([]).drainOnce();
+    const [job] = await tokenJobs();
+    expect(job!.lastError).toBe('contact token write failed');
+    await app.close();
+  });
+});
+
+describe('specs/022 § One instance per process', () => {
+  it('writes through the client it is given, which main.ts shares with the worker', async () => {
+    const shared = manychatClientFor(loadEnv(baseEnv), api.fetch);
+    const write = vi.spyOn(shared, 'writeToken');
+    const app = await makeApp({ manychat: shared });
+    await send(app, 'hello');
+    await fieldAfterWrites(1);
+    expect(write).toHaveBeenCalledOnce();
+    await app.close();
   });
 });

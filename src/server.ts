@@ -21,7 +21,8 @@ import { GenerateTextRunner } from './agent/runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
 import { SdkTranscriber } from './agent/transcriber.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
-import { ManyChatHttpClient } from './channels/manychat/client.ts';
+import { manychatClientFor } from './channels/manychat/client.ts';
+import type { ManyChatClient } from './channels/manychat/client.ts';
 import { ManyChatMediaFetcher } from './channels/manychat/media.ts';
 import type { ConfigStore } from './config/loader.ts';
 import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
@@ -41,6 +42,11 @@ export interface BuildOptions {
   runner?: AgentRunner;
   /** Injected by tests to read what the service logs. */
   logStream?: { write(line: string): void };
+  /**
+   * The process's one ManyChat client, shared with the outbox worker so the
+   * configured rate is the real one (specs/022). Built from `env` when absent.
+   */
+  manychat?: ManyChatClient;
   /** Injected by tests: the ManyChat HTTP boundary, API and media host alike. */
   manychatFetch?: typeof fetch;
   /** Injected by tests in place of resolving TRANSCRIPTION_MODEL: the model boundary. */
@@ -81,27 +87,7 @@ export async function buildServer(opts: BuildOptions) {
   const tenant = () => configStore.get();
   const capabilities = capabilitiesFor(env.CHANNEL);
 
-  const manychatClient = env.MANYCHAT_API_TOKEN
-    ? new ManyChatHttpClient({
-        apiToken: env.MANYCHAT_API_TOKEN,
-        baseUrl: env.MANYCHAT_API_BASE,
-        replyField: env.MANYCHAT_REPLY_FIELD,
-        replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
-        tokenField: env.MANYCHAT_TOKEN_FIELD,
-        ...(opts.manychatFetch ? { fetchImpl: opts.manychatFetch } : {}),
-      })
-    : {
-        // Without a token the deferred path cannot deliver. Fail loudly at use
-        // rather than silently dropping a customer's reply.
-        sendText: () =>
-          Promise.reject(
-            new Error('MANYCHAT_API_TOKEN is not set; cannot deliver deferred replies'),
-          ),
-        writeToken: () =>
-          Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot write contact tokens')),
-        performAction: () =>
-          Promise.reject(new Error('MANYCHAT_API_TOKEN is not set; cannot perform actions')),
-      };
+  const manychatClient = opts.manychat ?? manychatClientFor(env, opts.manychatFetch);
 
   const adapter = new ManyChatAdapter(manychatClient);
 
