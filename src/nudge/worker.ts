@@ -1,7 +1,7 @@
 import type { Database } from '../db/client.ts';
 import type { AgentResult, AgentRunner } from '../agent/runner.ts';
 import type { TenantConfig } from '../config/loader.ts';
-import type { ContactTagReader } from '../channels/manychat/client.ts';
+import type { ContactReader } from '../channels/manychat/client.ts';
 import { LINK_SENT, MAX_NUDGE_MINUTES, NO_TOOLS } from '../contracts/config.ts';
 import { ActionStage, contactActionsFrom } from '../agent/tools.ts';
 import { BudgetGuard, checkTurnCap } from '../conversation/budget.ts';
@@ -21,8 +21,8 @@ export interface NudgeWorkerOptions {
   runner: AgentRunner;
   /** Read per nudge, so a SIGHUP reload reaches the worker as it reaches turns. */
   config: () => TenantConfig;
-  /** The `human_active` check's read (specs/025). */
-  tags: ContactTagReader;
+  /** The `human_active` check's read: the specs/024 read path (specs/025). */
+  contacts: ContactReader;
   logger: NudgeLogger;
   /** The outer bound on the model call; there is no race to lose. */
   modelAbortMs: number;
@@ -33,6 +33,12 @@ export interface NudgeWorkerOptions {
 export type NudgeResult = 'sent' | 'skipped' | CancelReason;
 
 const MINUTE_MS = 60_000;
+
+/**
+ * No race to protect here, unlike `get_contact`'s 1500 ms (specs/024): the
+ * client's own 10-second bound, so a slow read is not mistaken for a failure.
+ */
+const TAG_READ_TIMEOUT_MS = 10_000;
 const DAY_MS = 86_400_000;
 
 /**
@@ -122,7 +128,11 @@ export class NudgeWorker {
     if (humanActiveTag) {
       let tags: string[];
       try {
-        tags = await this.opts.tags.readTags(conversation.subscriberId);
+        const record = await this.opts.contacts.readContact(
+          conversation.subscriberId,
+          AbortSignal.timeout(TAG_READ_TIMEOUT_MS),
+        );
+        tags = record.tags;
       } catch (error) {
         // An unprompted message on top of a person's conversation is worse
         // than a missed follow-up (C6).

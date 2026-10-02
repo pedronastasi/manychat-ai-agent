@@ -121,7 +121,7 @@ describe('a nudge turn is offered no schedule_nudge (specs/025 V2)', () => {
   });
 
   it('builds no schedule_nudge for a nudge turn', () => {
-    const built = buildTools(tools, new ActionStage(), undefined, { nudgeTurn: true });
+    const built = buildTools(tools, new ActionStage(), undefined, undefined, { nudgeTurn: true });
     expect(Object.keys(built!)).not.toContain('schedule_nudge');
     expect(Object.keys(built!)).toContain('send_flow');
   });
@@ -183,44 +183,7 @@ describe('the trigger note sits outside the fence (specs/025 V6)', () => {
   });
 });
 
-describe('the human_active check reads only tag names (specs/025)', () => {
-  it('returns the names of the tags on the getInfo response', async () => {
-    const requested: string[] = [];
-    const client = new ManyChatHttpClient({
-      apiToken: 'test-token',
-      baseUrl: 'https://api.example.com',
-      replyField: 'ai_message',
-      replyFlowNs: 'reply_flow',
-      tokenField: 'ai_token',
-      fetchImpl: ((url: string) => {
-        requested.push(String(url));
-        return Promise.resolve(
-          manychatAnswer(
-            200,
-            JSON.stringify({
-              status: 'success',
-              data: {
-                id: '1000001',
-                name: 'Invented Contact',
-                phone: '+10000000000',
-                tags: [
-                  { id: 1, name: 'human-handling' },
-                  { id: 2, name: 'interested-foundation-course' },
-                ],
-              },
-            }),
-          ),
-        );
-      }) as unknown as typeof fetch,
-    });
-
-    expect(await client.readTags('1000001')).toEqual([
-      'human-handling',
-      'interested-foundation-course',
-    ]);
-    expect(requested[0]).toContain('/fb/subscriber/getInfo');
-  });
-
+describe('schedule_nudge never reaches ManyChat (specs/025)', () => {
   it('refuses to send schedule_nudge to ManyChat', async () => {
     const client = new ManyChatHttpClient({
       apiToken: 'test-token',

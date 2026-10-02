@@ -5,6 +5,7 @@ import type {
   InboundMessage,
   AgentReply,
   MediaKind,
+  StagedAction,
   TurnOutcome,
 } from '../contracts/agent.ts';
 import { NO_TOOLS } from '../contracts/config.ts';
@@ -25,7 +26,8 @@ import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
 import { ActionStage, contactActionsFrom } from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
-import type { ActionPerformer } from '../channels/manychat/client.ts';
+import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
+import { ContactReads } from '../agent/contact.ts';
 import {
   ManyChatApiError,
   ManyChatConnectionError,
@@ -58,6 +60,8 @@ export interface TurnDeps {
   tokensEnforced: boolean;
   /** Performs what the agent staged, once the reply has gone out (specs/012). */
   actions: ActionPerformer;
+  /** Reads the contact for `get_contact` (specs/024). Without it, no read is offered. */
+  contacts?: ContactReader | undefined;
   /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
   media?: MediaResolver | undefined;
 }
@@ -290,19 +294,41 @@ export class TurnHandler {
     // it is still known when the call is aborted and never returns.
     const stage = new ActionStage();
 
+    // The contact's record holds their own words in its notes, so a turn that
+    // may not read their history may not read it either (specs/024).
+    const reads =
+      this.deps.contacts && readsHistory
+        ? new ContactReads({
+            reader: this.deps.contacts,
+            subscriberId: inbound.subscriberId,
+            logger,
+          })
+        : undefined;
+
     /**
      * Staged actions are performed only when the final reply, after the
      * guardrails, does not escalate. Every other ending lands here (specs/012
-     * § Guardrails run before any action is performed).
+     * § Guardrails run before any action is performed), except the
+     * `onEscalation` notes in `kept` (specs/024).
      */
-    const discard = () => {
-      if (stage.staged.length > 0) {
-        logger.info({ discarded: stage.staged.length }, 'staged actions discarded');
-      }
+    const discard = (kept: readonly StagedAction[] = []) => {
+      const discarded = stage.staged.length - kept.length;
+      if (discarded > 0) logger.info({ discarded }, 'staged actions discarded');
       return stage.staged.length + stage.dropped.length > 0
-        ? stage.records('discarded')
+        ? stage.records('discarded', kept)
         : undefined;
     };
+
+    /**
+     * What a settled turn performs once its text is delivered: everything
+     * staged when it did not escalate, and on an escalation the model or the
+     * confidence threshold made, the notes that outlive it (specs/024 § A
+     * handoff summary survives the escalation it describes).
+     */
+    const performable = (result: AgentResult): readonly StagedAction[] =>
+      result.reply.escalate
+        ? stage.survivors(result.escalatedBy === 'model' || result.escalatedBy === 'confidence')
+        : stage.staged;
 
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.deps.modelAbortMs);
@@ -324,9 +350,17 @@ export class TurnHandler {
           logger,
           stage,
           contact,
+          reads,
         })
       : this.deps.runner
-          .run({ text: inbound.text, history: priorHistory, signal: abort.signal, stage, contact })
+          .run({
+            text: inbound.text,
+            history: priorHistory,
+            signal: abort.signal,
+            stage,
+            contact,
+            reads,
+          })
           .then(result => ({ kind: 'model' as const, result }));
     const completion = work
       .then(done => ({ kind: 'done' as const, done }))
@@ -344,7 +378,7 @@ export class TurnHandler {
       const actions = !result.toolsOffered
         ? null
         : result.reply.escalate
-          ? (discard() ?? [])
+          ? (discard(performable(result)) ?? [])
           : stage.records('staged');
       const turnId = await this.store.recordAgentReply(
         conversation.id,
@@ -404,7 +438,7 @@ export class TurnHandler {
             return;
           }
           const { done } = outcome;
-          let deferred: { staged: typeof stage.staged; turnId: string } | undefined;
+          let deferred: { staged: readonly StagedAction[]; turnId: string } | undefined;
           if (done.kind === 'decided') {
             await conclude(done);
           } else {
@@ -412,7 +446,8 @@ export class TurnHandler {
             // Deferred with the reply, never dropped from it: the worker
             // performs them once the text is delivered (specs/012 § The whole
             // loop runs inside the race).
-            if (!done.result.reply.escalate) deferred = { staged: stage.staged, turnId };
+            const staged = performable(done.result);
+            if (staged.length > 0) deferred = { staged, turnId };
             // The inline path logs these below. Without the same line here a
             // guardrail or a failed call on a deferred turn left no trace in
             // the logs at all, which is most of them whenever the model runs
@@ -483,16 +518,16 @@ export class TurnHandler {
     if (done.result.interventions.length > 0) {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
-    const performing = !done.result.reply.escalate && stage.staged.length > 0;
+    const staged = performable(done.result);
     return {
       reply: done.result.reply,
       outcome,
       conversationId: conversation.id,
       binding,
-      ...(performing
+      ...(staged.length > 0
         ? {
             afterResponse: () =>
-              this.performInline(inbound.subscriberId, conversation.id, stage, turnId, logger),
+              this.performInline(inbound.subscriberId, conversation.id, staged, turnId, logger),
           }
         : {}),
     };
@@ -506,13 +541,13 @@ export class TurnHandler {
   private async performInline(
     subscriberId: string,
     conversationId: string,
-    stage: ActionStage,
+    staged: readonly StagedAction[],
     turnId: string,
     logger: TurnLogger,
   ): Promise<void> {
     try {
       const performer = new NudgingPerformer(this.deps.actions, this.nudges, conversationId);
-      const outcomes = await performActions(performer, subscriberId, stage.staged, logger);
+      const outcomes = await performActions(performer, subscriberId, staged, logger);
       await this.store.resolveStaged(turnId, outcomes);
     } catch (error) {
       logger.error({ err: String(error) }, 'inline actions not recorded');
@@ -533,6 +568,7 @@ export class TurnHandler {
       logger: TurnLogger;
       stage: ActionStage;
       contact: ContactActions | undefined;
+      reads: ContactReads | undefined;
     },
   ): Promise<Completion> {
     const { rules } = this.deps;
@@ -599,6 +635,7 @@ export class TurnHandler {
       signal: ctx.signal,
       stage: ctx.stage,
       contact: ctx.contact,
+      reads: ctx.reads,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

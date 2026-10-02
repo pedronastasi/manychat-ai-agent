@@ -81,10 +81,10 @@ describe('tool parameter schemas (specs/012 V1)', () => {
 
   it('does not offer a tool whose list is empty', () => {
     const stage = new ActionStage();
-    const empty: Tools = { flows: [], tags: [], fields: [] };
+    const empty: Tools = NO_TOOLS;
     expect(buildTools(empty, stage)).toBeUndefined();
 
-    const flowsOnly: Tools = { flows: tools.flows, tags: [], fields: [] };
+    const flowsOnly: Tools = { ...NO_TOOLS, flows: tools.flows };
     const built = buildTools(flowsOnly, stage)!;
     expect(built.send_flow).toBeDefined();
     expect(built.add_tag).toBeUndefined();
@@ -141,18 +141,14 @@ describe('execute makes no request (specs/012 V2)', () => {
 describe('action cap (specs/012 V4)', () => {
   it(`rejects the ${MAX_ACTIONS_PER_TURN + 1}th action and records it as dropped`, () => {
     const stage = new ActionStage();
-    stage.stage({ tool: 'send_flow', id: 'foundation_brochure', flowNs: 'ns' });
-    stage.stage({ tool: 'add_tag', id: 'interested_foundation', tag: 'tg' });
-    stage.stage({
-      tool: 'set_field',
-      id: 'preferred_schedule',
-      field: 'preferred_schedule',
-      value: 'weekends',
-    });
+    // The cap is specs/024's, which replaced 012's three.
+    for (let index = 0; index < MAX_ACTIONS_PER_TURN; index++) {
+      stage.stage({ tool: 'add_tag', id: `tag_${index}`, tag: `tag-${index}` });
+    }
 
     expect(stage.staged).toHaveLength(MAX_ACTIONS_PER_TURN);
 
-    // Fourth: over the cap.
+    // One past the cap.
     const accepted = stage.stage({
       tool: 'remove_tag',
       id: 'interested_foundation',
@@ -478,9 +474,9 @@ describe('staged notice (specs/012)', () => {
 
   it('mentions dropped actions over the cap', () => {
     const stage = new ActionStage();
-    stage.stage({ tool: 'send_flow', id: 'a', flowNs: 'ns' });
-    stage.stage({ tool: 'add_tag', id: 'b', tag: 't' });
-    stage.stage({ tool: 'remove_tag', id: 'c', tag: 't' });
+    for (let index = 0; index < MAX_ACTIONS_PER_TURN; index++) {
+      stage.stage({ tool: 'add_tag', id: `tag_${index}`, tag: 't' });
+    }
     stage.stage({ tool: 'add_tag', id: 'd', tag: 't2' }); // over cap
     const notice = stagedNotice(stage);
     expect(notice).toContain('Not staged');

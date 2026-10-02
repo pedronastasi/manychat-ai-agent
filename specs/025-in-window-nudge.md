@@ -88,10 +88,12 @@ A pending nudge is cancelled, recorded with the reason, when:
 | `cap_reached`     | At due time, a budget, rate or turn cap would refuse the turn          |
 
 `human_active` is the only check that needs ManyChat. The worker reads the
-contact's tags with `GET /fb/subscriber/getInfo` just before running the turn,
-through the shared `ManyChatClient` and its rate limiter, and keeps only the
-tag names: `024`, which specifies the whole read, was not implemented when
-this was, so this is the one slice of it built here, and `024` reuses it. If
+contact's tags through the `024` read path (`ContactReader.readContact`, the
+shared client and its rate limiter) just before running the turn, and uses only
+the tag names. Its timeout is the client's 10 seconds, not `get_contact`'s
+1500 ms: no race is waiting, so a slow read must not pass for a failed one. A
+nudge turn is offered no `get_contact`: no request carried the contact's token
+(`019`), so it reads the record only for this check. If
 the read fails, the nudge is cancelled as `read_failed`: an unprompted
 message on top of a human conversation is worse than a missed follow-up (C6).
 A tenant who sets no `humanActiveTag` gets no such check and no read, and

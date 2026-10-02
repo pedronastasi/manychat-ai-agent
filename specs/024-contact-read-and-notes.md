@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-02
+pr: 144
 constitution: [C3, C4, C5, C6, C7]
 adr: [0010, 0016, 0017]
 ---
@@ -58,7 +60,19 @@ model sees only its ids, never the ManyChat names:
 
 The identifiers in the subscriber record (name, phone, email, WhatsApp number,
 profile picture, last input text) are never returned, whatever `tools.json`
-says.
+says. The client parses `getInfo` down to tag names and custom field values
+before returning it, so they never leave `client.ts`.
+
+A tag id is unique across `tags` and `readable.tags`, and a field id across
+`fields` and `readable.fields`, since the result lists them side by side.
+
+## Only a turn that reads history may read the contact
+
+A note holds the contact's own words, and `019` keeps those from a request
+that does not carry the contact's token. So `get_contact` is offered only on a
+turn that reads history: one that is bound, or any turn while
+`CONTACT_TOKENS_ENFORCED` is `false`. An unbound turn is offered the write
+tools as before, and no read.
 
 ## Note values come back inside the contact fence
 
@@ -83,6 +97,10 @@ for that reason, not because the read failed. The failure is logged at
 
 A turn may read at most **twice**. A third call returns
 `{ available: false }` without a request.
+
+The reply step offers no tools, so it cannot be shown its tool results (`012
+§ The loop is bounded at four steps`). Its note of what was staged carries the
+turn's last successful read instead, with the notes still fenced.
 
 ## The loop grows to four steps and eight actions
 
@@ -151,15 +169,19 @@ any `fields[].field` or another note's `field`; any collision fails at load.
 
 Before a staged note is performed, the server:
 
-1. removes phone-number, email and URL shapes, each replaced by `[removed]`;
+1. removes URL, email, phone-number and long-number shapes, each replaced by
+   `[removed]`;
 2. collapses whitespace and strips control characters;
 3. truncates to `maxLength` at a word boundary.
 
-A note left empty is not written. A write replaces the field's value; it does
-not append. A model that wants to add to a note reads it first.
+The text is cleaned when the note is staged, so the outbox holds only what the
+field will. A note left empty is not staged, and the call returns
+`{ staged: false }`. A write replaces the field's value; it does not append. A
+model that wants to add to a note reads it first.
 
-The shapes in step 1 are the same ones the logger already redacts (C5), so a
-change to one is a change to both.
+The shapes in step 1 are the ones the logger redacts (C5), from one list in
+`src/observability/redact.ts`, so a change to one is a change to both. URLs
+other than ManyChat media links were added to the logger's list for this.
 
 ## A handoff summary survives the escalation it describes
 
@@ -181,7 +203,9 @@ it is written as `staged` and moves to `performed` or `failed`, like an action
 on a turn that did not escalate. It is the one entry on an escalated turn that
 is not `discarded`, so `012`'s status table needs no new value: `discarded`
 keeps meaning "dropped because the turn escalated", and an `onEscalation` note
-that was dropped for a leak or a failure is recorded as `discarded` too.
+that was dropped for a leak or a failure is recorded as `discarded` too. A call
+that hits `MODEL_ABORT_MS` records no agent turn at all (`002`), so its notes
+are in no record and are never performed.
 
 ## Note text never reaches the record or the logs
 
@@ -194,15 +218,17 @@ never the text:
 
 The `012` history note lists it as `write_note goal`. The text lives only in
 the tenant's ManyChat account, which the model can read back with
-`get_contact`. A failure log for a note carries the id and the ManyChat error,
-never the text.
+`get_contact`, and in the outbox row of a deferred turn until it is performed.
+A failure log for a note carries the id and the ManyChat error, never the
+text: an error that quotes the text has it replaced by `[note]`.
 
 ## What this changes in `012`
 
-- `§ Four tools` gains `get_contact` and `write_note`.
+- `§ Four tools` gains `get_contact` and `write_note`, and becomes `§ Six tools`.
 - `§ Free-text field values are refused` holds for `fields[]`; free text is
   permitted only in `notes[]`, as above.
-- `§ The loop is bounded at two steps` is replaced by the table above.
+- `§ The loop is bounded at two steps` is replaced by the table above, and
+  becomes `§ The loop is bounded at four steps`.
 - `§ Guardrails run before any action is performed` gains the `onEscalation`
   exception.
 
@@ -227,8 +253,9 @@ never the text.
 7. A test drives each escalation path and asserts an `onEscalation` note is
    performed after the escalation message for model and confidence
    escalations, recorded `performed`, and recorded `discarded` for leak,
-   schema, error and abort. A note without `onEscalation` is `discarded` on
-   every escalation path.
+   schema and error. On abort it is never performed and no agent turn is
+   recorded. A note without `onEscalation` is `discarded` on every escalation
+   path.
 8. An integration test asserts a note's `turns.actions` entry has `length` and
    no text, and a log-capture test asserts the text is absent from every log
    line of the turn.

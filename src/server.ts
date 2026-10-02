@@ -22,7 +22,7 @@ import type { AgentRunner } from './agent/runner.ts';
 import { SdkTranscriber } from './agent/transcriber.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { manychatClientFor } from './channels/manychat/client.ts';
-import type { ManyChatClient } from './channels/manychat/client.ts';
+import type { ContactReader, ManyChatClient } from './channels/manychat/client.ts';
 import { ManyChatMediaFetcher } from './channels/manychat/media.ts';
 import type { ConfigStore } from './config/loader.ts';
 import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
@@ -47,6 +47,12 @@ export interface BuildOptions {
    * configured rate is the real one (specs/022). Built from `env` when absent.
    */
   manychat?: ManyChatClient;
+  /**
+   * Reads the turn's contact for `get_contact` (specs/024): the same client
+   * as `manychat` in production. Without it, and without `manychat` to build
+   * one from `env`, the agent is offered no contact read.
+   */
+  contacts?: ContactReader;
   /** Injected by tests: the ManyChat HTTP boundary, API and media host alike. */
   manychatFetch?: typeof fetch;
   /** Injected by tests in place of resolving TRANSCRIPTION_MODEL: the model boundary. */
@@ -87,7 +93,9 @@ export async function buildServer(opts: BuildOptions) {
   const tenant = () => configStore.get();
   const capabilities = capabilitiesFor(env.CHANNEL);
 
-  const manychatClient = opts.manychat ?? manychatClientFor(env, opts.manychatFetch);
+  const built = opts.manychat ? undefined : manychatClientFor(env, opts.manychatFetch);
+  const manychatClient = opts.manychat ?? built!;
+  const contacts = opts.contacts ?? built;
 
   const adapter = new ManyChatAdapter(manychatClient);
 
@@ -270,6 +278,7 @@ export async function buildServer(opts: BuildOptions) {
         tokenWriter: manychatClient,
         tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
         actions: manychatClient,
+        contacts,
         media,
       });
       const turn = await handler.handle(inbound);

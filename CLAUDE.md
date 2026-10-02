@@ -57,6 +57,7 @@ Ports-and-adapters (hexagonal). Key boundaries:
 - **AgentRunner** (`src/agent/runner.ts`) — port for LLM calls. Impl: `GenerateObjectRunner`.
 - **ChannelAdapter** (`src/channels/port.ts`) — port for chat platforms. Impl: `ManyChatAdapter`.
 - **ManyChatClient** (`src/channels/manychat/client.ts`) — port for outbound delivery. Impl: `ManyChatHttpClient`, the ONLY file that imports `manychat-sdk`; one instance per process (specs/022).
+- **ContactReader** (`src/channels/manychat/client.ts`) — port for `get_contact` (specs/024). `ManyChatHttpClient` implements it; `ContactReads` (`src/agent/contact.ts`) bounds it to two reads a turn, 1.5 s each.
 - **Registry** (`src/agent/registry.ts`) — the ONLY file that imports provider packages.
 - **Contracts** (`src/contracts/`) — Zod schemas are the source of truth; types are inferred.
 - **Outbox** (`src/outbox/`) — Postgres outbox with `FOR UPDATE SKIP LOCKED` for deferred delivery.

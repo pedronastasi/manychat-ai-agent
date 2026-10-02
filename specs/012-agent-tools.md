@@ -10,9 +10,10 @@ adr: [0010]
 
 Defines the tools the agent can call during a turn to send a tenant-built
 ManyChat flow, add or remove a tag, and set a custom field, and when those calls
-take effect. It deliberately leaves out any tool that reads from ManyChat
-(`getInfo`, `findBy*`), page-level and account-global endpoints, creating or
-updating subscribers, and MCP.
+take effect. It deliberately leaves out page-level and account-global endpoints,
+creating or updating subscribers, and MCP. Reading the current contact and
+writing free-text notes were left out here too, and are added by
+`024-contact-read-and-notes.md`.
 
 ## A tool stages an action; the server performs it
 
@@ -34,7 +35,7 @@ way a person does before pressing send.
 ## The mechanism is built here; only the choices are the tenant's
 
 Everything in this spec is code in this repository, identical for every tenant:
-the four tools, staging, the `tools.json` schema and its startup checks, the
+the tools, staging, the `tools.json` schema and its startup checks, the
 delivery order on both paths, the outbox payload, and the per-turn action
 record.
 A deployment never implements a tool. It supplies:
@@ -49,14 +50,20 @@ fictional demo tenant, as `003-config-schema.md` requires of every config file.
 A deployment with no `tools.json` gets no tools, and behaves exactly as it does
 today.
 
-## Four tools, parameterised by tenant configuration
+## Six tools, parameterised by tenant configuration
 
-| Tool         | ManyChat endpoint                          | Model supplies            |
-| ------------ | ------------------------------------------ | ------------------------- |
-| `send_flow`  | `POST /fb/sending/sendFlow`                | a flow id                 |
-| `add_tag`    | `POST /fb/subscriber/addTagByName`         | a tag id                  |
-| `remove_tag` | `POST /fb/subscriber/removeTagByName`      | a tag id                  |
-| `set_field`  | `POST /fb/subscriber/setCustomFieldByName` | a field id and a value id |
+| Tool          | ManyChat endpoint                          | Model supplies            |
+| ------------- | ------------------------------------------ | ------------------------- |
+| `send_flow`   | `POST /fb/sending/sendFlow`                | a flow id                 |
+| `add_tag`     | `POST /fb/subscriber/addTagByName`         | a tag id                  |
+| `remove_tag`  | `POST /fb/subscriber/removeTagByName`      | a tag id                  |
+| `set_field`   | `POST /fb/subscriber/setCustomFieldByName` | a field id and a value id |
+| `get_contact` | `GET /fb/subscriber/getInfo`               | nothing                   |
+| `write_note`  | `POST /fb/subscriber/setCustomFieldByName` | a note id and text        |
+
+`get_contact` and `write_note` are `024`'s. `get_contact` is the one tool that
+reads, and the one whose `execute` makes a request (ADR-0016); everything below
+about staging applies to the other five.
 
 `025` adds a fifth, `schedule_nudge`, which takes a delay id and is performed
 as a row in this service's database, not as a ManyChat request.
@@ -114,13 +121,19 @@ a disclosure under C5 rather than just a bug.
 the model composed. A free-text write would put unvalidated model output into a
 field that a ManyChat flow may later render to the contact, which bypasses C3.
 It would also invite the model to copy the contact's own words (names, phone
-numbers) into the CRM. If a tenant needs an open field, that is a new spec.
+numbers) into the CRM.
+
+This holds for `fields[]`. Free text is permitted only in the `notes[]` of
+`024`, a separate kind of field that the tenant declares no flow renders, whose
+text is bounded and cleaned before it is written (ADR-0017).
 
 ## Guardrails run before any action is performed
 
 Staged actions are performed only if the final reply, **after**
 `applyGuardrails`, has `escalate: false`. Every other outcome discards them,
-and the count discarded is logged:
+and the count discarded is logged. The one exception is a note marked
+`onEscalation` when the model or the confidence threshold escalated
+(`024 § A handoff summary survives the escalation it describes`):
 
 - the model set `escalate: true`;
 - confidence fell below the threshold;
@@ -131,20 +144,22 @@ and the count discarded is logged:
 Turns where the model never runs (the scripted opening, escalation keywords,
 budget, rate and turn caps) have no tools and so stage nothing.
 
-## The loop is bounded at two steps
+## The loop is bounded at four steps
 
-Step one may call tools, several in parallel. Step two offers no tools, so it
-must produce the `AgentReply`. If no reply is produced, the turn fails closed
-exactly as a schema failure does today.
+Steps one to three may call tools, several in parallel. Step four offers no
+tools, so it must produce the `AgentReply`. If no reply is produced, the turn
+fails closed exactly as a schema failure does today.
 
-A turn stages at most **3** actions. A call past that returns
+A turn stages at most **8** actions. A call past that returns
 `{ staged: false }` and is dropped. Identical staged actions are de-duplicated.
+A turn reads at most twice (`024`).
 
-Both numbers were chosen, not measured. Two steps is the smallest loop in which
-the model can act and then answer. Three actions bounds the burst a single turn
-can put through the ManyChat rate limiter, where each action is one request
-against the existing token bucket. Change them when an eval shows a need, and
-record the measurement date here.
+Both numbers were chosen, not measured, and replace this spec's original two
+steps and three actions (`024 § The loop grows to four steps and eight
+actions`). Four steps fit read, act, read again and reply. Eight actions bound
+the burst a single turn can put through the ManyChat rate limiter, where each
+action is one request against the existing token bucket. Change them when an
+eval shows a need, and record the measurement date here.
 
 ## The whole loop runs inside the race
 
@@ -209,14 +224,16 @@ the model staged, whatever became of it.
 ]
 ```
 
-| `status`           | Meaning                                                |
-| ------------------ | ------------------------------------------------------ |
-| `staged`           | Not yet performed; waiting for the response or outbox  |
-| `performed`        | ManyChat accepted the request                          |
-| `failed`           | ManyChat rejected it; `error` holds the reason         |
-| `discarded`        | The turn escalated (see "Guardrails run before…")      |
-| `dropped_over_cap` | Staged past the per-turn limit and never sent          |
-| `dead_lettered`    | Its outbox row was dead-lettered, so it was never sent |
+| `status`    | Meaning                                               |
+| ----------- | ----------------------------------------------------- |
+| `staged`    | Not yet performed; waiting for the response or outbox |
+| `performed` | ManyChat accepted the request                         |
+| `failed`    | ManyChat rejected it; `error` holds the reason        |
+| `discarded` | The turn escalated (see "Guardrails run before…")     |
+
+A note is recorded by its `length`, never its text (`024`).
+| `dropped_over_cap` | Staged past the per-turn limit and never sent |
+| `dead_lettered` | Its outbox row was dead-lettered, so it was never sent |
 
 On both paths the entries are written as `staged` with the turn and updated once
 the actions have run: on the inline path after the response, and on the

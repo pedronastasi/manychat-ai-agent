@@ -16,7 +16,8 @@ import { NudgeStore } from '../../src/nudge/store.ts';
 import { NudgeWorker } from '../../src/nudge/worker.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
-import type { ContactTagReader } from '../../src/channels/manychat/client.ts';
+import type { ContactReader } from '../../src/channels/manychat/client.ts';
+import type { ContactRecord } from '../../src/contracts/manychat.ts';
 import { FakeActions, FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
 
 /**
@@ -75,7 +76,7 @@ function scriptedRunner(reply: AgentReply, flow?: string) {
     run: async input => {
       inputs.push(input);
       const stage = input.stage ?? new ActionStage();
-      const built = buildTools(tools, stage, input.contact, {
+      const built = buildTools(tools, stage, input.contact, undefined, {
         nudgeTurn: input.nudge !== undefined,
       });
       if (flow) {
@@ -98,25 +99,26 @@ function scriptedRunner(reply: AgentReply, flow?: string) {
   return { runner, inputs };
 }
 
-class FakeTags implements ContactTagReader {
+/** ManyChat's getInfo at the ContactReader port, as specs/024 parses it. */
+class FakeTags implements ContactReader {
   tags: string[] = [];
   failing = false;
   reads = 0;
-  readTags(): Promise<string[]> {
+  readContact(): Promise<ContactRecord> {
     this.reads++;
     if (this.failing) return Promise.reject(new Error('ManyChat unavailable'));
-    return Promise.resolve(this.tags);
+    return Promise.resolve({ tags: this.tags, custom_fields: [] });
   }
 }
 
 const tenantWith = (rules: Rules): TenantConfig => ({ ...fixture, rules });
 
-function worker(runner: AgentRunner, tags: ContactTagReader, rules = rulesWith()) {
+function worker(runner: AgentRunner, contacts: ContactReader, rules = rulesWith()) {
   return new NudgeWorker({
     db,
     runner,
     config: () => tenantWith(rules),
-    tags,
+    contacts,
     logger,
     modelAbortMs: 5000,
   });
@@ -496,7 +498,7 @@ describe('a failed read cancels the nudge (specs/025 V4)', () => {
       db,
       runner,
       config: () => untagged,
-      tags,
+      contacts: tags,
       logger,
       modelAbortMs: 5000,
     });
@@ -587,9 +589,15 @@ describe('a sent nudge is delivered through the reply field and flow (specs/025 
     const offered: string[][] = [];
     const runner: AgentRunner = {
       run: async input => {
-        const built = buildTools(tools, input.stage ?? new ActionStage(), input.contact, {
-          nudgeTurn: input.nudge !== undefined,
-        });
+        const built = buildTools(
+          tools,
+          input.stage ?? new ActionStage(),
+          input.contact,
+          undefined,
+          {
+            nudgeTurn: input.nudge !== undefined,
+          },
+        );
         offered.push(Object.keys(built ?? {}));
         return scriptedRunner(FOLLOW_UP).runner.run(input);
       },
@@ -617,7 +625,7 @@ describe('a nudge whose model call fails sends nothing (specs/025 § A nudge tur
       db,
       runner,
       config: () => tenantWith(rulesWith()),
-      tags: new FakeTags(),
+      contacts: new FakeTags(),
       logger,
       modelAbortMs: 5000,
       pollIntervalMs: 10,
