@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.11.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.10.0...manychat-ai-agent-v0.11.0) (2026-10-02)
+
+
+### Features
+
+* replace verbatim repetition with the tenant's closer (spec 013) ([616ebc9](https://github.com/pedronastasi/manychat-ai-agent/commit/616ebc90d6807fe85f876305d35b777402695335))
+* replace verbatim repetition with the tenant's closer (spec 013) ([a547ca5](https://github.com/pedronastasi/manychat-ai-agent/commit/a547ca5f85ee963f906b1192ca7cdf0fe9ffbcbc))
+* send ManyChat API calls through manychat-sdk (spec 022) ([b4b2f79](https://github.com/pedronastasi/manychat-ai-agent/commit/b4b2f797718363db0de4d85226d9a582935b7a45))
+* send ManyChat API calls through manychat-sdk (spec 022) ([f70272e](https://github.com/pedronastasi/manychat-ai-agent/commit/f70272ebae236099718ad00f3bcd585c2253e12c))
+* take a lead from first reply to the payment link (spec 023) ([69c8d27](https://github.com/pedronastasi/manychat-ai-agent/commit/69c8d2700656344b182effc3f22184b4b342eb51))
+* take a lead from first reply to the payment link (spec 023) ([0553b79](https://github.com/pedronastasi/manychat-ai-agent/commit/0553b795057fd16436711e1a788a8d59b14aa661))
+
+
+### Bug Fixes
+
+* handle ManyChatResponseError in token-write logging (PR [#133](https://github.com/pedronastasi/manychat-ai-agent/issues/133) review) ([899c5af](https://github.com/pedronastasi/manychat-ai-agent/commit/899c5afb110ece876cd6477130f1b6741cbdf58b))
+* re-export ManyChatResponseError and handle it in describeWriteError ([37802cd](https://github.com/pedronastasi/manychat-ai-agent/commit/37802cdc90ee169759c31be5c4d72ebd97c303e6))
+* read the mock's payment options from the catalog heading only ([0663c60](https://github.com/pedronastasi/manychat-ai-agent/commit/0663c608a1c9265dd9ce5aca7e6e3bceff6628f4))
+
+
+### Specs and Docs
+
+* bring config/README.md and spec 003 up to date ([7113618](https://github.com/pedronastasi/manychat-ai-agent/commit/7113618a942fc36bdc6389aac8c6cb705d267cbb))
+* bring config/README.md and spec 003 up to date ([4855030](https://github.com/pedronastasi/manychat-ai-agent/commit/4855030159e484f467e8fbf484097f81f7900a74))
+* count spec 013 in spec 026's parity target ([4436abc](https://github.com/pedronastasi/manychat-ai-agent/commit/4436abc3a2a313ef693f8d7cd6d8828d3a863ebc))
+* decide and specify the Python port (ADR-0018, spec 026) ([c59e3a5](https://github.com/pedronastasi/manychat-ai-agent/commit/c59e3a55638f9c308d870b8524c00781e57ea779))
+* decide and specify the Python port (ADR-0018, spec 026) ([3fbeb10](https://github.com/pedronastasi/manychat-ai-agent/commit/3fbeb10ad5407386aa3cf1491d0f4d2f5f0d0ca2))
+* declare nudge.humanActiveTag in spec 025 ([e192ef7](https://github.com/pedronastasi/manychat-ai-agent/commit/e192ef7e69c288676906935d627a0e066edb7120))
+* fix remaining domain-specific references in specs and doc comments ([9c6a9d5](https://github.com/pedronastasi/manychat-ai-agent/commit/9c6a9d503dd629fc1cc5dc96894393910b7d40a2))
+* include ManyChatResponseError endpoint in spec 022's error-text rule ([505613f](https://github.com/pedronastasi/manychat-ai-agent/commit/505613f71b04b8e99aad145d635d5238adc81b3d))
+* narrow 001's price_negotiation trigger and declare onEscalation ([ee05ea7](https://github.com/pedronastasi/manychat-ai-agent/commit/ee05ea7a7ac0f98c707e999f9c07629dc68b11a0))
+* record ADRs 0015-0017 for the sales funnel ([cbbec2d](https://github.com/pedronastasi/manychat-ai-agent/commit/cbbec2debaf27b11018c0bbdea426883d761cc57))
+* record PR 131 in spec 013 ([8294862](https://github.com/pedronastasi/manychat-ai-agent/commit/8294862075844375e3c7e2263f7a3c84547a6a0c))
+* record PR 132 in spec 023 ([b708107](https://github.com/pedronastasi/manychat-ai-agent/commit/b708107e4cbcde068feb054e5231c38c37257370))
+* remove domain-specific references from specs ([31f04f8](https://github.com/pedronastasi/manychat-ai-agent/commit/31f04f85ef1bd687ea486aaa4a2c995258272bd8))
+* remove domain-specific references from specs ([adf1fe3](https://github.com/pedronastasi/manychat-ai-agent/commit/adf1fe3162dc7fe90412fb6e6fe0b645b4e6ddf2))
+* specify 023 — Sales Funnel ([47dd1e6](https://github.com/pedronastasi/manychat-ai-agent/commit/47dd1e6047eb6cb927551cbd5c4d48c4b2ff67c1))
+* specify 024 — Contact Read and Free-Text Notes ([d5d3121](https://github.com/pedronastasi/manychat-ai-agent/commit/d5d3121403e6ca6e7ae663a69188805395a98be2))
+* specify 025 — In-Window Nudge ([d2b353f](https://github.com/pedronastasi/manychat-ai-agent/commit/d2b353ff428e69e61b07de14942046d1154c522c))
+* specify the sales funnel, contact reads, notes and nudges ([8ee5104](https://github.com/pedronastasi/manychat-ai-agent/commit/8ee51044d80fe1c3b242c8d8101b94d1dbd8894c))
+
 ## [0.10.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.9.0...manychat-ai-agent-v0.10.0) (2026-10-01)
 
 
