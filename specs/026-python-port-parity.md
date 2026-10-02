@@ -31,7 +31,7 @@ spec applies that rule to the whole port:
 
 The parity target is the TypeScript service at the commit the gate runs
 against, which means the specs marked `implemented`. Specs still `specified`
-(`007`, `013`, `015`, `016`, `022`, `023`, `024`, `025`) are not in the target.
+(`007`, `015`, `016`, `022`, `023`, `024`, `025`) are not in the target.
 Where this spec mentions one, it says what must already hold when it lands.
 Whichever codebase implements such a spec first, the other matches it before
 traffic moves again (ADR-0018).
