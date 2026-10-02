@@ -117,7 +117,8 @@ opening. See `specs/001-agent-behavior.md`.
 
 Without `tools.json` the agent only replies. With it, the agent can also act on
 the contact in ManyChat while it answers: send one of your flows, tag the
-contact, or record a choice they made. The design is in
+contact, or record a choice they made. It can also schedule one follow-up for a
+contact who goes quiet (see [Follow-ups](#follow-ups-optional)). The design is in
 `specs/012-agent-tools.md` and `docs/adr/0010-bounded-tool-loop-with-staged-actions.md`.
 
 `pnpm bootstrap` does not create this file, because tools are opt-in. To turn
@@ -137,6 +138,9 @@ Then edit the file and restart, or send `kill -HUP <pid>`.
 | `add_tag`    | Adds one of your tags to the contact      | `tags`        |
 | `remove_tag` | Removes one of your tags from the contact | `tags`        |
 | `set_field`  | Writes one allowed value to a field       | `fields`      |
+
+`schedule_nudge` is a fifth tool, configured by `nudge`. It makes no ManyChat
+request when the model calls it; see [Follow-ups](#follow-ups-optional).
 
 A list you leave empty or omit offers no tool for it. Each entry has:
 
@@ -176,6 +180,180 @@ can see inside your flows, so this is yours to check. And turn off any drip
 sequence that sends the same flows on a timer, or contacts will get each piece
 twice.
 
+### Follow-ups (optional)
+
+A `nudge` section lets the agent follow up once with a contact who stops
+replying, while WhatsApp's 24-hour window is still open. The design is in
+`specs/025-in-window-nudge.md`. A timer does not decide this: the agent decides
+whether a follow-up would help, and what it says. The server only checks that a
+follow-up is still allowed when it is due.
+
+```jsonc
+{
+  "nudge": {
+    "delays": [
+      { "id": "later_today", "minutes": 120 },
+      { "id": "tomorrow", "minutes": 1200 },
+    ],
+    "humanActiveTag": "human-handling",
+  },
+}
+```
+
+- **`delays`**: the waits the agent may choose from, at least one. `id` follows
+  the same rules as every other `id`. `minutes` may be at most **1380** (23
+  hours). The hour of margin covers the worker's poll, a deferred delivery and
+  the model call, so the follow-up still lands inside the 24-hour window. Any
+  more fails the boot.
+- **`humanActiveTag`** (optional): the name of a tag your team or your flows
+  set in ManyChat while a person handles the contact. When it is due, a
+  follow-up for a contact with that tag is cancelled. The model never sees the
+  name. It may not be one of your `tags[].tag`, so the agent can never add or
+  remove the tag that silences it.
+
+Without a `nudge` section the agent is offered no `schedule_nudge` tool, and
+the follow-up worker has nothing to do.
+
+#### How a follow-up runs
+
+1. **The agent schedules it.** On an ordinary turn the model may call
+   `schedule_nudge` with a delay id, usually after an offer, an objection or a
+   question of its own. Like every action it is only staged. It is discarded if
+   the turn hands off, and it is performed after the reply has gone out.
+2. **One waits at a time.** Performing it writes a row in the `nudges` table,
+   due `minutes` after that moment. Scheduling again replaces the one that is
+   waiting. The database allows only one pending row per conversation.
+3. **Anything that makes it wrong cancels it.** See the table below. All of
+   these checks run before the model is called, so a cancelled follow-up costs
+   nothing.
+4. **At due time it is a model turn.** The worker checks every 15 seconds,
+   claims due rows with `FOR UPDATE SKIP LOCKED`, and runs the agent with the
+   conversation's history. In place of a contact message it gets a note from
+   the system:
+   `[no reply from the contact since 2026-01-15T10:00:00.000Z; decide whether to follow up]`.
+   No contact wrote that note, so it is not fenced. The contact never sees it.
+   A follow-up turn is not offered `schedule_nudge`, so it cannot schedule
+   another one. After a contact's last message they get at most one follow-up,
+   and then nothing until they write again.
+5. **The model may decline.** It declines by escalating. Nothing is sent, not
+   even your `escalation` message, because the contact asked nothing. No person
+   is notified, and any action it staged is dropped. The turn is recorded as
+   `nudge_skipped` and never appears in later history. A failed model call ends
+   the same way.
+6. **Otherwise it is delivered like a deferred reply.** Nobody is waiting on a
+   Dynamic Block, so the reply goes straight to the outbox: written to
+   `MANYCHAT_REPLY_FIELD`, rendered by `MANYCHAT_REPLY_FLOW_NS`, then any
+   actions it staged. The turn is recorded as `nudge_sent`. It counts against
+   the budget, the hourly rate and the turn cap like any model turn.
+
+```mermaid
+flowchart TD
+    staged["The model stages schedule_nudge"] --> handoff{"Does the turn hand off?"}
+    handoff -- yes --> dropped(["Discarded, no row"])
+    handoff -- no --> pending(["pending, due after the delay"])
+    pending -- "the contact writes, the conversation escalates, or link_sent is written" --> cancelled(["cancelled, with the reason"])
+    pending -- "due" --> checks{"Still allowed? Window, funnel, caps, takeover tag"}
+    checks -- no --> cancelled
+    checks -- yes --> model["Model turn on the system note"]
+    model --> declined{"Did the model escalate?"}
+    declined -- yes --> skipped(["skipped: nothing sent, nudge_skipped turn"])
+    declined -- no --> sent(["sent: outbox delivers it, nudge_sent turn"])
+```
+
+#### Why a follow-up is cancelled
+
+| `cancel_reason`   | When                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| `contact_replied` | The contact sent any message, before the follow-up was due or while its model call was running |
+| `escalated`       | A turn of the conversation handed off to a person                                              |
+| `link_sent`       | The funnel field reached `link_sent`: the sale is closed                                       |
+| `window_closing`  | At due time, more than 1380 minutes have passed since the contact's last message               |
+| `human_active`    | At due time, the contact has the `humanActiveTag` tag                                          |
+| `read_failed`     | At due time, the contact's tags could not be read from ManyChat                                |
+| `cap_reached`     | At due time, the daily budget, the hourly rate or the turn cap would refuse the turn           |
+
+A cap never sends your escalation message for a follow-up. The contact asked
+nothing, so there is nothing to hand off. A failed tag read cancels rather than
+sends: an unprompted message on top of a person's conversation is worse than a
+missed follow-up.
+
+#### Seeing what happened
+
+Each row of `nudges` holds the conversation id and no contact data. Its
+`status` is `pending`, `running` (claimed by the worker), `sent`, `skipped` or
+`cancelled`, and `cancel_reason` is set when it is cancelled. A row left
+`running` means the process stopped during the turn. That follow-up is lost,
+never sent twice.
+
+```sql
+-- What became of follow-ups in the last week
+SELECT status, cancel_reason, count(*)
+FROM nudges
+WHERE created_at > now() - interval '7 days'
+GROUP BY 1, 2 ORDER BY 3 DESC;
+
+-- Reply rate: follow-ups the contact answered within 24 hours
+SELECT count(*) FILTER (WHERE EXISTS (
+         SELECT 1 FROM turns r
+         WHERE r.conversation_id = n.conversation_id AND r.role = 'user'
+           AND r.created_at BETWEEN n.created_at AND n.created_at + interval '24 hours'
+       ))::float / NULLIF(count(*), 0) AS reply_rate
+FROM turns n
+WHERE n.outcome = 'nudge_sent';
+```
+
+The reply rate is the only evidence that follow-ups help rather than annoy.
+Report it next to the link-sent rate of `specs/023`. It does not say whether a
+follow-up read as helpful or as pressure. For that, read the follow-up
+conversations themselves.
+
+#### Before turning follow-ups on
+
+- **Tag every takeover.** A person who takes a conversation over without
+  setting `humanActiveTag` is invisible to this check. So is a tag spelt
+  differently from `humanActiveTag`: the match is exact, and nothing warns you
+  when it never fires. Without a `humanActiveTag` there is no takeover check at
+  all.
+- **The window is computed from what this service saw.** A contact who wrote to
+  you through a flow that never reached this service has a later window than
+  the one computed here. The error is on the safe side: the follow-up is
+  cancelled, never sent outside the window.
+- **Reads need `MANYCHAT_API_TOKEN`.** Without it, every follow-up for a tenant
+  with a `humanActiveTag` is cancelled as `read_failed`.
+- **Test the follow-ups.** An eval case with `"nudge": true` runs as a
+  follow-up turn on its `history`, and `text` is ignored:
+
+  ```jsonl
+  {
+    "id": "nudge-after-instalments",
+    "history": [
+      {
+        "role": "user",
+        "text": "can i pay in instalments?"
+      },
+      {
+        "role": "agent",
+        "text": "Yes, any course can be paid in three equal monthly instalments."
+      }
+    ],
+    "nudge": true,
+    "text": "",
+    "expect": {
+      "escalate": false
+    },
+    "must_contain": [
+      "instalment"
+    ],
+    "review": "Follows up on paying in instalments, in one short message that does not press."
+  }
+  ```
+
+  `expect.escalate: true` asserts the model declines. Run them with `pnpm eval`
+  against the real model.
+
+- **Turn off timed reminders.** A ManyChat sequence that messages quiet
+  contacts on a timer sends a second follow-up on top of this one.
+
 ### Startup checks
 
 `tools.json` is validated like the other config files: a malformed file fails
@@ -188,7 +366,8 @@ delivery:
 
 It is also refused if more than one field is marked `funnel`, if a funnel field's
 values are not the five stages in order, or if more than one flow has
-`role: "payment_link"`.
+`role: "payment_link"`. And if a `nudge` delay is over 1380 minutes, or
+`humanActiveTag` is empty or is one of your `tags[].tag`.
 
 ### What happens on a turn
 
