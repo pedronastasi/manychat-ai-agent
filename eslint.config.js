@@ -10,6 +10,7 @@ export default tseslint.config(
       'db/migrations/**',
       '.vitepress/cache/**',
       '.vitepress/dist/**',
+      '.claude/worktrees/**',
     ],
   },
 
