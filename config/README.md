@@ -29,21 +29,29 @@ replace with the actual business name.
 The only source of factual claims the agent may make. A price change is an edit
 here plus `kill -HUP <pid>`, with no prompt editing and no deploy.
 
-| Field                     | Type                   | Notes                                                   |
-| ------------------------- | ---------------------- | ------------------------------------------------------- |
-| `businessName`            | string                 | Interpolated into `prompt.md`                           |
-| `currency`                | string                 | ISO 4217, e.g. `USD`, `ARS`                             |
-| `courses[]`               | array (min 1)          | At least one course is required                         |
-| `courses[].id`            | string                 | Unique identifier                                       |
-| `courses[].name`          | string                 | Display name                                            |
-| `courses[].description`   | string                 |                                                         |
-| `courses[].price`         | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
-| `courses[].durationHours` | number \| null         |                                                         |
-| `courses[].schedule`      | string \| null         |                                                         |
-| `courses[].enrollmentUrl` | URL \| null            |                                                         |
-| `faq[]`                   | array                  | Optional (defaults to `[]`)                             |
-| `faq[].question`          | string                 |                                                         |
-| `faq[].answer`            | string                 |                                                         |
+| Field                          | Type                   | Notes                                                   |
+| ------------------------------ | ---------------------- | ------------------------------------------------------- |
+| `businessName`                 | string                 | Interpolated into `prompt.md`                           |
+| `currency`                     | string                 | ISO 4217, e.g. `USD`, `ARS`                             |
+| `courses[]`                    | array (min 1)          | At least one course is required                         |
+| `courses[].id`                 | string                 | Unique identifier                                       |
+| `courses[].name`               | string                 | Display name                                            |
+| `courses[].description`        | string                 |                                                         |
+| `courses[].price`              | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
+| `courses[].durationHours`      | number \| null         |                                                         |
+| `courses[].schedule`           | string \| null         |                                                         |
+| `courses[].enrollmentUrl`      | URL \| null            |                                                         |
+| `faq[]`                        | array                  | Optional (defaults to `[]`)                             |
+| `faq[].question`               | string                 |                                                         |
+| `faq[].answer`                 | string                 |                                                         |
+| `paymentOptions[]`             | array                  | Optional (defaults to `[]`); see below                  |
+| `paymentOptions[].id`          | string                 | Unique identifier                                       |
+| `paymentOptions[].description` | string                 | How the option works, in your contacts' language        |
+
+`paymentOptions` lists the ways to pay you offer: instalments, a deposit, a
+private-class rate. The agent presents one when a contact says the course is too
+expensive or asks to pay in parts. A request it does not cover, such as a
+discount, still goes to a person (`specs/023-sales-funnel.md`).
 
 ## `rules.json`: behaviour and limits
 
@@ -144,6 +152,26 @@ A list you leave empty or omit offers no tool for it. Each entry has:
 The agent always acts on the contact whose message it is answering. No tool
 takes a contact as a parameter.
 
+### The sales funnel (optional)
+
+Three keys turn on the sales funnel of `specs/023-sales-funnel.md`:
+
+- **`funnel: true`** on one field marks it as the place the agent records where
+  the sale stands. Its `values` must be exactly `new`, `qualifying`, `nurturing`,
+  `offered`, `link_sent`, in that order. The stage only moves forward, and the
+  agent never writes `link_sent` itself.
+- **`role: "payment_link"`** on one flow marks the flow that sends your payment
+  link. When it is performed, the server writes the funnel field to
+  `link_sent`.
+- **`repeatable: true`** on a flow lets the agent send it more than once to the
+  same contact. Every other flow is sent at most once per contact. The payment
+  link is the usual case.
+
+Each content flow must be a leaf: it must not start another flow. Nothing here
+can see inside your flows, so this is yours to check. And turn off any drip
+sequence that sends the same flows on a timer, or contacts will get each piece
+twice.
+
 ### Startup checks
 
 `tools.json` is validated like the other config files: a malformed file fails
@@ -153,6 +181,10 @@ delivery:
 
 - a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`;
 - a field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`.
+
+It is also refused if more than one field is marked `funnel`, if a funnel field's
+values are not the five stages in order, or if more than one flow has
+`role: "payment_link"`.
 
 ### What happens on a turn
 

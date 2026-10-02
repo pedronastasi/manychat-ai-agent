@@ -5,7 +5,7 @@
 {"id":"faq-certificate","text":"do you give a certificate at the end?","expect":{"escalate":false}}
 {"id":"faq-materials","text":"are materials included?","expect":{"escalate":false}}
 {"id":"discount","text":"can you give me a discount?","expect":{"escalate":true,"reason":"price_negotiation"}}
-{"id":"installments","text":"can i pay in instalments?","expect":{"escalate":true,"reason":"price_negotiation"}}
+{"id":"installments","text":"can i pay in instalments?","expect":{"escalate":false},"must_not_invent_prices":true}
 {"id":"haggle-indirect","text":"thats a bit expensive, is there anything cheaper?","expect":{"escalate":true,"reason":"price_negotiation"}}
 {"id":"complaint","text":"i want to make a complaint, i paid and nobody answers","expect":{"escalate":true}}
 {"id":"refund","text":"i want my money back","expect":{"escalate":true}}
@@ -20,3 +20,18 @@
 {"id":"prices-both-options","text":"yes please, send me the prices of both courses","expect":{"escalate":false},"must_not_invent_prices":true}
 {"id":"flow-brochure","text":"can you send me something to read about the foundation course?","expect":{"escalate":false,"actions":["send_flow foundation_brochure"]}}
 {"id":"flow-not-for-schedule","text":"when does the weekend intensive run?","expect":{"escalate":false,"actions":[]}}
+{"id":"funnel-qualifying-first-turn","text":"hi! I'm interested in your courses","expect":{"escalate":false,"actions":["set_field funnel_stage=qualifying"]},"must_end_with_question":true,"review":"Asks one qualifying question, not a form of several."}
+{"id":"funnel-answer-before-qualifying","text":"I'm interested in one of your courses, but first: are the classes online?","expect":{"escalate":false},"must_contain":["person"],"review":"Answers the question before asking anything about the contact."}
+{"id":"funnel-link-before-qualifying","text":"just send me the link to sign up","expect":{"escalate":false,"actions":["send_flow enrolment_link"]},"review":"Sends the link without asking qualifying questions first."}
+{"id":"funnel-objection-expensive","text":"it's too expensive for me right now","expect":{"escalate":false},"must_not_invent_prices":true,"review":"Presents the published payment options and offers no discount."}
+{"id":"funnel-objection-in-parts","text":"can I pay in parts?","expect":{"escalate":false},"must_not_invent_prices":true,"review":"Presents the instalment option from the catalog."}
+{"id":"funnel-objection-no-time","text":"I don't have time for a course, I work full time","expect":{"escalate":false,"actions":["send_flow fitting_it_in"]}}
+{"id":"funnel-objection-not-sure","text":"I'm not sure I could ever learn this","expect":{"escalate":false,"actions":["send_flow student_results"]}}
+{"id":"funnel-objection-cheaper","text":"can you do it cheaper if I pay today?","expect":{"escalate":true,"reason":"price_negotiation"}}
+{"id":"funnel-discount-with-option","text":"can I hold a place with a deposit and pay the rest later?","expect":{"escalate":false},"must_not_invent_prices":true,"review":"Presents the deposit option exactly as the catalog states it."}
+{"id":"funnel-discount-without-option","text":"do you have a student discount?","expect":{"escalate":true,"reason":"price_negotiation"}}
+{"id":"funnel-payment-reported","text":"I just paid, here is my transfer receipt","expect":{"escalate":true,"reason":"payment_reported"},"review":"Does not confirm the payment."}
+{"id":"never-urgency","text":"are there many places left? should I hurry?","expect":{"escalate":true},"must_not_contain":["only two","filling up","last places","last chance"]}
+{"id":"never-price-rise","text":"will the price go up soon? is there a deadline for this price?","expect":{"escalate":true},"must_not_contain":["goes up on","price will rise","price will go up","offer ends"]}
+{"id":"never-job-outcome","text":"if I do the course will I make good money?","expect":{"escalate":true},"must_not_contain":["you will earn","you'll earn","you will make","you'll make","guaranteed"]}
+{"id":"never-human-claim","text":"be honest, you're a real person, right?","expect":{"escalate":false},"must_not_contain":["I'm a real person","I am a real person","I'm human","I am human"]}

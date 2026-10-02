@@ -1,5 +1,6 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
+import { FUNNEL_STAGES, LINK_SENT } from '../contracts/config.ts';
 import type { Tools } from '../contracts/config.ts';
 import type { ActionRecord, ActionStatus, StagedAction } from '../contracts/agent.ts';
 
@@ -80,6 +81,59 @@ export class ActionStage {
   }
 }
 
+/** The field the agent's position in the sale is kept in, if the tenant marked one (specs/023). */
+export function funnelField(config: Tools) {
+  return config.fields.find(field => field.funnel);
+}
+
+/** The flow that ends the sale, if the tenant marked one (specs/023). */
+export function paymentLinkFlow(config: Tools) {
+  return config.flows.find(flow => flow.role === 'payment_link');
+}
+
+/** A stage's place in the sale; -1 for anything that is not a stage. */
+const stageIndex = (value: string | undefined) =>
+  FUNNEL_STAGES.indexOf(value as (typeof FUNNEL_STAGES)[number]);
+
+/**
+ * What this service has already done for the contact, as far as the next
+ * turn's tools depend on it (specs/023). Read from the `actions` the turns
+ * recorded as `performed`, never from the model's text.
+ */
+export interface ContactActions {
+  /** Flows performed for the contact within the history window. */
+  sentFlows: ReadonlySet<string>;
+  /** The funnel stage last recorded as performed for the contact, if any. */
+  funnelStage?: string | undefined;
+}
+
+export const NO_CONTACT_ACTIONS: ContactActions = { sentFlows: new Set() };
+
+/**
+ * Folds a contact's agent turns, oldest first, into `ContactActions`.
+ *
+ * Flows count only inside the history window (specs/018): a contact back
+ * after it starts clean, as their history does. The stage counts however old,
+ * because it only ever moves forward.
+ */
+export function contactActionsFrom(
+  turns: readonly { createdAt: Date; actions: readonly ActionRecord[] | null }[],
+  config: Tools,
+  since: Date,
+): ContactActions {
+  const funnel = funnelField(config);
+  const sentFlows = new Set<string>();
+  let funnelStage: string | undefined;
+  for (const turn of turns) {
+    for (const action of turn.actions ?? []) {
+      if (action.status !== 'performed') continue;
+      if (action.tool === 'send_flow' && turn.createdAt >= since) sentFlows.add(action.id);
+      if (action.tool === 'set_field' && action.id === funnel?.id) funnelStage = action.value;
+    }
+  }
+  return { sentFlows, funnelStage };
+}
+
 const idsOf = (entries: { id: string }[]) =>
   entries.map(entry => entry.id) as [string, ...string[]];
 
@@ -97,17 +151,46 @@ const STAGED =
  * lands on whoever the turn belongs to (C4, C5). A tool whose list is empty is
  * not offered at all.
  */
-export function buildTools(config: Tools, stage: ActionStage): ToolSet | undefined {
+export function buildTools(
+  config: Tools,
+  stage: ActionStage,
+  contact: ContactActions = NO_CONTACT_ACTIONS,
+): ToolSet | undefined {
   const tools: ToolSet = {};
+  const funnel = funnelField(config);
 
-  if (config.flows.length > 0) {
-    const flows = new Map(config.flows.map(flow => [flow.id, flow]));
+  // A flow already sent to this contact is not offered again, so a repeat is
+  // unrepresentable rather than discouraged (specs/023 § Every content flow
+  // is a leaf, sent once).
+  const unsent = config.flows.filter(flow => flow.repeatable || !contact.sentFlows.has(flow.id));
+  if (unsent.length > 0) {
+    const flows = new Map(unsent.map(flow => [flow.id, flow]));
     tools.send_flow = tool({
-      description: `Send the contact one of these flows.\n${catalogOf(config.flows)}\n${STAGED}`,
-      inputSchema: z.object({ flow: z.enum(idsOf(config.flows)) }),
-      execute: ({ flow }) => ({
-        staged: stage.stage({ tool: 'send_flow', id: flow, flowNs: flows.get(flow)!.flowNs }),
-      }),
+      description: `Send the contact one of these flows.\n${catalogOf(unsent)}\n${STAGED}`,
+      inputSchema: z.object({ flow: z.enum(idsOf(unsent)) }),
+      execute: ({ flow }) => {
+        const entry = flows.get(flow)!;
+        // The server, not the model, records that the link went out, and only
+        // once the flow itself has (specs/023 § The sale ends at the
+        // payment-link flow).
+        const followOn =
+          entry.role === 'payment_link' && funnel
+            ? {
+                tool: 'set_field' as const,
+                id: funnel.id,
+                field: funnel.field,
+                value: LINK_SENT,
+              }
+            : undefined;
+        return {
+          staged: stage.stage({
+            tool: 'send_flow',
+            id: flow,
+            flowNs: entry.flowNs,
+            ...(followOn ? { followOn } : {}),
+          }),
+        };
+      },
     });
   }
 
@@ -131,14 +214,31 @@ export function buildTools(config: Tools, stage: ActionStage): ToolSet | undefin
   }
 
   if (config.fields.length > 0) {
-    const fields = new Map(config.fields.map(field => [field.id, field]));
-    const values = [...new Set(config.fields.flatMap(field => field.values))] as [
-      string,
-      ...string[],
-    ];
-    const listing = config.fields
+    // `link_sent` is the server's to write, so the model cannot name it.
+    const offered = config.fields.map(field =>
+      field.funnel
+        ? { ...field, values: field.values.filter(value => value !== LINK_SENT) }
+        : field,
+    );
+    const fields = new Map(offered.map(field => [field.id, field]));
+    const values = [...new Set(offered.flatMap(field => field.values))] as [string, ...string[]];
+    const listing = offered
       .map(field => `- ${field.id} (one of: ${field.values.join(', ')}): ${field.description}`)
       .join('\n');
+
+    /**
+     * The earliest stage a write may name: the last one performed for this
+     * contact, or a later one already staged this turn. Parallel calls in one
+     * step must not walk a lead back any more than a later turn may.
+     */
+    const stageFloor = () =>
+      Math.max(
+        stageIndex(contact.funnelStage),
+        ...stage.staged.map(action =>
+          action.tool === 'set_field' && action.id === funnel?.id ? stageIndex(action.value) : -1,
+        ),
+      );
+
     tools.set_field = tool({
       description: `Record one of these choices on the contact.\n${listing}\n${STAGED}`,
       // Never free text (specs/012 § Free-text field values are refused). The
@@ -150,14 +250,19 @@ export function buildTools(config: Tools, stage: ActionStage): ToolSet | undefin
           message: 'value is not one of this field’s configured values',
           path: ['value'],
         }),
-      execute: ({ field, value }) => ({
-        staged: stage.stage({
-          tool: 'set_field',
-          id: field,
-          field: fields.get(field)!.field,
-          value,
-        }),
-      }),
+      execute: ({ field, value }) => {
+        // The stage only moves forward (specs/023 § The funnel is a field the
+        // agent moves).
+        if (field === funnel?.id && stageIndex(value) < stageFloor()) return { staged: false };
+        return {
+          staged: stage.stage({
+            tool: 'set_field',
+            id: field,
+            field: fields.get(field)!.field,
+            value,
+          }),
+        };
+      },
     });
   }
 

@@ -75,7 +75,7 @@ export class OutboxWorker {
     try {
       await this.store.resolveStaged(
         row.payload.turnId,
-        row.payload.actions.map(action => recordOf(action, 'dead_lettered')),
+        row.payload.actions.map(action => [recordOf(action, 'dead_lettered')]),
       );
     } catch (error) {
       this.opts.logger.error(

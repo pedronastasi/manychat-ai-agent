@@ -4,6 +4,23 @@
       "id": "foundation_brochure",
       "flowNs": "content00000000000000_000001",
       "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it."
+    },
+    {
+      "id": "student_results",
+      "flowNs": "content00000000000000_000002",
+      "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it."
+    },
+    {
+      "id": "fitting_it_in",
+      "flowNs": "content00000000000000_000003",
+      "description": "A short video of a past student explaining how they fitted the course around a full-time job. Send when the contact says they do not have time."
+    },
+    {
+      "id": "enrolment_link",
+      "flowNs": "content00000000000000_000004",
+      "description": "The enrolment and payment link. Send when the contact asks for the link or says they want to enrol.",
+      "role": "payment_link",
+      "repeatable": true
     }
   ],
   "tags": [
@@ -15,10 +32,23 @@
   ],
   "fields": [
     {
+      "id": "funnel_stage",
+      "field": "funnel_stage",
+      "values": ["new", "qualifying", "nurturing", "offered", "link_sent"],
+      "description": "Where the sale stands with this contact.",
+      "funnel": true
+    },
+    {
+      "id": "prior_experience",
+      "field": "prior_experience",
+      "values": ["none", "some"],
+      "description": "Whether the contact has studied the subject before. Ask before sending content."
+    },
+    {
       "id": "preferred_schedule",
       "field": "preferred_schedule",
       "values": ["weekday_evenings", "weekends"],
-      "description": "Whether the contact said weekday evenings or weekends suit them."
+      "description": "Whether the contact said weekday evenings or weekends suit them. Ask before sending content."
     }
   ]
 }

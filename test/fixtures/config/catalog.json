@@ -45,5 +45,15 @@
       "question": "Do you guarantee I will get a job?",
       "answer": "We don't guarantee job placement. The certificate is recognised by local salons."
     }
+  ],
+  "paymentOptions": [
+    {
+      "id": "instalments",
+      "description": "Any course can be paid in three equal monthly instalments, with no surcharge."
+    },
+    {
+      "id": "deposit",
+      "description": "A $120 deposit holds a place; the rest is due before the first class."
+    }
   ]
 }

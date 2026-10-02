@@ -7,12 +7,14 @@ import {
   actionsNote,
   buildSystemPrompt,
   fenceUserText,
+  funnelNotice,
   mediaNotice,
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
-import { ActionStage, buildTools, MAX_STEPS } from './tools.ts';
+import { ActionStage, buildTools, funnelField, MAX_STEPS } from './tools.ts';
+import type { ContactActions } from './tools.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -77,6 +79,11 @@ export interface AgentTurnInput {
    * knows what was staged when the call is aborted and never returns.
    */
   stage?: ActionStage | undefined;
+  /**
+   * What was already done for this contact: the flows sent and the stage of
+   * the sale (specs/023). Absent, the contact is treated as new.
+   */
+  contact?: ContactActions | undefined;
 }
 
 /**
@@ -101,22 +108,34 @@ function historyMessage(turn: HistoryTurn): ModelMessage {
 /**
  * The turn's own message. A media turn adds a note saying what the model
  * received, and the images as bytes: never a URL, which some providers would
- * fetch themselves and all would keep in their logs.
+ * fetch themselves and all would keep in their logs. A tenant with a funnel
+ * adds a note of the contact's stage (specs/023).
  */
-function currentMessage(text: string, media: TurnMedia | undefined): ModelMessage {
-  if (!media) return { role: 'user', content: fenceUserText(text) };
-  const notice = mediaNotice({
-    kind: media.kind,
-    frames: media.images.length,
-    transcript: media.transcript,
-  });
+function currentMessage(
+  text: string,
+  media: TurnMedia | undefined,
+  funnel: string | null,
+): ModelMessage {
+  if (!media && funnel === null) return { role: 'user', content: fenceUserText(text) };
+  const notices = [
+    ...(funnel === null ? [] : [funnel]),
+    ...(media
+      ? [
+          mediaNotice({
+            kind: media.kind,
+            frames: media.images.length,
+            transcript: media.transcript,
+          }),
+        ]
+      : []),
+  ];
   return {
     role: 'user',
     content: [
-      { type: 'text', text: notice },
+      ...notices.map(notice => ({ type: 'text' as const, text: notice })),
       // `file` with an image type: the SDK deprecated `image` parts and warns
       // on every request that sends one.
-      ...media.images.map(image => ({
+      ...(media?.images ?? []).map(image => ({
         type: 'file' as const,
         data: image.data,
         mediaType: image.mediaType,
@@ -175,12 +194,12 @@ export class GenerateTextRunner implements AgentRunner {
   private current() {
     const config = this.opts.config();
     if (this.cached?.config !== config) {
-      const { flows, tags, fields } = config.tools ?? NO_TOOLS;
-      const withTools = flows.length + tags.length + fields.length > 0;
+      const tools = config.tools ?? NO_TOOLS;
+      const withTools = tools.flows.length + tools.tags.length + tools.fields.length > 0;
       this.cached = {
         config,
         withTools,
-        ...buildSystemPrompt(config.persona, config.catalog, config.rules, withTools),
+        ...buildSystemPrompt(config.persona, config.catalog, config.rules, tools),
       };
     }
     return this.cached;
@@ -192,14 +211,21 @@ export class GenerateTextRunner implements AgentRunner {
     signal,
     media,
     stage = new ActionStage(),
+    contact,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
     const { config, staticPrefix, catalogBlock, withTools } = this.current();
-    const tools = withTools ? buildTools(config.tools ?? NO_TOOLS, stage) : undefined;
+    const tools = withTools ? buildTools(config.tools ?? NO_TOOLS, stage, contact) : undefined;
+    const funnel = funnelField(config.tools ?? NO_TOOLS)
+      ? funnelNotice(contact?.funnelStage)
+      : null;
 
-    const messages: ModelMessage[] = [...history.map(historyMessage), currentMessage(text, media)];
+    const messages: ModelMessage[] = [
+      ...history.map(historyMessage),
+      currentMessage(text, media, funnel),
+    ];
 
     // Step two offers no tools, so it must produce the reply. It sees a note
     // of what was staged in place of its own tool calls: a provider that drops

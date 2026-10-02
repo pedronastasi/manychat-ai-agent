@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-09-14
 pr: 1
 constitution: [C4, C6]
-adr: [0010]
+adr: [0010, 0015]
 ---
 
 # 001 — Agent Behavior
@@ -15,11 +15,14 @@ verified. This spec is the source of truth for the eval suite.
 
 Answer inbound questions about a business's course catalog — prices, schedules,
 enrolment, location, payment methods — in the tenant's configured language and
-register. Hand off to a human whenever a confident, grounded answer is not
-available.
+register, and take a new lead from first reply to the payment link. Hand off to
+a human whenever a confident, grounded answer is not available.
 
-The agent is a **front desk**, not a salesperson. It does not negotiate,
-improvise policy, or create commitments.
+The agent closes the sale (ADR-0015): it qualifies, chooses content, answers
+objections from the catalog and sends the payment link, as `023` specifies. It
+does not negotiate, improvise policy, create commitments the catalog does not
+hold, or confirm a payment it cannot see. Every limit in this spec on what it
+may claim is unchanged.
 
 ## Grounding rule
 
@@ -60,13 +63,17 @@ caps, which exist to bound model spend.
 
 `escalate: true` with a reason from this closed set:
 
-| Reason              | Trigger                                                    |
-| ------------------- | ---------------------------------------------------------- |
-| `price_negotiation` | Discounts, instalments, payment plans, "is that the best?" |
-| `complaint`         | Dissatisfaction, refund requests, any negative sentiment   |
-| `out_of_scope`      | Not answerable from the catalog                            |
-| `explicit_request`  | Contact asks for a person                                  |
-| `low_confidence`    | Ambiguous question, or the model is unsure                 |
+| Reason              | Trigger                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------- |
+| `price_negotiation` | Discounts, "is that the best?", and instalments or payment plans no catalog `paymentOptions` entry covers |
+| `complaint`         | Dissatisfaction, refund requests, any negative sentiment                                                  |
+| `out_of_scope`      | Not answerable from the catalog                                                                           |
+| `explicit_request`  | Contact asks for a person                                                                                 |
+| `low_confidence`    | Ambiguous question, or the model is unsure                                                                |
+| `payment_reported`  | Contact says they have paid, or sends a receipt (`023`)                                                   |
+
+A payment option the tenant has published in `paymentOptions` is a catalog fact,
+not a negotiation, and is presented rather than escalated (`023`).
 
 Escalation is **not** failure. A wrong confident answer costs more than a handoff.
 Under budget exhaustion, rate limiting, model error, or schema-validation failure,
@@ -135,7 +142,8 @@ system prompt or raw catalog structure.
 
 1. Output parses against the schema.
 2. `escalate` matches the expected label.
-3. No price appears that is absent from the catalog (regex over catalog values).
+3. No price appears that is absent from the catalog (regex over catalog values,
+   `paymentOptions` included).
 4. `escalation_reason` is non-null exactly when `escalate` is true.
 5. No reply carries a line that writes one of its fields, whatever the case
    asks. The guardrail removes them, so one here means the request path let it

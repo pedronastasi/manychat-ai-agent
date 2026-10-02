@@ -82,11 +82,29 @@ export const CourseSchema = z.object({
 });
 export type Course = z.infer<typeof CourseSchema>;
 
+/**
+ * A way to pay the tenant has published: instalments, a deposit, a
+ * private-class rate. A catalog fact the agent may present, not a negotiation
+ * (specs/023 § Objections are answered from the catalog).
+ */
+export const PaymentOptionSchema = z.object({
+  id: z.string().min(1),
+  description: z.string().min(1),
+});
+export type PaymentOption = z.infer<typeof PaymentOptionSchema>;
+
 export const CatalogSchema = z.object({
   businessName: z.string().min(1),
   currency: z.string().length(3),
   courses: z.array(CourseSchema).min(1),
   faq: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
+  paymentOptions: z
+    .array(PaymentOptionSchema)
+    .default([])
+    .refine(
+      options => new Set(options.map(option => option.id)).size === options.length,
+      'payment option ids must be unique',
+    ),
 });
 export type Catalog = z.infer<typeof CatalogSchema>;
 
@@ -165,6 +183,16 @@ const uniqueIds = (entries: { id: string }[]) =>
   new Set(entries.map(entry => entry.id)).size === entries.length;
 
 /**
+ * The stages of a sale, in order (specs/023 § The funnel is a field the agent
+ * moves). `enrolled` is not one: only a person who has seen the payment sets
+ * it, in the tenant's ManyChat account.
+ */
+export const FUNNEL_STAGES = ['new', 'qualifying', 'nurturing', 'offered', 'link_sent'] as const;
+
+/** The stage the server writes when the payment-link flow is performed, never the model. */
+export const LINK_SENT = 'link_sent';
+
+/**
  * The flows, tags and field values the agent may act with (specs/012). The
  * model sees `id` and `description` only; `flowNs`, `tag` and `field` name
  * objects in the tenant's ManyChat account and stay server-side, so renaming
@@ -172,9 +200,23 @@ const uniqueIds = (entries: { id: string }[]) =>
  */
 export const ToolsSchema = z.object({
   flows: z
-    .array(z.object({ id: ToolEntryId, flowNs: z.string().min(1), description: ToolDescription }))
+    .array(
+      z.object({
+        id: ToolEntryId,
+        flowNs: z.string().min(1),
+        description: ToolDescription,
+        /** Exempt from "sent at most once per contact" (specs/023). */
+        repeatable: z.boolean().optional(),
+        /** Performing it writes the funnel field to `link_sent` (specs/023). */
+        role: z.literal('payment_link').optional(),
+      }),
+    )
     .default([])
-    .refine(uniqueIds, 'flow ids must be unique'),
+    .refine(uniqueIds, 'flow ids must be unique')
+    .refine(
+      flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
+      'only one flow may have role "payment_link"',
+    ),
   tags: z
     .array(z.object({ id: ToolEntryId, tag: z.string().min(1), description: ToolDescription }))
     .default([])
@@ -192,10 +234,25 @@ export const ToolsSchema = z.object({
           .min(1)
           .refine(values => new Set(values).size === values.length, 'values must be unique'),
         description: ToolDescription,
+        /** The field the agent's position in the sale is kept in (specs/023). */
+        funnel: z.boolean().optional(),
       }),
     )
     .default([])
-    .refine(uniqueIds, 'field ids must be unique'),
+    .refine(uniqueIds, 'field ids must be unique')
+    .refine(
+      fields => fields.filter(field => field.funnel).length <= 1,
+      'only one field may be marked "funnel"',
+    )
+    // Forward-only is decided by position in this list, so a list out of
+    // order would let the agent move a lead backwards.
+    .refine(
+      fields =>
+        fields
+          .filter(field => field.funnel)
+          .every(field => field.values.join() === FUNNEL_STAGES.join()),
+      `a "funnel" field's values must be ${FUNNEL_STAGES.join(', ')}, in that order`,
+    ),
 });
 export type Tools = z.infer<typeof ToolsSchema>;
 

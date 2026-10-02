@@ -361,7 +361,7 @@ describe('collision detection (specs/012 V7)', () => {
         replyField: 'other_field',
         tokenField: 'other_token',
       });
-      expect(config.tools!.flows).toHaveLength(1);
+      expect(config.tools).toEqual(tools);
     } finally {
       teardown();
     }

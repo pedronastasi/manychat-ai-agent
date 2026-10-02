@@ -33,6 +33,12 @@ Courses with id, name, description, price (amount + currency), duration,
 schedule, and an optional enrolment URL. Prices are integers in minor units
 (cents) to avoid float drift, with an explicit currency code.
 
+`paymentOptions` is optional: one entry per way to pay the tenant offers
+(instalments, a deposit, a private-class rate), each an `id`, unique, and a
+tenant-language `description`. It defaults to empty. An option listed here is a
+catalog fact the agent may present; a payment arrangement it does not cover
+still escalates as `price_negotiation` (`023`).
+
 The catalog is interpolated into the system prompt at boot. A price change is a
 JSON edit and a restart — no prompt editing, no deploy.
 
@@ -55,15 +61,21 @@ JSON edit and a restart — no prompt editing, no deploy.
 Optional. The flows, tags and field values the agent may act with (`012`). Absent,
 the agent is offered no tools and behaves as it did before `012`.
 
-- `flows[]` — `id`, `flowNs`, `description`
+- `flows[]` — `id`, `flowNs`, `description`, optional `repeatable` and
+  `role: "payment_link"` (`023`)
 - `tags[]` — `id`, `tag`, `description`
-- `fields[]` — `id`, `field`, `values` (at least one, unique), `description`
+- `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
+  optional `funnel` (`023`)
 
 Every list defaults to empty, and an empty list offers no tool. An `id` is
 lowercase letters, digits, `_` and `-`, unique within its list, because it
 becomes an enum value in a tool's parameter schema. The model sees `id` and
 `description` only. `flowNs`, `tag` and `field` name objects in the tenant's
 ManyChat account and stay server-side.
+
+At most one flow may have `role: "payment_link"`, and at most one field may be
+marked `funnel`. A `funnel` field's `values` must be the stages of `023` in
+order: `new`, `qualifying`, `nurturing`, `offered`, `link_sent`.
 
 Loading also refuses a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, and a
 field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`. Firing the
