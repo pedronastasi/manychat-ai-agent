@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.10.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.9.0...manychat-ai-agent-v0.10.0) (2026-10-01)
+
+
+### Features
+
+* publish config/README.md on the docs site, by name ([7d3d5ac](https://github.com/pedronastasi/manychat-ai-agent/commit/7d3d5acbb24e81956fdec1d8b57ec93bd9602389))
+* publish the docs as a site on GitHub Pages (spec 014) ([e963156](https://github.com/pedronastasi/manychat-ai-agent/commit/e9631569318d6cd3cafbe801dc082fa8c98cac7e))
+* publish the docs as a site on GitHub Pages (spec 014) ([78d82bc](https://github.com/pedronastasi/manychat-ai-agent/commit/78d82bc12badf1962bcf1d1a5fd17b81b844950c))
+
+
+### Bug Fixes
+
+* list each README as a sidebar entry, not behind its group heading ([5085310](https://github.com/pedronastasi/manychat-ai-agent/commit/50853101bccc5325b5499311dd7ac39bae556fb5))
+* render Mermaid diagrams on the docs site, as GitHub does ([524bd16](https://github.com/pedronastasi/manychat-ai-agent/commit/524bd165a4110464c9f5956daf434eba943451a6))
+
+
+### Specs and Docs
+
+* date spec 014 by the day it can merge ([75fab11](https://github.com/pedronastasi/manychat-ai-agent/commit/75fab1146c8e550c50ecb047dd493aa0fa632ee9))
+* diagram how agent tools work ([707e9ff](https://github.com/pedronastasi/manychat-ai-agent/commit/707e9ff7f113600d1b2929594eed3c281007f94a))
+* diagram how agent tools work ([cbc6305](https://github.com/pedronastasi/manychat-ai-agent/commit/cbc6305a52e658f1b6f7fb516917af670e9e5fd4))
+* link the docs site from the README with a deploy badge (spec 021) ([31643bc](https://github.com/pedronastasi/manychat-ai-agent/commit/31643bc9cc16d6625aec4e8d6bf4e26a997ffb62))
+* link the docs site from the README with a deploy badge (spec 021) ([840f236](https://github.com/pedronastasi/manychat-ai-agent/commit/840f2364c8b4a81aabeebbd3009fa79b69259bb0))
+* record PR 110 in spec 012 ([6f623c9](https://github.com/pedronastasi/manychat-ai-agent/commit/6f623c9869ffe0effaa3b77fa18ba68c5f5199e0))
+* record the pull request that implements spec 014 ([f5a8f14](https://github.com/pedronastasi/manychat-ai-agent/commit/f5a8f142ca69c5f6fc0fbfc660b00d164780a9e0))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([ca30d12](https://github.com/pedronastasi/manychat-ai-agent/commit/ca30d12e7ad844ecb703a704b75b3dcf663eb20e))
+* **deps:** lock file maintenance ([9bf5706](https://github.com/pedronastasi/manychat-ai-agent/commit/9bf570669dd02e9bf35e556fa6f8fc81173ae8ed))
+* **deps:** update dependency typescript-eslint to v8.71.0 ([e3d1b7d](https://github.com/pedronastasi/manychat-ai-agent/commit/e3d1b7dd963f64214a03e3a3d2455412abc73097))
+* **deps:** update dependency typescript-eslint to v8.71.0 - abandoned ([66054f4](https://github.com/pedronastasi/manychat-ai-agent/commit/66054f45852643bfd5de0c160a0764e88224c45a))
+* **deps:** update patch dependencies ([d9d9215](https://github.com/pedronastasi/manychat-ai-agent/commit/d9d9215264a087a64a35fda8677770f2cc72f64f))
+* **deps:** update patch dependencies ([9a1c31f](https://github.com/pedronastasi/manychat-ai-agent/commit/9a1c31fe0c68fc6ac90d998d1c4b79bb0a230a87))
+* **deps:** update pnpm to v12.8.1 ([6bd804b](https://github.com/pedronastasi/manychat-ai-agent/commit/6bd804b462fd536cf62465f28699d6c8fbe2a7b6))
+* **deps:** update pnpm to v12.8.1 ([66bc17f](https://github.com/pedronastasi/manychat-ai-agent/commit/66bc17f3249814f3e4977ed7a0313a4e163243fa))
+
 ## [0.9.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.8.1...manychat-ai-agent-v0.9.0) (2026-10-01)
 
 
