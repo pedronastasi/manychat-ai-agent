@@ -9,21 +9,97 @@ cp config/catalog.json.example config/catalog.json
 cp config/rules.json.example   config/rules.json
 ```
 
-`prompt.md` is the persona. `catalog.json` is the only source of factual claims
-the agent may make — a price change is an edit here plus `kill -HUP <pid>`, with
-no prompt editing and no deploy. `rules.json` holds thresholds, escalation
-keywords, and the spend caps.
+`pnpm bootstrap` copies the examples for you (it never overwrites an existing
+file). Invalid config fails at startup rather than at the first customer
+message. A failed **reload** (`kill -HUP <pid>`) keeps the previous config, so
+a typo cannot take down a running bot.
 
-`rules.json` may also set an `openingTrigger`: a sentinel the channel flow sends
-to start a conversation, and the reply it produces verbatim. The model never runs
-for it, so the opening is instant and free and cannot be turned into a handoff by
-a low confidence score. Unlike `escalationKeywords`, which match substrings, this
-matches the whole message — a contact who mentions the phrase must not be able to
-replay the opening. See `specs/001-agent-behavior.md`.
+## `prompt.md`: persona
 
-Invalid config fails at startup rather than at the first customer message. A
-failed **reload** keeps the previous config, so a typo cannot take down a running
-bot.
+The system prompt preamble. Write it as instructions to the model: what tone to
+use, what it may and may not do. The rest of the system prompt — the catalog,
+the rules, the security fence — is assembled by the server.
+
+The file is read as-is: there is no template substitution. The example uses
+`{{businessName}}` as a placeholder for the person writing the prompt to
+replace with the actual business name.
+
+## `catalog.json`: facts the agent may cite
+
+The only source of factual claims the agent may make. A price change is an edit
+here plus `kill -HUP <pid>`, with no prompt editing and no deploy.
+
+| Field            | Type               | Notes                                                |
+| ---------------- | ------------------ | ---------------------------------------------------- |
+| `businessName`   | string             | Interpolated into `prompt.md`                        |
+| `currency`       | string             | ISO 4217, e.g. `USD`, `ARS`                         |
+| `courses[]`      | array (min 1)      | At least one course is required                      |
+| `courses[].id`   | string             | Unique identifier                                    |
+| `courses[].name` | string             | Display name                                         |
+| `courses[].description` | string      |                                                      |
+| `courses[].price`       | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
+| `courses[].durationHours` | number \| null |                                                  |
+| `courses[].schedule`      | string \| null |                                                  |
+| `courses[].enrollmentUrl` | URL \| null    |                                                  |
+| `faq[]`          | array              | Optional (defaults to `[]`)                          |
+| `faq[].question` | string             |                                                      |
+| `faq[].answer`   | string             |                                                      |
+
+## `rules.json`: behaviour and limits
+
+### `messages` (required, no defaults)
+
+Every message is required and has no default, because a missing value must fail
+at boot rather than silently emitting English at a contact who does not read it
+(Constitution C9).
+
+| Key                | When it is sent                                                                   |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `acknowledgement`  | The model lost the race and the reply is deferred to the outbox                   |
+| `escalation`       | The turn hands off to a human (any reason)                                        |
+| `mediaFallback`    | The contact sent a voice note, image or video the agent cannot read (`specs/020`) |
+
+`mediaFallback` is optional: without it, an unreadable media message hands off
+with `escalation` instead of asking the contact to type.
+
+### Thresholds and limits
+
+| Key                        | Default | Purpose                                                    |
+| -------------------------- | ------- | ---------------------------------------------------------- |
+| `confidenceThreshold`      | `0.6`   | Below this, force escalation                               |
+| `maxTurnsPerConversation`  | `25`    | After this many turns the conversation escalates            |
+| `idleResetHours`           | `24`    | Hours of silence after which the turn cap resets (`018`)    |
+| `historyDays`              | `30`    | How far back the model's history reaches (`018`)            |
+
+### `escalationKeywords` (default `[]`)
+
+Substring matches checked before the model runs — an instant, free handoff.
+
+### `openingTrigger` (optional)
+
+A sentinel the channel flow sends to start a conversation, and the scripted
+reply it produces verbatim. The model never runs for it, so the opening is
+instant and free and cannot be turned into a handoff by a low confidence score.
+Unlike `escalationKeywords`, which match substrings, this matches the whole
+message — a contact who mentions the phrase must not be able to replay the
+opening. See `specs/001-agent-behavior.md`.
+
+```json
+"openingTrigger": { "keywords": ["start workflow"], "message": "…" }
+```
+
+### `budget`
+
+| Key               | Default     | Purpose                     |
+| ----------------- | ----------- | --------------------------- |
+| `dailyTokenCap`   | `1000000`   | Max tokens per day          |
+| `dailyCostCapUsd` | `5`         | Max spend (USD) per day     |
+
+### `rateLimit`
+
+| Key                          | Default | Purpose                              |
+| ---------------------------- | ------- | ------------------------------------ |
+| `turnsPerSubscriberPerHour`  | `60`    | Per-subscriber rate limit            |
 
 ## `tools.json`: actions the agent can take (optional)
 
