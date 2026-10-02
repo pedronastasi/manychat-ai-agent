@@ -29,21 +29,21 @@ replace with the actual business name.
 The only source of factual claims the agent may make. A price change is an edit
 here plus `kill -HUP <pid>`, with no prompt editing and no deploy.
 
-| Field            | Type               | Notes                                                |
-| ---------------- | ------------------ | ---------------------------------------------------- |
-| `businessName`   | string             | Interpolated into `prompt.md`                        |
-| `currency`       | string             | ISO 4217, e.g. `USD`, `ARS`                         |
-| `courses[]`      | array (min 1)      | At least one course is required                      |
-| `courses[].id`   | string             | Unique identifier                                    |
-| `courses[].name` | string             | Display name                                         |
-| `courses[].description` | string      |                                                      |
-| `courses[].price`       | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
-| `courses[].durationHours` | number \| null |                                                  |
-| `courses[].schedule`      | string \| null |                                                  |
-| `courses[].enrollmentUrl` | URL \| null    |                                                  |
-| `faq[]`          | array              | Optional (defaults to `[]`)                          |
-| `faq[].question` | string             |                                                      |
-| `faq[].answer`   | string             |                                                      |
+| Field                     | Type                   | Notes                                                   |
+| ------------------------- | ---------------------- | ------------------------------------------------------- |
+| `businessName`            | string                 | Interpolated into `prompt.md`                           |
+| `currency`                | string                 | ISO 4217, e.g. `USD`, `ARS`                             |
+| `courses[]`               | array (min 1)          | At least one course is required                         |
+| `courses[].id`            | string                 | Unique identifier                                       |
+| `courses[].name`          | string                 | Display name                                            |
+| `courses[].description`   | string                 |                                                         |
+| `courses[].price`         | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
+| `courses[].durationHours` | number \| null         |                                                         |
+| `courses[].schedule`      | string \| null         |                                                         |
+| `courses[].enrollmentUrl` | URL \| null            |                                                         |
+| `faq[]`                   | array                  | Optional (defaults to `[]`)                             |
+| `faq[].question`          | string                 |                                                         |
+| `faq[].answer`            | string                 |                                                         |
 
 ## `rules.json`: behaviour and limits
 
@@ -53,23 +53,23 @@ Every message is required and has no default, because a missing value must fail
 at boot rather than silently emitting English at a contact who does not read it
 (Constitution C9).
 
-| Key                | When it is sent                                                                   |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `acknowledgement`  | The model lost the race and the reply is deferred to the outbox                   |
-| `escalation`       | The turn hands off to a human (any reason)                                        |
-| `mediaFallback`    | The contact sent a voice note, image or video the agent cannot read (`specs/020`) |
+| Key               | When it is sent                                                                   |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `acknowledgement` | The model lost the race and the reply is deferred to the outbox                   |
+| `escalation`      | The turn hands off to a human (any reason)                                        |
+| `mediaFallback`   | The contact sent a voice note, image or video the agent cannot read (`specs/020`) |
 
 `mediaFallback` is optional: without it, an unreadable media message hands off
 with `escalation` instead of asking the contact to type.
 
 ### Thresholds and limits
 
-| Key                        | Default | Purpose                                                    |
-| -------------------------- | ------- | ---------------------------------------------------------- |
-| `confidenceThreshold`      | `0.6`   | Below this, force escalation                               |
-| `maxTurnsPerConversation`  | `25`    | After this many turns the conversation escalates            |
-| `idleResetHours`           | `24`    | Hours of silence after which the turn cap resets (`018`)    |
-| `historyDays`              | `30`    | How far back the model's history reaches (`018`)            |
+| Key                       | Default | Purpose                                                  |
+| ------------------------- | ------- | -------------------------------------------------------- |
+| `confidenceThreshold`     | `0.6`   | Below this, force escalation                             |
+| `maxTurnsPerConversation` | `25`    | After this many turns the conversation escalates         |
+| `idleResetHours`          | `24`    | Hours of silence after which the turn cap resets (`018`) |
+| `historyDays`             | `30`    | How far back the model's history reaches (`018`)         |
 
 ### `escalationKeywords` (default `[]`)
 
@@ -90,16 +90,16 @@ opening. See `specs/001-agent-behavior.md`.
 
 ### `budget`
 
-| Key               | Default     | Purpose                     |
-| ----------------- | ----------- | --------------------------- |
-| `dailyTokenCap`   | `1000000`   | Max tokens per day          |
-| `dailyCostCapUsd` | `5`         | Max spend (USD) per day     |
+| Key               | Default   | Purpose                 |
+| ----------------- | --------- | ----------------------- |
+| `dailyTokenCap`   | `1000000` | Max tokens per day      |
+| `dailyCostCapUsd` | `5`       | Max spend (USD) per day |
 
 ### `rateLimit`
 
-| Key                          | Default | Purpose                              |
-| ---------------------------- | ------- | ------------------------------------ |
-| `turnsPerSubscriberPerHour`  | `60`    | Per-subscriber rate limit            |
+| Key                         | Default | Purpose                   |
+| --------------------------- | ------- | ------------------------- |
+| `turnsPerSubscriberPerHour` | `60`    | Per-subscriber rate limit |
 
 ## `tools.json`: actions the agent can take (optional)
 
