@@ -27,23 +27,36 @@ function reasonFor(error: unknown, subscriberId: string): string {
  * text is the reply of record, and a retry that lands after the conversation
  * has moved on is worse than a missing tag (§ A failed action is logged,
  * never retried).
+ *
+ * Returns one group per staged action: its own record, then the record of a
+ * follow-on it carried. A follow-on runs only once its action was performed,
+ * so a payment-link flow that failed writes no stage (specs/023 § The sale
+ * ends at the payment-link flow).
  */
 export async function performActions(
   performer: ActionPerformer,
   subscriberId: string,
   actions: readonly StagedAction[],
   logger: ActionLogger,
-): Promise<ActionRecord[]> {
-  const records: ActionRecord[] = [];
-  for (const action of actions) {
+): Promise<ActionRecord[][]> {
+  const attempt = async (action: StagedAction): Promise<ActionRecord> => {
     try {
       await performer.performAction(subscriberId, action);
-      records.push(recordOf(action, 'performed'));
+      return recordOf(action, 'performed');
     } catch (error) {
       const reason = reasonFor(error, subscriberId);
       logger.warn({ tool: action.tool, id: action.id, error: reason }, 'action failed');
-      records.push(recordOf(action, 'failed', reason));
+      return recordOf(action, 'failed', reason);
     }
+  };
+
+  const groups: ActionRecord[][] = [];
+  for (const action of actions) {
+    const record = await attempt(action);
+    const followOn = action.tool === 'send_flow' ? action.followOn : undefined;
+    groups.push(
+      followOn && record.status === 'performed' ? [record, await attempt(followOn)] : [record],
+    );
   }
-  return records;
+  return groups;
 }

@@ -7,7 +7,8 @@ import type {
   MediaKind,
   TurnOutcome,
 } from '../contracts/agent.ts';
-import type { Rules } from '../contracts/config.ts';
+import { NO_TOOLS } from '../contracts/config.ts';
+import type { Rules, Tools } from '../contracts/config.ts';
 import type { MediaResolver } from '../media/resolver.ts';
 import { MediaFailure } from '../media/port.ts';
 import { escalationReply } from '../agent/guardrails.ts';
@@ -21,8 +22,9 @@ import {
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
 import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
-import { ActionStage } from '../agent/tools.ts';
+import { ActionStage, contactActionsFrom } from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
+import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
 import { ManyChatApiError, ManyChatConnectionError } from '../channels/manychat/client.ts';
 import { performActions } from '../conversation/actions.ts';
@@ -39,6 +41,8 @@ export interface TurnDeps {
   db: Database;
   runner: AgentRunner;
   rules: Rules;
+  /** What the agent may act with; read for the contact's funnel and sent flows (specs/023). */
+  tools?: Tools | undefined;
   raceDeadlineMs: number;
   modelAbortMs: number;
   logger: TurnLogger;
@@ -256,6 +260,15 @@ export class TurnHandler {
       : [];
     // recentTurns includes the message just recorded; the runner adds it itself.
     const priorHistory = history.slice(0, -1);
+    // Read whether or not the turn is bound: these are facts about the
+    // contact's ManyChat record, not their words, and they narrow what the
+    // tools offer, so a request without the token cannot resend a flow or
+    // walk the sale back (specs/023).
+    const tools = this.deps.tools ?? NO_TOOLS;
+    const contact =
+      tools.flows.length + tools.fields.length > 0
+        ? contactActionsFrom(await this.store.actionHistory(conversation.id), tools, historySince)
+        : undefined;
 
     // What the model stages this turn. Held here rather than in the runner, so
     // it is still known when the call is aborted and never returns.
@@ -294,9 +307,10 @@ export class TurnHandler {
           signal: abort.signal,
           logger,
           stage,
+          contact,
         })
       : this.deps.runner
-          .run({ text: inbound.text, history: priorHistory, signal: abort.signal, stage })
+          .run({ text: inbound.text, history: priorHistory, signal: abort.signal, stage, contact })
           .then(result => ({ kind: 'model' as const, result }));
     const completion = work
       .then(done => ({ kind: 'done' as const, done }))
@@ -497,6 +511,7 @@ export class TurnHandler {
       signal: AbortSignal;
       logger: TurnLogger;
       stage: ActionStage;
+      contact: ContactActions | undefined;
     },
   ): Promise<Completion> {
     const { rules } = this.deps;
@@ -562,6 +577,7 @@ export class TurnHandler {
       history: ctx.history,
       signal: ctx.signal,
       stage: ctx.stage,
+      contact: ctx.contact,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

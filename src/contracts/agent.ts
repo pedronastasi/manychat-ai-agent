@@ -10,6 +10,8 @@ export const EscalationReason = z.enum([
   'out_of_scope',
   'explicit_request',
   'low_confidence',
+  // The agent cannot see a payment and must not confirm one (specs/023).
+  'payment_reported',
 ]);
 export type EscalationReason = z.infer<typeof EscalationReason>;
 
@@ -149,16 +151,29 @@ export type ToolName = z.infer<typeof ToolName>;
  * never leaves the server except as a request to ManyChat: the outbox holds
  * it, the `turns` record does not (see `ActionRecord`).
  */
+const SetFieldAction = z.object({
+  tool: z.literal('set_field'),
+  id: z.string(),
+  field: z.string(),
+  value: z.string(),
+});
+
 export const StagedAction = z.discriminatedUnion('tool', [
-  z.object({ tool: z.literal('send_flow'), id: z.string(), flowNs: z.string() }),
+  z.object({
+    tool: z.literal('send_flow'),
+    id: z.string(),
+    flowNs: z.string(),
+    /**
+     * Performed by the server once this flow is, and only if it is: the
+     * payment-link flow's write of the funnel field to `link_sent`. Not
+     * staged by the model and not counted against the per-turn cap
+     * (specs/023 § The sale ends at the payment-link flow).
+     */
+    followOn: SetFieldAction.optional(),
+  }),
   z.object({ tool: z.literal('add_tag'), id: z.string(), tag: z.string() }),
   z.object({ tool: z.literal('remove_tag'), id: z.string(), tag: z.string() }),
-  z.object({
-    tool: z.literal('set_field'),
-    id: z.string(),
-    field: z.string(),
-    value: z.string(),
-  }),
+  SetFieldAction,
 ]);
 export type StagedAction = z.infer<typeof StagedAction>;
 

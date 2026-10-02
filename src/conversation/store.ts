@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
 import type { ActionRecord, MediaKind, TurnOutcome } from '../contracts/agent.ts';
@@ -151,20 +151,40 @@ export class ConversationStore {
   /**
    * Replaces the turn's `staged` entries, in order, with what became of them.
    * The entries were written in the order the actions were staged, which is
-   * the order they are performed in, so the nth outcome belongs to the nth
-   * staged entry. Entries already settled (`dropped_over_cap`) are kept.
+   * the order they are performed in, so the nth group of outcomes belongs to
+   * the nth staged entry. A group holds the action's own record and then any
+   * follow-on the server performed after it (specs/023). Entries already
+   * settled (`dropped_over_cap`) are kept.
    */
-  async resolveStaged(turnId: string, outcomes: ActionRecord[]) {
+  async resolveStaged(turnId: string, outcomes: ActionRecord[][]) {
     const row = await this.db.query.turns.findFirst({
       where: eq(turns.id, turnId),
       columns: { actions: true },
     });
     if (!row?.actions) return;
     let next = 0;
-    const actions = row.actions.map(entry =>
-      entry.status === 'staged' && next < outcomes.length ? outcomes[next++]! : entry,
+    const actions = row.actions.flatMap(entry =>
+      entry.status === 'staged' && next < outcomes.length ? outcomes[next++]! : [entry],
     );
     await this.db.update(turns).set({ actions }).where(eq(turns.id, turnId));
+  }
+
+  /**
+   * Every agent turn's action record for the conversation, oldest first,
+   * bound or not: an action performed on an unbound turn still reached the
+   * contact's ManyChat record. Read so the next turn's tools know what was
+   * already sent and which stage the sale is at (specs/023).
+   */
+  async actionHistory(conversationId: string) {
+    return this.db.query.turns.findMany({
+      where: and(
+        eq(turns.conversationId, conversationId),
+        eq(turns.role, 'agent'),
+        isNotNull(turns.actions),
+      ),
+      orderBy: (table, { asc }) => [asc(table.seq)],
+      columns: { createdAt: true, actions: true },
+    });
   }
 
   async markEscalated(conversationId: string) {

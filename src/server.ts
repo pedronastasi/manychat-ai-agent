@@ -263,6 +263,7 @@ export async function buildServer(opts: BuildOptions) {
         db,
         runner,
         rules: tenant().rules,
+        tools: tenant().tools,
         raceDeadlineMs: env.RACE_DEADLINE_MS,
         modelAbortMs: env.MODEL_ABORT_MS,
         logger: request.log,

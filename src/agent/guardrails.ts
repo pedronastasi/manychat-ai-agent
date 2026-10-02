@@ -312,6 +312,9 @@ export function findUngroundedPrices(messages: string[], catalog: Catalog): stri
   const prose = [
     ...catalog.courses.map(course => course.description),
     ...catalog.faq.map(entry => entry.answer),
+    // A deposit or an instalment the tenant published is a catalog price
+    // (specs/023 § Verification item 6).
+    ...catalog.paymentOptions.map(option => option.description),
   ].join(' ');
   for (const match of prose.matchAll(PRICE_PATTERN)) {
     allowed.add(digits((match[1] ?? match[2] ?? '').trim()));
