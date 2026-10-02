@@ -83,6 +83,9 @@ Every non-obvious choice is written down in [`docs/adr/`](docs/adr/):
 | [0012](docs/adr/0012-contact-tokens-held-in-manychat.md)             | Each contact has a token held by ManyChat; only a request carrying it reads that contact's history |
 | [0013](docs/adr/0013-history-spans-30-days-turn-cap-resets-daily.md) | History reaches back 30 days; the turn cap resets after 24 hours of silence                        |
 | [0014](docs/adr/0014-log-conversation-id-not-pseudonym.md)           | Logs identify a contact by the conversation's random ID, not a hash of the subscriber ID           |
+| [0015](docs/adr/0015-the-agent-closes-the-sale.md)                   | The agent takes a lead to the payment link itself; every C6 limit on what it may claim stays       |
+| [0016](docs/adr/0016-reads-are-performed-inside-the-loop.md)         | Read tools are performed when called and the loop grows to four steps; writes are still staged     |
+| [0017](docs/adr/0017-bounded-free-text-notes.md)                     | Free text only in declared note fields no flow renders, length-capped and stripped of identifiers  |
 
 Behavior is specified before it is implemented, in [`specs/`](specs/) —
 a [constitution](specs/000-constitution.md) of non-negotiables, the

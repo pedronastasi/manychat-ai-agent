@@ -35,6 +35,9 @@ test fails the suite.
 | [020 — Inbound Media](020-inbound-media.md)                             | implemented | 2026-09-27  | #99  | 6     | C1, C2, C4, C5, C6, C7, C9 | —                              |
 | [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                     | —                              |
 | [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | specified   | —           | —    | —     | C5, C7                     | [0001], [0008], [0012]         |
+| [023 — Sales Funnel](023-sales-funnel.md)                               | specified   | —           | —    | —     | C1, C6, C9                 | [0015]                         |
+| [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | specified   | —           | —    | —     | C3, C4, C5, C6, C7         | [0010], [0016], [0017]         |
+| [025 — In-Window Nudge](025-in-window-nudge.md)                         | specified   | —           | —    | —     | C4, C5, C6, C9             | [0010], [0015]                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0002]: ../docs/adr/0002-provider-agnostic-model-layer.md
@@ -47,3 +50,6 @@ test fails the suite.
 [0012]: ../docs/adr/0012-contact-tokens-held-in-manychat.md
 [0013]: ../docs/adr/0013-history-spans-30-days-turn-cap-resets-daily.md
 [0014]: ../docs/adr/0014-log-conversation-id-not-pseudonym.md
+[0015]: ../docs/adr/0015-the-agent-closes-the-sale.md
+[0016]: ../docs/adr/0016-reads-are-performed-inside-the-loop.md
+[0017]: ../docs/adr/0017-bounded-free-text-notes.md
