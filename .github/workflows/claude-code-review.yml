@@ -26,6 +26,31 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # A custom prompt rather than the code-review plugin: the plugin only
+          # looks for code bugs, skips changes it judges trivial, and posts
+          # nothing unless given --comment. Docs, specs and workflows need review too.
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. The PR branch is already checked out.
+            Read CLAUDE.md and specs/000-constitution.md first, then review
+            every changed file, whatever its type (TypeScript, Markdown, YAML,
+            JSON, specs, config examples), for:
+            - Correctness bugs and logic errors
+            - Constitution violations, especially tenant data (C1) and
+              non-English text (C9) in fixtures, docs or comments
+            - Docs or specs that are wrong, stale, or contradict the code
+            - Broken or missing cross-references between docs, specs and code
+            - Mistakes in CI and workflow configuration
+
+            Flag only issues you can confirm by reading the repository. Skip
+            style nitpicks. Check `gh pr view --comments` first and do not
+            repeat a point that has already been made.
+
+            Post each issue as an inline comment with
+            `mcp__github_inline_comment__create_inline_comment` (confirmed: true).
+            Finish with one `gh pr comment` summarising the review, or saying
+            that no issues were found.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
