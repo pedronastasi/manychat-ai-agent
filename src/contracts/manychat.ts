@@ -105,3 +105,35 @@ export const ManyChatResponse = z.object({
   }),
 });
 export type ManyChatResponse = z.infer<typeof ManyChatResponse>;
+
+/* -------------------------------------------------------------------------- */
+/* Contact read: what `get_contact` takes from getInfo (specs/024)             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The part of ManyChat's subscriber record a contact read may use: tag names
+ * and custom field values, by name. The identifiers beside them (name, phone,
+ * email, WhatsApp number, profile picture, last input text) are not in this
+ * shape, so they never leave the client (specs/024 § `get_contact` returns a
+ * whitelist, never the subscriber).
+ */
+export const ContactRecord = z.object({
+  tags: z
+    .array(z.object({ name: z.string() }).loose())
+    .nullish()
+    .transform(tags => (tags ?? []).map(tag => tag.name)),
+  custom_fields: z
+    .array(
+      z
+        .object({
+          name: z.string(),
+          value: z.union([z.string(), z.number(), z.boolean()]).nullish(),
+        })
+        .loose(),
+    )
+    .nullish()
+    .transform(fields =>
+      (fields ?? []).map(field => ({ name: field.name, value: field.value ?? null })),
+    ),
+});
+export type ContactRecord = z.infer<typeof ContactRecord>;

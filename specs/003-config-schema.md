@@ -67,6 +67,11 @@ the agent is offered no tools and behaves as it did before `012`.
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
   optional `funnel` (`023`)
+- `readable` — `tags[]` and `fields[]` in the shapes above, which `get_contact`
+  returns but no tool writes (`024`)
+- `notes[]` — `id`, `field`, `maxLength` (at most 500), `neverRendered` (must be
+  the literal `true`), `description`, optional `onEscalation` (default `false`)
+  (`024`)
 
 Every list defaults to empty, and an empty list offers no tool. An `id` is
 lowercase letters, digits, `_` and `-`, unique within its list, because it
@@ -74,14 +79,18 @@ becomes an enum value in a tool's parameter schema. The model sees `id` and
 `description` only. `flowNs`, `tag` and `field` name objects in the tenant's
 ManyChat account and stay server-side.
 
+A tag id is unique across `tags` and `readable.tags`, and a field id across
+`fields` and `readable.fields`, because `get_contact` returns them side by side.
 At most one flow may have `role: "payment_link"`, and at most one field may be
 marked `funnel`. A `funnel` field's `values` must be the stages of `023` in
 order: `new`, `qualifying`, `nurturing`, `offered`, `link_sent`.
 
-Loading also refuses a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, and a
-field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`. Firing the
-reply flow or writing either field as an action would resend a stale reply,
-overwrite one in flight, or replace the contact's token. Like any other invalid
+Loading also refuses a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, a
+field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`, and a
+note whose `field` is either of those, any `fields[].field`, or another note's.
+Firing the reply flow or writing either field as an action would resend a stale
+reply, overwrite one in flight, or replace the contact's token, and a note that
+shares a field would overwrite what that field holds with free text. Like any other invalid
 config, this fails the boot, and a reload that introduces it is refused.
 
 ## `.env`

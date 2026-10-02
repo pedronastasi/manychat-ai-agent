@@ -9,7 +9,7 @@ import { OutboxQueue } from '../../src/outbox/queue.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { ConversationStore } from '../../src/conversation/store.ts';
 import { FakeActions, FakeContactFields, manychatError } from '../helpers/manychat.ts';
-import { ActionStage } from '../../src/agent/tools.ts';
+import { ActionStage, MAX_ACTIONS_PER_TURN } from '../../src/agent/tools.ts';
 
 /**
  * specs/012-agent-tools.md § Verification items 3, 6 and 9.
@@ -378,9 +378,10 @@ describe('action status recording (specs/012 V9)', () => {
     const overCap: AgentRunner = {
       run: ({ stage = new ActionStage() }) => {
         stage.stage({ tool: 'send_flow', id: 'foundation_brochure', flowNs: 'ns1' });
-        stage.stage({ tool: 'add_tag', id: 'interested_foundation', tag: 'tg' });
-        stage.stage({ tool: 'remove_tag', id: 'interested_foundation', tag: 'tg' });
-        stage.stage({ tool: 'add_tag', id: 'over_cap_tag', tag: 'tg2' }); // 4th, dropped
+        for (let index = 1; index < MAX_ACTIONS_PER_TURN; index++) {
+          stage.stage({ tool: 'add_tag', id: `tag_${index}`, tag: `tag-${index}` });
+        }
+        stage.stage({ tool: 'add_tag', id: 'over_cap_tag', tag: 'tg2' }); // one past the cap
         return Promise.resolve({
           reply: {
             messages: ['Done.'],
@@ -404,7 +405,7 @@ describe('action status recording (specs/012 V9)', () => {
     const turn = await agentTurn();
     const performed = turn.actions!.filter((rec: ActionRecord) => rec.status === 'performed');
     const dropped = turn.actions!.filter((rec: ActionRecord) => rec.status === 'dropped_over_cap');
-    expect(performed).toHaveLength(3);
+    expect(performed).toHaveLength(MAX_ACTIONS_PER_TURN);
     expect(dropped).toHaveLength(1);
     expect(dropped[0]!.id).toBe('over_cap_tag');
   });

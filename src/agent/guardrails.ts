@@ -8,10 +8,19 @@ import type { EscalationReason } from '../contracts/agent.ts';
 import type { Catalog, Rules } from '../contracts/config.ts';
 import { ACTION_NOTE_LINE, FENCE, FENCE_END, PROMPT_MARKERS } from './prompt.ts';
 
+/**
+ * What turned a reply into an escalation. Only `model` and `confidence` leave
+ * output that passed every check, so only they let an `onEscalation` note be
+ * written (specs/024 § A handoff summary survives the escalation it describes).
+ */
+export type EscalationCause = 'model' | 'confidence' | 'schema' | 'leak' | 'error';
+
 export interface GuardedReply {
   reply: AgentReply;
   /** Adjustments applied after the model returned; surfaced in logs and evals. */
   interventions: string[];
+  /** Set when `reply.escalate` is. */
+  escalatedBy?: EscalationCause;
 }
 
 /**
@@ -157,6 +166,7 @@ export function applyGuardrails(
       interventions: [
         `schema_invalid: ${parsed.error.issues.map(issue => issue.path.join('.')).join(',')}`,
       ],
+      escalatedBy: 'schema',
     };
   }
 
@@ -179,6 +189,7 @@ export function applyGuardrails(
       return {
         reply: escalationReply('low_confidence', rules.messages.escalation),
         interventions,
+        escalatedBy: 'leak',
       };
     }
     const closing =
@@ -199,13 +210,16 @@ export function applyGuardrails(
     return {
       reply: escalationReply('low_confidence', rules.messages.escalation),
       interventions: ['prompt_leak_detected'],
+      escalatedBy: 'leak',
     };
   }
 
   // Low confidence forces a handoff even when the model was happy to answer.
+  let escalatedBy: EscalationCause | undefined = reply.escalate ? 'model' : undefined;
   if (!reply.escalate && reply.confidence < rules.confidenceThreshold) {
     interventions.push(`confidence_below_threshold: ${reply.confidence}`);
     reply = escalationReply('low_confidence', rules.messages.escalation);
+    escalatedBy = 'confidence';
   }
 
   // Defensive clamps. The schema already bounds these, so reaching them means
@@ -274,7 +288,7 @@ export function applyGuardrails(
     }
   }
 
-  return { reply, interventions };
+  return { reply, interventions, ...(escalatedBy ? { escalatedBy } : {}) };
 }
 
 /** Numbers with a currency cue nearby, e.g. "$45.000", "45000 pesos". */

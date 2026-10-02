@@ -1,7 +1,7 @@
 import { generateText, isStepCount, Output, type LanguageModel, type ModelMessage } from 'ai';
 import { AgentReplyForModel, type ActionRecord, type AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
-import { NO_TOOLS } from '../contracts/config.ts';
+import { NO_TOOLS, offersTools } from '../contracts/config.ts';
 import type { MediaImage } from '../media/port.ts';
 import {
   actionsNote,
@@ -12,6 +12,8 @@ import {
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
+import type { EscalationCause } from './guardrails.ts';
+import type { ContactReads } from './contact.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
 import { ActionStage, buildTools, funnelField, MAX_STEPS } from './tools.ts';
 import type { ContactActions } from './tools.ts';
@@ -50,6 +52,12 @@ export interface AgentResult {
    * on the `ActionStage` the caller passed in. Absent means none were.
    */
   toolsOffered?: boolean;
+  /**
+   * What made `reply` an escalation, when it is one: the model, the
+   * confidence threshold, or a failure. Decides whether an `onEscalation`
+   * note is still written (specs/024).
+   */
+  escalatedBy?: EscalationCause | undefined;
 }
 
 /** What the contact sent when it was not typed, as the model receives it (specs/020). */
@@ -84,6 +92,11 @@ export interface AgentTurnInput {
    * the sale (specs/023). Absent, the contact is treated as new.
    */
   contact?: ContactActions | undefined;
+  /**
+   * The turn's reads of its own contact. Absent, `get_contact` is not offered:
+   * a turn without the contact's token never reads their record (specs/024).
+   */
+  reads?: ContactReads | undefined;
 }
 
 /**
@@ -147,8 +160,8 @@ function currentMessage(
 
 /**
  * The port every caller depends on. Implemented with `generateText`: a single
- * step when the tenant configures no tools, and a loop of at most two when it
- * does (ADR-0010).
+ * step when the tenant configures no tools, and a loop of at most four when it
+ * does (ADR-0010, ADR-0016).
  */
 export interface AgentRunner {
   run(input: AgentTurnInput): Promise<AgentResult>;
@@ -195,7 +208,7 @@ export class GenerateTextRunner implements AgentRunner {
     const config = this.opts.config();
     if (this.cached?.config !== config) {
       const tools = config.tools ?? NO_TOOLS;
-      const withTools = tools.flows.length + tools.tags.length + tools.fields.length > 0;
+      const withTools = offersTools(tools);
       this.cached = {
         config,
         withTools,
@@ -212,12 +225,15 @@ export class GenerateTextRunner implements AgentRunner {
     media,
     stage = new ActionStage(),
     contact,
+    reads,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
     const { config, staticPrefix, catalogBlock, withTools } = this.current();
-    const tools = withTools ? buildTools(config.tools ?? NO_TOOLS, stage, contact) : undefined;
+    const tools = withTools
+      ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads)
+      : undefined;
     const funnel = funnelField(config.tools ?? NO_TOOLS)
       ? funnelNotice(contact?.funnelStage)
       : null;
@@ -227,10 +243,11 @@ export class GenerateTextRunner implements AgentRunner {
       currentMessage(text, media, funnel),
     ];
 
-    // Step two offers no tools, so it must produce the reply. It sees a note
-    // of what was staged in place of its own tool calls: a provider that drops
-    // its tools when told to use none would otherwise receive tool calls with
-    // no tools to match them (specs/012 § The loop is bounded at two steps).
+    // The last step offers no tools, so it must produce the reply. It sees a
+    // note of what was staged, and of the last contact read, in place of its
+    // own tool calls: a provider that drops its tools when told to use none
+    // would otherwise receive tool calls with no tools to match them
+    // (specs/024 § The loop grows to four steps and eight actions).
     const loop = tools
       ? {
           tools,
@@ -239,7 +256,10 @@ export class GenerateTextRunner implements AgentRunner {
             stepNumber === MAX_STEPS - 1
               ? {
                   activeTools: [],
-                  messages: [...messages, { role: 'user' as const, content: stagedNotice(stage) }],
+                  messages: [
+                    ...messages,
+                    { role: 'user' as const, content: stagedNotice(stage, reads?.latest) },
+                  ],
                 }
               : undefined,
         }
@@ -291,6 +311,7 @@ export class GenerateTextRunner implements AgentRunner {
         reply: escalationReply('low_confidence', config.rules.messages.escalation),
         interventions: [`model_error: ${name}`],
         modelError: name,
+        escalatedBy: 'error',
         latencyMs: Date.now() - started,
         model: this.opts.modelSpec,
         toolsOffered: tools !== undefined,
@@ -309,6 +330,7 @@ export class GenerateTextRunner implements AgentRunner {
     return {
       reply: guarded.reply,
       interventions: guarded.interventions,
+      escalatedBy: guarded.escalatedBy,
       latencyMs: Date.now() - started,
       model: this.opts.modelSpec,
       toolsOffered: tools !== undefined,

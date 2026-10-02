@@ -32,7 +32,7 @@ export async function main() {
   // One client, and so one rate limiter, for the server and the worker alike:
   // one each would send at twice the configured rate (specs/022).
   const manychat = manychatClientFor(env);
-  const { app } = await buildServer({ env, db, configStore, manychat });
+  const { app } = await buildServer({ env, db, configStore, manychat, contacts: manychat });
 
   const migrated = await runMigrations(db);
   if (migrated.length > 0) app.log.info({ migrations: migrated }, 'migrations applied');
