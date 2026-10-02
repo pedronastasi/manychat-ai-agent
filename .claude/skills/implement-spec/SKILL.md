@@ -47,8 +47,12 @@ implement in the shared checkout at the repository root.
 3. **Bootstrap, then prove the base is green** before touching anything:
 
    ```sh
-   pnpm install --frozen-lockfile && pnpm bootstrap && pnpm test
+   pnpm install --frozen-lockfile && pnpm bootstrap \
+     && cp -n config/tools.json.example config/tools.json && pnpm test
    ```
+
+   `bootstrap` does not copy `tools.json`, and without it the `flow-*` and
+   `funnel-*` eval cases fail for reasons that have nothing to do with you.
 
    A failure here belongs to `main`, not to you. Report it, and do not fold a
    fix into this branch unless the user agrees.
@@ -85,8 +89,14 @@ implement in the shared checkout at the repository root.
 
    ```sh
    pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:coverage \
-     && pnpm eval:mock && pnpm build && pnpm docs:build
+     && AGENT_MODEL=mock:demo PUBLIC_BASE_URL=https://ci.example.com \
+        MANYCHAT_SHARED_SECRET=ci-secret-ci-secret-ci-secret-xx DATABASE_URL=pglite \
+        pnpm eval:mock \
+     && pnpm build && pnpm docs:build
    ```
+
+   `eval:mock` reads its environment from the shell, not from `.env`. These are
+   the values `.github/workflows/ci.yml` sets.
 
    Coverage thresholds are 85/75/85/85. If `eval:mock` fails, extend the mock
    model (`src/agent/mock-provider.ts`) so it models the correct behaviour. Do not weaken

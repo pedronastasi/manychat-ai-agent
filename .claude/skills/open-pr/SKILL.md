@@ -46,8 +46,16 @@ on `main` (branch first, ideally in a worktree under `.claude/worktrees/`).
    commit landed after they were taken. Otherwise run:
 
    ```sh
-   pnpm test:coverage && pnpm eval:mock && pnpm typecheck && pnpm lint && pnpm format:check
+   pnpm test:coverage && pnpm typecheck && pnpm lint && pnpm format:check
+   AGENT_MODEL=mock:demo PUBLIC_BASE_URL=https://ci.example.com \
+     MANYCHAT_SHARED_SECRET=ci-secret-ci-secret-ci-secret-xx DATABASE_URL=pglite \
+     pnpm eval:mock
    ```
+
+   `eval:mock` takes CI's environment from the shell, not `.env`, and needs
+   `config/tools.json` (`cp -n config/tools.json.example config/tools.json`). If
+   cases fail on a branch that touches no behaviour, suspect the local setup
+   before the code.
 
    Add `pnpm build && pnpm docs:build` when `src/`, `specs/`, `docs/` or
    `.vitepress/` changed. Record counts ("761 passed, 17 skipped; 92.96%
