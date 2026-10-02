@@ -1,6 +1,6 @@
 # Tenant configuration
 
-Everything in this directory except `*.example` and this README is **gitignored**
+Everything in this directory except `*.example` is **gitignored**
 and must never be committed (Constitution C1).
 
 ```bash
