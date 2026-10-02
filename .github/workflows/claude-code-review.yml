@@ -26,7 +26,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          allowed_bots: "github-actions[bot]"
+          allowed_bots: 'github-actions[bot]'
           # A custom prompt rather than the code-review plugin: the plugin only
           # looks for code bugs, skips changes it judges trivial, and posts
           # nothing unless given --comment. Docs, specs and workflows need review too.
