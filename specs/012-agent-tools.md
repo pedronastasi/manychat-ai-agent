@@ -68,16 +68,16 @@ implements this spec. Shape, with values invented for the demo tenant:
 {
   "flows": [
     {
-      "id": "gel_course_brochure",
+      "id": "intro_course_brochure",
       "flowNs": "content00000000000000_000001",
-      "description": "PDF brochure for the gel course. Send when the contact asks for details, a syllabus or something to read.",
+      "description": "PDF brochure for the intro course. Send when the contact asks for details, a syllabus or something to read.",
     },
   ],
   "tags": [
     {
-      "id": "interested_gel",
-      "tag": "interested-gel-course",
-      "description": "Contact showed interest in the gel course.",
+      "id": "interested_intro",
+      "tag": "interested-intro-course",
+      "description": "Contact showed interest in the intro course.",
     },
   ],
   "fields": [
@@ -195,7 +195,7 @@ the model staged, whatever became of it.
 
 ```jsonc
 [
-  { "tool": "send_flow", "id": "gel_course_brochure", "status": "performed" },
+  { "tool": "send_flow", "id": "intro_course_brochure", "status": "performed" },
   {
     "tool": "set_field",
     "id": "preferred_shift",
@@ -232,7 +232,7 @@ when the contact says "thanks, and the price?".
 
 Each agent turn in the history therefore carries a server-written note of the
 actions recorded as `performed`, e.g.
-`[actions performed: send_flow gel_course_brochure]`. The note:
+`[actions performed: send_flow intro_course_brochure]`. The note:
 
 - is built from the `actions` column, never from the model's own text;
 - sits outside the contact fence, since it is system-authored rather than
