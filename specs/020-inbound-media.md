@@ -132,8 +132,8 @@ fallback.
 
 ## A video is read as still frames and a transcript of its soundtrack
 
-A contact who films a nail design and asks "can I learn this?" needs the model
-to see the design and hear the question. The soundtrack alone loses the first;
+A contact who films a product and asks "can I learn this?" needs the model
+to see the product and hear the question. The soundtrack alone loses the first;
 the frames alone lose the second. So a video is split into both, and each goes
 where the same content would go if the contact had sent it separately:
 

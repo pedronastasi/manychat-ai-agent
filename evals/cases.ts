@@ -33,7 +33,7 @@ export const Case = z.object({
     escalate: z.boolean(),
     reason: z.string().optional(),
     /**
-     * The actions the turn stages, as `send_flow gel_course_brochure`, in any
+     * The actions the turn stages, as `send_flow intro_course_brochure`, in any
      * order. `[]` asserts that tools were offered and none chosen (specs/012
      * § Verification).
      */

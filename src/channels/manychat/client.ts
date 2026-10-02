@@ -5,7 +5,12 @@ import type { Env } from '../../contracts/config.ts';
 
 // The worker retries on `ManyChatError.retryable` (specs/022 § Retries follow
 // the SDK's retryable, not instanceof), and only this file imports the SDK.
-export { ManyChatError, ManyChatApiError, ManyChatConnectionError } from 'manychat-sdk';
+export {
+  ManyChatError,
+  ManyChatApiError,
+  ManyChatConnectionError,
+  ManyChatResponseError,
+} from 'manychat-sdk';
 
 /**
  * Performs an action the agent staged on a turn (specs/012), one request per
