@@ -9,7 +9,6 @@ import { performActions, performedCourse } from '../conversation/actions.ts';
 import { recordOf } from '../agent/tools.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
-import { sendHeldQuestion } from '../conversation/question.ts';
 
 export interface WorkerLogger {
   info: (obj: object, msg: string) => void;
@@ -23,8 +22,6 @@ export interface WorkerOptions {
   logger: WorkerLogger;
   batchSize?: number;
   pollIntervalMs?: number;
-  /** How a held question waits for its flows; replaced in tests (specs/029). */
-  sleep?: (ms: number) => Promise<void>;
 }
 
 export interface DrainResult {
@@ -42,8 +39,6 @@ export class OutboxWorker {
   private readonly nudges: NudgeStore;
   private running = false;
   private settled: Promise<void> = Promise.resolve();
-  /** Held questions still waiting for their flows to settle (specs/029). */
-  private readonly questions = new Set<Promise<void>>();
 
   constructor(opts: WorkerOptions) {
     this.opts = opts;
@@ -79,30 +74,6 @@ export class OutboxWorker {
         'deferred actions not recorded',
       );
     }
-  }
-
-  /**
-   * Sends a reply's held question once its flows have settled (specs/029).
-   * Not awaited by the batch: a flow's settle time must not hold up the next
-   * contact's reply. A crash before it is sent loses the question, as it
-   * would lose an action.
-   */
-  private sendQuestion(row: Extract<OutboxRow, { kind: 'reply' }>): void {
-    const held = row.payload.heldQuestion;
-    if (!held) return;
-    const sent = sendHeldQuestion(
-      this.opts.client,
-      row.subscriberId,
-      held,
-      this.opts.logger,
-      this.opts.sleep,
-    ).finally(() => this.questions.delete(sent));
-    this.questions.add(sent);
-  }
-
-  /** Resolves once every held question started so far has been sent or has failed. */
-  async questionsSent(): Promise<void> {
-    await Promise.all([...this.questions]);
   }
 
   /** Media without the reply that introduces it is worse than neither. */
@@ -153,10 +124,7 @@ export class OutboxWorker {
         await this.deliver(row);
         await this.queue.markDelivered(row.id);
         result.delivered++;
-        if (row.kind === 'reply') {
-          await this.performDeferred(row);
-          this.sendQuestion(row);
-        }
+        if (row.kind === 'reply') await this.performDeferred(row);
       } catch (error) {
         // ManyChat's own verdict when it is ManyChat's error, and a retry
         // otherwise: an unknown failure, such as the database, must not
@@ -220,7 +188,6 @@ export class OutboxWorker {
     return async () => {
       this.running = false;
       await this.settled;
-      await this.questionsSent();
     };
   }
 }

@@ -214,11 +214,6 @@ export const StagedAction = z.discriminatedUnion('tool', [
     id: z.string(),
     flowNs: z.string(),
     /**
-     * Copied from the flow's entry when it is staged, so a deferred reply's
-     * held closing question waits for it without the config (specs/029).
-     */
-    settleSeconds: z.number().optional(),
-    /**
      * Performed by the server once this flow is, and only if it is: the
      * payment-link flow's write of the funnel field to `link_sent`. Not
      * staged by the model and not counted against the per-turn cap

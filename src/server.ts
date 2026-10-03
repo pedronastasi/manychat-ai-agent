@@ -280,7 +280,6 @@ export async function buildServer(opts: BuildOptions) {
         tokenWriter: manychatClient,
         tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
         actions: manychatClient,
-        questions: manychatClient,
         contacts,
         media,
       });

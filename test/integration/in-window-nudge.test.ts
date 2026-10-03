@@ -637,3 +637,17 @@ describe('a nudge whose model call fails sends nothing (specs/025 § A nudge tur
     await stop();
   });
 });
+
+describe('a nudge turn keeps its flows staged (specs/029 V5)', () => {
+  it('is given no flow sender, so its flow follows its text', async () => {
+    const id = await quietContact();
+    const { runner, inputs } = scriptedRunner(FOLLOW_UP, 'student_results');
+    expect(await worker(runner, new FakeTags()).drainOnce()).toEqual(['sent']);
+
+    expect(inputs[0]!.flows).toBeUndefined();
+    const [, nudgeTurn] = await agentTurns(id);
+    expect(nudgeTurn!.actions).toEqual([
+      { tool: 'send_flow', id: 'student_results', status: 'staged' },
+    ]);
+  });
+});

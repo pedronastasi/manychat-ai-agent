@@ -32,6 +32,10 @@ The model is told an action was staged, never that it succeeded. The persona
 must not have it claim "I've sent it" as fact. It says what it is sending, the
 way a person does before pressing send.
 
+`send_flow` on an inbound turn is the exception: it sends the flow when called
+and returns `{ sent: true | false }`, so the reply follows the flow
+(`029`, ADR-0019).
+
 ## The mechanism is built here; only the choices are the tenant's
 
 Everything in this spec is code in this repository, identical for every tenant:
@@ -144,6 +148,9 @@ and the count discarded is logged. The one exception is a note marked
 Turns where the model never runs (the scripted opening, escalation keywords,
 budget, rate and turn caps) have no tools and so stage nothing.
 
+A flow sent during an inbound turn (`029`) has already gone out when any of
+these escalates the turn. It keeps its outcome on the record.
+
 ## The loop is bounded at four steps
 
 Steps one to three may call tools, several in parallel. Step four offers no
@@ -180,8 +187,8 @@ reply is deferred, never dropped, and its staged actions are deferred with it.
 Actions are performed in the order the model staged them, one request each,
 through the existing `ManyChatClient` and its rate limiter.
 
-On a turn that sends a flow, the reply's closing question is held back and
-sent after the actions, once the flow has had time to play out (`029`).
+On an inbound turn, flows are not among them: they were sent during the turn,
+before the text (`029`).
 
 ## The flow set may not include the reply flow or field
 

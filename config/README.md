@@ -180,12 +180,12 @@ Three keys turn on the sales funnel of `specs/023-sales-funnel.md`:
   same contact. Every other flow is sent at most once per contact. The payment
   link is the usual case.
 
-A reply that sends a flow ends on a question, and the question is held back
-until the flow has played out, so the contact reads it after the flow's content
-(`specs/029-question-after-flow.md`). If a flow takes time to finish, for
-example a Smart Delay between its messages, give it **`settleSeconds`**, from 0
-to 30: how long the question waits after the flow is sent. Without it, the
-question follows as soon as ManyChat has accepted the flow.
+A flow the agent chooses is sent the moment it decides to, before it writes its
+reply, so the contact receives the flow, then the reply and its question
+(`specs/029-flows-before-the-reply.md`). The reply arrives a few seconds after
+the flow starts, so a flow the agent sends should deliver its content without
+long Smart Delays: a flow that pauses for ten seconds is still playing when the
+reply lands in the middle of it.
 
 Each content flow must be a leaf: it must not start another flow. Nothing here
 can see inside your flows, so this is yours to check. And turn off any drip

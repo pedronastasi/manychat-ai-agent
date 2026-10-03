@@ -34,10 +34,9 @@ import {
   ManyChatResponseError,
 } from '../channels/manychat/client.ts';
 import { performActions, performedCourse } from '../conversation/actions.ts';
-import { holdQuestion, sendHeldQuestion } from '../conversation/question.ts';
-import type { QuestionSender } from '../conversation/question.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
+import { FlowSends } from '../agent/flows.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -62,11 +61,6 @@ export interface TurnDeps {
   tokensEnforced: boolean;
   /** Performs what the agent staged, once the reply has gone out (specs/012). */
   actions: ActionPerformer;
-  /**
-   * Sends a closing question held back behind a flow (specs/029). Without it
-   * the question stays in the response, ahead of the flow.
-   */
-  questions?: QuestionSender | undefined;
   /** Reads the contact for `get_contact` (specs/024). Without it, no read is offered. */
   contacts?: ContactReader | undefined;
   /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
@@ -339,6 +333,15 @@ export class TurnHandler {
           })
         : undefined;
 
+    // A flow is sent when the model calls it, so its reply follows it
+    // (specs/029). Through the nudging performer, so a payment link sent now
+    // still cancels a pending nudge.
+    const flows = new FlowSends({
+      performer: new NudgingPerformer(this.deps.actions, this.nudges, conversation.id),
+      subscriberId: inbound.subscriberId,
+      logger,
+    });
+
     /**
      * Staged actions are performed only when the final reply, after the
      * guardrails, does not escalate. Every other ending lands here (specs/012
@@ -348,7 +351,7 @@ export class TurnHandler {
     const discard = (kept: readonly StagedAction[] = []) => {
       const discarded = stage.staged.length - kept.length;
       if (discarded > 0) logger.info({ discarded }, 'staged actions discarded');
-      return stage.staged.length + stage.dropped.length > 0
+      return stage.staged.length + stage.dropped.length + stage.sent.length > 0
         ? stage.records('discarded', kept)
         : undefined;
     };
@@ -385,6 +388,7 @@ export class TurnHandler {
           stage,
           contact,
           reads,
+          flows,
         })
       : this.deps.runner
           .run({
@@ -394,6 +398,7 @@ export class TurnHandler {
             stage,
             contact,
             reads,
+            flows,
           })
           .then(result => ({ kind: 'model' as const, result }));
     const completion = work
@@ -553,32 +558,15 @@ export class TurnHandler {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
     const staged = performable(done.result);
-    // The question follows the flow it asks about, so it leaves the response
-    // and is sent after the turn's actions (specs/029). The turn was recorded
-    // above with it, as the reply of record.
-    const questions = this.deps.questions;
-    const { messages, held } = questions
-      ? holdQuestion(done.result.reply.messages, staged)
-      : { messages: done.result.reply.messages, held: undefined };
     return {
-      reply: held ? { ...done.result.reply, messages } : done.result.reply,
+      reply: done.result.reply,
       outcome,
       conversationId: conversation.id,
       binding,
       ...(staged.length > 0
         ? {
-            afterResponse: async () => {
-              await this.performInline(
-                inbound.subscriberId,
-                conversation.id,
-                staged,
-                turnId,
-                logger,
-              );
-              if (questions && held) {
-                await sendHeldQuestion(questions, inbound.subscriberId, held, logger);
-              }
-            },
+            afterResponse: () =>
+              this.performInline(inbound.subscriberId, conversation.id, staged, turnId, logger),
           }
         : {}),
     };
@@ -622,6 +610,7 @@ export class TurnHandler {
       stage: ActionStage;
       contact: ContactActions | undefined;
       reads: ContactReads | undefined;
+      flows: FlowSends | undefined;
     },
   ): Promise<Completion> {
     const { rules } = this.deps;
@@ -689,6 +678,7 @@ export class TurnHandler {
       stage: ctx.stage,
       contact: ctx.contact,
       reads: ctx.reads,
+      flows: ctx.flows,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

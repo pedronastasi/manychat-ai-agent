@@ -2,8 +2,6 @@ import { sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { outbox } from '../db/schema.ts';
 import type { AgentReply, StagedAction } from '../contracts/agent.ts';
-import { holdQuestion } from '../conversation/question.ts';
-import type { HeldQuestion } from '../conversation/question.ts';
 
 interface OutboxRowBase {
   id: string;
@@ -21,8 +19,6 @@ export interface ReplyPayload {
   messages: string[];
   actions?: StagedAction[];
   turnId?: string;
-  /** The closing question, sent after the actions once their flows settle (specs/029). */
-  heldQuestion?: HeldQuestion;
 }
 
 /**
@@ -52,14 +48,11 @@ export class OutboxQueue {
     /** Deferred with the reply, never dropped from it (specs/012). */
     actions?: { staged: readonly StagedAction[]; turnId: string } | undefined;
   }): Promise<string> {
-    const staged = input.actions?.staged ?? [];
-    const { messages, held } = holdQuestion(input.reply.messages, staged);
-    const payload: ReplyPayload = { messages };
-    if (input.actions && staged.length > 0) {
-      payload.actions = [...staged];
+    const payload: ReplyPayload = { messages: input.reply.messages };
+    if (input.actions && input.actions.staged.length > 0) {
+      payload.actions = [...input.actions.staged];
       payload.turnId = input.actions.turnId;
     }
-    if (held) payload.heldQuestion = held;
     const [row] = await this.db
       .insert(outbox)
       .values({
