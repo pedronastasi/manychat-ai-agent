@@ -159,6 +159,16 @@ export class ActionStage {
     return entry.records[0]?.status === 'performed';
   }
 
+  /**
+   * Resolves once every send started this turn has its answer. A call aborted
+   * while a request is in flight does not stop the request, so the record waits
+   * for it rather than keeping the placeholder (specs/029). Bounded by the
+   * client's request timeout.
+   */
+  async settled(): Promise<void> {
+    await Promise.all(this.sentNow.map(entry => entry.done));
+  }
+
   /** Actions sent this turn, whatever became of them. */
   get sent(): readonly { action: StagedAction; records: readonly ActionRecord[] }[] {
     return this.sentNow;

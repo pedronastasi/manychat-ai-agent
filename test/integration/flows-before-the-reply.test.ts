@@ -311,4 +311,35 @@ describe('an escalation does not recall a sent flow (specs/029 V5)', () => {
     // So the next turn knows it went out, and does not send it again.
     expect(requests()).toEqual([`sendFlow ${flowNs('student_results')}`]);
   });
+
+  it('waits for a flow request still in flight when the call is aborted', async () => {
+    // ManyChat answers after the abort has fired.
+    api.state.respond = () =>
+      new Promise(resolve =>
+        setTimeout(() => resolve(new Response('{"status":"success"}', { status: 200 })), 300),
+      );
+    const runner: AgentRunner = {
+      run: ({ stage = new ActionStage(), contact, flows, signal }) => {
+        const built = buildTools(tools, stage, contact, undefined, { flows });
+        // Called and not awaited, as a tool still running when the abort lands.
+        void built?.send_flow?.execute?.({ flow: 'student_results' } as never, {
+          toolCallId: 'test',
+          messages: [],
+          context: {},
+        });
+        return new Promise<AgentResult>((_resolve, reject) =>
+          signal?.addEventListener('abort', () => reject(new Error('aborted'))),
+        );
+      },
+    };
+    await handler(runner, { raceDeadlineMs: 50, modelAbortMs: 120 }).handle(
+      inbound('can I learn it?'),
+    );
+
+    await vi.waitFor(async () => expect(await agentTurns()).toHaveLength(1), { timeout: 3000 });
+    const [turn] = await agentTurns();
+    expect(turn!.actions).toEqual([
+      { tool: 'send_flow', id: 'student_results', status: 'performed' },
+    ]);
+  });
 });

@@ -94,7 +94,9 @@ the staged ones `discarded` and leaves the sent ones as they are. A deferred
 call that fails or hits `MODEL_ABORT_MS` after sending a flow, which before
 this spec recorded nothing, records an agent turn with the holding line the
 contact was given and outcome `error`, so the next turn knows the flow went
-out and does not send it again.
+out and does not send it again. An abort does not stop a flow request already
+in flight, so the record waits for its answer, bounded by the client's request
+timeout, rather than keeping a `failed` it may not deserve.
 
 ## The race includes the request
 

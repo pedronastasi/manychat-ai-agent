@@ -471,7 +471,9 @@ export class TurnHandler {
         clearTimeout(abortTimer);
         try {
           if (outcome.kind === 'error') {
-            // MODEL_ABORT_MS lands here, with whatever it had staged.
+            // MODEL_ABORT_MS lands here, with whatever it had staged, and
+            // perhaps a flow request still in flight.
+            await stage.settled();
             const actions = discard();
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');
             // A flow sent during the call has reached the contact, so the turn
