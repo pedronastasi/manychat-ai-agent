@@ -73,6 +73,8 @@ export class ActionStage {
     records: ActionRecord[];
     /** Settles when ManyChat has answered, so a repeat call waits for it. */
     done: Promise<void>;
+    /** Until ManyChat answers; its records are placeholders meanwhile. */
+    pending: boolean;
   }[] = [];
   /** Staged and sent entries in the order the model made them, for the record. */
   private readonly order: (StagedAction | { sent: number })[] = [];
@@ -138,6 +140,7 @@ export class ActionStage {
       action: entryAction,
       records: [recordOf(entryAction, 'failed', 'no answer before the turn ended')],
       done: Promise.resolve(),
+      pending: true,
     });
     const ahead = first.filter(staged => this.accepted.includes(staged)).map(reserve);
     for (const entry of ahead) {
@@ -152,6 +155,7 @@ export class ActionStage {
     const done = sends.send([...ahead.map(staged => staged.action), action]).then(groups => {
       [...ahead, entry].forEach((sent, index) => {
         sent.records = groups[index] ?? sent.records;
+        sent.pending = false;
       });
     });
     for (const sent of [...ahead, entry]) sent.done = done;
@@ -170,7 +174,11 @@ export class ActionStage {
   }
 
   /** Actions sent this turn, whatever became of them. */
-  get sent(): readonly { action: StagedAction; records: readonly ActionRecord[] }[] {
+  get sent(): readonly {
+    action: StagedAction;
+    records: readonly ActionRecord[];
+    pending: boolean;
+  }[] {
     return this.sentNow;
   }
 
@@ -502,6 +510,18 @@ export function buildTools(
               ? stageIndex(record.value)
               : -1,
           ),
+        ),
+        // A payment link still in flight counts at the stage it is about to
+        // write: a call in the same step runs while it waits (the SDK starts a
+        // step's calls together), and would otherwise stage a lower write
+        // that lands after `link_sent`. If the link then fails, the turn has
+        // at most one step left.
+        ...stage.sent.map(sent =>
+          sent.pending &&
+          sent.action.tool === 'send_flow' &&
+          sent.action.followOn?.id === funnel?.id
+            ? stageIndex(sent.action.followOn?.value)
+            : -1,
         ),
       );
 

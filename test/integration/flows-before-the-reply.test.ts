@@ -210,6 +210,52 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
     ]);
   });
 
+  it('a funnel write in the same step as the payment link cannot land after link_sent', async () => {
+    // ManyChat answers late, so the link is still in flight when the write runs.
+    api.state.respond = () =>
+      new Promise(resolve =>
+        setTimeout(() => resolve(new Response('{"status":"success"}', { status: 200 })), 50),
+      );
+    const outcomes: object[] = [];
+    const runner: AgentRunner = {
+      run: async ({ stage = new ActionStage(), contact, flows }) => {
+        const built = buildTools(tools, stage, contact, undefined, { flows })!;
+        const options = { toolCallId: 'test', messages: [], context: {} };
+        // One step: the SDK starts both calls together.
+        outcomes.push(
+          ...(await Promise.all([
+            built.send_flow!.execute!({ flow: 'enrolment_link' } as never, options),
+            built.set_field!.execute!(
+              { field: 'funnel_stage', value: 'offered' } as never,
+              options,
+            ),
+          ])),
+        );
+        return {
+          reply: {
+            messages: ['Here it is.'],
+            escalate: false,
+            escalation_reason: null,
+            confidence: 0.9,
+            closing_question: null,
+          },
+          model: 'mock:demo',
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, costUsd: 0 },
+          interventions: [],
+          latencyMs: 5,
+          toolsOffered: true,
+        };
+      },
+    };
+    const out = await handler(runner).handle(inbound('send me the link'));
+    await out.afterResponse?.();
+
+    expect(outcomes).toEqual([{ sent: true }, { staged: false }]);
+    expect(requests().filter(request => request.includes('funnel_stage'))).toEqual([
+      'setField funnel_stage=link_sent',
+    ]);
+  });
+
   it('performs the staged writes after the response, the flow already sent', async () => {
     const seen: { atReply?: string[] } = {};
     const out = await handler(

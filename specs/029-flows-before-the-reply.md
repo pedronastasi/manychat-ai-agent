@@ -62,7 +62,10 @@ So when the payment link is sent, the funnel writes already staged that turn
 are sent ahead of it, in their order, with their events, and are no longer
 staged; the turn's record keeps them in their place. After it, the `link_sent`
 it wrote is the floor: a funnel write to an earlier stage is refused, as one
-below the contact's last performed stage already is.
+below the contact's last performed stage already is. The model's calls in one
+step run together, so a link still in flight already counts at `link_sent`: a
+funnel write made beside it is refused rather than landing after it, and so is
+a course change (`028`).
 
 ### Nudge turns keep flows staged
 
@@ -134,8 +137,8 @@ here can see inside a flow, so this is the tenant's to check.
 4. An integration test asserts, over the ManyChat HTTP boundary, that an
    inbound turn's flow request is made before the turn returns, that the
    payment link's `link_sent` write and event follow it, that a funnel write
-   staged before the link goes ahead of it and none after it can walk the stage
-   back, and that the reply's staged actions are performed after the response.
+   staged before the link goes ahead of it and none after it or beside it in
+   the same step can walk the stage back, and that the reply's staged actions are performed after the response.
 5. An integration test asserts an escalated turn has still sent its flow and
    records it, that a deferred call aborted after sending one records it, and
    that a nudge turn's flow stays staged until its text is delivered.
