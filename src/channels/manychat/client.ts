@@ -1,6 +1,6 @@
 import { ManyChat } from 'manychat-sdk';
 import type { ContactTokenWriter } from '../../conversation/tokens.ts';
-import type { StagedAction } from '../../contracts/agent.ts';
+import type { PerformableAction } from '../../contracts/agent.ts';
 import type { Env } from '../../contracts/config.ts';
 import { ContactRecord } from '../../contracts/manychat.ts';
 
@@ -19,7 +19,7 @@ export {
  * reply's text has gone out.
  */
 export interface ActionPerformer {
-  performAction(subscriberId: string, action: StagedAction): Promise<void>;
+  performAction(subscriberId: string, action: PerformableAction): Promise<void>;
 }
 
 /**
@@ -141,10 +141,14 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
    * an action cannot land on anyone else (specs/012 § The subscriber is never
    * a parameter).
    */
-  async performAction(subscriberId: string, action: StagedAction): Promise<void> {
+  async performAction(subscriberId: string, action: PerformableAction): Promise<void> {
     const subscriber = { subscriber_id: subscriberId };
     switch (action.tool) {
       case 'send_flow':
+        return this.api.sending.sendFlow({ ...subscriber, flow_ns: action.flowNs });
+      // A tracking flow is a flow like any other; only the server sends it
+      // (specs/027 § A tracking flow sends no message).
+      case 'send_event':
         return this.api.sending.sendFlow({ ...subscriber, flow_ns: action.flowNs });
       case 'add_tag':
         return this.api.subscriber.addTagByName({ ...subscriber, tag_name: action.tag });

@@ -1,4 +1,4 @@
-import type { StagedAction } from '../contracts/agent.ts';
+import type { PerformableAction } from '../contracts/agent.ts';
 import { LINK_SENT } from '../contracts/config.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
 import type { NudgeStore } from './store.ts';
@@ -23,7 +23,7 @@ export class NudgingPerformer implements ActionPerformer {
     this.conversationId = conversationId;
   }
 
-  async performAction(subscriberId: string, action: StagedAction): Promise<void> {
+  async performAction(subscriberId: string, action: PerformableAction): Promise<void> {
     if (action.tool === 'schedule_nudge') {
       await this.nudges.schedule(this.conversationId, action.minutes);
       return;

@@ -2,7 +2,13 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { FUNNEL_STAGES, LINK_SENT } from '../contracts/config.ts';
 import type { Tools } from '../contracts/config.ts';
-import type { ActionRecord, ActionStatus, StagedAction } from '../contracts/agent.ts';
+import type {
+  ActionRecord,
+  ActionStatus,
+  PerformableAction,
+  SendEventAction,
+  StagedAction,
+} from '../contracts/agent.ts';
 import { cleanNote, contactResult, UNAVAILABLE } from './contact.ts';
 import type { ContactReads } from './contact.ts';
 
@@ -32,7 +38,11 @@ export function describeAction(action: { tool: string; id: string; value?: strin
  * note is recorded by its length, never its text (specs/024 § Note text never
  * reaches the record or the logs).
  */
-export function recordOf(action: StagedAction, status: ActionStatus, error?: string): ActionRecord {
+export function recordOf(
+  action: PerformableAction,
+  status: ActionStatus,
+  error?: string,
+): ActionRecord {
   return {
     tool: action.tool,
     id: action.id,
@@ -125,6 +135,23 @@ const stageIndex = (value: string | undefined) =>
  * turn's tools depend on it (specs/023). Read from the `actions` the turns
  * recorded as `performed`, never from the model's text.
  */
+/**
+ * The tracking flow a funnel write to `value` fires, if the tenant configured
+ * one and the write advances the stage past the last one performed for the
+ * contact. A write equal to it counts nothing, and a stage only moves
+ * forward, so each event fires at most once per contact (specs/027 § One
+ * event per stage per contact).
+ */
+function eventFor(
+  config: Tools,
+  contact: ContactActions,
+  value: string,
+): SendEventAction | undefined {
+  if (stageIndex(value) <= stageIndex(contact.funnelStage)) return undefined;
+  const event = config.events.find(entry => entry.stage === value);
+  return event ? { tool: 'send_event', id: event.id, flowNs: event.flowNs } : undefined;
+}
+
 export interface ContactActions {
   /** Flows performed for the contact within the history window. */
   sentFlows: ReadonlySet<string>;
@@ -227,6 +254,8 @@ export function buildTools(
         // The server, not the model, records that the link went out, and only
         // once the flow itself has (specs/023 § The sale ends at the
         // payment-link flow).
+        // Its event, if any, follows the write in turn (specs/027).
+        const event = funnel ? eventFor(config, contact, LINK_SENT) : undefined;
         const followOn =
           entry.role === 'payment_link' && funnel
             ? {
@@ -234,6 +263,7 @@ export function buildTools(
                 id: funnel.id,
                 field: funnel.field,
                 value: LINK_SENT,
+                ...(event ? { followOn: event } : {}),
               }
             : undefined;
         return {
@@ -308,12 +338,16 @@ export function buildTools(
         // The stage only moves forward (specs/023 § The funnel is a field the
         // agent moves).
         if (field === funnel?.id && stageIndex(value) < stageFloor()) return { staged: false };
+        // The server's measurement of the write, never the model's choice
+        // (specs/027 § An event is a measurement).
+        const event = field === funnel?.id ? eventFor(config, contact, value) : undefined;
         return {
           staged: stage.stage({
             tool: 'set_field',
             id: field,
             field: fields.get(field)!.field,
             value,
+            ...(event ? { followOn: event } : {}),
           }),
         };
       },

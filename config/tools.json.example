@@ -97,5 +97,17 @@
       }
     ],
     "humanActiveTag": "human-handling"
-  }
+  },
+  "events": [
+    {
+      "id": "lead_qualified",
+      "stage": "nurturing",
+      "flowNs": "content00000000000000_000101"
+    },
+    {
+      "id": "checkout_started",
+      "stage": "link_sent",
+      "flowNs": "content00000000000000_000102"
+    }
+  ]
 }

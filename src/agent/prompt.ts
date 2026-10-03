@@ -274,7 +274,11 @@ export function stagedNotice(
  * did not. Ids, not descriptions, so history stays short.
  */
 export function actionsNote(actions: readonly ActionRecord[] | null | undefined): string | null {
-  const performed = (actions ?? []).filter(action => action.status === 'performed');
+  // An event reached the ad platform, not the contact (specs/027 § Every
+  // event is recorded beside the write that caused it).
+  const performed = (actions ?? []).filter(
+    action => action.status === 'performed' && action.tool !== 'send_event',
+  );
   if (performed.length === 0) return null;
   return `${ACTION_NOTE_OPEN} ${performed.map(describeAction).join(', ')}]`;
 }
