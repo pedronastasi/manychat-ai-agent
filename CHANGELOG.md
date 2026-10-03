@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.12.0...manychat-ai-agent-v0.12.1) (2026-10-03)
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([041d33b](https://github.com/pedronastasi/manychat-ai-agent/commit/041d33b908c43ce1c0113ecf1acfaec9cb7dd4ef))
+* **deps:** lock file maintenance ([0c72bd4](https://github.com/pedronastasi/manychat-ai-agent/commit/0c72bd4666dc8a6f2657972b60cb931da80a7a60))
+
 ## [0.12.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.11.0...manychat-ai-agent-v0.12.0) (2026-10-03)
 
 
