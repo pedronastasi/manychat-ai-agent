@@ -64,7 +64,8 @@ the agent is offered no tools and behaves as it did before `012`.
 
 - `flows[]` — `id`, `flowNs`, `description`, optional `repeatable` and
   `role: "payment_link"` (`023`), optional `course`, a catalog course id
-  (`028`)
+  (`028`), optional `settleSeconds`, an integer from 0 to 30: how long the
+  flow plays, which a reply sent after it waits for (`030`)
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
   optional `funnel` (`023`) and `course` (`028`)

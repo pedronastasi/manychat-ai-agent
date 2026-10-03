@@ -53,6 +53,10 @@ token ManyChat holds and sends back (ADR-0012) is specified in
 }
 ```
 
+`messages` is empty only when a flow the turn sent is still playing and the
+reply follows it from the outbox; `external_message_callback` is registered
+all the same (`030`).
+
 ### Channel capability matrix
 
 | Capability     | WhatsApp | Instagram | Messenger | Telegram |
@@ -97,10 +101,15 @@ deadline kills every slow turn instead, and the deferred path can never run.
 `EnvSchema` enforces the ordering, so a bad pairing fails at boot.
 
 **Race won** — render the reply inline, re-register `external_message_callback`.
+A turn that sent a flow holds the response until the flow has played, never
+past the deadline; one that would play past it is delivered through the outbox
+when the flow ends (`030`).
 
 **Race lost** — return a short acknowledgement immediately. The in-flight model
 call continues and writes its result to the `outbox` table; a worker delivers it
-as described below. The reply is never dropped, only deferred.
+as described below. The reply is never dropped, only deferred. When a flow the
+turn sent is still playing, the response carries no message instead: the flow
+is the holding line (`030`).
 
 ## Deferred delivery goes through a flow, not the Send API
 

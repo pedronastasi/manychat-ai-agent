@@ -102,7 +102,8 @@ export const ExternalMessageCallback = z.object({
 export const ManyChatResponse = z.object({
   version: z.literal('v2'),
   content: z.object({
-    messages: z.array(ManyChatMessage).min(1).max(MANYCHAT_MAX_MESSAGES),
+    // Empty only when a flow sent this turn is still playing (specs/030).
+    messages: z.array(ManyChatMessage).max(MANYCHAT_MAX_MESSAGES),
     actions: z.array(ManyChatAction).max(MANYCHAT_MAX_ACTIONS).optional(),
     // Omitted entirely on channels that do not support them. An empty array is
     // NOT equivalent — see specs/002 § Channel capability matrix.

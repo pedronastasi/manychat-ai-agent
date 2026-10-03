@@ -58,7 +58,7 @@ Ports-and-adapters (hexagonal). Key boundaries:
 - **ChannelAdapter** (`src/channels/port.ts`) — port for chat platforms. Impl: `ManyChatAdapter`.
 - **ManyChatClient** (`src/channels/manychat/client.ts`) — port for outbound delivery. Impl: `ManyChatHttpClient`, the ONLY file that imports `manychat-sdk`; one instance per process (specs/022).
 - **ContactReader** (`src/channels/manychat/client.ts`) — port for `get_contact` (specs/024). `ManyChatHttpClient` implements it; `ContactReads` (`src/agent/contact.ts`) bounds it to two reads a turn, 1.5 s each.
-- **FlowSends** (`src/agent/flows.ts`) — sends a flow when the model calls `send_flow` on an inbound turn, so the reply follows it (specs/029, ADR-0019). Every other write is staged on `ActionStage` and performed after the reply (ADR-0010).
+- **FlowSends** (`src/agent/flows.ts`) — sends a flow when the model calls `send_flow` on an inbound turn, so the reply follows it (specs/029, ADR-0019), and keeps when the last one finishes playing, which the reply waits for (specs/030). Every other write is staged on `ActionStage` and performed after the reply (ADR-0010).
 - **Registry** (`src/agent/registry.ts`) — the ONLY file that imports provider packages.
 - **Contracts** (`src/contracts/`) — Zod schemas are the source of truth; types are inferred.
 - **Outbox** (`src/outbox/`) — Postgres outbox with `FOR UPDATE SKIP LOCKED` for deferred delivery.
@@ -91,7 +91,7 @@ test/
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
 docs/adr/              # Architecture Decision Records (0001–0019)
-specs/                 # Specification documents (000–029)
+specs/                 # Specification documents (000–030)
 evals/golden/          # Golden eval cases (cases.jsonl)
 ```
 

@@ -265,6 +265,13 @@ const TagEntry = z.object({
 export const MAX_NOTE_LENGTH = 500;
 
 /**
+ * The longest a flow may declare it takes to play (specs/030). The reply waits
+ * that long after the flow is sent, in a process that has to stay up for it, so
+ * the bound is kept short. Chosen, not measured.
+ */
+export const MAX_SETTLE_SECONDS = 30;
+
+/**
  * A free-text field the agent may write, which the tenant declares no flow
  * renders to the contact (specs/024, ADR-0017). `neverRendered` checks
  * nothing; it makes the tenant say so in the file.
@@ -311,6 +318,12 @@ export const ToolsSchema = z
            * course (specs/028 § A flow belongs to one course or to all).
            */
           course: z.string().min(1).optional(),
+          /**
+           * How long the flow takes to play in ManyChat, Smart Delays included:
+           * the reply that follows it waits this long after it is sent
+           * (specs/030). Absent, it does not wait.
+           */
+          settleSeconds: z.number().int().min(0).max(MAX_SETTLE_SECONDS).optional(),
         }),
       )
       .default([])

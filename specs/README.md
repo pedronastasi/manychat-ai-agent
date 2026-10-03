@@ -42,6 +42,7 @@ test fails the suite.
 | [027 — Funnel Conversion Events](027-funnel-conversion-events.md)       | implemented | 2026-10-03  | #150 | 2     | C1, C3, C5                         | [0010], [0015]                                                                         |
 | [028 — Multi-Course Funnels](028-multi-course-funnels.md)               | implemented | 2026-10-03  | #151 | 4     | C1, C3, C6                         | [0015]                                                                                 |
 | [029 — Flows Go Out Before the Reply](029-flows-before-the-reply.md)    | implemented | 2026-10-03  | #152 | 4     | C6, C7, C8                         | [0010], [0016], [0019]                                                                 |
+| [030 — The Reply Waits for the Flow](030-reply-waits-for-the-flow.md)   | implemented | 2026-10-03  | #153 | 2     | C6, C7, C8                         | [0001], [0004], [0019]                                                                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md

@@ -27,7 +27,11 @@ export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatR
   const tail = reply.messages.slice(caps.maxMessages - 1);
   const texts = tail.length > 0 ? [...head, tail.join('\n\n')] : head;
 
-  const messages: ManyChatMessage[] = texts.map(text => ({ type: 'text' as const, text }));
+  // A silent response says nothing while a flow plays; the callback below is
+  // still registered, so the contact's next message comes back here (specs/030).
+  const messages: ManyChatMessage[] = ctx.silent
+    ? []
+    : texts.map(text => ({ type: 'text' as const, text }));
 
   const content: ManyChatResponse['content'] = { messages };
 
