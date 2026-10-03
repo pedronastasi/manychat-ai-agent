@@ -93,6 +93,11 @@ Nudge turns keep flows staged`); there is nothing to wait for.
   follows the flow by however long the model took; it now also waits for the
   flow's play time.
 - **Whether `settleSeconds` is right** is only visible on a phone.
+- **A contact who writes while a reply is held.** Their next turn runs as
+  usual and may be answered inline before the held reply goes out, and its
+  history already holds that reply. The race-lost path has always had this
+  gap; a held reply widens it to the flow's play time, at most 30 seconds.
+  Ordering a turn behind a held reply is left to a later spec.
 
 ## Amendments
 
