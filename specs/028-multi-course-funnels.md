@@ -145,8 +145,7 @@ which `023` refuses.
 - `023 § Every content flow is a leaf, sent once`: availability of a flow also
   depends on its `course`, as above.
 - `023 § The funnel is a field the agent moves`: a second marked field,
-  `course`, may exist
-  beside `funnel`. They may not be the same field.
+  `course`, may exist beside `funnel`. They may not be the same field.
 - `002 § Inbound payload`: the strict inbound schema gains the optional
   `course` key.
 - `003` documents `fields[].course` and `flows[].course`.
