@@ -1,6 +1,7 @@
 ---
 status: implemented
 implemented: 2026-10-03
+pr: 151
 constitution: [C1, C3, C6]
 adr: [0015]
 ---
