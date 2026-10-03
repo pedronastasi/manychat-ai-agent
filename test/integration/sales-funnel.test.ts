@@ -140,14 +140,14 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
   });
 
   it('a content flow writes no stage', async () => {
-    const deps = makeDeps(flowRunner('foundation_brochure'));
+    const deps = makeDeps(flowRunner('student_results'));
     const out = await new TurnHandler(deps).handle(inbound('send me the brochure'));
     await out.afterResponse!();
 
     expect(deps.actions.performed).toHaveLength(1);
     const [turn] = await agentTurns();
     expect(turn!.actions).toEqual([
-      { tool: 'send_flow', id: 'foundation_brochure', status: 'performed' },
+      { tool: 'send_flow', id: 'student_results', status: 'performed' },
     ]);
   });
 
@@ -193,7 +193,7 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
   });
 
   it('the next turn reads the stage and the flows sent from the record', async () => {
-    const first = makeDeps(flowRunner('foundation_brochure'));
+    const first = makeDeps(flowRunner('student_results'));
     await (
       await new TurnHandler(first).handle(inbound('send me the brochure'))
     ).afterResponse!();
@@ -203,11 +203,11 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
     ).afterResponse!();
 
     const seen: ContactActions[] = [];
-    const third = makeDeps(flowRunner('foundation_brochure', { seen }));
+    const third = makeDeps(flowRunner('student_results', { seen }));
     const out = await new TurnHandler(third).handle(inbound('send the brochure again'));
 
     expect(seen[0]!.funnelStage).toBe('link_sent');
-    expect([...seen[0]!.sentFlows].sort()).toEqual(['enrolment_link', 'foundation_brochure']);
+    expect([...seen[0]!.sentFlows].sort()).toEqual(['enrolment_link', 'student_results']);
     // The brochure is no longer offered, so the repeat could not be staged.
     expect(out.afterResponse).toBeUndefined();
     expect(third.actions.performed).toHaveLength(0);

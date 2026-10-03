@@ -5,7 +5,7 @@ import { OutboxQueue } from './queue.ts';
 import type { OutboxRow } from './queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
 import { ConversationStore } from '../conversation/store.ts';
-import { performActions } from '../conversation/actions.ts';
+import { performActions, performedCourse } from '../conversation/actions.ts';
 import { recordOf } from '../agent/tools.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
@@ -63,6 +63,11 @@ export class OutboxWorker {
         : this.opts.client;
       const outcomes = await performActions(performer, row.subscriberId, actions, this.opts.logger);
       if (turnId) await this.store.resolveStaged(turnId, outcomes);
+      // The contact's course follows a write to it that ManyChat accepted (specs/028).
+      const course = performedCourse(actions, outcomes);
+      if (course !== undefined && row.conversationId) {
+        await this.store.setCourse(row.conversationId, course);
+      }
     } catch (error) {
       this.opts.logger.error(
         { outboxId: row.id, err: error instanceof Error ? error.message : String(error) },

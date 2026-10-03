@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-03
+pr: 151
 constitution: [C1, C3, C6]
 adr: [0015]
 ---
@@ -41,7 +43,9 @@ model, decides which flows that fact makes available.**
 `fields[]` gains an optional marker, `"course": true`, on at most one field.
 Its `values` must be exactly the `catalog.json` course ids, in any order, or
 the file fails at load, so the field cannot name a course the agent cannot
-quote a price for (C6).
+quote a price for (C6). A `flows[].course` must be one of those ids too, and a
+flow may carry one only when a field is marked `course`: without it no turn has
+a course, and the flow could never be sent.
 
 ```jsonc
 {
@@ -73,13 +77,18 @@ inside the loop, when the tools are already built (ADR-0016). So the Dynamic
 Block request gains an optional `"course": "{{course}}"`, rendered by ManyChat
 from the contact's field. It is validated against the course enum (C3). An
 empty, unrendered (`{{course}}`) or unknown value is treated as absent, never
-as a course.
+as a course. The reply's `external_message_callback` asks for the same key, so
+the contact's next message carries it too.
 
 The conversation row keeps the current course, updated from each inbound
 value and from each `performed` write to the course field. Inbound wins when
 both exist: it is ManyChat's value at request time, which already includes
 every write this service performed. A nudge turn (`025`), which has no inbound
-request, uses the stored value.
+request, uses the stored value. The inbound value narrows the turn's flows
+whether or not the request carried the contact's token (`019`), but only a
+bound request stores it: an unbound one must not change the contact's own
+state. A stored course the catalog no longer has, after a reload drops it, is
+treated as no course until a request carries one.
 
 ## A flow belongs to one course or to all
 
@@ -96,7 +105,9 @@ first job with an unplaced lead is to place them.
 The tool's description lists every flow it can accept on the turn, with its
 course, and omits the others. A flow becomes available in the same turn the
 agent sets its course; the tool result of that `set_field` lists the flows it
-made available.
+made available, as `flowsAvailable`. So that it can, `send_flow`'s enum holds
+every unsent flow of every course, and the refusal is in the tool, not the
+schema.
 
 ## The course may change until the offer, and is locked after it
 

@@ -31,7 +31,7 @@ test fails the suite.
 | [016 — Model-Graded Evals](016-model-graded-evals.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C6, C8, C9         | [0011]                                                                         |
 | [017 — Inbound Request Trust](017-inbound-request-trust.md)             | implemented | 2026-09-26  | #89  | 1     | C5, C6                             | [0012], [0014]                                                                 |
 | [018 — History Window and Turn Cap](018-history-window-and-turn-cap.md) | implemented | 2026-09-26  | #91  | 3     | —                                  | [0013]                                                                         |
-| [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95  | 8     | C5                                 | [0012], [0013]                                                                 |
+| [019 — Contact Tokens](019-contact-tokens.md)                           | implemented | 2026-09-27  | #95  | 9     | C5                                 | [0012], [0013]                                                                 |
 | [020 — Inbound Media](020-inbound-media.md)                             | implemented | 2026-09-27  | #99  | 6     | C1, C2, C4, C5, C6, C7, C9         | —                                                                              |
 | [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                             | —                                                                              |
 | [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | implemented | 2026-10-02  | —    | 5     | C5, C7                             | [0001], [0008], [0012]                                                         |
@@ -40,7 +40,7 @@ test fails the suite.
 | [025 — In-Window Nudge](025-in-window-nudge.md)                         | implemented | 2026-10-02  | #143 | 2     | C4, C5, C6, C9                     | [0010], [0015]                                                                 |
 | [026 — Python Port Parity](026-python-port-parity.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7, C8, C9 | [0018], [0001], [0004], [0008], [0010], [0012], [0013], [0014], [0016], [0017] |
 | [027 — Funnel Conversion Events](027-funnel-conversion-events.md)       | implemented | 2026-10-03  | #150 | 2     | C1, C3, C5                         | [0010], [0015]                                                                 |
-| [028 — Multi-Course Funnels](028-multi-course-funnels.md)               | specified   | —           | —    | —     | C1, C3, C6                         | [0015]                                                                         |
+| [028 — Multi-Course Funnels](028-multi-course-funnels.md)               | implemented | 2026-10-03  | #151 | 4     | C1, C3, C6                         | [0015]                                                                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md

@@ -42,6 +42,9 @@ export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatR
         text: '{{last_input_text}}',
         subscriber_id: '{{contact.id}}',
         ...(ctx.contactTokenField ? { ai_token: `{{${ctx.contactTokenField}}}` } : {}),
+        // And the contact's course, so the next turn's flows are chosen
+        // before the model runs (specs/028).
+        ...(ctx.courseField ? { course: `{{${ctx.courseField}}}` } : {}),
       },
       timeout: ctx.callbackTimeoutSeconds ?? 86_400,
     };
@@ -79,6 +82,7 @@ export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse
       locale: parsed.locale ?? null,
       // An empty field arrives as an empty string, which is no token at all.
       contactToken: parsed.ai_token || null,
+      course: parsed.course ?? null,
       receivedAt: new Date(),
     };
   }

@@ -248,6 +248,39 @@ too early, or too hard. Only the enrolment rate tells a better agent from a
 pushier one, so read real conversations after rollout as well: the golden set
 only catches the pressure phrasings someone thought to write down.
 
+### Several courses in one funnel (optional)
+
+To sell more than one catalog course through the same funnel, record the
+contact's course in a field and tie each course's content to it
+(`specs/028-multi-course-funnels.md`). Two keys turn it on:
+
+- **`course: true`** on one field marks where the contact's course is kept. Its
+  `values` must be exactly the `id`s of the courses in `catalog.json`, in any
+  order, and it may not be the funnel field.
+- **`course`** on a flow names the catalog course it belongs to. The agent can
+  send that flow only once the contact is on that course. A flow without a
+  `course` (an intro, testimonials, the payment link) is available for every
+  course.
+
+The agent places a contact who has no course yet, by asking or once the fit is
+clear, before it sends any course content. It may move them to another course
+until the stage is `offered`. From then on the course is locked, and a contact
+who asks to switch goes to a person as `explicit_request`. A flow the contact
+already received stays sent when the course changes.
+
+Most of the setup is in your ManyChat account:
+
+1. **Create the course field** with the name you put in `field`.
+2. **Send it to the agent.** Add `"course": "{{course}}"` to the Dynamic
+   Block's request body, using your field's name inside the braces. The agent
+   adds the key to its own follow-up callbacks, but the Dynamic Block your entry
+   flow calls is configured by you.
+3. **Set it in each advert's entry flow,** so a lead who comes from one
+   course's advert starts on that course. Without it the agent asks.
+4. **Branch the payment flow on it.** One payment-link flow serves every
+   course. It reads the course field and sends that course's link. Nothing here
+   can see that branch, so test it by hand for every course.
+
 ### Reading the contact and writing notes (optional)
 
 `get_contact` lets the agent read what is recorded on the contact right now,
@@ -465,7 +498,11 @@ delivery:
 
 It is also refused if more than one field is marked `funnel`, if a funnel field's
 values are not the five stages in order, or if more than one flow has
-`role: "payment_link"`. A note without `"neverRendered": true` or with a
+`role: "payment_link"`. With courses, it is refused if more than one field is
+marked `course`, if one field is marked both `funnel` and `course`, if the course
+field's values are not exactly the catalog's course ids, if a flow names a course
+the catalog does not have or has a `course` with no course field, or if the
+payment-link flow has a `course`. A note without `"neverRendered": true` or with a
 `maxLength` over 500 is refused too, and so is a `nudge` delay over 1380
 minutes, or a `humanActiveTag` that is empty or is one of your `tags[].tag`.
 

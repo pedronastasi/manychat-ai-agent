@@ -3,7 +3,8 @@
     {
       "id": "foundation_brochure",
       "flowNs": "content00000000000000_000001",
-      "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it."
+      "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it.",
+      "course": "foundation"
     },
     {
       "id": "student_results",
@@ -21,6 +22,18 @@
       "description": "The enrolment and payment link. Send when the contact asks for the link or says they want to enrol.",
       "role": "payment_link",
       "repeatable": true
+    },
+    {
+      "id": "advanced_brochure",
+      "flowNs": "content00000000000000_000005",
+      "description": "PDF brochure for the Advanced Course. Send when the contact asks for details, a syllabus or something to read about it.",
+      "course": "advanced"
+    },
+    {
+      "id": "intensive_brochure",
+      "flowNs": "content00000000000000_000006",
+      "description": "PDF brochure for the Weekend Intensive. Send when the contact asks for details, a syllabus or something to read about it.",
+      "course": "weekend-intensive"
     }
   ],
   "tags": [
@@ -49,6 +62,13 @@
       "field": "preferred_schedule",
       "values": ["weekday_evenings", "weekends"],
       "description": "Whether the contact said weekday evenings or weekends suit them. Ask before sending content."
+    },
+    {
+      "id": "course",
+      "field": "course",
+      "values": ["foundation", "advanced", "weekend-intensive"],
+      "description": "The course this contact is buying. Set it as soon as the contact chooses one, or the fit is clear.",
+      "course": true
     }
   ],
   "readable": {

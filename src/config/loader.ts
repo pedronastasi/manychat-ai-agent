@@ -94,10 +94,39 @@ function noteCollisions(tools: Tools, reserved: ReservedNames): string[] {
 }
 
 /**
+ * A course the agent cannot quote a price for must not be one it can record
+ * or send content for, so the course field and every flow's `course` name
+ * catalog ids only (specs/028, C6).
+ */
+function courseMismatches(tools: Tools, catalog: Catalog): string[] {
+  const ids = catalog.courses.map(course => course.id);
+  const field = tools.fields.find(entry => entry.course);
+  const sameSet =
+    field !== undefined &&
+    field.values.length === ids.length &&
+    ids.every(id => field.values.includes(id));
+  return [
+    ...(field && !sameSet
+      ? [`field '${field.id}' must list exactly the catalog course ids: ${ids.join(', ')}`]
+      : []),
+    ...tools.flows
+      .filter(flow => flow.course !== undefined && !ids.includes(flow.course))
+      .map(flow => `flow '${flow.id}' names course '${flow.course}', which is not in the catalog`),
+    // Without a course field no turn ever has a course, so the flow could
+    // never be sent.
+    ...(field
+      ? []
+      : tools.flows
+          .filter(flow => flow.course !== undefined)
+          .map(flow => `flow '${flow.id}' has a course, but no field is marked "course"`)),
+  ];
+}
+
+/**
  * `tools.json` is optional: a deployment without it is offered no tools and
  * behaves exactly as before specs/012.
  */
-function loadTools(dir: string, reserved: ReservedNames): Tools {
+function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tools {
   const path = join(dir, 'tools.json');
   if (!existsSync(path)) return NO_TOOLS;
 
@@ -130,6 +159,14 @@ function loadTools(dir: string, reserved: ReservedNames): Tools {
         collisions.map(collision => `  ${collision}`).join('\n'),
     );
   }
+
+  const mismatches = courseMismatches(tools.data, catalog);
+  if (mismatches.length > 0) {
+    throw new ConfigError(
+      `Invalid tools.json: its courses do not match catalog.json:\n` +
+        mismatches.map(mismatch => `  ${mismatch}`).join('\n'),
+    );
+  }
   return tools.data;
 }
 
@@ -159,7 +196,7 @@ export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): 
     persona: readFileSync(personaPath, 'utf8'),
     catalog: catalog.data,
     rules: rules.data,
-    tools: loadTools(dir, reserved),
+    tools: loadTools(dir, reserved, catalog.data),
   };
 }
 

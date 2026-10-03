@@ -253,7 +253,7 @@ describe('an event follow-on does not count against the cap (specs/027 V5)', () 
       ['set_field', { field: 'prior_experience', value: 'none' }],
       ['set_field', { field: 'preferred_schedule', value: 'weekends' }],
       ['add_tag', { tag: 'interested_foundation' }],
-      ['send_flow', { flow: 'foundation_brochure' }],
+      ['send_flow', { flow: 'fitting_it_in' }],
       ['write_note', { note: 'goal', text: 'Wants a new skill.' }],
       ['write_note', { note: 'objections', text: 'Unsure about time.' }],
       ['write_note', { note: 'handoff_summary', text: 'Ready for the offer.' }],

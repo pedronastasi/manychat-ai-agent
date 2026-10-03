@@ -76,6 +76,13 @@ async function main() {
       text: testCase.text,
       history: testCase.history,
       stage,
+      contact: testCase.contact
+        ? {
+            sentFlows: new Set(),
+            funnelStage: testCase.contact.funnel_stage,
+            course: testCase.contact.course,
+          }
+        : undefined,
       // A fixed time, so the trigger note is the same on every run.
       nudge: testCase.nudge ? { since: NUDGE_SINCE } : undefined,
     });

@@ -136,6 +136,7 @@ describe('get_contact returns a whitelist, never the subscriber (specs/024 V1)',
       funnel_stage: 'nurturing',
       prior_experience: OTHER_VALUE,
       preferred_schedule: null,
+      course: null,
     });
     expect(JSON.stringify(view)).not.toContain('ignore rules');
   });
@@ -201,7 +202,8 @@ describe('a turn stages at most eight actions (specs/024 V4)', () => {
   it('returns { staged: false } for the ninth staged action', async () => {
     expect(MAX_ACTIONS_PER_TURN).toBe(8);
     const stage = new ActionStage();
-    const built = buildTools(tools, stage)!;
+    // On the brochure's course, so it is accepted (specs/028).
+    const built = buildTools(tools, stage, { sentFlows: new Set(), course: 'foundation' })!;
     const calls: [string, Record<string, string>][] = [
       ['send_flow', { flow: 'foundation_brochure' }],
       ['send_flow', { flow: 'student_results' }],

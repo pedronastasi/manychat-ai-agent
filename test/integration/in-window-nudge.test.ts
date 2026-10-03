@@ -515,7 +515,7 @@ describe('a failed read cancels the nudge (specs/025 V4)', () => {
 describe('a nudge the model declines sends nothing (specs/025 V5)', () => {
   it('records nudge_skipped, discards what it staged, enqueues nothing', async () => {
     const id = await quietContact();
-    const { runner, inputs } = scriptedRunner(DECLINED, 'foundation_brochure');
+    const { runner, inputs } = scriptedRunner(DECLINED, 'student_results');
     expect(await worker(runner, new FakeTags()).drainOnce()).toEqual(['skipped']);
 
     expect(inputs).toHaveLength(1);
@@ -523,7 +523,7 @@ describe('a nudge the model declines sends nothing (specs/025 V5)', () => {
     const turnsNow = await agentTurns(id);
     expect(turnsNow.at(-1)).toMatchObject({
       outcome: 'nudge_skipped',
-      actions: [{ tool: 'send_flow', id: 'foundation_brochure', status: 'discarded' }],
+      actions: [{ tool: 'send_flow', id: 'student_results', status: 'discarded' }],
     });
     expect(await db.query.outbox.findMany()).toHaveLength(0);
     // No person is notified: the conversation is not marked escalated.
@@ -544,7 +544,7 @@ describe('a nudge the model declines sends nothing (specs/025 V5)', () => {
 describe('a sent nudge is delivered through the reply field and flow (specs/025 V6)', () => {
   it('runs on a system note, then delivers text before actions', async () => {
     const id = await quietContact();
-    const { runner, inputs } = scriptedRunner(FOLLOW_UP, 'foundation_brochure');
+    const { runner, inputs } = scriptedRunner(FOLLOW_UP, 'student_results');
     expect(await worker(runner, new FakeTags()).drainOnce()).toEqual(['sent']);
 
     // A nudge turn: no contact text, the silence's start, no schedule_nudge.
@@ -554,7 +554,7 @@ describe('a sent nudge is delivered through the reply field and flow (specs/025 
     const [turn] = (await agentTurns(id)).slice(-1);
     expect(turn).toMatchObject({
       outcome: 'nudge_sent',
-      actions: [{ tool: 'send_flow', id: 'foundation_brochure', status: 'staged' }],
+      actions: [{ tool: 'send_flow', id: 'student_results', status: 'staged' }],
     });
     const conversation = await db.query.conversations.findFirst({
       where: eq(conversations.id, id),
@@ -576,10 +576,10 @@ describe('a sent nudge is delivered through the reply field and flow (specs/025 
     expect(api.calls.map(call => [call.path, call.body.field_name ?? call.body.flow_ns])).toEqual([
       ['/fb/subscriber/setCustomFieldByName', 'ai_message'],
       ['/fb/sending/sendFlow', 'reply_flow'],
-      ['/fb/sending/sendFlow', 'content00000000000000_000001'],
+      ['/fb/sending/sendFlow', 'content00000000000000_000002'],
     ]);
     expect((await agentTurns(id)).at(-1)!.actions).toEqual([
-      { tool: 'send_flow', id: 'foundation_brochure', status: 'performed' },
+      { tool: 'send_flow', id: 'student_results', status: 'performed' },
     ]);
     expect((await nudgeRows(id))[0]).toMatchObject({ status: 'sent' });
   });

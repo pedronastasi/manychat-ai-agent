@@ -329,7 +329,7 @@ const stagingModel = (
     step =>
       step === 0
         ? [
-            toolCall('send_flow', { flow: 'foundation_brochure' }),
+            toolCall('send_flow', { flow: 'student_results' }),
             toolCall('write_note', { note: 'goal', text: GOAL_NOTE }, 'goal'),
             toolCall('write_note', { note: 'handoff_summary', text: HANDOFF_NOTE }, 'handoff'),
           ]
@@ -359,7 +359,7 @@ describe('an onEscalation note survives model and confidence escalations (specs/
       // Nothing yet: the escalation message goes first.
       expect(actions.performed).toHaveLength(0);
       expect(statuses((await agentTurn())!.actions)).toEqual({
-        'send_flow foundation_brochure': 'discarded',
+        'send_flow student_results': 'discarded',
         'write_note goal': 'discarded',
         'write_note handoff_summary': 'staged',
       });
@@ -398,7 +398,7 @@ describe('an onEscalation note survives model and confidence escalations (specs/
 
     expect(order).toEqual([`text: ${HANDOFF.messages[0]}`, 'write_note handoff_summary']);
     expect(statuses((await agentTurn())!.actions)).toEqual({
-      'send_flow foundation_brochure': 'discarded',
+      'send_flow student_results': 'discarded',
       'write_note goal': 'discarded',
       'write_note handoff_summary': 'performed',
     });
@@ -424,7 +424,7 @@ describe('every other escalation discards an onEscalation note (specs/024 V7)', 
     expect(out.afterResponse).toBeUndefined();
     expect(actions.performed).toHaveLength(0);
     expect(statuses((await agentTurn())!.actions)).toEqual({
-      'send_flow foundation_brochure': 'discarded',
+      'send_flow student_results': 'discarded',
       'write_note goal': 'discarded',
       'write_note handoff_summary': 'discarded',
     });

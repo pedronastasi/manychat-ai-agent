@@ -23,7 +23,7 @@ import {
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
 import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
-import { ActionStage, contactActionsFrom } from '../agent/tools.ts';
+import { ActionStage, contactActionsFrom, knownCourse } from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
@@ -33,7 +33,7 @@ import {
   ManyChatConnectionError,
   ManyChatResponseError,
 } from '../channels/manychat/client.ts';
-import { performActions } from '../conversation/actions.ts';
+import { performActions, performedCourse } from '../conversation/actions.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 
@@ -183,6 +183,27 @@ export class TurnHandler {
           );
     const logger = withConversation(this.deps.logger, conversation.id);
     const turn = { bound };
+
+    // The request's course is ManyChat's value now, which already holds every
+    // write this service performed, so it wins over the one kept here
+    // (specs/028). It narrows this turn's flows bound or not, but only a
+    // bound request may store it: an unbound one must not change the
+    // contact's own state (specs/019). The kept one is checked too, since a
+    // reload may have dropped its course from the catalog.
+    const tools = this.deps.tools ?? NO_TOOLS;
+    const keptCourse = knownCourse(known?.course, tools);
+    const requestCourse = knownCourse(inbound.course, tools);
+    if (bound && requestCourse !== undefined && requestCourse !== keptCourse) {
+      await this.store.setCourse(conversation.id, requestCourse);
+    }
+    const course = {
+      course: requestCourse ?? keptCourse,
+      // The stage is not reset: the model confirms the course instead.
+      courseChangedFrom:
+        requestCourse !== undefined && keptCourse !== undefined && requestCourse !== keptCourse
+          ? keptCourse
+          : undefined,
+    };
     // The contact wrote, so the follow-up waiting for their silence is moot
     // (specs/025). Any message, bound or not: it errs toward sending nothing.
     await this.nudges.cancel(conversation.id, 'contact_replied');
@@ -284,10 +305,16 @@ export class TurnHandler {
     // contact's ManyChat record, not their words, and they narrow what the
     // tools offer, so a request without the token cannot resend a flow or
     // walk the sale back (specs/023).
-    const tools = this.deps.tools ?? NO_TOOLS;
     const contact =
       tools.flows.length + tools.fields.length > 0
-        ? contactActionsFrom(await this.store.actionHistory(conversation.id), tools, historySince)
+        ? {
+            ...contactActionsFrom(
+              await this.store.actionHistory(conversation.id),
+              tools,
+              historySince,
+            ),
+            ...course,
+          }
         : undefined;
 
     // What the model stages this turn. Held here rather than in the runner, so
@@ -549,6 +576,8 @@ export class TurnHandler {
       const performer = new NudgingPerformer(this.deps.actions, this.nudges, conversationId);
       const outcomes = await performActions(performer, subscriberId, staged, logger);
       await this.store.resolveStaged(turnId, outcomes);
+      const course = performedCourse(staged, outcomes);
+      if (course !== undefined) await this.store.setCourse(conversationId, course);
     } catch (error) {
       logger.error({ err: String(error) }, 'inline actions not recorded');
     }

@@ -34,6 +34,17 @@ export const Case = z.object({
    * server's trigger note after `history`. `text` is then ignored.
    */
   nudge: z.boolean().optional(),
+  /**
+   * What the server already knows about the contact as the turn starts: the
+   * funnel stage last performed (specs/023) and the course (specs/028).
+   * Absent, the contact is new.
+   */
+  contact: z
+    .object({
+      funnel_stage: z.string().optional(),
+      course: z.string().optional(),
+    })
+    .optional(),
   expect: z.object({
     escalate: z.boolean(),
     reason: z.string().optional(),

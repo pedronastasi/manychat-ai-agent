@@ -306,6 +306,11 @@ export const ToolsSchema = z
           repeatable: z.boolean().optional(),
           /** Performing it writes the funnel field to `link_sent` (specs/023). */
           role: z.literal('payment_link').optional(),
+          /**
+           * The catalog course this flow belongs to; absent, it serves every
+           * course (specs/028 § A flow belongs to one course or to all).
+           */
+          course: z.string().min(1).optional(),
         }),
       )
       .default([])
@@ -313,6 +318,12 @@ export const ToolsSchema = z
       .refine(
         flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
         'only one flow may have role "payment_link"',
+      )
+      // One payment flow serves every course and branches on the course field
+      // inside ManyChat (specs/028 § One payment flow serves every course).
+      .refine(
+        flows => !flows.some(flow => flow.role === 'payment_link' && flow.course !== undefined),
+        'the "payment_link" flow may not have a "course"',
       ),
     tags: z.array(TagEntry).default([]).refine(uniqueIds, 'tag ids must be unique'),
     fields: z
@@ -320,6 +331,12 @@ export const ToolsSchema = z
         EnumFieldEntry.extend({
           /** The field the agent's position in the sale is kept in (specs/023). */
           funnel: z.boolean().optional(),
+          /**
+           * The field the contact's course is kept in. Its values must be the
+           * catalog's course ids, checked when the catalog is loaded beside it
+           * (specs/028).
+           */
+          course: z.boolean().optional(),
         }),
       )
       .default([])
@@ -327,6 +344,14 @@ export const ToolsSchema = z
       .refine(
         fields => fields.filter(field => field.funnel).length <= 1,
         'only one field may be marked "funnel"',
+      )
+      .refine(
+        fields => fields.filter(field => field.course).length <= 1,
+        'only one field may be marked "course"',
+      )
+      .refine(
+        fields => !fields.some(field => field.funnel && field.course),
+        'a field may not be marked both "funnel" and "course"',
       )
       // Forward-only is decided by position in this list, so a list out of
       // order would let the agent move a lead backwards.

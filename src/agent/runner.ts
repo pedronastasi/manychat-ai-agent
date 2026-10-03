@@ -6,6 +6,7 @@ import type { MediaImage } from '../media/port.ts';
 import {
   actionsNote,
   buildSystemPrompt,
+  courseNotice,
   fenceUserText,
   funnelNotice,
   mediaNotice,
@@ -16,7 +17,7 @@ import { applyGuardrails, escalationReply } from './guardrails.ts';
 import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
-import { ActionStage, buildTools, funnelField, MAX_STEPS } from './tools.ts';
+import { ActionStage, buildTools, courseField, funnelField, MAX_STEPS } from './tools.ts';
 import type { ContactActions } from './tools.ts';
 
 export interface AgentUsage {
@@ -128,16 +129,17 @@ function historyMessage(turn: HistoryTurn): ModelMessage {
  * The turn's own message. A media turn adds a note saying what the model
  * received, and the images as bytes: never a URL, which some providers would
  * fetch themselves and all would keep in their logs. A tenant with a funnel
- * adds a note of the contact's stage (specs/023).
+ * adds a note of the contact's stage (specs/023), and one with a course field
+ * a note of their course (specs/028).
  */
 function currentMessage(
   text: string,
   media: TurnMedia | undefined,
-  funnel: string | null,
+  contactNotices: string[],
 ): ModelMessage {
-  if (!media && funnel === null) return { role: 'user', content: fenceUserText(text) };
+  if (!media && contactNotices.length === 0) return { role: 'user', content: fenceUserText(text) };
   const notices = [
-    ...(funnel === null ? [] : [funnel]),
+    ...contactNotices,
     ...(media
       ? [
           mediaNotice({
@@ -165,13 +167,14 @@ function currentMessage(
 }
 
 /**
- * A nudge turn's message: the server's trigger note, after the funnel note if
- * there is one. All of it is the system's, so none of it is fenced (C4).
+ * A nudge turn's message: the server's trigger note, after the funnel and
+ * course notes if there are any. All of it is the system's, so none of it is
+ * fenced (C4).
  */
-function nudgeMessage(since: Date, funnel: string | null): ModelMessage {
+function nudgeMessage(since: Date, contactNotices: string[]): ModelMessage {
   return {
     role: 'user',
-    content: [...(funnel === null ? [] : [funnel]), nudgeNotice(since)].map(text => ({
+    content: [...contactNotices, nudgeNotice(since)].map(text => ({
       type: 'text' as const,
       text,
     })),
@@ -257,13 +260,18 @@ export class GenerateTextRunner implements AgentRunner {
           nudgeTurn: nudge !== undefined,
         })
       : undefined;
-    const funnel = funnelField(config.tools ?? NO_TOOLS)
-      ? funnelNotice(contact?.funnelStage)
-      : null;
+    const contactNotices = [
+      ...(funnelField(config.tools ?? NO_TOOLS) ? [funnelNotice(contact?.funnelStage)] : []),
+      ...(courseField(config.tools ?? NO_TOOLS)
+        ? [courseNotice(contact?.course, contact?.courseChangedFrom)]
+        : []),
+    ];
 
     const messages: ModelMessage[] = [
       ...history.map(historyMessage),
-      nudge ? nudgeMessage(nudge.since, funnel) : currentMessage(text, media, funnel),
+      nudge
+        ? nudgeMessage(nudge.since, contactNotices)
+        : currentMessage(text, media, contactNotices),
     ];
 
     // The last step offers no tools, so it must produce the reply. It sees a

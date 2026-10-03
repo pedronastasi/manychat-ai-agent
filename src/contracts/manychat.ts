@@ -25,6 +25,12 @@ export const ManyChatInbound = z
      * must be answered unbound, never refused with a 400.
      */
     ai_token: z.string().max(256).nullish(),
+    /**
+     * The contact's course, which ManyChat fills in from their course field
+     * (specs/028). Any string: an empty, unrendered or unknown value is
+     * treated as no course by the turn, never refused with a 400.
+     */
+    course: z.string().max(256).nullish(),
   })
   .strict();
 export type ManyChatInbound = z.infer<typeof ManyChatInbound>;

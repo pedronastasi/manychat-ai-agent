@@ -63,10 +63,11 @@ Optional. The flows, tags and field values the agent may act with (`012`). Absen
 the agent is offered no tools and behaves as it did before `012`.
 
 - `flows[]` — `id`, `flowNs`, `description`, optional `repeatable` and
-  `role: "payment_link"` (`023`)
+  `role: "payment_link"` (`023`), optional `course`, a catalog course id
+  (`028`)
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
-  optional `funnel` (`023`)
+  optional `funnel` (`023`) and `course` (`028`)
 - `readable` — `tags[]` and `fields[]` in the shapes above, which `get_contact`
   returns but no tool writes (`024`)
 - `notes[]` — `id`, `field`, `maxLength` (at most 500), `neverRendered` (must be
@@ -92,6 +93,13 @@ marked `funnel`. A `funnel` field's `values` must be the stages of `023` in
 order: `new`, `qualifying`, `nurturing`, `offered`, `link_sent`.
 `events` need a `funnel` field, at most one entry per `stage`, and a `flowNs`
 no `flows[]` entry or other event uses (`027`).
+
+At most one field may be marked `course`, and not the `funnel` field. Its
+`values` must be exactly the `catalog.json` course ids, in any order. A flow's
+`course` must be one of those ids, and a flow may carry one only when a field is
+marked `course`; the `payment_link` flow carries none (`028`). These are checked
+against `catalog.json` when both load, so a catalog edit that drops a course
+fails the reload until `tools.json` drops it too.
 
 Loading also refuses a flow or event whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, a
 field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`, and a

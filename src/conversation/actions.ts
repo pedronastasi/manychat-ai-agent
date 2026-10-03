@@ -68,3 +68,20 @@ export async function performActions(
   for (const action of actions) groups.push(await chain(action));
   return groups;
 }
+
+/**
+ * The course the turn's performed actions wrote, if any: the last write to
+ * the course field that ManyChat accepted (specs/028). `outcomes` is what
+ * `performActions` returned for `actions`.
+ */
+export function performedCourse(
+  actions: readonly StagedAction[],
+  outcomes: readonly ActionRecord[][],
+): string | undefined {
+  let course: string | undefined;
+  actions.forEach((action, index) => {
+    if (action.tool !== 'set_field' || !action.course) return;
+    if (outcomes[index]?.[0]?.status === 'performed') course = action.value;
+  });
+  return course;
+}
