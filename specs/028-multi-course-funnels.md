@@ -84,9 +84,11 @@ The conversation row keeps the current course, updated from each inbound
 value and from each `performed` write to the course field. Inbound wins when
 both exist: it is ManyChat's value at request time, which already includes
 every write this service performed. A nudge turn (`025`), which has no inbound
-request, uses the stored value. The inbound value is taken whether or not the
-request carried the contact's token (`019`): like the action history, it is a
-fact about the contact's ManyChat record, not their words.
+request, uses the stored value. The inbound value narrows the turn's flows
+whether or not the request carried the contact's token (`019`), but only a
+bound request stores it: an unbound one must not change the contact's own
+state. A stored course the catalog no longer has, after a reload drops it, is
+treated as no course until a request carries one.
 
 ## A flow belongs to one course or to all
 

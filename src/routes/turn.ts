@@ -186,12 +186,14 @@ export class TurnHandler {
 
     // The request's course is ManyChat's value now, which already holds every
     // write this service performed, so it wins over the one kept here
-    // (specs/028). Like the action history below, it is a fact about the
-    // contact's ManyChat record, so it is taken bound or not.
+    // (specs/028). It narrows this turn's flows bound or not, but only a
+    // bound request may store it: an unbound one must not change the
+    // contact's own state (specs/019). The kept one is checked too, since a
+    // reload may have dropped its course from the catalog.
     const tools = this.deps.tools ?? NO_TOOLS;
-    const keptCourse = known?.course ?? undefined;
+    const keptCourse = knownCourse(known?.course, tools);
     const requestCourse = knownCourse(inbound.course, tools);
-    if (requestCourse !== undefined && requestCourse !== keptCourse) {
+    if (bound && requestCourse !== undefined && requestCourse !== keptCourse) {
       await this.store.setCourse(conversation.id, requestCourse);
     }
     const course = {

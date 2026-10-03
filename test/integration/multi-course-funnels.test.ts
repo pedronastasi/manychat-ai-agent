@@ -150,6 +150,39 @@ describe('the conversation keeps the course a request carries (specs/028 V5)', (
   });
 });
 
+describe('only a bound request stores its course (specs/028 V5, specs/019)', () => {
+  it('uses an unbound request’s course for the turn, without storing it', async () => {
+    const { runner, inputs } = courseRunner();
+    await handler(runner).handle(inbound('foundation'));
+    expect(await storedCourse()).toBe('foundation');
+
+    // The contact now holds a token, and this request does not carry it.
+    const unbound: InboundMessage = { ...inbound('advanced'), contactToken: null };
+    await handler(runner).handle(unbound);
+    expect(inputs[1]!.contact).toMatchObject({
+      course: 'advanced',
+      courseChangedFrom: 'foundation',
+    });
+    expect(await storedCourse()).toBe('foundation');
+  });
+});
+
+describe('a stored course the catalog no longer has is no course (specs/028 V5)', () => {
+  it('ignores it on a turn, and replaces it from the next request', async () => {
+    const { runner, inputs } = courseRunner();
+    await handler(runner).handle(inbound(null));
+    await db.update(conversations).set({ course: 'retired-course' });
+
+    await handler(runner).handle(inbound(null));
+    expect(inputs[1]!.contact?.course).toBeUndefined();
+
+    await handler(runner).handle(inbound('advanced'));
+    expect(inputs[2]!.contact).toMatchObject({ course: 'advanced' });
+    expect(inputs[2]!.contact?.courseChangedFrom).toBeUndefined();
+    expect(await storedCourse()).toBe('advanced');
+  });
+});
+
 describe('the conversation keeps a course this service wrote (specs/028 V5)', () => {
   it('inline: records the course once the write is performed', async () => {
     const out = await handler(courseRunner({ course: 'advanced' }).runner).handle(inbound(null));
@@ -206,7 +239,10 @@ describe('the conversation keeps a course this service wrote (specs/028 V5)', ()
 });
 
 describe('a nudge turn uses the stored course (specs/028 V5)', () => {
-  it('passes the conversation course to the model', async () => {
+  it.each([
+    ['advanced', 'advanced'],
+    ['retired-course', undefined],
+  ])('passes the stored course %s to the model as %s', async (stored, expected) => {
     const store = new ConversationStore(db);
     const wroteAt = new Date(Date.now() - 120 * MINUTE_MS);
     const conversation = await store.startTurn(
@@ -219,7 +255,7 @@ describe('a nudge turn uses the stored course (specs/028 V5)', () => {
       text: 'when are the classes?',
       createdAt: wroteAt,
     });
-    await store.setCourse(conversation.id, 'advanced');
+    await store.setCourse(conversation.id, stored);
     await new NudgeStore(db).schedule(conversation.id, 119, wroteAt);
 
     const { runner, inputs } = courseRunner();
@@ -235,6 +271,6 @@ describe('a nudge turn uses the stored course (specs/028 V5)', () => {
     });
     expect(await nudgeWorker.drainOnce()).toEqual(['sent']);
     expect(inputs[0]!.nudge).toBeDefined();
-    expect(inputs[0]!.contact).toMatchObject({ course: 'advanced' });
+    expect(inputs[0]!.contact?.course).toBe(expected);
   });
 });
