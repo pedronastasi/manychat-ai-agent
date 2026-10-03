@@ -142,6 +142,9 @@ function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tool
     ...tools.data.flows
       .filter(flow => flow.flowNs === reserved.replyFlowNs)
       .map(flow => `flow '${flow.id}' is MANYCHAT_REPLY_FLOW_NS`),
+    ...tools.data.events
+      .filter(event => event.flowNs === reserved.replyFlowNs)
+      .map(event => `event '${event.id}' is MANYCHAT_REPLY_FLOW_NS`),
     ...tools.data.fields
       .filter(field => field.field === reserved.replyField)
       .map(field => `field '${field.id}' is MANYCHAT_REPLY_FIELD`),

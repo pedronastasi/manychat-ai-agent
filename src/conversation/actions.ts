@@ -1,4 +1,4 @@
-import type { ActionRecord, StagedAction } from '../contracts/agent.ts';
+import type { ActionRecord, PerformableAction, StagedAction } from '../contracts/agent.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
 import { recordOf } from '../agent/tools.ts';
 import { redactText } from '../observability/redact.ts';
@@ -13,7 +13,7 @@ export interface ActionLogger {
  * both logged and stored on the turn (C5, specs/024 § Note text never reaches
  * the record or the logs).
  */
-function reasonFor(error: unknown, subscriberId: string, action: StagedAction): string {
+function reasonFor(error: unknown, subscriberId: string, action: PerformableAction): string {
   // A ManyChat error's message already names the endpoint, the status and
   // ManyChat's own message.
   const raw = error instanceof Error ? error.message : String(error);
@@ -30,10 +30,12 @@ function reasonFor(error: unknown, subscriberId: string, action: StagedAction): 
  * has moved on is worse than a missing tag (§ A failed action is logged,
  * never retried).
  *
- * Returns one group per staged action: its own record, then the record of a
- * follow-on it carried. A follow-on runs only once its action was performed,
- * so a payment-link flow that failed writes no stage (specs/023 § The sale
- * ends at the payment-link flow).
+ * Returns one group per staged action: its own record, then the records of
+ * the follow-ons it carried, in order. A follow-on runs only once the action
+ * before it was performed, so a payment-link flow that failed writes no stage
+ * (specs/023 § The sale ends at the payment-link flow), and a stage write that
+ * failed fires no event (specs/027 § The event follows the stage write it
+ * records).
  */
 export async function performActions(
   performer: ActionPerformer,
@@ -41,7 +43,7 @@ export async function performActions(
   actions: readonly StagedAction[],
   logger: ActionLogger,
 ): Promise<ActionRecord[][]> {
-  const attempt = async (action: StagedAction): Promise<ActionRecord> => {
+  const attempt = async (action: PerformableAction): Promise<ActionRecord> => {
     try {
       await performer.performAction(subscriberId, action);
       return recordOf(action, 'performed');
@@ -52,14 +54,18 @@ export async function performActions(
     }
   };
 
-  const groups: ActionRecord[][] = [];
-  for (const action of actions) {
+  // Payment-link flow, then its `link_sent` write, then that stage's event.
+  const chain = async (action: PerformableAction): Promise<ActionRecord[]> => {
     const record = await attempt(action);
-    const followOn = action.tool === 'send_flow' ? action.followOn : undefined;
-    groups.push(
-      followOn && record.status === 'performed' ? [record, await attempt(followOn)] : [record],
-    );
-  }
+    const followOn =
+      action.tool === 'send_flow' || action.tool === 'set_field' ? action.followOn : undefined;
+    return followOn && record.status === 'performed'
+      ? [record, ...(await chain(followOn))]
+      : [record];
+  };
+
+  const groups: ActionRecord[][] = [];
+  for (const action of actions) groups.push(await chain(action));
   return groups;
 }
 

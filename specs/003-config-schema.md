@@ -76,6 +76,9 @@ the agent is offered no tools and behaves as it did before `012`.
 - `nudge` — optional: `delays[]` (`id`, `minutes`, at most 1380) and
   `humanActiveTag`, a non-empty ManyChat tag name that is no `tags[].tag`
   (`025`). Absent, `schedule_nudge` is not offered.
+- `events[]` — `id`, `stage` (a funnel stage other than `new`), `flowNs`: the
+  tracking flow the server sends when a funnel write advances to `stage`
+  (`027`). Never shown to the model.
 
 Every list defaults to empty, and an empty list offers no tool. An `id` is
 lowercase letters, digits, `_` and `-`, unique within its list, because it
@@ -88,6 +91,8 @@ A tag id is unique across `tags` and `readable.tags`, and a field id across
 At most one flow may have `role: "payment_link"`, and at most one field may be
 marked `funnel`. A `funnel` field's `values` must be the stages of `023` in
 order: `new`, `qualifying`, `nurturing`, `offered`, `link_sent`.
+`events` need a `funnel` field, at most one entry per `stage`, and a `flowNs`
+no `flows[]` entry or other event uses (`027`).
 
 At most one field may be marked `course`, and not the `funnel` field. Its
 `values` must be exactly the `catalog.json` course ids, in any order. A flow's
@@ -96,7 +101,7 @@ marked `course`; the `payment_link` flow carries none (`028`). These are checked
 against `catalog.json` when both load, so a catalog edit that drops a course
 fails the reload until `tools.json` drops it too.
 
-Loading also refuses a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, a
+Loading also refuses a flow or event whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, a
 field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`, and a
 note whose `field` is either of those, any `fields[].field`, or another note's.
 Firing the reply flow or writing either field as an action would resend a stale
