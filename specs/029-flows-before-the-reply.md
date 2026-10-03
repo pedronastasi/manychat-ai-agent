@@ -116,6 +116,9 @@ reply arrives a few seconds later, and the reply lands inside it. A flow the
 agent sends should therefore deliver its content without long delays. Nothing
 here can see inside a flow, so this is the tenant's to check.
 
+Amended by `030`: a flow declares how long it plays, `settleSeconds`, and the
+reply waits for it, so a flow may keep its delays.
+
 ## Amendments
 
 - `012 § A tool stages an action`: `send_flow` on an inbound turn sends.

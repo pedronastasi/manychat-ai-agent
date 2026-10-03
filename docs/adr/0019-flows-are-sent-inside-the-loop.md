@@ -43,7 +43,10 @@ escalating and a flow sent first would then arrive alone.
   client's request timeout.
 - Cost: ManyChat accepting a flow is not ManyChat finishing it. A flow with a
   long Smart Delay is still playing when the reply arrives; a flow the agent
-  sends should deliver its content without one.
+  sends should deliver its content without one. Superseded by specs/030: on a
+  live deployment even a flow with no delay outlasted the reply, so a flow now
+  declares how long it plays and the reply waits for it, inline or from the
+  outbox.
 - Amends ADR-0010 for flows on inbound turns; its rule stands for every other
   write and for nudge turns.
 - Revisit if escalations after a sent flow show up in real conversations as a

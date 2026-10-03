@@ -9,7 +9,8 @@
     {
       "id": "student_results",
       "flowNs": "content00000000000000_000002",
-      "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it."
+      "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it.",
+      "settleSeconds": 4
     },
     {
       "id": "fitting_it_in",

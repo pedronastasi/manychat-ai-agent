@@ -291,12 +291,19 @@ export async function buildServer(opts: BuildOptions) {
       // subscriber ID (ADR-0014). `binding` gives the share of unbound turns
       // that shows a flow has stopped sending the token (specs/019).
       request.log.info(
-        { conversation: conversationId, outcome, binding, escalated: reply.escalate },
+        {
+          conversation: conversationId,
+          outcome,
+          binding,
+          escalated: reply.escalate,
+          ...(turn.silent ? { silent: true } : {}),
+        },
         'turn complete',
       );
 
       return adapter.render(reply, {
         capabilities,
+        silent: turn.silent,
         // Re-registered every turn so the loop stays server-side (specs/002).
         ...callbackFor(bearerToken(request.headers.authorization)),
       });

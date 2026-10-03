@@ -11,6 +11,11 @@ export interface RenderContext {
   contactTokenField?: string | undefined;
   /** The contact field the channel fills into the callback as `course` (specs/028). */
   courseField?: string | undefined;
+  /**
+   * Renders no message, only the callback: a flow sent this turn is still
+   * playing and the reply follows it from the outbox (specs/030).
+   */
+  silent?: boolean | undefined;
 }
 
 export interface ParseContext {

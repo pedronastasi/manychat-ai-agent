@@ -47,6 +47,8 @@ export class OutboxQueue {
     reply: AgentReply;
     /** Deferred with the reply, never dropped from it (specs/012). */
     actions?: { staged: readonly StagedAction[]; turnId: string } | undefined;
+    /** Held until then: a flow sent this turn is still playing (specs/030). */
+    notBefore?: Date | undefined;
   }): Promise<string> {
     const payload: ReplyPayload = { messages: input.reply.messages };
     if (input.actions && input.actions.staged.length > 0) {
@@ -60,6 +62,7 @@ export class OutboxQueue {
         subscriberId: input.subscriberId,
         conversationId: input.conversationId,
         payload,
+        ...(input.notBefore ? { nextAttemptAt: input.notBefore } : {}),
       })
       .returning({ id: outbox.id });
     if (!row) throw new Error('enqueue: insert returned no row');

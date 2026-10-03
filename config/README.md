@@ -183,10 +183,18 @@ Three keys turn on the sales funnel of `specs/023-sales-funnel.md`:
 
 A flow the agent chooses is sent the moment it decides to, before it writes its
 reply, so the contact receives the flow, then the reply and its question
-(`specs/029-flows-before-the-reply.md`). The reply arrives a few seconds after
-the flow starts, so a flow the agent sends should deliver its content without
-long Smart Delays: a flow that pauses for ten seconds is still playing when the
-reply lands in the middle of it.
+(`specs/029-flows-before-the-reply.md`). ManyChat starts a flow when it accepts
+it and takes its own time to play it: a few seconds for an image, a text and a
+card, longer with a Smart Delay. Tell the agent how long with
+**`settleSeconds`** on the flow, from 0 to 30, and the reply waits that long
+after the flow is sent (`specs/030-reply-waits-for-the-flow.md`). Without it,
+the reply does not wait and can land in the middle of the flow. Time the flow on
+a phone and round up; a flow edited to play longer needs its value raised.
+
+When the wait ends before the 8-second deadline, the reply goes back in the
+response as usual. When it ends later, the response says nothing, since the
+flow is already the contact's answer for now, and the reply is delivered
+through your reply flow when the flow has played.
 
 Each content flow must be a leaf: it must not start another flow. Nothing here
 can see inside your flows, so this is yours to check. And turn off any drip
@@ -538,7 +546,8 @@ minutes, or a `humanActiveTag` that is empty or is one of your `tags[].tag`.
    still written when the model escalated or confidence was too low. A flow
    already sent cannot be recalled: the contact receives it, then the handoff
    message.
-4. **The text goes first, then the staged actions.** On an inline reply, they
+4. **The text goes first, then the staged actions.** A reply that follows a
+   flow waits for the flow's `settleSeconds` first. On an inline reply, they
    run after the response to ManyChat has been sent. On a deferred reply, the
    outbox worker runs them after it has delivered the text, and if the reply is
    dead-lettered they are dropped. They run in the order the model staged them,

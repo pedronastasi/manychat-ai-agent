@@ -464,6 +464,7 @@ sequenceDiagram
     A->>L: Result: sent. Last step, no tools
     L-->>A: Reply that follows the brochure, question last
     Note over A: Guardrails run. A handoff cannot recall the flow
+    Note over A: Waits for the flow's settleSeconds (spec 030)
     A-->>M: Dynamic Block response with the reply
     M->>C: Reply, then its closing question
     Note over A: turns.actions records the flow as performed

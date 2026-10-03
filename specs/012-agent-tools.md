@@ -190,7 +190,8 @@ Actions are performed in the order the model staged them, one request each,
 through the existing `ManyChatClient` and its rate limiter.
 
 On an inbound turn, flows are not among them: they were sent during the turn,
-before the text (`029`).
+before the text (`029`). A reply held in the outbox for a flow still playing
+carries its staged actions with it, as on the race-lost path (`030`).
 
 ## The flow set may not include the reply flow or field
 
