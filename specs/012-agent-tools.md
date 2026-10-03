@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-10-01
 pr: 110
 constitution: [C3, C4, C5, C6, C7]
-adr: [0010]
+adr: [0010, 0019]
 ---
 
 # 012 — Agent Tools
@@ -159,6 +159,8 @@ fails closed exactly as a schema failure does today.
 
 A turn stages at most **8** actions. A call past that returns
 `{ staged: false }` and is dropped. Identical staged actions are de-duplicated.
+A flow sent during an inbound turn (`029`) counts against the same 8; one past
+the limit is not sent and returns `{ sent: false }` with the reason.
 A turn reads at most twice (`024`).
 
 Both numbers were chosen, not measured, and replace this spec's original two
@@ -245,8 +247,10 @@ A note is recorded by its `length`, never its text (`024`).
 | `dropped_over_cap` | Staged past the per-turn limit and never sent |
 | `dead_lettered` | Its outbox row was dead-lettered, so it was never sent |
 
-On both paths the entries are written as `staged` with the turn and updated once
-the actions have run: on the inline path after the response, and on the
+A flow sent during an inbound turn (`029`) is written with its outcome,
+`performed` or `failed`, in its place among the staged entries, and a payment
+link's follow-ons after it. On both paths the staged entries are written as
+`staged` with the turn and updated once the actions have run: on the inline path after the response, and on the
 deferred path by the outbox worker after it has sent them. An inline turn whose
 process dies before its actions run therefore stays `staged`. The column is `null` on turns where no tool
 was offered, so "no tools" and "tools offered, none chosen" (`[]`) are distinct.

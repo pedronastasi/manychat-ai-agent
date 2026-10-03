@@ -10,8 +10,8 @@ adr: [0010, 0016, 0019]
 
 Defines when a flow the agent chooses is sent on an inbound turn: when the model
 calls `send_flow`, before it writes its reply, so the contact receives the flow,
-then the reply, then its closing question. It amends `012` in three places and
-`027` in one, listed at the end, and leaves out what a flow contains (the
+then the reply, then its closing question. It amends `012`, `026`, `027` and
+`028`, listed at the end, and leaves out what a flow contains (the
 tenant's) and every other write, which stays staged.
 
 ## The question arrived before what it asked about
@@ -122,8 +122,14 @@ here can see inside a flow, so this is the tenant's to check.
 - `012 § Guardrails run before any action is performed`: a flow sent during
   the turn keeps its outcome when the turn escalates.
 - `012 § Actions follow the text`: on an inbound turn, flows precede it.
+- `012 § The loop is bounded` and `§ Every staged action is recorded`: a sent
+  flow counts against the cap and is recorded with its outcome in its place.
 - `027 § The event follows the stage write it records`: the payment link's
   chain goes out with the flow, during the turn.
+- `028 § A flow belongs to one course or to all` and `§ The course may change
+until the offer`: a refused flow returns `{ sent: false }`, and the lock
+  counts a payment link sent or in flight at `link_sent`.
+- `026`: the Python port mirrors this exception.
 
 ## Verification
 
