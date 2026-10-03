@@ -47,6 +47,7 @@ enrolment only.
   "learning": {
     "language": "English",
     "enrolledTag": "enrolled",
+    "maxRunCostUsd": 5,
   },
 }
 ```
@@ -56,6 +57,9 @@ enrolment only.
 - `language` is what the analyst writes proposals in: the reviewer's language,
   normally that of `config/prompt.md`. Proposals live in Postgres, outside the
   repository, under the same carve-out as tenant config (C9, `005`).
+- `maxRunCostUsd` caps one analyst call (see "The analyst reads transcripts
+  as untrusted data"). It is required and has no default: any figure here
+  would be a guess at the tenant's spend.
 - `learning` requires a `funnel` field in `tools.json` (`023`); without one
   there is no cohort, and loading fails.
 
@@ -95,8 +99,20 @@ The analyst is a model call off the request path:
   an instruction to it.
 - It is given the active playbook and the run's last **20** rejected proposals,
   so it does not propose either again.
-- The call counts against the tenant's daily `budget` (`003`). A run without
-  the headroom is recorded as `skipped_budget` and makes no call.
+- The call does not draw on the tenant's daily `budget` (`003`). That cap
+  gates live turns, and a run that spent from it could use what is left of the
+  day and send every later contact to `out_of_scope`. The call is bounded by
+  `learning.maxRunCostUsd` instead.
+
+### A run's worst case is priced before it is sent
+
+Before the call, the job estimates its worst-case cost: the input tokens,
+counted, plus the output limit, priced with `pricingFor`
+(`src/agent/registry.ts`). While the estimate exceeds `maxRunCostUsd`, it drops
+the oldest transcript from each side in turn. If either side falls below
+**20**, the run is recorded as `skipped_budget` and makes no call. The run's
+actual cost is recorded on the run, never in `budget_counters`, so no run can
+move a live turn closer to the daily cap.
 
 Its output is validated against a Zod schema (C3). Output that fails it
 records the run as `failed` and creates no proposal.
@@ -162,9 +178,25 @@ printed and recorded but do not gate.
 
 `pnpm insights:activate <version>` refuses unless an eval record exists for
 the version's content hash against the current suite, run with a real model,
-in which no asserted case fails that does not also fail under the active
-version against the same suite. An `eval:mock` record never counts: the mock
-model ignores the prompt, so its pass says nothing about the playbook.
+in which no asserted case fails that does not also fail under the baseline.
+An `eval:mock` record never counts: the mock model ignores the prompt, so its
+pass says nothing about the playbook.
+
+### The baseline is the active version, or no playbook at all
+
+A real-model `pnpm eval` writes a record whether or not `PLAYBOOK_VERSION` is
+set. Without it, the record's version hash is empty, and it stands for the
+prompt with no playbook. The baseline a candidate is compared against is:
+
+- the active version's record against the current suite; or
+- on a first activation, with no version active, the no-playbook record
+  against the current suite.
+
+When the baseline has no record against the current suite (the suite changed
+after it was evaluated, or the active version came in through the rollback
+below without one), `insights:activate` refuses and names the eval to run for
+the baseline. It does not treat every failure as new: that would report a
+regression in the candidate when the missing evidence is the baseline's.
 
 Activating a version that has been active before skips the gate, so a bad
 playbook can be rolled back in one command without paying for an eval first.
@@ -224,7 +256,8 @@ date here.
 
 ## Verification
 
-1. Config tests assert `learning` without a `funnel` field fails at load, and a
+1. Config tests assert `learning` without a `funnel` field, or without
+   `maxRunCostUsd`, fails at load, and a
    unit test asserts that without `learning` the system prompt is
    byte-identical to one built before this spec.
 2. A unit test asserts no tool's schema, enum or description offers a write to
@@ -247,8 +280,11 @@ date here.
    prompt, and an approved one appears only once its version is active.
 8. Tests assert `insights:activate` refuses with no eval record, with only a
    mock-model record, with a record for another content hash or suite, and
-   with a new asserted failure; and accepts a version that was active before
-   without a record.
+   with a new asserted failure; that a first activation compares against the
+   no-playbook record, and refuses when there is none; that an active version
+   with no record against the current suite is refused with the baseline eval
+   named; and that a version that was active before is accepted without a
+   record.
 9. A unit test asserts a version over 10 insights or 2000 characters is refused,
    and that the playbook renders after the catalog block and before the cache
    breakpoint.
@@ -259,8 +295,10 @@ date here.
     and is null with no active version.
 12. An integration test runs two claims for one tenant and week concurrently
     and asserts exactly one analyst call.
-13. A unit test asserts a run without budget headroom is `skipped_budget` and
-    makes no call.
+13. A unit test asserts a run whose estimate exceeds `maxRunCostUsd` drops the
+    oldest transcripts from each side until it fits, that one which cannot fit
+    with 20 a side is `skipped_budget` and makes no call, and an integration
+    test asserts a completed run's cost is never added to `budget_counters`.
 
 What this misses: the refusals catch digits and currency symbols, not an
 invented promise written in words, and only the reviewer catches that. The
