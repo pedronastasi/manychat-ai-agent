@@ -206,6 +206,26 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
     expect(description).not.toContain('intensive_brochure');
   });
 
+  it('says why nothing can be sent: no course yet, or the course’s content all sent', () => {
+    // Only course flows left unsent: every shared flow was sent already.
+    const shared = tools.flows.filter(flow => flow.course === undefined).map(flow => flow.id);
+    const onlyCourseFlows: Tools = {
+      ...tools,
+      flows: tools.flows.map(flow => (flow.role ? { ...flow, repeatable: false } : flow)),
+    };
+    const sent = { sentFlows: new Set([...shared, 'foundation_brochure']) };
+
+    const unplaced = buildTools(onlyCourseFlows, new ActionStage(), { ...sent, course: undefined });
+    expect(unplaced!.send_flow!.description).toContain('record the contact’s course');
+
+    const placed = buildTools(onlyCourseFlows, new ActionStage(), {
+      ...sent,
+      course: 'foundation',
+    });
+    expect(placed!.send_flow!.description).toContain('everything for this contact’s course');
+    expect(placed!.send_flow!.description).not.toContain('set_field');
+  });
+
   it('marks a staged write to the course field, and only that one', async () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage, on(undefined));

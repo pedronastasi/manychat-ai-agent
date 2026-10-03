@@ -295,10 +295,15 @@ export function buildTools(
     // setting the course this turn can still be named; the description lists
     // only those it can accept now.
     const available = unsent.filter(flow => fits(flow, turnCourse()));
+    // With a course known, an empty list means its content was all sent: told
+    // to set the course, the model could switch it just to have something to
+    // send, or try a write the lock refuses.
     const listing =
       available.length > 0
         ? catalogOf(available)
-        : 'None yet: record the contact’s course with set_field first.';
+        : turnCourse() === undefined
+          ? 'None yet: record the contact’s course with set_field first.'
+          : 'None: everything for this contact’s course has been sent.';
     tools.send_flow = tool({
       description: `Send the contact one of these flows.\n${listing}\n${STAGED}`,
       inputSchema: z.object({ flow: z.enum(idsOf(unsent)) }),
