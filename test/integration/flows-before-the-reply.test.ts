@@ -177,6 +177,39 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
     ]);
   });
 
+  it('a payment link takes the turn’s earlier stage write with it, and link_sent is last', async () => {
+    const seen: { atReply?: string[] } = {};
+    const out = await handler(
+      scriptedRunner(
+        [
+          ['set_field', { field: 'funnel_stage', value: 'offered' }],
+          ['send_flow', { flow: 'enrolment_link' }],
+          // A later write may not walk the stage back from link_sent.
+          ['set_field', { field: 'funnel_stage', value: 'nurturing' }],
+        ],
+        {},
+        seen,
+      ),
+    ).handle(inbound('ok, send me the link'));
+    await out.afterResponse?.();
+
+    expect(seen.atReply).toEqual([
+      'setField funnel_stage=offered',
+      `sendFlow ${flowNs('enrolment_link')}`,
+      'setField funnel_stage=link_sent',
+      `sendFlow ${CHECKOUT_NS}`,
+    ]);
+    // Nothing reaches ManyChat after the response to move it back.
+    expect(requests()).toEqual(seen.atReply);
+    const [turn] = await agentTurns();
+    expect(turn!.actions).toEqual([
+      { tool: 'set_field', id: 'funnel_stage', value: 'offered', status: 'performed' },
+      { tool: 'send_flow', id: 'enrolment_link', status: 'performed' },
+      { tool: 'set_field', id: 'funnel_stage', value: 'link_sent', status: 'performed' },
+      { tool: 'send_event', id: 'checkout_started', status: 'performed' },
+    ]);
+  });
+
   it('performs the staged writes after the response, the flow already sent', async () => {
     const seen: { atReply?: string[] } = {};
     const out = await handler(

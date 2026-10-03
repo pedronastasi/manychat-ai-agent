@@ -52,6 +52,18 @@ says so, and that the reply must not repeat what the flow contains.
 Every other write (tags, fields, notes, nudges) stays staged and is performed
 after the reply, as `012` describes (ADR-0019).
 
+### A payment link takes the turn's stage writes with it
+
+The payment link writes `link_sent` as it goes out. A funnel write the model
+staged earlier in the same turn (the offer, then the link) would otherwise be
+performed after the reply and walk the stage back from `link_sent` (`023 § The
+funnel is a field the agent moves`), with its event firing after the link's.
+So when the payment link is sent, the funnel writes already staged that turn
+are sent ahead of it, in their order, with their events, and are no longer
+staged; the turn's record keeps them in their place. After it, the `link_sent`
+it wrote is the floor: a funnel write to an earlier stage is refused, as one
+below the contact's last performed stage already is.
+
 ### Nudge turns keep flows staged
 
 A nudge turn (`025`) declines by escalating, and nothing is then sent. A flow
@@ -119,8 +131,9 @@ here can see inside a flow, so this is the tenant's to check.
 3. A unit test asserts the reply step's notice names sent and refused flows.
 4. An integration test asserts, over the ManyChat HTTP boundary, that an
    inbound turn's flow request is made before the turn returns, that the
-   payment link's `link_sent` write and event follow it, and that the reply's
-   staged actions are performed after the response.
+   payment link's `link_sent` write and event follow it, that a funnel write
+   staged before the link goes ahead of it and none after it can walk the stage
+   back, and that the reply's staged actions are performed after the response.
 5. An integration test asserts an escalated turn has still sent its flow and
    records it, that a deferred call aborted after sending one records it, and
    that a nudge turn's flow stays staged until its text is delivered.

@@ -69,7 +69,7 @@ export class ActionStage {
   private readonly accepted: StagedAction[] = [];
   private readonly overCap: StagedAction[] = [];
   private readonly sentNow: {
-    action: SendFlowAction;
+    action: StagedAction;
     records: ActionRecord[];
     /** Settles when ManyChat has answered, so a repeat call waits for it. */
     done: Promise<void>;
@@ -103,9 +103,21 @@ export class ActionStage {
    * Sends a flow now (specs/029). Returns whether ManyChat accepted it, or
    * `undefined` when it is over the cap and was not sent. A flow already sent
    * this turn is not sent again; its first outcome stands.
+   *
+   * `first` are actions already staged that must reach ManyChat before the
+   * flow: a payment link's `link_sent` would otherwise be overwritten by an
+   * earlier funnel write performed after the reply (specs/029 § A payment link
+   * takes the turn's stage writes with it). They are sent ahead of it, keep
+   * their place in the record, and are no longer staged.
    */
-  async send(action: SendFlowAction, sends: FlowSends): Promise<boolean | undefined> {
-    const earlier = this.sentNow.find(entry => entry.action.id === action.id);
+  async send(
+    action: SendFlowAction,
+    sends: FlowSends,
+    first: readonly StagedAction[] = [],
+  ): Promise<boolean | undefined> {
+    const earlier = this.sentNow.find(
+      entry => entry.action.tool === 'send_flow' && entry.action.id === action.id,
+    );
     if (earlier) {
       // A repeat made while the first request is in flight (parallel calls in
       // one step) gets its real outcome, not the placeholder.
@@ -119,25 +131,36 @@ export class ActionStage {
       return undefined;
     }
     // Reserved before the request, so a second call made while it is in
-    // flight neither sends the flow twice nor slips past the cap.
-    // Recorded as failed until ManyChat answers: a turn that ends while the
-    // request is in flight cannot say the flow went out.
-    const entry = {
-      action,
-      records: [recordOf(action, 'failed', 'no answer before the turn ended')],
+    // flight neither sends the flow twice nor slips past the cap. Recorded as
+    // failed until ManyChat answers: a turn that ends while the request is in
+    // flight cannot say it went out.
+    const reserve = (entryAction: StagedAction) => ({
+      action: entryAction,
+      records: [recordOf(entryAction, 'failed', 'no answer before the turn ended')],
       done: Promise.resolve(),
-    };
+    });
+    const ahead = first.filter(staged => this.accepted.includes(staged)).map(reserve);
+    for (const entry of ahead) {
+      const at = this.accepted.indexOf(entry.action);
+      this.accepted.splice(at, 1);
+      this.sentNow.push(entry);
+      this.order[this.order.indexOf(entry.action)] = { sent: this.sentNow.length - 1 };
+    }
+    const entry = reserve(action);
     this.sentNow.push(entry);
     this.order.push({ sent: this.sentNow.length - 1 });
-    entry.done = sends.send(action).then(records => {
-      entry.records = records;
+    const done = sends.send([...ahead.map(staged => staged.action), action]).then(groups => {
+      [...ahead, entry].forEach((sent, index) => {
+        sent.records = groups[index] ?? sent.records;
+      });
     });
-    await entry.done;
+    for (const sent of [...ahead, entry]) sent.done = done;
+    await done;
     return entry.records[0]?.status === 'performed';
   }
 
-  /** Flows sent this turn, whatever became of them. */
-  get sent(): readonly { action: SendFlowAction; records: readonly ActionRecord[] }[] {
+  /** Actions sent this turn, whatever became of them. */
+  get sent(): readonly { action: StagedAction; records: readonly ActionRecord[] }[] {
     return this.sentNow;
   }
 
@@ -405,8 +428,14 @@ export function buildTools(
           ...(followOn ? { followOn } : {}),
         };
         if (!sends) return { staged: stage.stage(action) };
-        // Sent now, so the reply written after it follows it (specs/029).
-        const sent = await stage.send(action, sends);
+        // Sent now, so the reply written after it follows it (specs/029). A
+        // payment link takes the turn's staged stage writes ahead of it, so
+        // its `link_sent` is the last stage ManyChat is given.
+        const first =
+          entry.role === 'payment_link' && funnel
+            ? stage.staged.filter(staged => staged.tool === 'set_field' && staged.id === funnel.id)
+            : [];
+        const sent = await stage.send(action, sends, first);
         return sent === undefined ? { sent: false, reason: 'over the per-turn limit' } : { sent };
       },
     });
@@ -454,6 +483,15 @@ export function buildTools(
         stageIndex(contact.funnelStage),
         ...stage.staged.map(action =>
           action.tool === 'set_field' && action.id === funnel?.id ? stageIndex(action.value) : -1,
+        ),
+        // Writes already made this turn, a payment link's `link_sent` among
+        // them (specs/029), so nothing staged after can walk the stage back.
+        ...stage.sent.flatMap(sent =>
+          sent.records.map(record =>
+            record.tool === 'set_field' && record.id === funnel?.id && record.status === 'performed'
+              ? stageIndex(record.value)
+              : -1,
+          ),
         ),
       );
 

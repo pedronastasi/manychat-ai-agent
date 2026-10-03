@@ -299,7 +299,8 @@ export function stagedNotice(
   /** The turn's last contact read, which the reply step cannot see as a tool result. */
   contact?: ContactView,
 ): string {
-  const sent = stage.sent ?? [];
+  // Flows only: a stage write sent ahead of a payment link is not news to the contact.
+  const sent = (stage.sent ?? []).filter(entry => entry.action.tool === 'send_flow');
   const went = sent.filter(entry => entry.records[0]?.status === 'performed');
   const failed = sent.filter(entry => entry.records[0]?.status !== 'performed');
   const lines = [

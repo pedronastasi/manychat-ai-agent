@@ -27,17 +27,11 @@ export class FlowSends {
   }
 
   /**
-   * Sends the flow, then its follow-ons (the payment link's `link_sent` write
-   * and that stage's event, specs/023 and 027), one attempt each, and returns
-   * what became of them, the flow first.
+   * Sends `actions` in order, each with its follow-ons (the payment link's
+   * `link_sent` write and that stage's event, specs/023 and 027), one attempt
+   * each, and returns what became of them, one group per action.
    */
-  async send(action: SendFlowAction): Promise<ActionRecord[]> {
-    const [records] = await performActions(
-      this.performer,
-      this.subscriberId,
-      [action],
-      this.logger,
-    );
-    return records ?? [];
+  async send(actions: readonly StagedAction[]): Promise<ActionRecord[][]> {
+    return performActions(this.performer, this.subscriberId, actions, this.logger);
   }
 }
