@@ -528,8 +528,19 @@ sequenceDiagram
     Note over A: turns.actions records write_note with its length only
 ```
 
-How to configure tools, read the record, and what to check before enabling them
-is in [config/README.md](config/README.md#toolsjson-actions-the-agent-can-take-optional).
+#### Following up on a quiet contact
+
+With a `nudge` section, the agent can also schedule one follow-up for a contact
+who goes quiet ([spec 025](specs/025-in-window-nudge.md)). A worker checks at
+due time that the contact has not written, no person has taken over, the sale
+is not closed and WhatsApp's 24-hour window is still open. Only then does it
+run a model turn on a system note in place of a message. The model may decline,
+and then nothing is sent. Otherwise the follow-up goes out through the outbox,
+and it never schedules another.
+
+How to configure tools and follow-ups, read the record, and what to check before
+enabling them is in
+[config/README.md](config/README.md#toolsjson-actions-the-agent-can-take-optional).
 
 ### Sales funnel
 

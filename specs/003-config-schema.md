@@ -72,6 +72,9 @@ the agent is offered no tools and behaves as it did before `012`.
 - `notes[]` — `id`, `field`, `maxLength` (at most 500), `neverRendered` (must be
   the literal `true`), `description`, optional `onEscalation` (default `false`)
   (`024`)
+- `nudge` — optional: `delays[]` (`id`, `minutes`, at most 1380) and
+  `humanActiveTag`, a non-empty ManyChat tag name that is no `tags[].tag`
+  (`025`). Absent, `schedule_nudge` is not offered.
 
 Every list defaults to empty, and an empty list offers no tool. An `id` is
 lowercase letters, digits, `_` and `-`, unique within its list, because it

@@ -7,6 +7,8 @@ import { ContactTokens } from '../conversation/tokens.ts';
 import { ConversationStore } from '../conversation/store.ts';
 import { performActions } from '../conversation/actions.ts';
 import { recordOf } from '../agent/tools.ts';
+import { NudgeStore } from '../nudge/store.ts';
+import { NudgingPerformer } from '../nudge/performer.ts';
 
 export interface WorkerLogger {
   info: (obj: object, msg: string) => void;
@@ -34,6 +36,7 @@ export class OutboxWorker {
   private readonly queue: OutboxQueue;
   private readonly tokens: ContactTokens;
   private readonly store: ConversationStore;
+  private readonly nudges: NudgeStore;
   private running = false;
   private settled: Promise<void> = Promise.resolve();
 
@@ -42,6 +45,7 @@ export class OutboxWorker {
     this.queue = new OutboxQueue(opts.db);
     this.tokens = new ContactTokens(opts.db, opts.client);
     this.store = new ConversationStore(opts.db);
+    this.nudges = new NudgeStore(opts.db);
   }
 
   /**
@@ -54,12 +58,10 @@ export class OutboxWorker {
     const { actions, turnId } = row.payload;
     if (!actions || actions.length === 0) return;
     try {
-      const outcomes = await performActions(
-        this.opts.client,
-        row.subscriberId,
-        actions,
-        this.opts.logger,
-      );
+      const performer = row.conversationId
+        ? new NudgingPerformer(this.opts.client, this.nudges, row.conversationId)
+        : this.opts.client;
+      const outcomes = await performActions(performer, row.subscriberId, actions, this.opts.logger);
       if (turnId) await this.store.resolveStaged(turnId, outcomes);
     } catch (error) {
       this.opts.logger.error(

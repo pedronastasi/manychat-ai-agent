@@ -107,6 +107,10 @@ const Case = z.object({
 `.default([])` is what keeps this additive: every case in the golden set parses
 unchanged, and no existing behaviour moves.
 
+A case may also set `nudge: true` (`025`). It then runs as a follow-up turn: the
+system's trigger note follows `history`, and `text` is ignored, because no
+contact wrote anything.
+
 ## Two substring assertions replace four bespoke ones
 
 The assertions a staged conversation needs look, at first, like four new

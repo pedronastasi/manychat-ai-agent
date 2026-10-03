@@ -1,5 +1,5 @@
 import type { LanguageModelV4, LanguageModelV4CallOptions } from '@ai-sdk/provider';
-import { FENCE, FENCE_END } from './prompt.ts';
+import { FENCE, FENCE_END, NUDGE_NOTE_OPEN } from './prompt.ts';
 
 /**
  * A deterministic, offline model used for local development, CI, and demos.
@@ -330,6 +330,44 @@ function hasPaymentOptions(options: LanguageModelV4CallOptions): boolean {
   );
 }
 
+/**
+ * A nudge turn (specs/025): a correct agent follows up on what the contact
+ * last asked, and declines, by escalating, when there is nothing to pick up.
+ * Read from the contact's last fenced message in history, never from the
+ * server's trigger note.
+ */
+function nudgeReply(options: LanguageModelV4CallOptions): string {
+  const asked = options.prompt
+    .filter(entry => entry.role === 'user')
+    .flatMap(entry =>
+      typeof entry.content === 'string'
+        ? [entry.content]
+        : entry.content.flatMap(part => (part.type === 'text' ? [part.text] : [])),
+    )
+    .filter(text => text.includes(FENCE))
+    .at(-1)
+    ?.toLowerCase();
+  if (asked && /(instalment|installment|in parts|pay monthly)/.test(asked)) {
+    return reply(
+      ['Just checking in about paying in instalments.'],
+      false,
+      null,
+      0.85,
+      'Would three monthly payments make it easier to start?',
+    );
+  }
+  if (asked && /(schedule|when|what day|timetable)/.test(asked)) {
+    return reply(
+      ['Just checking in about the class times.'],
+      false,
+      null,
+      0.85,
+      'Would Tuesday and Thursday evenings fit your week?',
+    );
+  }
+  return reply(['Nothing to follow up.'], true, 'low_confidence', 0.4);
+}
+
 const USAGE = {
   inputTokens: { total: 1200, noCache: 200, cacheRead: 1000, cacheWrite: 0 },
   outputTokens: { total: 60, text: 60, reasoning: 0 },
@@ -372,9 +410,11 @@ export function createMockModel(modelId: string): LanguageModelV4 {
       const text =
         note !== undefined
           ? stagedReply(note)
-          : message.image
-            ? IMAGE_REPLY
-            : respondTo(message.text, hasPaymentOptions(options));
+          : message.text.includes(NUDGE_NOTE_OPEN)
+            ? nudgeReply(options)
+            : message.image
+              ? IMAGE_REPLY
+              : respondTo(message.text, hasPaymentOptions(options));
       // `mock:slow` deliberately exceeds the race deadline so the deferred path
       // can be exercised without a real slow provider.
       if (modelId === 'slow') {

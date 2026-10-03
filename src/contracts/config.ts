@@ -203,6 +203,36 @@ export const FUNNEL_STAGES = ['new', 'qualifying', 'nurturing', 'offered', 'link
 export const LINK_SENT = 'link_sent';
 
 /**
+ * The latest a nudge may be scheduled for: an hour inside WhatsApp's 24-hour
+ * window, for the worker's poll, a deferred delivery and the model call. Chosen,
+ * not measured (specs/025 § The agent schedules a nudge; it does not send one).
+ */
+export const MAX_NUDGE_MINUTES = 1380;
+
+/**
+ * When the agent may follow up on a lead who went quiet (specs/025). The model
+ * names a delay by `id`; `humanActiveTag` names a tag in the tenant's ManyChat
+ * account and is never shown to it.
+ */
+export const NudgeSchema = z.object({
+  delays: z
+    .array(
+      z.object({
+        id: ToolEntryId,
+        minutes: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_NUDGE_MINUTES, `a nudge delay may not exceed ${MAX_NUDGE_MINUTES} minutes`),
+      }),
+    )
+    .min(1)
+    .refine(uniqueIds, 'delay ids must be unique'),
+  humanActiveTag: z.string().min(1).optional(),
+});
+export type Nudge = z.infer<typeof NudgeSchema>;
+
+/**
  * The flows, tags and field values the agent may act with (specs/012). The
  * model sees `id` and `description` only; `flowNs`, `tag` and `field` name
  * objects in the tenant's ManyChat account and stay server-side, so renaming
@@ -292,6 +322,8 @@ export const ToolsSchema = z
             .every(field => field.values.join() === FUNNEL_STAGES.join()),
         `a "funnel" field's values must be ${FUNNEL_STAGES.join(', ')}, in that order`,
       ),
+    /** Absent: `schedule_nudge` is not offered (specs/025). */
+    nudge: NudgeSchema.optional(),
     /**
      * Tags and enum fields the tenant's own flows set, which `get_contact`
      * returns but no tool writes (specs/024).
@@ -312,6 +344,12 @@ export const ToolsSchema = z
   .refine(tools => uniqueIds([...tools.fields, ...tools.readable.fields]), {
     message: 'field ids must be unique across fields and readable.fields',
     path: ['readable', 'fields'],
+  })
+  // The agent may add or remove any configured tag, so the tag that silences
+  // it must not be one of them (specs/025).
+  .refine(tools => !tools.tags.some(entry => entry.tag === tools.nudge?.humanActiveTag), {
+    message: 'nudge.humanActiveTag may not be a tag the agent writes',
+    path: ['nudge'],
   });
 export type Tools = z.infer<typeof ToolsSchema>;
 export type Note = Tools['notes'][number];
@@ -325,7 +363,7 @@ export const NO_TOOLS: Tools = {
   notes: [],
 };
 
-/** Whether `tools.json` gives the agent anything to act with or read. */
+/** Whether `tools.json` gives the agent anything to act with or read, a follow-up included (specs/025). */
 export function offersTools(tools: Tools): boolean {
   return (
     tools.flows.length +
@@ -334,7 +372,7 @@ export function offersTools(tools: Tools): boolean {
       tools.notes.length +
       tools.readable.tags.length +
       tools.readable.fields.length >
-    0
+      0 || tools.nudge !== undefined
   );
 }
 

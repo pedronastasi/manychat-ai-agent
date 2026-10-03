@@ -29,6 +29,11 @@ export const Case = z.object({
    */
   history: z.array(Turn).default([]),
   text: z.string(),
+  /**
+   * Runs the case as a nudge turn (specs/025): no contact message, the
+   * server's trigger note after `history`. `text` is then ignored.
+   */
+  nudge: z.boolean().optional(),
   expect: z.object({
     escalate: z.boolean(),
     reason: z.string().optional(),

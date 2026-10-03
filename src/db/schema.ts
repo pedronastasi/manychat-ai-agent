@@ -13,6 +13,7 @@ import {
   primaryKey,
   boolean,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type { ActionRecord } from '../contracts/agent.ts';
 
 /**
@@ -121,6 +122,52 @@ export const outbox = pgTable(
   // The worker's claim query orders by this; without the index it degrades to a
   // sequential scan once the table accumulates delivered rows.
   table => [index('outbox_claim_idx').on(table.status, table.nextAttemptAt)],
+);
+
+/**
+ * Follow-ups the agent scheduled for a contact who went quiet (specs/025). The
+ * conversation's id and nothing about the contact, so a cancelled row needs no
+ * redaction (C5).
+ *
+ * `running` is the worker's claim: a row past it is never claimed again, so a
+ * crash mid-turn loses the nudge rather than sending it twice.
+ */
+export const nudges = pgTable(
+  'nudges',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+    status: text('status', { enum: ['pending', 'running', 'sent', 'skipped', 'cancelled'] })
+      .notNull()
+      .default('pending'),
+    cancelReason: text('cancel_reason', {
+      enum: [
+        'contact_replied',
+        'escalated',
+        'link_sent',
+        'window_closing',
+        'human_active',
+        'read_failed',
+        'cap_reached',
+      ],
+    }),
+    /** When the pending nudge was last scheduled; a later escalation cancels it. */
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [
+    // At most one nudge waits per contact, held by the database rather than a
+    // check in code, so two processes scheduling at once cannot both insert
+    // one (specs/025, specs/026 § A scheduled job runs where its claim is atomic).
+    uniqueIndex('nudges_one_pending_uq')
+      .on(table.conversationId)
+      .where(sql`${table.status} = 'pending'`),
+    index('nudges_claim_idx').on(table.status, table.dueAt),
+  ],
 );
 
 /** Daily spend caps (Constitution C6: fail closed, toward a human). */

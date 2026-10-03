@@ -84,5 +84,18 @@
       "onEscalation": true,
       "description": "What the person taking over needs to know, in two or three sentences."
     }
-  ]
+  ],
+  "nudge": {
+    "delays": [
+      {
+        "id": "later_today",
+        "minutes": 120
+      },
+      {
+        "id": "tomorrow",
+        "minutes": 1200
+      }
+    ],
+    "humanActiveTag": "human-handling"
+  }
 }

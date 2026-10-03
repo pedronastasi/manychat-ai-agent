@@ -9,6 +9,7 @@ import {
   fenceUserText,
   funnelNotice,
   mediaNotice,
+  nudgeNotice,
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
@@ -97,6 +98,11 @@ export interface AgentTurnInput {
    * a turn without the contact's token never reads their record (specs/024).
    */
   reads?: ContactReads | undefined;
+  /**
+   * Set on a nudge turn: no contact wrote, and the model decides whether to
+   * follow up on silence since this time (specs/025). `text` is then unused.
+   */
+  nudge?: { since: Date } | undefined;
 }
 
 /**
@@ -155,6 +161,20 @@ function currentMessage(
       })),
       ...(text.length > 0 ? [{ type: 'text' as const, text: fenceUserText(text) }] : []),
     ],
+  };
+}
+
+/**
+ * A nudge turn's message: the server's trigger note, after the funnel note if
+ * there is one. All of it is the system's, so none of it is fenced (C4).
+ */
+function nudgeMessage(since: Date, funnel: string | null): ModelMessage {
+  return {
+    role: 'user',
+    content: [...(funnel === null ? [] : [funnel]), nudgeNotice(since)].map(text => ({
+      type: 'text' as const,
+      text,
+    })),
   };
 }
 
@@ -226,13 +246,16 @@ export class GenerateTextRunner implements AgentRunner {
     stage = new ActionStage(),
     contact,
     reads,
+    nudge,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
     const { config, staticPrefix, catalogBlock, withTools } = this.current();
     const tools = withTools
-      ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads)
+      ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads, {
+          nudgeTurn: nudge !== undefined,
+        })
       : undefined;
     const funnel = funnelField(config.tools ?? NO_TOOLS)
       ? funnelNotice(contact?.funnelStage)
@@ -240,7 +263,7 @@ export class GenerateTextRunner implements AgentRunner {
 
     const messages: ModelMessage[] = [
       ...history.map(historyMessage),
-      currentMessage(text, media, funnel),
+      nudge ? nudgeMessage(nudge.since, funnel) : currentMessage(text, media, funnel),
     ];
 
     // The last step offers no tools, so it must produce the reply. It sees a

@@ -65,6 +65,9 @@ today.
 reads, and the one whose `execute` makes a request (ADR-0016); everything below
 about staging applies to the other five.
 
+`025` adds a fifth, `schedule_nudge`, which takes a delay id and is performed
+as a row in this service's database, not as a ManyChat request.
+
 Each parameter is a `z.enum` built from `config/tools.json` at load, so the
 model can only name something the tenant configured (C3). A tool whose list is
 empty is not offered at all. The file reloads on `SIGHUP` with the rest of the

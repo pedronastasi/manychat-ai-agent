@@ -36,8 +36,8 @@ test fails the suite.
 | [021 — Contributor Surface](021-contributor-surface.md)                 | implemented | 2026-09-28  | #105 | 1     | C1, C9                             | —                                                                              |
 | [022 — ManyChat API Through manychat-sdk](022-manychat-sdk.md)          | implemented | 2026-10-02  | —    | 5     | C5, C7                             | [0001], [0008], [0012]                                                         |
 | [023 — Sales Funnel](023-sales-funnel.md)                               | implemented | 2026-10-02  | #132 | 2     | C1, C6, C9                         | [0015]                                                                         |
-| [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | implemented | 2026-10-02  | #144 | 4     | C3, C4, C5, C6, C7                 | [0010], [0016], [0017]                                                         |
-| [025 — In-Window Nudge](025-in-window-nudge.md)                         | specified   | —           | —    | —     | C4, C5, C6, C9                     | [0010], [0015]                                                                 |
+| [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | implemented | 2026-10-02  | #144 | 5     | C3, C4, C5, C6, C7                 | [0010], [0016], [0017]                                                         |
+| [025 — In-Window Nudge](025-in-window-nudge.md)                         | implemented | 2026-10-02  | #143 | 2     | C4, C5, C6, C9                     | [0010], [0015]                                                                 |
 | [026 — Python Port Parity](026-python-port-parity.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7, C8, C9 | [0018], [0001], [0004], [0008], [0010], [0012], [0013], [0014], [0016], [0017] |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md

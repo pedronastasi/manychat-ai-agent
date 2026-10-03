@@ -185,6 +185,8 @@ export function buildTools(
   contact: ContactActions = NO_CONTACT_ACTIONS,
   /** The turn's own contact, readable only on a turn that reads history (specs/024). */
   reads?: ContactReads,
+  /** A nudge turn is offered no `schedule_nudge`, so a nudge never schedules another (specs/025). */
+  options: { nudgeTurn?: boolean } = {},
 ): ToolSet | undefined {
   const tools: ToolSet = {};
   const funnel = funnelField(config);
@@ -347,6 +349,26 @@ export function buildTools(
           }),
         };
       },
+    });
+  }
+
+  if (config.nudge && !options.nudgeTurn) {
+    const delays = new Map(config.nudge.delays.map(delay => [delay.id, delay]));
+    const listing = config.nudge.delays
+      .map(delay => `- ${delay.id}: in ${delay.minutes} minutes`)
+      .join('\n');
+    tools.schedule_nudge = tool({
+      description:
+        `Give yourself one more turn later, if the contact has not written by then.\n${listing}\n` +
+        `A later call replaces an earlier one. ${STAGED}`,
+      inputSchema: z.object({ delay: z.enum(idsOf(config.nudge.delays)) }),
+      execute: ({ delay }) => ({
+        staged: stage.stage({
+          tool: 'schedule_nudge',
+          id: delay,
+          minutes: delays.get(delay)!.minutes,
+        }),
+      }),
     });
   }
 

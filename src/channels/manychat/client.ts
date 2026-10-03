@@ -164,6 +164,10 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
           field_name: action.field,
           field_value: action.text,
         });
+      case 'schedule_nudge':
+        // A row in `nudges`, written by NudgingPerformer (specs/025). Reaching
+        // ManyChat with one means the wrapper was left out.
+        throw new Error('schedule_nudge is not a ManyChat action');
     }
   }
 
