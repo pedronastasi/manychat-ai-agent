@@ -123,15 +123,14 @@ function scriptedRunner(
   } satisfies AgentRunner;
 }
 
-const handler = (runner: AgentRunner) =>
+const handler = (runner: AgentRunner, timing = { raceDeadlineMs: 200, modelAbortMs: 5000 }) =>
   new TurnHandler({
     db,
     runner,
     rules,
     tools,
     logger,
-    raceDeadlineMs: 200,
-    modelAbortMs: 5000,
+    ...timing,
     tokenWriter: contactFields,
     tokensEnforced: true,
     actions: client,
@@ -247,5 +246,36 @@ describe('an escalation does not recall a sent flow (specs/029 V5)', () => {
       { tool: 'send_flow', id: 'student_results', status: 'performed' },
       { tool: 'add_tag', id: 'interested_foundation', status: 'discarded' },
     ]);
+  });
+
+  it('records a flow sent before a deferred call hit MODEL_ABORT_MS', async () => {
+    // Sends the flow, then never answers until the abort fires.
+    const runner: AgentRunner = {
+      run: async ({ stage = new ActionStage(), contact, flows, signal }) => {
+        const built = buildTools(tools, stage, contact, undefined, { flows });
+        await built?.send_flow?.execute?.({ flow: 'student_results' } as never, {
+          toolCallId: 'test',
+          messages: [],
+          context: {},
+        });
+        return new Promise<AgentResult>((_resolve, reject) =>
+          signal?.addEventListener('abort', () => reject(new Error('aborted'))),
+        );
+      },
+    };
+    const out = await handler(runner, { raceDeadlineMs: 50, modelAbortMs: 150 }).handle(
+      inbound('can I learn it?'),
+    );
+    expect(out.outcome).toBe('deferred');
+
+    await vi.waitFor(async () => expect(await agentTurns()).toHaveLength(1), { timeout: 3000 });
+    const [turn] = await agentTurns();
+    expect(turn!.outcome).toBe('error');
+    expect(turn!.text).toBe('One moment.');
+    expect(turn!.actions).toEqual([
+      { tool: 'send_flow', id: 'student_results', status: 'performed' },
+    ]);
+    // So the next turn knows it went out, and does not send it again.
+    expect(requests()).toEqual([`sendFlow ${flowNs('student_results')}`]);
   });
 });

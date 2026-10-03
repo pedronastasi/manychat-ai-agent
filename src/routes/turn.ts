@@ -472,8 +472,21 @@ export class TurnHandler {
         try {
           if (outcome.kind === 'error') {
             // MODEL_ABORT_MS lands here, with whatever it had staged.
-            discard();
+            const actions = discard();
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');
+            // A flow sent during the call has reached the contact, so the turn
+            // is recorded with it: otherwise the next turn would not know it
+            // went out, and could send a send-once flow again (specs/029 § An
+            // escalation cannot recall a flow). Recorded as the holding line
+            // the contact was actually given.
+            if (stage.sent.length > 0) {
+              await this.store.recordAgentReply(
+                conversation.id,
+                rules.messages.acknowledgement,
+                'error',
+                { ...turn, actions },
+              );
+            }
             return;
           }
           const { done } = outcome;

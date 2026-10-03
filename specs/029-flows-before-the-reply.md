@@ -78,7 +78,11 @@ turn still reaches a human, with the flow recorded as sent.
 
 The turn's record keeps each sent flow's outcome, `performed` or `failed`,
 beside the staged actions, in the order the model made them; an escalation marks
-the staged ones `discarded` and leaves the sent ones as they are.
+the staged ones `discarded` and leaves the sent ones as they are. A deferred
+call that fails or hits `MODEL_ABORT_MS` after sending a flow, which before
+this spec recorded nothing, records an agent turn with the holding line the
+contact was given and outcome `error`, so the next turn knows the flow went
+out and does not send it again.
 
 ## The race includes the request
 
@@ -118,8 +122,8 @@ here can see inside a flow, so this is the tenant's to check.
    payment link's `link_sent` write and event follow it, and that the reply's
    staged actions are performed after the response.
 5. An integration test asserts an escalated turn has still sent its flow and
-   records it, and a nudge turn's flow stays staged until its text is
-   delivered.
+   records it, that a deferred call aborted after sending one records it, and
+   that a nudge turn's flow stays staged until its text is delivered.
 
 **What this does not prove.** Every check stops at ManyChat accepting the
 request. Whether a flow finishes before the reply arrives depends on the
