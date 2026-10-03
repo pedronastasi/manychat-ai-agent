@@ -34,6 +34,8 @@ import {
   ManyChatResponseError,
 } from '../channels/manychat/client.ts';
 import { performActions, performedCourse } from '../conversation/actions.ts';
+import { holdQuestion, sendHeldQuestion } from '../conversation/question.ts';
+import type { QuestionSender } from '../conversation/question.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 
@@ -60,6 +62,11 @@ export interface TurnDeps {
   tokensEnforced: boolean;
   /** Performs what the agent staged, once the reply has gone out (specs/012). */
   actions: ActionPerformer;
+  /**
+   * Sends a closing question held back behind a flow (specs/029). Without it
+   * the question stays in the response, ahead of the flow.
+   */
+  questions?: QuestionSender | undefined;
   /** Reads the contact for `get_contact` (specs/024). Without it, no read is offered. */
   contacts?: ContactReader | undefined;
   /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
@@ -546,15 +553,32 @@ export class TurnHandler {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
     const staged = performable(done.result);
+    // The question follows the flow it asks about, so it leaves the response
+    // and is sent after the turn's actions (specs/029). The turn was recorded
+    // above with it, as the reply of record.
+    const questions = this.deps.questions;
+    const { messages, held } = questions
+      ? holdQuestion(done.result.reply.messages, staged)
+      : { messages: done.result.reply.messages, held: undefined };
     return {
-      reply: done.result.reply,
+      reply: held ? { ...done.result.reply, messages } : done.result.reply,
       outcome,
       conversationId: conversation.id,
       binding,
       ...(staged.length > 0
         ? {
-            afterResponse: () =>
-              this.performInline(inbound.subscriberId, conversation.id, staged, turnId, logger),
+            afterResponse: async () => {
+              await this.performInline(
+                inbound.subscriberId,
+                conversation.id,
+                staged,
+                turnId,
+                logger,
+              );
+              if (questions && held) {
+                await sendHeldQuestion(questions, inbound.subscriberId, held, logger);
+              }
+            },
           }
         : {}),
     };

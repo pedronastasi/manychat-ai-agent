@@ -180,6 +180,9 @@ reply is deferred, never dropped, and its staged actions are deferred with it.
 Actions are performed in the order the model staged them, one request each,
 through the existing `ManyChatClient` and its rate limiter.
 
+On a turn that sends a flow, the reply's closing question is held back and
+sent after the actions, once the flow has had time to play out (`029`).
+
 ## The flow set may not include the reply flow or field
 
 `flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, and `fields[].field`

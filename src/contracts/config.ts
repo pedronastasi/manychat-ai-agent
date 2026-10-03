@@ -210,6 +210,13 @@ export const LINK_SENT = 'link_sent';
 export const MAX_NUDGE_MINUTES = 1380;
 
 /**
+ * The longest a flow may declare it takes to play out. The held closing
+ * question waits this long after the flow at most, in a process that has
+ * already answered ManyChat. Chosen, not measured (specs/029).
+ */
+export const MAX_SETTLE_SECONDS = 30;
+
+/**
  * When the agent may follow up on a lead who went quiet (specs/025). The model
  * names a delay by `id`; `humanActiveTag` names a tag in the tenant's ManyChat
  * account and is never shown to it.
@@ -306,6 +313,11 @@ export const ToolsSchema = z
           repeatable: z.boolean().optional(),
           /** Performing it writes the funnel field to `link_sent` (specs/023). */
           role: z.literal('payment_link').optional(),
+          /**
+           * How long the flow takes to play out in ManyChat, so the turn's
+           * held closing question follows its content (specs/029).
+           */
+          settleSeconds: z.number().int().min(0).max(MAX_SETTLE_SECONDS).optional(),
           /**
            * The catalog course this flow belongs to; absent, it serves every
            * course (specs/028 § A flow belongs to one course or to all).

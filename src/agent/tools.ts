@@ -331,6 +331,7 @@ export function buildTools(
             tool: 'send_flow',
             id: flow,
             flowNs: entry.flowNs,
+            ...(entry.settleSeconds !== undefined ? { settleSeconds: entry.settleSeconds } : {}),
             ...(followOn ? { followOn } : {}),
           }),
         };
