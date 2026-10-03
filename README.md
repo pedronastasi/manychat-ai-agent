@@ -88,6 +88,7 @@ Every non-obvious choice is written down in [`docs/adr/`](docs/adr/):
 | [0017](docs/adr/0017-bounded-free-text-notes.md)                          | Free text only in declared note fields no flow renders, length-capped and stripped of identifiers        |
 | [0018](docs/adr/0018-port-to-python-beside-typescript-on-one-database.md) | Port to Python on LangChain, LangGraph, FastAPI and Pydantic, cut over beside TypeScript on one database |
 | [0019](docs/adr/0019-flows-are-sent-inside-the-loop.md)                   | On an inbound turn a flow is sent when the model calls it, so the reply follows it; other writes stage   |
+| [0020](docs/adr/0020-learning-is-offline-and-human-approved.md)           | Learning is offline, from paid outcomes; a tactic reaches the prompt only after approval and an eval     |
 
 Behavior is specified before it is implemented, in [`specs/`](specs/) —
 a [constitution](specs/000-constitution.md) of non-negotiables, the

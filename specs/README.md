@@ -43,6 +43,7 @@ test fails the suite.
 | [028 — Multi-Course Funnels](028-multi-course-funnels.md)               | implemented | 2026-10-03  | #151 | 4     | C1, C3, C6                         | [0015]                                                                                 |
 | [029 — Flows Go Out Before the Reply](029-flows-before-the-reply.md)    | implemented | 2026-10-03  | #152 | 4     | C6, C7, C8                         | [0010], [0016], [0019]                                                                 |
 | [030 — The Reply Waits for the Flow](030-reply-waits-for-the-flow.md)   | implemented | 2026-10-03  | #153 | 2     | C6, C7, C8                         | [0001], [0004], [0019]                                                                 |
+| [031 — Learning From Outcomes](031-learning-from-outcomes.md)           | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7         | [0020], [0015], [0011]                                                                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
@@ -58,3 +59,4 @@ test fails the suite.
 [0017]: ../docs/adr/0017-bounded-free-text-notes.md
 [0018]: ../docs/adr/0018-port-to-python-beside-typescript-on-one-database.md
 [0019]: ../docs/adr/0019-flows-are-sent-inside-the-loop.md
+[0020]: ../docs/adr/0020-learning-is-offline-and-human-approved.md

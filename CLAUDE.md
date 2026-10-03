@@ -90,8 +90,8 @@ test/
   fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
-docs/adr/              # Architecture Decision Records (0001–0019)
-specs/                 # Specification documents (000–030)
+docs/adr/              # Architecture Decision Records (0001–0020)
+specs/                 # Specification documents (000–031)
 evals/golden/          # Golden eval cases (cases.jsonl)
 ```
 
