@@ -185,6 +185,69 @@ can see inside your flows, so this is yours to check. And turn off any drip
 sequence that sends the same flows on a timer, or contacts will get each piece
 twice.
 
+Every other field in `fields` is a qualification question. The agent learns the
+answers before it sends the first content flow, one question per turn, so write
+each `description` as what to ask, for example "Whether the contact has studied
+the subject before. Ask before sending content." The example file has two.
+
+Add `paymentOptions` to `catalog.json` if you offer instalments or a deposit;
+without them, "can I pay in parts?" goes to a person as `price_negotiation`.
+
+#### Rolling it out
+
+Most of this happens in your ManyChat account, not here:
+
+1. **Measure the baseline first.** Record your enrolment rate over the four
+   weeks before rollout, and the dates it covers. Without it, nothing can show
+   the funnel changed anything.
+2. **Create the funnel field** in ManyChat with the name you put in `field`,
+   plus one field per qualification question. Create an `enrolled` tag for the
+   person who confirms payments; the agent never sets it.
+3. **Make each content flow a leaf.** Open every flow listed in `flows` and
+   remove any step that starts another flow.
+4. **Retire the drip.** Change the entry flow so it hands the contact to the
+   agent's Dynamic Block instead of starting a sequence. An agent and a drip on
+   the same contact send every piece twice.
+5. **Tell whoever answers handoffs** about the new `payment_reported` reason:
+   those contacts say they have paid and are waiting for a person to check.
+6. **Add eval cases** for your own flows and objections, and run `pnpm eval`
+   against the real model (`specs/009-tenant-eval-suites.md`).
+
+#### Measuring it
+
+Two rates, reported separately and never combined:
+
+| Measure        | Over contacts whose first turn fell in the week…      | Where it comes from   |
+| -------------- | ----------------------------------------------------- | --------------------- |
+| Link-sent rate | …whose payment-link flow was `performed`              | `turns.actions`, here |
+| Paid enrolment | …that a person tagged `enrolled` after seeing payment | Your ManyChat account |
+
+Link-sent rate is the one this service can compute. Replace
+`enrolment_link` with your payment-link flow's `id`:
+
+```sql
+WITH firsts AS (
+  SELECT c.id, date_trunc('week', min(t.created_at)) AS week
+  FROM conversations c JOIN turns t ON t.conversation_id = c.id
+  GROUP BY c.id
+), linked AS (
+  SELECT DISTINCT t.conversation_id AS id
+  FROM turns t, jsonb_array_elements(t.actions) AS a
+  WHERE a ->> 'tool' = 'send_flow'
+    AND a ->> 'id' = 'enrolment_link'
+    AND a ->> 'status' = 'performed'
+)
+SELECT f.week, count(*) AS contacts, count(l.id) AS link_sent,
+       round(100.0 * count(l.id) / count(*), 1) AS link_sent_pct
+FROM firsts f LEFT JOIN linked l USING (id)
+GROUP BY f.week ORDER BY f.week;
+```
+
+A rising link-sent rate with a flat enrolment rate means the agent is asking
+too early, or too hard. Only the enrolment rate tells a better agent from a
+pushier one, so read real conversations after rollout as well: the golden set
+only catches the pressure phrasings someone thought to write down.
+
 ### Reading the contact and writing notes (optional)
 
 `get_contact` lets the agent read what is recorded on the contact right now,
