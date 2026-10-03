@@ -1,7 +1,7 @@
 ---
 status: specified
 constitution: [C1, C2, C3, C4, C5, C6, C7, C8, C9]
-adr: [0018, 0001, 0004, 0008, 0010, 0012, 0013, 0014, 0016, 0017]
+adr: [0018, 0001, 0004, 0008, 0010, 0012, 0013, 0014, 0016, 0017, 0019]
 ---
 
 # 026 — Python Port Parity
@@ -128,7 +128,11 @@ The graph has three nodes and a step counter in its state:
 2. **`tools`** handles the calls in the order the model made them. A write
    (`send_flow`, `add_tag`, `remove_tag`, `set_field`, and `write_note` when
    `024` lands) is staged on the `ActionStage` and returns `{ staged: … }`;
-   nothing reaches ManyChat. A read (`get_contact`, when `024` lands) is
+   nothing reaches ManyChat. The exception is `send_flow` on an inbound turn,
+   which `029` sends when called, with its follow-ons, through the
+   `ManyChatClient` port, and which returns `{ sent: … }`; the Python node
+   does the same, keeping one send per flow per turn and the stage floor that
+   counts a payment link in flight. A read (`get_contact`, when `024` lands) is
    performed through the `ManyChatClient` port, with its own timeout, and
    returns its result or `{ available: false }`. Then back to `model`, unless
    the counter has reached the cap less one.
@@ -141,9 +145,10 @@ The numbers are `tools.ts`'s, at the commit the gate runs against. Read on
 2026-10-02, they are a cap of 2 steps and 3 staged actions, with no read tool.
 `024` raises them to 4 steps, 8 actions and 2 reads, and adds the read with its
 1500 ms timeout. The graph does not change shape when it does. ADR-0010 as
-amended by ADR-0016 is the rule in both cases: reads perform inside the loop,
-writes stage and are performed only after the guardrails pass, and are
-discarded on any escalation.
+amended by ADR-0016 and ADR-0019 is the rule in both cases: reads perform
+inside the loop, and so does a flow on an inbound turn; every other write
+stages and is performed only after the guardrails pass, and is discarded on
+any escalation.
 
 How the model is asked for the `AgentReply` on a step that may also call tools
 is the implementation's choice, with three limits. The reply is validated

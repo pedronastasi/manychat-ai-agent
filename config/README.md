@@ -121,8 +121,9 @@ contact, record a choice they made, read what is recorded on them, or write a
 note for your team. It can also schedule one follow-up for a contact who goes
 quiet (see [Follow-ups](#follow-ups-optional)). The design is in
 `specs/012-agent-tools.md`, `specs/024-contact-read-and-notes.md`,
-`specs/025-in-window-nudge.md` and
-`docs/adr/0010-bounded-tool-loop-with-staged-actions.md`.
+`specs/025-in-window-nudge.md`, `specs/029-flows-before-the-reply.md`,
+`docs/adr/0010-bounded-tool-loop-with-staged-actions.md` and
+`docs/adr/0019-flows-are-sent-inside-the-loop.md`.
 
 `pnpm bootstrap` does not create this file, because tools are opt-in. To turn
 them on:
@@ -179,6 +180,13 @@ Three keys turn on the sales funnel of `specs/023-sales-funnel.md`:
 - **`repeatable: true`** on a flow lets the agent send it more than once to the
   same contact. Every other flow is sent at most once per contact. The payment
   link is the usual case.
+
+A flow the agent chooses is sent the moment it decides to, before it writes its
+reply, so the contact receives the flow, then the reply and its question
+(`specs/029-flows-before-the-reply.md`). The reply arrives a few seconds after
+the flow starts, so a flow the agent sends should deliver its content without
+long Smart Delays: a flow that pauses for ten seconds is still playing when the
+reply lands in the middle of it.
 
 Each content flow must be a leaf: it must not start another flow. Nothing here
 can see inside your flows, so this is yours to check. And turn off any drip
@@ -349,7 +357,7 @@ the follow-up worker has nothing to do.
 
 1. **The agent schedules it.** On an ordinary turn the model may call
    `schedule_nudge` with a delay id, usually after an offer, an objection or a
-   question of its own. Like every action it is only staged. It is discarded if
+   question of its own. Like every write but a flow, it is only staged. It is discarded if
    the turn hands off, and it is performed after the reply has gone out.
 2. **One waits at a time.** Performing it writes a row in the `nudges` table,
    due `minutes` after that moment. Scheduling again replaces the one that is
@@ -508,25 +516,35 @@ minutes, or a `humanActiveTag` that is empty or is one of your `tags[].tag`.
 
 ### What happens on a turn
 
-1. **The model chooses.** It may call tools before writing its reply. A call
-   only stages the action. Nothing reaches ManyChat while the model is running.
-   A turn stages at most 8 actions, and identical calls count once. A call past
-   the limit is dropped. The model gets up to three rounds of tool calls before
-   it must write the reply, so it can read, act and read again.
-2. **The model writes the reply.** It is told what was staged and that nothing
-   has been sent yet, so it says what it is sending rather than claiming it
-   has sent it.
+1. **The model chooses.** It may call tools before writing its reply. A turn
+   takes at most 8 actions, and identical calls count once. A call past the
+   limit is dropped. The model gets up to three rounds of tool calls before it
+   must write the reply, so it can read, act and read again.
+   - **A flow is sent when the model calls it** (`specs/029`). The contact
+     receives it before the reply, and the model is told whether ManyChat
+     accepted it. A payment link takes the turn's earlier funnel writes with
+     it, so `link_sent` is the last stage written. On a follow-up turn
+     (`nudge`) flows are staged like everything else.
+   - **Every other call only stages the action:** tags, fields, notes and
+     follow-ups reach ManyChat after the reply.
+2. **The model writes the reply.** It is told which flows went out, so it
+   writes a reply that follows them and does not repeat their content, and
+   what was staged, so it says what it is doing rather than claiming it is
+   done.
 3. **The guardrails decide.** If the turn ends in a handoff for any reason, every
    staged action is discarded. The reasons are: the model escalated,
    confidence was too low, a prompt leak, an invalid reply, a failed model call,
    or `MODEL_ABORT_MS`. A note marked `onEscalation` is the one exception: it is
-   still written when the model escalated or confidence was too low.
-4. **The text goes first, then the actions.** On an inline reply, the actions run
-   after the response to ManyChat has been sent. On a deferred reply, the outbox
-   worker runs them after it has delivered the text, and if the reply is
-   dead-lettered its actions are dropped. Actions run in the order the model
-   staged them, one request each, with a 10-second timeout. Each gets one
-   attempt: a failure is logged at `warn` as `action failed` and is not retried.
+   still written when the model escalated or confidence was too low. A flow
+   already sent cannot be recalled: the contact receives it, then the handoff
+   message.
+4. **The text goes first, then the staged actions.** On an inline reply, they
+   run after the response to ManyChat has been sent. On a deferred reply, the
+   outbox worker runs them after it has delivered the text, and if the reply is
+   dead-lettered they are dropped. They run in the order the model staged them,
+   one request each, with a 10-second timeout. Each action, sent or staged, gets
+   one attempt: a failure is logged at `warn` as `action failed` and is not
+   retried.
 5. **Later turns remember.** History shows the model a line such as
    `[actions performed: send_flow foundation_brochure]` under the reply that
    performed it, so it does not send the same flow again. Only `performed`
@@ -540,7 +558,8 @@ budget, rate and turn caps) offer no tools and stage nothing.
 
 Every agent turn records its actions in the `actions` column of `turns`. It is
 `null` when no tool was offered and `[]` when tools were offered and none was
-chosen. Otherwise it has one entry per staged action:
+chosen. Otherwise it has one entry per action, sent or staged, in the order the
+model made them:
 
 ```json
 [{ "tool": "send_flow", "id": "foundation_brochure", "status": "performed" }]
@@ -551,9 +570,11 @@ see in the column:
 
 ```mermaid
 flowchart TD
-    call["The model calls a tool"] --> cap{"8 actions already staged this turn?"}
+    call["The model calls a tool"] --> cap{"8 actions already this turn?"}
     cap -- yes --> over(["dropped_over_cap"])
-    cap -- no --> handoff{"Does the turn end in a handoff?"}
+    cap -- no --> flow{"send_flow on an inbound turn?"}
+    flow -- yes --> run
+    flow -- no --> handoff{"Does the turn end in a handoff?"}
     handoff -- yes --> discarded(["discarded"])
     handoff -- no --> staged(["staged"])
     staged --> deadline{"Reply ready before the 8 s race deadline?"}
@@ -572,7 +593,7 @@ flowchart TD
 | `staged`           | Waiting to be performed, after the response or the outbox  |
 | `performed`        | ManyChat accepted the request                              |
 | `failed`           | ManyChat refused it or it timed out; `error` says why      |
-| `discarded`        | The turn ended in a handoff                                |
+| `discarded`        | The turn ended in a handoff (never a flow already sent)    |
 | `dropped_over_cap` | Staged past the limit of 8 and never sent                  |
 | `dead_lettered`    | Its deferred reply was dead-lettered, so it was never sent |
 

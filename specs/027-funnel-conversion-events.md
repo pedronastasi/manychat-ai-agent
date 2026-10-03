@@ -124,7 +124,8 @@ The tracking flow is a **follow-on** of the funnel write, the same mechanism
   (`012 § The loop is bounded at four steps`);
 - it rides the same delivery path as the write: after the Dynamic Block
   response when the race is won, after the outbox delivers the text when it is
-  lost, and not at all if the row is dead-lettered;
+  lost, and not at all if the row is dead-lettered. The payment link's chain
+  on an inbound turn goes out with the flow, during the turn (`029`);
 - it gets one attempt and is never retried (`012 § A failed action is logged,
 never retried`). A retried event minutes later is still a correct event, but
   an outbox retry already re-delivers text only, and making events the one

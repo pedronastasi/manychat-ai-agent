@@ -98,7 +98,9 @@ course-specific, the payment-link flow).
 
 `send_flow` accepts a flow only if it has no `course` or its `course` is the
 turn's course: the one staged on the course field earlier in the same turn, or
-else the contact's current course. Anything else returns `{ staged: false }`.
+else the contact's current course. Anything else returns `{ staged: false }`,
+or `{ sent: false }` on an inbound turn, where a flow is sent when called
+(`029`).
 A turn with no known course accepts only flows without one, so the agent's
 first job with an unplaced lead is to place them.
 
@@ -115,7 +117,8 @@ A contact who asked about one course and turns out to fit another is normal,
 and the agent may move them: a `set_field` on the course field is accepted
 while the funnel stage is before `offered`.
 
-From `offered` onward the course is locked. A write to it returns
+From `offered` onward the course is locked, counting a payment link sent or in
+flight this turn at `link_sent` (`029`). A write to it returns
 `{ staged: false }`, and the system instructions tell the model to escalate
 as `explicit_request` when the contact asks to switch. At that point a course
 and its catalog price have been put to the contact, and from `link_sent` a

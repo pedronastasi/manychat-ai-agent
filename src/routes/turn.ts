@@ -36,6 +36,7 @@ import {
 import { performActions, performedCourse } from '../conversation/actions.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
+import { FlowSends } from '../agent/flows.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -332,6 +333,15 @@ export class TurnHandler {
           })
         : undefined;
 
+    // A flow is sent when the model calls it, so its reply follows it
+    // (specs/029). Through the nudging performer, so a payment link sent now
+    // still cancels a pending nudge.
+    const flows = new FlowSends({
+      performer: new NudgingPerformer(this.deps.actions, this.nudges, conversation.id),
+      subscriberId: inbound.subscriberId,
+      logger,
+    });
+
     /**
      * Staged actions are performed only when the final reply, after the
      * guardrails, does not escalate. Every other ending lands here (specs/012
@@ -341,7 +351,7 @@ export class TurnHandler {
     const discard = (kept: readonly StagedAction[] = []) => {
       const discarded = stage.staged.length - kept.length;
       if (discarded > 0) logger.info({ discarded }, 'staged actions discarded');
-      return stage.staged.length + stage.dropped.length > 0
+      return stage.staged.length + stage.dropped.length + stage.sent.length > 0
         ? stage.records('discarded', kept)
         : undefined;
     };
@@ -378,6 +388,7 @@ export class TurnHandler {
           stage,
           contact,
           reads,
+          flows,
         })
       : this.deps.runner
           .run({
@@ -387,6 +398,7 @@ export class TurnHandler {
             stage,
             contact,
             reads,
+            flows,
           })
           .then(result => ({ kind: 'model' as const, result }));
     const completion = work
@@ -459,9 +471,24 @@ export class TurnHandler {
         clearTimeout(abortTimer);
         try {
           if (outcome.kind === 'error') {
-            // MODEL_ABORT_MS lands here, with whatever it had staged.
-            discard();
+            // MODEL_ABORT_MS lands here, with whatever it had staged, and
+            // perhaps a flow request still in flight.
+            await stage.settled();
+            const actions = discard();
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');
+            // A flow sent during the call has reached the contact, so the turn
+            // is recorded with it: otherwise the next turn would not know it
+            // went out, and could send a send-once flow again (specs/029 § An
+            // escalation cannot recall a flow). Recorded as the holding line
+            // the contact was actually given.
+            if (stage.sent.length > 0) {
+              await this.store.recordAgentReply(
+                conversation.id,
+                rules.messages.acknowledgement,
+                'error',
+                { ...turn, actions },
+              );
+            }
             return;
           }
           const { done } = outcome;
@@ -598,6 +625,7 @@ export class TurnHandler {
       stage: ActionStage;
       contact: ContactActions | undefined;
       reads: ContactReads | undefined;
+      flows: FlowSends | undefined;
     },
   ): Promise<Completion> {
     const { rules } = this.deps;
@@ -665,6 +693,7 @@ export class TurnHandler {
       stage: ctx.stage,
       contact: ctx.contact,
       reads: ctx.reads,
+      flows: ctx.flows,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

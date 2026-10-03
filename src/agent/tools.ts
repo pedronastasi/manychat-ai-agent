@@ -11,6 +11,7 @@ import type {
 } from '../contracts/agent.ts';
 import { cleanNote, contactResult, UNAVAILABLE } from './contact.ts';
 import type { ContactReads } from './contact.ts';
+import type { FlowSends, SendFlowAction } from './flows.ts';
 
 /**
  * Steps one to three may call tools; step four offers none, so it must
@@ -55,9 +56,11 @@ export function recordOf(
 
 /**
  * Everything the model staged on one turn. A tool's `execute` writes here and
- * nothing else: no ManyChat request is made inside the model call, because at
+ * nothing else: no ManyChat write is made inside the model call, because at
  * that point the model has not decided whether to escalate and the guardrails
- * have not run (ADR-0010).
+ * have not run (ADR-0010). The exception is a flow on an inbound turn, sent
+ * when called so the reply can follow it (specs/029, ADR-0019); it is kept
+ * here with what became of it, in call order.
  *
  * Created by the caller rather than the runner, so what was staged is still
  * known when the model call is aborted and never returns.
@@ -65,6 +68,16 @@ export function recordOf(
 export class ActionStage {
   private readonly accepted: StagedAction[] = [];
   private readonly overCap: StagedAction[] = [];
+  private readonly sentNow: {
+    action: StagedAction;
+    records: ActionRecord[];
+    /** Settles when ManyChat has answered, so a repeat call waits for it. */
+    done: Promise<void>;
+    /** Until ManyChat answers; its records are placeholders meanwhile. */
+    pending: boolean;
+  }[] = [];
+  /** Staged and sent entries in the order the model made them, for the record. */
+  private readonly order: (StagedAction | { sent: number })[] = [];
 
   /**
    * Whether the action is staged. A repeat of one already staged is. Compared
@@ -74,12 +87,99 @@ export class ActionStage {
     const key = JSON.stringify(action);
     const same = (existing: StagedAction) => JSON.stringify(existing) === key;
     if (this.accepted.some(same)) return true;
-    if (this.accepted.length >= MAX_ACTIONS_PER_TURN) {
+    if (this.full) {
       if (!this.overCap.some(same)) this.overCap.push(action);
       return false;
     }
     this.accepted.push(action);
+    this.order.push(action);
     return true;
+  }
+
+  /** A flow sent this turn counts against the cap as a staged action does. */
+  private get full(): boolean {
+    return this.accepted.length + this.sentNow.length >= MAX_ACTIONS_PER_TURN;
+  }
+
+  /**
+   * Sends a flow now (specs/029). Returns whether ManyChat accepted it, or
+   * `undefined` when it is over the cap and was not sent. A flow already sent
+   * this turn is not sent again; its first outcome stands.
+   *
+   * `first` are actions already staged that must reach ManyChat before the
+   * flow: a payment link's `link_sent` would otherwise be overwritten by an
+   * earlier funnel write performed after the reply (specs/029 § A payment link
+   * takes the turn's stage writes with it). They are sent ahead of it, keep
+   * their place in the record, and are no longer staged.
+   */
+  async send(
+    action: SendFlowAction,
+    sends: FlowSends,
+    first: readonly StagedAction[] = [],
+  ): Promise<boolean | undefined> {
+    const earlier = this.sentNow.find(
+      entry => entry.action.tool === 'send_flow' && entry.action.id === action.id,
+    );
+    if (earlier) {
+      // A repeat made while the first request is in flight (parallel calls in
+      // one step) gets its real outcome, not the placeholder.
+      await earlier.done;
+      return earlier.records[0]?.status === 'performed';
+    }
+    if (this.full) {
+      if (!this.overCap.some(entry => entry.tool === 'send_flow' && entry.id === action.id)) {
+        this.overCap.push(action);
+      }
+      return undefined;
+    }
+    // Reserved before the request, so a second call made while it is in
+    // flight neither sends the flow twice nor slips past the cap. Recorded as
+    // failed until ManyChat answers: a turn that ends while the request is in
+    // flight cannot say it went out.
+    const reserve = (entryAction: StagedAction) => ({
+      action: entryAction,
+      records: [recordOf(entryAction, 'failed', 'no answer before the turn ended')],
+      done: Promise.resolve(),
+      pending: true,
+    });
+    const ahead = first.filter(staged => this.accepted.includes(staged)).map(reserve);
+    for (const entry of ahead) {
+      const at = this.accepted.indexOf(entry.action);
+      this.accepted.splice(at, 1);
+      this.sentNow.push(entry);
+      this.order[this.order.indexOf(entry.action)] = { sent: this.sentNow.length - 1 };
+    }
+    const entry = reserve(action);
+    this.sentNow.push(entry);
+    this.order.push({ sent: this.sentNow.length - 1 });
+    const done = sends.send([...ahead.map(staged => staged.action), action]).then(groups => {
+      [...ahead, entry].forEach((sent, index) => {
+        sent.records = groups[index] ?? sent.records;
+        sent.pending = false;
+      });
+    });
+    for (const sent of [...ahead, entry]) sent.done = done;
+    await done;
+    return entry.records[0]?.status === 'performed';
+  }
+
+  /**
+   * Resolves once every send started this turn has its answer. A call aborted
+   * while a request is in flight does not stop the request, so the record waits
+   * for it rather than keeping the placeholder (specs/029). Bounded by the
+   * client's request timeout.
+   */
+  async settled(): Promise<void> {
+    await Promise.all(this.sentNow.map(entry => entry.done));
+  }
+
+  /** Actions sent this turn, whatever became of them. */
+  get sent(): readonly {
+    action: StagedAction;
+    records: readonly ActionRecord[];
+    pending: boolean;
+  }[] {
+    return this.sentNow;
   }
 
   /** In the order the model staged them, which is the order they are performed in. */
@@ -109,8 +209,13 @@ export class ActionStage {
    * will still be performed.
    */
   records(status: 'staged' | 'discarded', kept: readonly StagedAction[] = []): ActionRecord[] {
+    // A flow already sent keeps its outcome: an escalation cannot recall it.
     return [
-      ...this.accepted.map(action => recordOf(action, kept.includes(action) ? 'staged' : status)),
+      ...this.order.flatMap(entry =>
+        'sent' in entry
+          ? this.sentNow[entry.sent]!.records
+          : [recordOf(entry, kept.includes(entry) ? 'staged' : status)],
+      ),
       ...this.overCap.map(action => recordOf(action, 'dropped_over_cap')),
     ];
   }
@@ -225,6 +330,9 @@ const catalogOf = (entries: { id: string; description: string; course?: string |
 const STAGED =
   'The action is staged, not performed: it happens after your reply is sent, and not at all if the turn escalates.';
 
+const SENT_NOW =
+  'The flow is sent when you call this, before your reply: the contact receives it first and your reply follows it. Do not repeat what it contains. The result says whether it went out.';
+
 const STAGED_NOTE =
   'The note is staged, not written: it is written after your reply is sent. It replaces what the note held, so read it first with get_contact to add to it.';
 
@@ -242,8 +350,12 @@ export function buildTools(
   contact: ContactActions = NO_CONTACT_ACTIONS,
   /** The turn's own contact, readable only on a turn that reads history (specs/024). */
   reads?: ContactReads,
-  /** A nudge turn is offered no `schedule_nudge`, so a nudge never schedules another (specs/025). */
-  options: { nudgeTurn?: boolean } = {},
+  /**
+   * A nudge turn is offered no `schedule_nudge`, so a nudge never schedules
+   * another (specs/025). `flows`, when given, sends a flow when it is called
+   * instead of staging it (specs/029).
+   */
+  options: { nudgeTurn?: boolean; flows?: FlowSends | undefined } = {},
 ): ToolSet | undefined {
   const tools: ToolSet = {};
   const funnel = funnelField(config);
@@ -304,13 +416,14 @@ export function buildTools(
         : turnCourse() === undefined
           ? 'None yet: record the contact’s course with set_field first.'
           : 'None: everything for this contact’s course has been sent.';
+    const sends = options.flows;
     tools.send_flow = tool({
-      description: `Send the contact one of these flows.\n${listing}\n${STAGED}`,
+      description: `Send the contact one of these flows.\n${listing}\n${sends ? SENT_NOW : STAGED}`,
       inputSchema: z.object({ flow: z.enum(idsOf(unsent)) }),
-      execute: ({ flow }) => {
+      execute: async ({ flow }) => {
         const entry = flows.get(flow)!;
         // Another course's content is refused, whatever the model names.
-        if (!fits(entry, turnCourse())) return { staged: false };
+        if (!fits(entry, turnCourse())) return sends ? { sent: false } : { staged: false };
         // The server, not the model, records that the link went out, and only
         // once the flow itself has (specs/023 § The sale ends at the
         // payment-link flow).
@@ -326,14 +439,22 @@ export function buildTools(
                 ...(event ? { followOn: event } : {}),
               }
             : undefined;
-        return {
-          staged: stage.stage({
-            tool: 'send_flow',
-            id: flow,
-            flowNs: entry.flowNs,
-            ...(followOn ? { followOn } : {}),
-          }),
+        const action: SendFlowAction = {
+          tool: 'send_flow',
+          id: flow,
+          flowNs: entry.flowNs,
+          ...(followOn ? { followOn } : {}),
         };
+        if (!sends) return { staged: stage.stage(action) };
+        // Sent now, so the reply written after it follows it (specs/029). A
+        // payment link takes the turn's staged stage writes ahead of it, so
+        // its `link_sent` is the last stage ManyChat is given.
+        const first =
+          entry.role === 'payment_link' && funnel
+            ? stage.staged.filter(staged => staged.tool === 'set_field' && staged.id === funnel.id)
+            : [];
+        const sent = await stage.send(action, sends, first);
+        return sent === undefined ? { sent: false, reason: 'over the per-turn limit' } : { sent };
       },
     });
   }
@@ -380,6 +501,27 @@ export function buildTools(
         stageIndex(contact.funnelStage),
         ...stage.staged.map(action =>
           action.tool === 'set_field' && action.id === funnel?.id ? stageIndex(action.value) : -1,
+        ),
+        // Writes already made this turn, a payment link's `link_sent` among
+        // them (specs/029), so nothing staged after can walk the stage back.
+        ...stage.sent.flatMap(sent =>
+          sent.records.map(record =>
+            record.tool === 'set_field' && record.id === funnel?.id && record.status === 'performed'
+              ? stageIndex(record.value)
+              : -1,
+          ),
+        ),
+        // A payment link still in flight counts at the stage it is about to
+        // write: a call in the same step runs while it waits (the SDK starts a
+        // step's calls together), and would otherwise stage a lower write
+        // that lands after `link_sent`. If the link then fails, the turn has
+        // at most one step left.
+        ...stage.sent.map(sent =>
+          sent.pending &&
+          sent.action.tool === 'send_flow' &&
+          sent.action.followOn?.id === funnel?.id
+            ? stageIndex(sent.action.followOn?.value)
+            : -1,
         ),
       );
 

@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-10-01
 pr: 110
 constitution: [C3, C4, C5, C6, C7]
-adr: [0010]
+adr: [0010, 0019]
 ---
 
 # 012 — Agent Tools
@@ -31,6 +31,10 @@ described below.
 The model is told an action was staged, never that it succeeded. The persona
 must not have it claim "I've sent it" as fact. It says what it is sending, the
 way a person does before pressing send.
+
+`send_flow` on an inbound turn is the exception: it sends the flow when called
+and returns `{ sent: true | false }`, so the reply follows the flow
+(`029`, ADR-0019).
 
 ## The mechanism is built here; only the choices are the tenant's
 
@@ -144,6 +148,9 @@ and the count discarded is logged. The one exception is a note marked
 Turns where the model never runs (the scripted opening, escalation keywords,
 budget, rate and turn caps) have no tools and so stage nothing.
 
+A flow sent during an inbound turn (`029`) has already gone out when any of
+these escalates the turn. It keeps its outcome on the record.
+
 ## The loop is bounded at four steps
 
 Steps one to three may call tools, several in parallel. Step four offers no
@@ -152,6 +159,8 @@ fails closed exactly as a schema failure does today.
 
 A turn stages at most **8** actions. A call past that returns
 `{ staged: false }` and is dropped. Identical staged actions are de-duplicated.
+A flow sent during an inbound turn (`029`) counts against the same 8; one past
+the limit is not sent and returns `{ sent: false }` with the reason.
 A turn reads at most twice (`024`).
 
 Both numbers were chosen, not measured, and replace this spec's original two
@@ -179,6 +188,9 @@ reply is deferred, never dropped, and its staged actions are deferred with it.
 
 Actions are performed in the order the model staged them, one request each,
 through the existing `ManyChatClient` and its rate limiter.
+
+On an inbound turn, flows are not among them: they were sent during the turn,
+before the text (`029`).
 
 ## The flow set may not include the reply flow or field
 
@@ -235,8 +247,10 @@ A note is recorded by its `length`, never its text (`024`).
 | `dropped_over_cap` | Staged past the per-turn limit and never sent |
 | `dead_lettered` | Its outbox row was dead-lettered, so it was never sent |
 
-On both paths the entries are written as `staged` with the turn and updated once
-the actions have run: on the inline path after the response, and on the
+A flow sent during an inbound turn (`029`) is written with its outcome,
+`performed` or `failed`, in its place among the staged entries, and a payment
+link's follow-ons after it. On both paths the staged entries are written as
+`staged` with the turn and updated once the actions have run: on the inline path after the response, and on the
 deferred path by the outbox worker after it has sent them. An inline turn whose
 process dies before its actions run therefore stays `staged`. The column is `null` on turns where no tool
 was offered, so "no tools" and "tools offered, none chosen" (`[]`) are distinct.

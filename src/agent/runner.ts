@@ -16,6 +16,7 @@ import {
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
+import type { FlowSends } from './flows.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
 import { ActionStage, buildTools, courseField, funnelField, MAX_STEPS } from './tools.ts';
 import type { ContactActions } from './tools.ts';
@@ -99,6 +100,11 @@ export interface AgentTurnInput {
    * a turn without the contact's token never reads their record (specs/024).
    */
   reads?: ContactReads | undefined;
+  /**
+   * Sends a flow when the model calls it, so the reply follows it (specs/029).
+   * Absent, flows are staged and sent after the reply, as every write is.
+   */
+  flows?: FlowSends | undefined;
   /**
    * Set on a nudge turn: no contact wrote, and the model decides whether to
    * follow up on silence since this time (specs/025). `text` is then unused.
@@ -249,6 +255,7 @@ export class GenerateTextRunner implements AgentRunner {
     stage = new ActionStage(),
     contact,
     reads,
+    flows,
     nudge,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
@@ -258,6 +265,7 @@ export class GenerateTextRunner implements AgentRunner {
     const tools = withTools
       ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads, {
           nudgeTurn: nudge !== undefined,
+          flows,
         })
       : undefined;
     const contactNotices = [

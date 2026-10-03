@@ -87,6 +87,7 @@ Every non-obvious choice is written down in [`docs/adr/`](docs/adr/):
 | [0016](docs/adr/0016-reads-are-performed-inside-the-loop.md)              | Read tools are performed when called and the loop grows to four steps; writes are still staged           |
 | [0017](docs/adr/0017-bounded-free-text-notes.md)                          | Free text only in declared note fields no flow renders, length-capped and stripped of identifiers        |
 | [0018](docs/adr/0018-port-to-python-beside-typescript-on-one-database.md) | Port to Python on LangChain, LangGraph, FastAPI and Pydantic, cut over beside TypeScript on one database |
+| [0019](docs/adr/0019-flows-are-sent-inside-the-loop.md)                   | On an inbound turn a flow is sent when the model calls it, so the reply follows it; other writes stage   |
 
 Behavior is specified before it is implemented, in [`specs/`](specs/) —
 a [constitution](specs/000-constitution.md) of non-negotiables, the
@@ -444,7 +445,7 @@ what is recorded on the contact and write short notes for the team
 ([spec 024](specs/024-contact-read-and-notes.md)).
 
 A turn where the contact asks for something to read, answered inside the
-deadline:
+deadline ([spec 029](specs/029-flows-before-the-reply.md)):
 
 ```mermaid
 sequenceDiagram
@@ -458,26 +459,30 @@ sequenceDiagram
     M->>A: Dynamic Block request
     A->>L: Step 1, tools offered
     L-->>A: Calls send_flow foundation_brochure
-    Note over A: Staged only. Nothing has been sent to ManyChat
-    A->>L: Last step, no tools, told what was staged
-    L-->>A: Reply: "Sending you the brochure now"
-    Note over A: Guardrails run. A handoff here would discard the action
-    A-->>M: Dynamic Block response with the reply
-    M->>C: Reply
-    A-)M: sendFlow, only after the response has been sent
+    A->>M: sendFlow, during the turn
     M->>C: The brochure flow
-    Note over A: turns.actions records it as performed
+    A->>L: Result: sent. Last step, no tools
+    L-->>A: Reply that follows the brochure, question last
+    Note over A: Guardrails run. A handoff cannot recall the flow
+    A-->>M: Dynamic Block response with the reply
+    M->>C: Reply, then its closing question
+    Note over A: turns.actions records the flow as performed
 ```
 
-When the model misses the deadline, the contact gets the holding message, and
-the outbox worker performs the action after it has delivered the reply.
+When the model misses the deadline, the contact gets the holding message; the
+flow has already gone out, and the outbox worker delivers the reply after it.
 
-- **A tool call only stages the action.** Nothing reaches ManyChat while the
-  model is running, and a turn that ends in a handoff discards everything it
+- **A flow goes out when the model sends it** (ADR-0019). The model is told
+  whether ManyChat accepted it and writes its reply after, so the contact reads
+  the flow, then the reply, then its question. A handoff later in the turn
+  cannot recall it. A payment link takes the turn's stage writes with it, so
+  `link_sent` is the last stage ManyChat is given. A nudge turn keeps its flows
   staged.
-- **The text goes first.** Actions run after the reply has gone out, either as
-  the Dynamic Block response or through the outbox. A turn has at most four
-  model steps and eight actions, and each action gets one attempt.
+- **Every other tool call only stages the action.** Tags, fields, notes and
+  nudges reach ManyChat after the reply has gone out, either as the Dynamic
+  Block response or through the outbox, and a turn that ends in a handoff
+  discards them. A turn has at most four model steps and eight actions, and
+  each action gets one attempt.
 - **The model only picks from the config.** It names entries by `id`, never a
   ManyChat name or free text, and every action lands on the contact whose
   message it is answering.
@@ -581,7 +586,7 @@ stateDiagram-v2
   unless it is marked `repeatable`, as the payment link usually is.
 - **The server, not the model, writes `link_sent`.** It is a follow-on of the
   payment-link flow: it runs only once ManyChat accepted the flow, and a failed
-  flow writes no stage. It does not count against the three-actions cap.
+  flow writes no stage. It does not count against the eight-action cap.
 - **Objections are answered from the catalog.** "Too expensive" or "can I pay
   in parts?" gets the catalog's `paymentOptions`; "I don't have time" gets the
   content flow that addresses it. A discount request that no payment option
