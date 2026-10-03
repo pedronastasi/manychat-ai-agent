@@ -242,23 +242,104 @@ function offered(
   return (typeof property === 'object' ? property.enum : undefined) ?? [];
 }
 
+/** A demo-tenant course named in the contact's words, if any (specs/028). */
+function namedCourse(lower: string): string | undefined {
+  if (/advanced/.test(lower)) return 'advanced';
+  if (/(weekend|intensive)/.test(lower)) return 'weekend-intensive';
+  if (/foundation/.test(lower)) return 'foundation';
+  return undefined;
+}
+
+/** Each demo-tenant course's brochure (specs/028). */
+const BROCHURES: Record<string, string> = {
+  foundation: 'foundation_brochure',
+  advanced: 'advanced_brochure',
+  'weekend-intensive': 'intensive_brochure',
+};
+
+/** The server's notes on the contact, read from the turn's message: stage and course. */
+function contactNotes(options: LanguageModelV4CallOptions): {
+  stage?: string | undefined;
+  course?: string | undefined;
+} {
+  const notes: { stage?: string | undefined; course?: string | undefined } = {};
+  for (const entry of options.prompt) {
+    if (entry.role !== 'user' || typeof entry.content === 'string') continue;
+    for (const part of entry.content) {
+      if (part.type !== 'text') continue;
+      const stage = /^FUNNEL: This contact's stage is ([a-z_]+)\./.exec(part.text);
+      if (stage) notes.stage = stage[1];
+      const course =
+        /^COURSE: This contact's course (?:is|changed from \S+ to) ([a-z0-9_-]+?)[. ]/.exec(
+          part.text,
+        );
+      if (course) notes.course = course[1];
+    }
+  }
+  return notes;
+}
+
+/** Whether the tenant marks a course field, read from the tool it offers (specs/028). */
+function hasCourseField(options: LanguageModelV4CallOptions): boolean {
+  return offered(options, 'set_field', 'field').includes('course');
+}
+
+/** A contact who wants a different course from the one recorded (specs/028). */
+function switchTo(options: LanguageModelV4CallOptions, lower: string): string | undefined {
+  if (!hasCourseField(options)) return undefined;
+  const named = namedCourse(lower);
+  const current = contactNotes(options).course;
+  const wants = /(instead|rather|switch|change to|the one for me|better for me)/.test(lower);
+  return wants && named !== undefined && current !== undefined && named !== current
+    ? named
+    : undefined;
+}
+
+/** From `offered` on, a switch is a person's decision (specs/028). */
+function courseLocked(options: LanguageModelV4CallOptions): boolean {
+  const stage = contactNotes(options).stage;
+  return stage === 'offered' || stage === 'link_sent';
+}
+
+/** A request for course content from a contact with no course, named or recorded. */
+function unplacedRequest(options: LanguageModelV4CallOptions, lower: string): boolean {
+  return (
+    hasCourseField(options) &&
+    /(brochure|syllabus|something to read)/.test(lower) &&
+    namedCourse(lower) === undefined &&
+    contactNotes(options).course === undefined
+  );
+}
+
+type MockAction = { toolName: string; input: Record<string, string> };
+
 /**
- * What a correct agent stages for the demo tenant, or null for nothing. Only
+ * What a correct agent stages for the demo tenant, in order, or nothing. Only
  * when the tool offers it: a flow already sent is not offered again, and a
  * tenant without one has nothing to send (specs/012, specs/023).
  */
-function chooseAction(
-  options: LanguageModelV4CallOptions,
-  text: string,
-): { toolName: string; input: Record<string, string> } | null {
+function chooseActions(options: LanguageModelV4CallOptions, text: string): MockAction[] {
   const lower = text.toLowerCase();
   const flows = offered(options, 'send_flow', 'flow');
-  const flow = (id: string | undefined) =>
-    id !== undefined && flows.includes(id) ? { toolName: 'send_flow', input: { flow: id } } : null;
+  const flow = (id: string | undefined): MockAction[] =>
+    id !== undefined && flows.includes(id) ? [{ toolName: 'send_flow', input: { flow: id } }] : [];
+  const setCourse = (course: string): MockAction[] => [
+    { toolName: 'set_field', input: { field: 'course', value: course } },
+  ];
 
-  // A request for something to read sends the first flow.
+  // Moved before the offer; after it, a person decides (specs/028).
+  const target = switchTo(options, lower);
+  if (target !== undefined) return courseLocked(options) ? [] : setCourse(target);
+
+  // A request for something to read sends the course's brochure, placing the
+  // contact on the course they named first (specs/028). A tenant without a
+  // course field sends its first flow.
   if (/(brochure|syllabus|something to read)/.test(lower)) {
-    return flow(typeof flows[0] === 'string' ? flows[0] : undefined);
+    if (!hasCourseField(options)) return flow(typeof flows[0] === 'string' ? flows[0] : undefined);
+    const current = contactNotes(options).course;
+    const course = namedCourse(lower) ?? current;
+    if (course === undefined) return [];
+    return [...(course === current ? [] : setCourse(course)), ...flow(BROCHURES[course])];
   }
   // A contact who asks for the link gets it, qualified or not.
   if (/(the link|sign me up|sign up|enrol me|want to enrol)/.test(lower)) {
@@ -274,9 +355,31 @@ function chooseAction(
     !text.includes('?') &&
     offered(options, 'set_field', 'value').includes('qualifying')
   ) {
-    return { toolName: 'set_field', input: { field: 'funnel_stage', value: 'qualifying' } };
+    return [{ toolName: 'set_field', input: { field: 'funnel_stage', value: 'qualifying' } }];
   }
-  return null;
+  return [];
+}
+
+/**
+ * The next action to call: the first of `chooseActions` not yet called this
+ * turn, or the last again once all were (staging a repeat is a no-op).
+ */
+function chooseAction(options: LanguageModelV4CallOptions, text: string): MockAction | null {
+  const actions = chooseActions(options, text);
+  const called = options.prompt.flatMap(entry =>
+    entry.role === 'assistant' && typeof entry.content !== 'string'
+      ? entry.content.flatMap(part =>
+          part.type === 'tool-call' ? [`${part.toolName} ${JSON.stringify(part.input)}`] : [],
+        )
+      : [],
+  );
+  return (
+    actions.find(
+      action => !called.includes(`${action.toolName} ${JSON.stringify(action.input)}`),
+    ) ??
+    actions.at(-1) ??
+    null
+  );
 }
 
 /** Step two of a tool turn: the server's note of what was staged, if any. */
@@ -295,6 +398,15 @@ function stagedNote(options: LanguageModelV4CallOptions): string | undefined {
  * never that it arrived.
  */
 function stagedReply(note: string): string {
+  if (note.includes('set_field course=') && !note.includes('send_flow')) {
+    return reply(
+      ['Sure - that course sounds like a better fit for you.'],
+      false,
+      null,
+      0.9,
+      'Would you like me to send you its brochure?',
+    );
+  }
   if (note.includes('funnel_stage=qualifying')) {
     return reply(
       ['Great - happy to help you find the right course.'],
@@ -381,6 +493,23 @@ const IMAGE_REPLY = reply(
   0.85,
 );
 
+/** Course content asked for before the contact is on a course: ask which (specs/028). */
+const WHICH_COURSE_REPLY = reply(
+  ['Happy to send it - each course has its own.'],
+  false,
+  null,
+  0.88,
+  'Which course would you like it for?',
+);
+
+/** A switch after the offer goes to a person (specs/028). */
+const COURSE_LOCKED_REPLY = reply(
+  ['Of course - let me pass you to someone on the team who can change that for you.'],
+  true,
+  'explicit_request',
+  0.9,
+);
+
 export function createMockModel(modelId: string): LanguageModelV4 {
   return {
     specificationVersion: 'v4',
@@ -407,14 +536,19 @@ export function createMockModel(modelId: string): LanguageModelV4 {
           warnings: [],
         };
       }
+      const lower = message.text.toLowerCase();
       const text =
         note !== undefined
           ? stagedReply(note)
-          : message.text.includes(NUDGE_NOTE_OPEN)
-            ? nudgeReply(options)
-            : message.image
-              ? IMAGE_REPLY
-              : respondTo(message.text, hasPaymentOptions(options));
+          : switchTo(options, lower) !== undefined && courseLocked(options)
+            ? COURSE_LOCKED_REPLY
+            : unplacedRequest(options, lower)
+              ? WHICH_COURSE_REPLY
+              : message.text.includes(NUDGE_NOTE_OPEN)
+                ? nudgeReply(options)
+                : message.image
+                  ? IMAGE_REPLY
+                  : respondTo(message.text, hasPaymentOptions(options));
       // `mock:slow` deliberately exceeds the race deadline so the deferred path
       // can be exercised without a real slow provider.
       if (modelId === 'slow') {

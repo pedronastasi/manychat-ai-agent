@@ -293,7 +293,7 @@ describe('the sale ends at the payment-link flow (specs/023)', () => {
 
   it('carries no follow-on on a content flow, or without a funnel field', async () => {
     const stage = new ActionStage();
-    await call(buildTools(tools, stage), 'send_flow', { flow: 'foundation_brochure' });
+    await call(buildTools(tools, stage), 'send_flow', { flow: 'student_results' });
     const noFunnel: Tools = { ...tools, fields: tools.fields.filter(field => !field.funnel) };
     await call(buildTools(noFunnel, stage), 'send_flow', { flow: 'enrolment_link' });
 

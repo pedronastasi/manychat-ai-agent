@@ -179,7 +179,10 @@ whole. Retry and dead-lettering are unchanged — see ADR-0004.
 ManyChat sends the fields configured in the Dynamic Block UI. We require at
 minimum a stable subscriber identifier and the message text. The body also
 carries `"ai_token": "{{ai_token}}"`, the contact's token, without which a
-request reads none of the contact's history (specs/019). Inbound schemas are
+request reads none of the contact's history (specs/019). A tenant with a course
+field adds `"course": "{{course}}"`, rendered from that field (specs/028): it is
+optional, and an empty, unrendered or unknown value is treated as no course
+rather than refused. The reply's callback asks ManyChat for both. Inbound schemas are
 `.strict()`: unknown keys are rejected rather than silently ignored, so a
 ManyChat-side change surfaces as a 400 instead of as degraded behavior.
 

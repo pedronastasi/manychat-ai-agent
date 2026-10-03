@@ -3,7 +3,13 @@ import { FENCE, FENCE_END, fenceUserText } from './fence.ts';
 import type { Catalog, Rules, Tools } from '../contracts/config.ts';
 import { MAX_MESSAGES_PER_REPLY } from '../contracts/agent.ts';
 import type { ActionRecord, StagedAction } from '../contracts/agent.ts';
-import { MAX_ACTIONS_PER_TURN, describeAction, funnelField, paymentLinkFlow } from './tools.ts';
+import {
+  MAX_ACTIONS_PER_TURN,
+  courseField,
+  describeAction,
+  funnelField,
+  paymentLinkFlow,
+} from './tools.ts';
 import { contactResult } from './contact.ts';
 import type { ContactView } from './contact.ts';
 
@@ -129,6 +135,7 @@ export function buildSystemPrompt(
     'someone who has declined twice. Null is a decision, not a way to skip the field.',
     ...(withTools ? ACTIONS_SECTION : []),
     ...salesSection(tools),
+    ...coursesSection(tools),
     ...(tools.nudge ? FOLLOW_UP_SECTION : []),
   ].join('\n');
 
@@ -226,6 +233,44 @@ function salesSection(tools: Tools): string[] {
     'answered with the content flow that addresses it, if it has not been sent.',
     'After link_sent, answer questions about the course and the link.',
   ];
+}
+
+/**
+ * How the model places a contact on a course and when it may move them
+ * (specs/028). Only present when the tenant marks a course field.
+ */
+function coursesSection(tools: Tools): string[] {
+  const course = courseField(tools);
+  if (!course) return [];
+  return [
+    '',
+    'COURSES',
+    `The field ${course.id} records the course this contact is buying, one of: ${course.values.join(', ')}.`,
+    'Record it with set_field as soon as the contact chooses a course or the fit is clear.',
+    'A flow listed with a course is accepted only once that is the contact’s course; setting',
+    'the course earlier in the same turn is enough. With no course recorded, ask which',
+    'course before sending course content: one question, not a list of every course.',
+    ...(funnelField(tools)
+      ? [
+          'The course may change until the stage is offered. From offered on it is locked: a',
+          'contact who asks to switch course is escalated with "explicit_request".',
+        ]
+      : []),
+    'A COURSE note saying the course changed means the contact came back through another',
+    'course’s advert: confirm which course they want before continuing.',
+  ];
+}
+
+/**
+ * The contact's course as the turn starts (specs/028). Per contact, so it
+ * travels with the turn's message like the funnel note, outside the fence.
+ */
+export function courseNotice(course: string | undefined, changedFrom?: string): string {
+  if (course === undefined) return 'COURSE: No course is recorded for this contact yet.';
+  if (changedFrom !== undefined) {
+    return `COURSE: This contact's course changed from ${changedFrom} to ${course} since you last saw it. Confirm which course they want before continuing.`;
+  }
+  return `COURSE: This contact's course is ${course}.`;
 }
 
 /**

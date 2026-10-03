@@ -106,11 +106,11 @@ export class NudgeWorker {
       return cancel('escalated');
     }
     const historySince = new Date(now.getTime() - rules.historyDays * DAY_MS);
-    const contact = contactActionsFrom(
-      await this.store.actionHistory(conversation.id),
-      tools,
-      historySince,
-    );
+    const contact = {
+      ...contactActionsFrom(await this.store.actionHistory(conversation.id), tools, historySince),
+      // No request to carry one, so the course the conversation keeps (specs/028).
+      course: conversation.course ?? undefined,
+    };
     if (contact.funnelStage === LINK_SENT) return cancel('link_sent');
 
     const lastInbound = await this.store.lastInbound(conversation.id);

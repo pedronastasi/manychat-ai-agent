@@ -42,6 +42,12 @@ export const conversations = pgTable(
     tokenIssuedAt: timestamp('token_issued_at', { withTimezone: true }),
     /** Counts issues, so a retried write can tell whether a newer token superseded it. */
     tokenGeneration: integer('token_generation').notNull().default(0),
+    /**
+     * The course this contact is buying, a catalog course id: the latest a
+     * request carried, or a write to the course field this service performed
+     * (specs/028). A nudge turn, which has no request, reads it from here.
+     */
+    course: text('course'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

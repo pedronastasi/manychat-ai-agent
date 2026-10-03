@@ -58,7 +58,8 @@ one recorded as `performed` for this contact is refused with
 `{ staged: false }`, so a confused turn cannot send a lead back to
 `qualifying` after the offer. Only one field per `tools.json` may be marked
 `funnel`, and a marked field must list its values in funnel order; both are
-checked at load.
+checked at load. A second marked field, `course`, may exist beside it (`028`);
+one field may not be both.
 
 `link_sent` is never staged by the model. It is written by the server when the
 payment-link flow is performed (see "The sale ends at the payment-link flow"),
@@ -76,7 +77,9 @@ Each `flows[]` entry is sent at most once per contact. A flow recorded as
 `performed` for this contact within the history window (`018`) is removed
 from `send_flow`'s enum, so a repeat is unrepresentable rather than
 discouraged. A flow marked `"repeatable": true`
-is exempt; the payment-link flow is the expected case.
+is exempt; the payment-link flow is the expected case. A flow that belongs to
+one course is also accepted only on a turn whose course is that course, and a
+course change does not bring back a flow already sent (`028`).
 
 ## Qualify before sending content
 
