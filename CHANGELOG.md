@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.13.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.12.1...manychat-ai-agent-v0.13.0) (2026-10-03)
+
+
+### Features
+
+* fire a conversion event when the funnel stage advances (spec 027) ([4450489](https://github.com/pedronastasi/manychat-ai-agent/commit/445048971a7ff3d5c79ebe28918f8cdaf827647a))
+* fire a conversion event when the funnel stage advances (spec 027) ([ad43756](https://github.com/pedronastasi/manychat-ai-agent/commit/ad4375623cab53b3b334b72a476c5ec9eccbfe43))
+* hold a reply until the flow it follows has played (spec 030) ([a9f5f39](https://github.com/pedronastasi/manychat-ai-agent/commit/a9f5f394c689ea36ece03f5be9988d2c00449e33))
+* hold a reply until the flow it follows has played (spec 030) ([ae99cf0](https://github.com/pedronastasi/manychat-ai-agent/commit/ae99cf0d81f6a2c7740338f2754365891d2faf8b))
+* sell several catalog courses through one funnel (spec 028) ([125824d](https://github.com/pedronastasi/manychat-ai-agent/commit/125824d962628bb054f162290ed251464e7ca085))
+* sell several catalog courses through one funnel (spec 028) ([96e13e9](https://github.com/pedronastasi/manychat-ai-agent/commit/96e13e99cd527a1ceae500130bfeb455d52fb59e))
+* send a flow when the model calls it, so the reply follows it (spec 029) ([e27f210](https://github.com/pedronastasi/manychat-ai-agent/commit/e27f210e1483e0eec372093f4e90b85cb0615f44))
+* send a flow when the model calls it, so the reply follows it (spec 029) ([2acac50](https://github.com/pedronastasi/manychat-ai-agent/commit/2acac50e0b3982c92d0fef6ab318afcf53c49ca9))
+* send a turn's closing question after the flow it sends (spec 029) ([f7956ef](https://github.com/pedronastasi/manychat-ai-agent/commit/f7956efe3bc9c9c5858056c2ba2e5767e1faf316))
+
+
+### Bug Fixes
+
+* a payment link sent mid-turn takes the turn's stage writes with it (spec 029) ([bfa90c7](https://github.com/pedronastasi/manychat-ai-agent/commit/bfa90c74e5780c55a0d7e7556180f25c33dcba79))
+* a repeat send_flow waits for the first request's outcome (spec 029) ([0840e34](https://github.com/pedronastasi/manychat-ai-agent/commit/0840e3406ae02c31cee9efc503e9ddda350081e6))
+* count a payment link in flight at link_sent for same-step writes (spec 029) ([d2f608f](https://github.com/pedronastasi/manychat-ai-agent/commit/d2f608f15071fccda5935af27331577553bcdf28))
+* record a flow sent before a deferred call fails (spec 029) ([e8e2a37](https://github.com/pedronastasi/manychat-ai-agent/commit/e8e2a37cd992a58e755482f18e07708bf7af03eb))
+* say why send_flow has nothing to offer a placed contact (spec 028) ([90204a0](https://github.com/pedronastasi/manychat-ai-agent/commit/90204a0e64b64928a0750ae6a07fdc1142bebe9b))
+* store only a bound request's course, and ignore a retired one (spec 028) ([b589c52](https://github.com/pedronastasi/manychat-ai-agent/commit/b589c521c9acb61b40902c8d635d7bf56a86a8ec))
+* wait for an in-flight flow request before recording an aborted turn (spec 029) ([f808514](https://github.com/pedronastasi/manychat-ai-agent/commit/f8085145b1da5f6e270f0ab86069f8f3e38f2d41))
+
+
+### Specs and Docs
+
+* bring README, CLAUDE.md, config guide and specs in line with spec 029 ([4a1e006](https://github.com/pedronastasi/manychat-ai-agent/commit/4a1e0060710bb1ec360ab67f20ae82942157edb4))
+* note in spec 030 that a contact writing during a held reply can be answered first ([ef50875](https://github.com/pedronastasi/manychat-ai-agent/commit/ef50875f172d66c02e78b22ec425383cab1571b1))
+* record PR 150 in spec 027 ([5d2fa49](https://github.com/pedronastasi/manychat-ai-agent/commit/5d2fa495c72797b7f97645f62065acb7be672707))
+* record PR 151 in spec 028 ([92d3fe5](https://github.com/pedronastasi/manychat-ai-agent/commit/92d3fe5883ea75a1195b238a646ba2c9ae802aae))
+* record PR 152 in spec 029 ([211b54d](https://github.com/pedronastasi/manychat-ai-agent/commit/211b54d384b8892f9cb19139375d3a11ac289edb))
+* record PR 153 in spec 030 ([f2910c3](https://github.com/pedronastasi/manychat-ai-agent/commit/f2910c31c9216bbd48d088299ccc805a69f39f38))
+* specify funnel conversion events and multi-course funnels (specs 027, 028) ([56a5d12](https://github.com/pedronastasi/manychat-ai-agent/commit/56a5d1226a9c63ff71b12055eac505f8ae31eadb))
+
 ## [0.12.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.12.0...manychat-ai-agent-v0.12.1) (2026-10-03)
 
 
