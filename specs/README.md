@@ -41,7 +41,7 @@ test fails the suite.
 | [026 — Python Port Parity](026-python-port-parity.md)                     | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7, C8, C9 | [0018], [0001], [0004], [0008], [0010], [0012], [0013], [0014], [0016], [0017] |
 | [027 — Funnel Conversion Events](027-funnel-conversion-events.md)         | implemented | 2026-10-03  | #150 | 2     | C1, C3, C5                         | [0010], [0015]                                                                 |
 | [028 — Multi-Course Funnels](028-multi-course-funnels.md)                 | implemented | 2026-10-03  | #151 | 4     | C1, C3, C6                         | [0015]                                                                         |
-| [029 — The Closing Question Follows the Flow](029-question-after-flow.md) | implemented | 2026-10-03  | —    | 2     | C5, C7, C8                         | —                                                                              |
+| [029 — The Closing Question Follows the Flow](029-question-after-flow.md) | implemented | 2026-10-03  | #152 | 2     | C5, C7, C8                         | —                                                                              |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
