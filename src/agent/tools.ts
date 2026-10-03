@@ -68,7 +68,12 @@ export function recordOf(
 export class ActionStage {
   private readonly accepted: StagedAction[] = [];
   private readonly overCap: StagedAction[] = [];
-  private readonly sentNow: { action: SendFlowAction; records: ActionRecord[] }[] = [];
+  private readonly sentNow: {
+    action: SendFlowAction;
+    records: ActionRecord[];
+    /** Settles when ManyChat has answered, so a repeat call waits for it. */
+    done: Promise<void>;
+  }[] = [];
   /** Staged and sent entries in the order the model made them, for the record. */
   private readonly order: (StagedAction | { sent: number })[] = [];
 
@@ -101,7 +106,12 @@ export class ActionStage {
    */
   async send(action: SendFlowAction, sends: FlowSends): Promise<boolean | undefined> {
     const earlier = this.sentNow.find(entry => entry.action.id === action.id);
-    if (earlier) return earlier.records[0]?.status === 'performed';
+    if (earlier) {
+      // A repeat made while the first request is in flight (parallel calls in
+      // one step) gets its real outcome, not the placeholder.
+      await earlier.done;
+      return earlier.records[0]?.status === 'performed';
+    }
     if (this.full) {
       if (!this.overCap.some(entry => entry.tool === 'send_flow' && entry.id === action.id)) {
         this.overCap.push(action);
@@ -115,10 +125,14 @@ export class ActionStage {
     const entry = {
       action,
       records: [recordOf(action, 'failed', 'no answer before the turn ended')],
+      done: Promise.resolve(),
     };
     this.sentNow.push(entry);
     this.order.push({ sent: this.sentNow.length - 1 });
-    entry.records = await sends.send(action);
+    entry.done = sends.send(action).then(records => {
+      entry.records = records;
+    });
+    await entry.done;
     return entry.records[0]?.status === 'performed';
   }
 

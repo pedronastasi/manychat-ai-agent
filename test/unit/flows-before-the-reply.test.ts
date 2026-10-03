@@ -81,6 +81,20 @@ describe('a flow is sent when the model calls it (specs/029 V1)', () => {
     expect(performer.requests).toEqual(['send_flow brochure']);
   });
 
+  it('a repeat made while the first request is in flight gets its real outcome', async () => {
+    const { performer, call } = turn();
+    const answered = performer.performAction.bind(performer);
+    performer.performAction = (subscriberId, action) =>
+      new Promise(resolve => setTimeout(resolve, 20)).then(() => answered(subscriberId, action));
+    const outcomes = await Promise.all([
+      call('send_flow', { flow: 'brochure' }),
+      call('send_flow', { flow: 'brochure' }),
+    ]);
+
+    expect(outcomes).toEqual([{ sent: true }, { sent: true }]);
+    expect(performer.requests).toEqual(['send_flow brochure']);
+  });
+
   it('counts a sent flow against the cap, and sends none past it', async () => {
     const { performer, stage, call } = turn();
     for (let index = 0; index < MAX_ACTIONS_PER_TURN - 1; index++) {
