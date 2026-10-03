@@ -159,16 +159,43 @@ export const ToolName = z.enum([
 export type ToolName = z.infer<typeof ToolName>;
 
 /**
+ * What a turn's `actions` entry may record: a tool the model called, or a
+ * `send_event`, which no model is ever offered. The server performs it as a
+ * follow-on of a funnel write (specs/027 § Every event is recorded beside the
+ * write that caused it).
+ */
+export const ActionKind = z.enum([...ToolName.options, 'send_event']);
+export type ActionKind = z.infer<typeof ActionKind>;
+
+/**
  * An action the model staged, resolved against `tools.json` at the moment it
  * was staged. Carries the ManyChat names it will be performed with, so it
  * never leaves the server except as a request to ManyChat: the outbox holds
  * it, the `turns` record does not (see `ActionRecord`).
  */
+/**
+ * A tracking flow the server sends when a funnel write advances the stage
+ * (specs/027). Never staged by the model, so never a `StagedAction` itself:
+ * it only rides as the follow-on of the write it reports.
+ */
+export const SendEventAction = z.object({
+  tool: z.literal('send_event'),
+  id: z.string(),
+  flowNs: z.string(),
+});
+export type SendEventAction = z.infer<typeof SendEventAction>;
+
 const SetFieldAction = z.object({
   tool: z.literal('set_field'),
   id: z.string(),
   field: z.string(),
   value: z.string(),
+  /**
+   * Performed by the server once this write is, and only if it is: the event
+   * configured for the stage it advances to. Not counted against the
+   * per-turn cap (specs/027 § The event follows the stage write it records).
+   */
+  followOn: SendEventAction.optional(),
 });
 
 export const StagedAction = z.discriminatedUnion('tool', [
@@ -207,6 +234,9 @@ export const StagedAction = z.discriminatedUnion('tool', [
 ]);
 export type StagedAction = z.infer<typeof StagedAction>;
 
+/** Everything that may reach ManyChat as an action: a staged one, or a follow-on event (specs/027). */
+export type PerformableAction = StagedAction | SendEventAction;
+
 /** What became of a staged action (specs/012 § Every staged action is recorded on its turn). */
 export const ActionStatus = z.enum([
   'staged', // deferred path; waiting for the outbox worker
@@ -225,7 +255,7 @@ export type ActionStatus = z.infer<typeof ActionStatus>;
  * (specs/024 § Note text never reaches the record or the logs).
  */
 export const ActionRecord = z.object({
-  tool: ToolName,
+  tool: ActionKind,
   id: z.string(),
   value: z.string().optional(),
   length: z.number().int().nonnegative().optional(),

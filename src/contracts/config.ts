@@ -269,6 +269,21 @@ export const MAX_NOTE_LENGTH = 500;
  * renders to the contact (specs/024, ADR-0017). `neverRendered` checks
  * nothing; it makes the tenant say so in the file.
  */
+/**
+ * A tracking flow the server sends when the funnel advances to `stage`
+ * (specs/027). The tenant's flow logs a conversion event and sends no
+ * message. The model never sees an entry: not its id, not its flow.
+ */
+const EventEntry = z.object({
+  id: ToolEntryId,
+  // `new` is every contact's first stage, so an event on it reports nothing
+  // the entry flow does not.
+  stage: z
+    .enum(FUNNEL_STAGES)
+    .refine(stage => stage !== 'new', 'an event may not be keyed on stage "new"'),
+  flowNs: z.string().min(1),
+});
+
 const NoteEntry = z.object({
   id: ToolEntryId,
   field: z.string().min(1),
@@ -335,6 +350,15 @@ export const ToolsSchema = z
       })
       .default({ tags: [], fields: [] }),
     notes: z.array(NoteEntry).default([]).refine(uniqueIds, 'note ids must be unique'),
+    /** Conversion events fired on a stage advance, never offered to the model (specs/027). */
+    events: z
+      .array(EventEntry)
+      .default([])
+      .refine(uniqueIds, 'event ids must be unique')
+      .refine(
+        events => new Set(events.map(event => event.stage)).size === events.length,
+        'at most one event per stage',
+      ),
   })
   // `get_contact` returns writable and readable entries side by side, by id.
   .refine(tools => uniqueIds([...tools.tags, ...tools.readable.tags]), {
@@ -350,7 +374,23 @@ export const ToolsSchema = z
   .refine(tools => !tools.tags.some(entry => entry.tag === tools.nudge?.humanActiveTag), {
     message: 'nudge.humanActiveTag may not be a tag the agent writes',
     path: ['nudge'],
-  });
+  })
+  // An event is keyed on a stage, so there must be a stage to key on (specs/027).
+  .refine(tools => tools.events.length === 0 || tools.fields.some(field => field.funnel), {
+    message: 'events need a field marked "funnel"',
+    path: ['events'],
+  })
+  // A tracking flow that is also a content flow would be sent once by the
+  // model and once by the server, and the event would count twice (specs/027).
+  .refine(
+    tools =>
+      new Set([...tools.flows, ...tools.events].map(entry => entry.flowNs)).size ===
+      new Set(tools.flows.map(flow => flow.flowNs)).size + tools.events.length,
+    {
+      message: "an event's flowNs may not be a flow's or another event's",
+      path: ['events'],
+    },
+  );
 export type Tools = z.infer<typeof ToolsSchema>;
 export type Note = Tools['notes'][number];
 
@@ -361,6 +401,7 @@ export const NO_TOOLS: Tools = {
   fields: [],
   readable: { tags: [], fields: [] },
   notes: [],
+  events: [],
 };
 
 /** Whether `tools.json` gives the agent anything to act with or read, a follow-up included (specs/025). */

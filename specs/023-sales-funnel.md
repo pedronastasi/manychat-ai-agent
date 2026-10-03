@@ -132,7 +132,9 @@ Exactly one `flows[]` entry may carry `"role": "payment_link"`; a second is a
 load failure. When that flow is performed, the server writes the funnel field
 to `link_sent` as a follow-on action. It is recorded in `turns.actions` like
 any other, is not staged by the model, and does not count against the
-per-turn cap. If the flow fails, the stage is not written.
+per-turn cap. If the flow fails, the stage is not written. If the tenant
+configured a conversion event for `link_sent`, it follows the write in turn
+(`027 § The event follows the stage write it records`).
 
 After `link_sent` the agent's job is answering questions about the course and
 the link. A contact who says they have paid, or sends a receipt, is escalated

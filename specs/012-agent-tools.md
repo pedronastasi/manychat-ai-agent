@@ -244,6 +244,11 @@ was offered, so "no tools" and "tools offered, none chosen" (`[]`) are distinct.
 Entries hold only configured ids and values, never `flowNs`, tag or field names,
 or contact text, so the record needs no redaction under C5.
 
+A server-performed follow-on is recorded beside the action that carried it:
+the `link_sent` write after the payment-link flow (`023`), and a
+`{ "tool": "send_event", "id": … }` entry after a funnel write that fired a
+conversion event (`027`). `send_event` is a record kind, not a tool.
+
 ## Performed actions reach the model on later turns
 
 Today the history the model sees is text only. Without more, the model on the
@@ -264,6 +269,8 @@ actions recorded as `performed`, e.g.
   claim;
 - uses ids, not descriptions, so a long `description` is not repeated on every
   turn of history.
+- omits `send_event` entries (`027`): an event reached the ad platform, not
+  the contact.
 
 The note's format is English and system-facing, never shown to the contact, so
 it is not customer copy under C9.
