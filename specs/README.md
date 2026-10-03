@@ -39,6 +39,8 @@ test fails the suite.
 | [024 — Contact Read and Free-Text Notes](024-contact-read-and-notes.md) | implemented | 2026-10-02  | #144 | 5     | C3, C4, C5, C6, C7                 | [0010], [0016], [0017]                                                         |
 | [025 — In-Window Nudge](025-in-window-nudge.md)                         | implemented | 2026-10-02  | #143 | 2     | C4, C5, C6, C9                     | [0010], [0015]                                                                 |
 | [026 — Python Port Parity](026-python-port-parity.md)                   | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7, C8, C9 | [0018], [0001], [0004], [0008], [0010], [0012], [0013], [0014], [0016], [0017] |
+| [027 — Funnel Conversion Events](027-funnel-conversion-events.md)       | specified   | —           | —    | —     | C1, C3, C5                         | [0010], [0015]                                                                 |
+| [028 — Multi-Course Funnels](028-multi-course-funnels.md)               | specified   | —           | —    | —     | C1, C3, C6                         | [0015]                                                                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
