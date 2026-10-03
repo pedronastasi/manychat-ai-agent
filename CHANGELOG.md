@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.12.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.11.0...manychat-ai-agent-v0.12.0) (2026-10-03)
+
+
+### Features
+
+* add contact read and note-writing tools (specs/024) ([b69b74d](https://github.com/pedronastasi/manychat-ai-agent/commit/b69b74dd45d2590df3d1b260bbf73bee432887a6))
+* follow up once on a quiet lead inside the 24-hour window (spec 025) ([d753440](https://github.com/pedronastasi/manychat-ai-agent/commit/d753440fcf3f333a998f18d13bc832ebbcae0764))
+* follow up once on a quiet lead inside the 24-hour window (spec 025) ([fbb30e9](https://github.com/pedronastasi/manychat-ai-agent/commit/fbb30e9fafa6552ca3da5af95a7d290c58791dad))
+* let the agent read its contact and write bounded notes (spec 024) ([8b1980f](https://github.com/pedronastasi/manychat-ai-agent/commit/8b1980fd34af010a045cdc9edc0a01afc43c18f3))
+
+
+### Specs and Docs
+
+* describe contact reads and notes in the README (spec 024) ([b39729e](https://github.com/pedronastasi/manychat-ai-agent/commit/b39729e19b110d6b21ed7b586f87df0c650d7baa))
+* explain how follow-ups work, how to configure and audit them (spec 025) ([1a0004a](https://github.com/pedronastasi/manychat-ai-agent/commit/1a0004ad6dd7f580573fa5a89b55bebdb58948df))
+* explain how the sales funnel of spec 023 works ([ca1b0a0](https://github.com/pedronastasi/manychat-ai-agent/commit/ca1b0a04dc68ecb80032244303ec14fca61fc682))
+* explain how the sales funnel of spec 023 works ([0ff63b7](https://github.com/pedronastasi/manychat-ai-agent/commit/0ff63b70cf2de0cc8d8766e6da9d8fa1adbcacca))
+* record PR 143 in spec 025 ([565b9d4](https://github.com/pedronastasi/manychat-ai-agent/commit/565b9d40816ab6c20a13b2a02d053c994932524d))
+* record PR 144 in spec 024 ([ab824d6](https://github.com/pedronastasi/manychat-ai-agent/commit/ab824d66b9c6dcb9a4dffd7f26be78f3173e323b))
+
 ## [0.11.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.10.0...manychat-ai-agent-v0.11.0) (2026-10-02)
 
 
