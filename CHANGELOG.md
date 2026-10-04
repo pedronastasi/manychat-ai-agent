@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.13.0...manychat-ai-agent-v0.13.1) (2026-10-04)
+
+
+### Specs and Docs
+
+* describe the separate docs job in CLAUDE.md and spec 011 ([dbde7a3](https://github.com/pedronastasi/manychat-ai-agent/commit/dbde7a33f2bcd1fa6983ba7a7762809fb53d9d9f))
+* give spec 031's analyst its own cap and name the eval baseline ([9e8dcf7](https://github.com/pedronastasi/manychat-ai-agent/commit/9e8dcf7d02502b671bdba34abdf62aa0f44cc8ae))
+* spec 031 and ADR-0020, learning from paid outcomes ([fda1994](https://github.com/pedronastasi/manychat-ai-agent/commit/fda1994e136f531352e7a1ae9f8e26af91612b37))
+* spec 031 and ADR-0020, learning from paid outcomes ([5e3cd3d](https://github.com/pedronastasi/manychat-ai-agent/commit/5e3cd3d943e1a34bc194657b8534cf3c836d1c9b))
+
 ## [0.13.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.12.1...manychat-ai-agent-v0.13.0) (2026-10-03)
 
 
