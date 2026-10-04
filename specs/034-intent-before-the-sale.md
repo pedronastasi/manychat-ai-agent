@@ -8,7 +8,8 @@ adr: [0015]
 
 Defines how the agent learns whether a contact means to enrol before it sells
 to them, what the server withholds until it knows, and what a contact who is
-not a prospect gets instead. It amends `001`, `023`, `025` and `032`, listed
+not a prospect gets instead. It amends `001`, `003`, `012`, `023`, `025`, `026`
+and `032`, listed
 at the end, and leaves out sorting non-prospects by kind (student, supplier,
 job seeker) or routing them to different people, demoting a prospect, flows a
 tenant would send to non-prospects, and every message outside WhatsApp's
