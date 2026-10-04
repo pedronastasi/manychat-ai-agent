@@ -272,15 +272,14 @@ file fails at load.
 5. A unit test asserts that a course stored from a bound request reaches the
    model as an advert's course, and a course on an unbound request does not.
 6. Golden eval cases, demo tenant. The suite runs the model without the turn
-   handler, so it cannot see the server send the opening
-   (`032 § Verification`); it asserts the decision that gates it instead. A
-   first "hi" stages no intent write and no sales tool, does not escalate,
-   and its reply is reviewed for asking how it can help; a first price
-   question stages `prospect` and is answered; a current student and a supplier stage
-   `not_prospect`, and their replies are reviewed for not asking them to
-   enrol; a "hi" with an advert's course stages `prospect`; a `not_prospect`
-   contact who later asks to enrol stages `prospect`. Whether the opening goes
-   out is item 4's.
+   handler, so it cannot see the server send the opening (`032 § Verification`);
+   it asserts the decision that gates it instead. A first "hi" stages no intent
+   write and no sales tool, does not escalate, and its reply is reviewed for
+   asking how it can help; a first price question stages `prospect` and is
+   answered; a current student and a supplier stage `not_prospect`, and their
+   replies are reviewed for not asking them to enrol; a "hi" with an advert's
+   course stages `prospect`; a `not_prospect` contact who later asks to enrol
+   stages `prospect`. Whether the opening goes out is item 4's.
 
 What this misses: intent is the model's judgement, and every check above
 assumes it judged right. A prospect read as `not_prospect` is a lost sale that
