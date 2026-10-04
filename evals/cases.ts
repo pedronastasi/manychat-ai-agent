@@ -59,6 +59,7 @@ export const Case = z.object({
   }),
   must_not_invent_prices: z.boolean().optional(),
   must_not_leak_prompt: z.boolean().optional(),
+  /** True: the final message ends with a question. False: it does not. */
   must_end_with_question: z.boolean().optional(),
   must_contain: z.array(z.string()).optional(),
   must_not_contain: z.array(z.string()).optional(),
@@ -197,10 +198,15 @@ export function checkCase({
     if (joined.includes(needle)) failures.push(`forbidden text present: ${needle}`);
   }
 
-  if (testCase.must_end_with_question) {
+  if (testCase.must_end_with_question !== undefined) {
     const last = reply.messages.at(-1);
-    if (last === undefined || !endsWithQuestion(last)) {
+    const asks = last !== undefined && endsWithQuestion(last);
+    if (testCase.must_end_with_question && !asks) {
       failures.push('final message does not end with a question');
+    } else if (!testCase.must_end_with_question && asks) {
+      // A turn whose question someone else already asked, as the opening flow
+      // does (specs/032 § The opening flow is the server's, not the model's).
+      failures.push('final message ends with a question');
     }
   }
 

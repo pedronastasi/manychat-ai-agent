@@ -131,8 +131,9 @@ export function buildSystemPrompt(
     'closing_question carries the question that ends the turn. Put it there and',
     'nowhere else: it is appended as the final message, so do not repeat it at the',
     'end of `messages`. Send null only when a question does not belong — a handoff,',
-    'a delicate or health matter, a contact who already has the payment link, or',
-    'someone who has declined twice. Null is a decision, not a way to skip the field.',
+    'a delicate or health matter, a contact who already has the payment link,',
+    'someone who has declined twice, or a first turn whose OPENING flow asks it.',
+    'Null is a decision, not a way to skip the field.',
     ...(withTools ? ACTIONS_SECTION : []),
     ...salesSection(tools),
     ...coursesSection(tools),
@@ -279,7 +280,7 @@ function coursesSection(tools: Tools): string[] {
  * contact, so it travels with the turn's message, outside the fence.
  */
 export function openingNotice(flow: { id: string; description: string }): string {
-  return `OPENING: This is the contact's first turn. Unless you escalate, the system sends the flow ${flow.id} before your reply: ${flow.description} Do not repeat what it says, and close with the question it asks.`;
+  return `OPENING: This is the contact's first turn. Unless you escalate, the system sends the flow ${flow.id} before your reply: ${flow.description} The contact receives it first, so your reply does not greet them, introduce you or repeat what it says. If it asks a question, do not ask it again, in any words. Unless their message already answers it, send closing_question null: that question is the one the contact answers. Answer what their message asks, briefly; if it only greets, one short line.`;
 }
 
 /**

@@ -190,6 +190,15 @@ describe('the opening flow is the server’s (specs/032 V2)', () => {
     expect(notice).toContain('welcome_note before your reply');
     expect(notice).toContain('Unless you escalate');
   });
+
+  it('tells the model not to greet again or ask the flow’s question again', () => {
+    const notice = openingNotice(tools.flows.find(flow => flow.role === 'opening')!);
+    expect(notice).toContain('does not greet them');
+    expect(notice).toContain('do not ask it again');
+    expect(notice).toContain('Unless their message already answers it, send closing_question null');
+    // The wording that made the reply repeat the flow's question (2026-10-04).
+    expect(notice).not.toContain('close with the question');
+  });
 });
 
 /* -------------------------------------------------------------------------- */

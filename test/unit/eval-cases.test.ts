@@ -142,6 +142,16 @@ describe('must_end_with_question (specs/009 § A message that ends in a full sto
       'final message does not end with a question',
     ]);
   });
+
+  it('asserts the opposite when false, for a question already asked (specs/032)', () => {
+    const asks = replyOf(['It is $450.', 'Want the schedule?']);
+    expect(check({ ...base, must_end_with_question: false }, asks)).toEqual([
+      'final message ends with a question',
+    ]);
+
+    const answers = replyOf(['Want the schedule?', 'It is $450.']);
+    expect(check({ ...base, must_end_with_question: false }, answers)).toEqual([]);
+  });
 });
 
 describe('max_lines (specs/009 § Register is the assertion that cannot be one)', () => {

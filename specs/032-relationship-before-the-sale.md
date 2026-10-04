@@ -70,9 +70,14 @@ was rolled out count, so an existing contact does not receive it.
   gone out even if the turn later escalates, as the flow has.
 - **The model does not choose it.** The opening flow is never in
   `send_flow`'s enum. On a first model turn the system instructions tell the
-  model that the flow will go out before its reply unless it escalates, so the
-  reply does not repeat what the flow says and closes with the question the
-  flow asks.
+  model that the flow will go out before its reply unless it escalates. The
+  contact receives the flow first, so the reply does not greet them, introduce
+  the agent or repeat what the flow says. When the flow asks a question, the
+  reply does not ask it again, and unless the contact's message already
+  answers it, its `closing_question` is null: the flow's question is the one
+  the contact answers. Telling the model to close with the flow's question, as
+  this spec first did, put the same question in front of the contact twice, a
+  few seconds apart (seen in production on 2026-10-04).
 - **No tag decides it.** A contact who heard the same content in the tenant's
   entry flow may hear it twice. That is accepted: a repeat costs one message;
   a lead who never hears it costs the opening.
