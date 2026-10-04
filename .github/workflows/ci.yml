@@ -27,20 +27,6 @@ jobs:
       - name: Format
         run: pnpm format:check
 
-      # specs/011-dependency-updates.md § Verification. A bad Renovate config
-      # fails silently — the bot just stops opening PRs, which looks exactly
-      # like a repository with nothing to update. Run via npx rather than as a
-      # devDependency: renovate has 123 direct dependencies, and none of them
-      # belong in the install path of everyone who clones this.
-      #
-      # Pinned to 44.131.0 because renovate 44.131.1 depends on @yarnpkg/core
-      # 4.9.2, which was published with a Yarn-only `patch:` specifier for
-      # `got` that npm cannot install. npx then exits 1 without printing an
-      # error. Remove the pin once a newer renovate installs with
-      # `npx --yes --package renovate renovate-config-validator`.
-      - name: Validate Renovate config
-        run: npx --yes --package renovate@44.131.0 renovate-config-validator
-
       # The video tests of specs/020 run ffmpeg rather than faking it. They skip
       # on a machine without it, but fail under CI, so a missing binary here
       # breaks the build instead of silently dropping the tests.
@@ -66,6 +52,32 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # Off the critical path: these need neither ffmpeg nor the test suite, so
+  # they run beside verify instead of after it.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      # specs/011-dependency-updates.md § Verification. A bad Renovate config
+      # fails silently — the bot just stops opening PRs, which looks exactly
+      # like a repository with nothing to update. Run via npx rather than as a
+      # devDependency: renovate has 123 direct dependencies, and none of them
+      # belong in the install path of everyone who clones this.
+      #
+      # Pinned to 44.131.0 because renovate 44.131.1 depends on @yarnpkg/core
+      # 4.9.2, which was published with a Yarn-only `patch:` specifier for
+      # `got` that npm cannot install. npx then exits 1 without printing an
+      # error. Remove the pin once a newer renovate installs with
+      # `npx --yes --package renovate renovate-config-validator`.
+      - name: Validate Renovate config
+        run: npx --yes --package renovate@44.131.0 renovate-config-validator
 
       # specs/014-docs-site.md. The site is built, not deployed, on every pull
       # request: a renamed spec that breaks a link fails the PR that renamed
