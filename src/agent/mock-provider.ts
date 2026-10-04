@@ -298,7 +298,7 @@ function switchTo(options: LanguageModelV4CallOptions, lower: string): string | 
 /** From `offered` on, a switch is a person's decision (specs/028). */
 function courseLocked(options: LanguageModelV4CallOptions): boolean {
   const stage = contactNotes(options).stage;
-  return stage === 'offered' || stage === 'link_sent';
+  return stage === 'offered' || stage === 'prepared' || stage === 'link_sent';
 }
 
 /** A request for course content from a contact with no course, named or recorded. */
@@ -311,7 +311,7 @@ function unplacedRequest(options: LanguageModelV4CallOptions, lower: string): bo
   );
 }
 
-type MockAction = { toolName: string; input: Record<string, string> };
+type MockAction = { toolName: string; input: Record<string, string | boolean> };
 
 /**
  * What a correct agent stages for the demo tenant, in order, or nothing. Only
@@ -341,9 +341,16 @@ function chooseActions(options: LanguageModelV4CallOptions, text: string): MockA
     if (course === undefined) return [];
     return [...(course === current ? [] : setCourse(course)), ...flow(BROCHURES[course])];
   }
-  // A contact who asks for the link gets it, qualified or not.
-  if (/(the link|sign me up|sign up|enrol me|want to enrol)/.test(lower)) {
-    return flow('enrolment_link');
+  // A contact who asks for the link, or how to pay, gets it, qualified or not,
+  // and says so: before prepared the link is refused otherwise (specs/032).
+  if (
+    /(the link|sign me up|sign up|enrol me|want to enrol|how (do|can) i pay|payment methods)/.test(
+      lower,
+    )
+  ) {
+    return flows.includes('enrolment_link')
+      ? [{ toolName: 'send_flow', input: { flow: 'enrolment_link', contactAsked: true } }]
+      : [];
   }
   // The objections a content flow answers.
   if (/(don'?t have (the )?time|no time)/.test(lower)) return flow('fitting_it_in');

@@ -1,0 +1,1 @@
+ALTER TABLE "conversations" ADD COLUMN "opening_sent_at" timestamp with time zone;

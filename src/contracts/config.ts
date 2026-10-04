@@ -197,7 +197,20 @@ const uniqueIds = (entries: { id: string }[]) =>
  * moves). `enrolled` is not one: only a person who has seen the payment sets
  * it, in the tenant's ManyChat account.
  */
-export const FUNNEL_STAGES = ['new', 'qualifying', 'nurturing', 'offered', 'link_sent'] as const;
+export const FUNNEL_STAGES = [
+  'new',
+  'qualifying',
+  'nurturing',
+  'offered',
+  'prepared',
+  'link_sent',
+] as const;
+
+/**
+ * The stage the payment link waits for, unless the contact asked to pay
+ * (specs/032 § The payment link waits for readiness).
+ */
+export const PREPARED = 'prepared';
 
 /** The stage the server writes when the payment-link flow is performed, never the model. */
 export const LINK_SENT = 'link_sent';
@@ -311,8 +324,23 @@ export const ToolsSchema = z
           description: ToolDescription,
           /** Exempt from "sent at most once per contact" (specs/023). */
           repeatable: z.boolean().optional(),
-          /** Performing it writes the funnel field to `link_sent` (specs/023). */
-          role: z.literal('payment_link').optional(),
+          /**
+           * `payment_link`: performing it writes the funnel field to `link_sent`
+           * (specs/023). `opening`: the server sends it on the contact's first
+           * model turn, and the model never does (specs/032).
+           */
+          role: z.enum(['payment_link', 'opening']).optional(),
+          /**
+           * The funnel stage at which the server sends this flow, when the
+           * model records it (specs/032 § A stage move can carry a flow).
+           */
+          onStage: z
+            .enum(FUNNEL_STAGES)
+            .refine(
+              stage => stage !== 'new' && stage !== 'link_sent',
+              'a flow may not be tied to stage "new" or "link_sent"',
+            )
+            .optional(),
           /**
            * The catalog course this flow belongs to; absent, it serves every
            * course (specs/028 § A flow belongs to one course or to all).
@@ -337,7 +365,28 @@ export const ToolsSchema = z
       .refine(
         flows => !flows.some(flow => flow.role === 'payment_link' && flow.course !== undefined),
         'the "payment_link" flow may not have a "course"',
-      ),
+      )
+      // Sent once, to every contact, before anything is known of them
+      // (specs/032 § The opening flow is the server's, not the model's).
+      .refine(
+        flows => flows.filter(flow => flow.role === 'opening').length <= 1,
+        'only one flow may have role "opening"',
+      )
+      .refine(
+        flows =>
+          !flows.some(
+            flow => flow.role === 'opening' && (flow.course !== undefined || flow.repeatable),
+          ),
+        'the "opening" flow may not have a "course" or be "repeatable"',
+      )
+      .refine(
+        flows => !flows.some(flow => flow.role !== undefined && flow.onStage !== undefined),
+        'the "opening" and "payment_link" flows may not have an "onStage"',
+      )
+      .refine(flows => {
+        const tied = flows.flatMap(flow => (flow.onStage ? [flow.onStage] : []));
+        return new Set(tied).size === tied.length;
+      }, 'at most one flow per "onStage"'),
     tags: z.array(TagEntry).default([]).refine(uniqueIds, 'tag ids must be unique'),
     fields: z
       .array(
@@ -413,6 +462,14 @@ export const ToolsSchema = z
     message: 'nudge.humanActiveTag may not be a tag the agent writes',
     path: ['nudge'],
   })
+  // A flow tied to a stage needs a stage to be tied to (specs/032).
+  .refine(
+    tools => !tools.flows.some(flow => flow.onStage) || tools.fields.some(field => field.funnel),
+    {
+      message: 'a flow with "onStage" needs a field marked "funnel"',
+      path: ['flows'],
+    },
+  )
   // An event is keyed on a stage, so there must be a stage to key on (specs/027).
   .refine(tools => tools.events.length === 0 || tools.fields.some(field => field.funnel), {
     message: 'events need a field marked "funnel"',

@@ -1,6 +1,6 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
-import { FUNNEL_STAGES, LINK_SENT } from '../contracts/config.ts';
+import { FUNNEL_STAGES, LINK_SENT, PREPARED } from '../contracts/config.ts';
 import type { Tools } from '../contracts/config.ts';
 import type {
   ActionRecord,
@@ -51,6 +51,8 @@ export function recordOf(
     ...(action.tool === 'write_note' ? { length: action.text.length } : {}),
     status,
     ...(error === undefined ? {} : { error }),
+    ...(action.tool === 'send_flow' && action.origin ? { origin: action.origin } : {}),
+    ...(action.tool === 'send_flow' && action.contactAsked ? { contactAsked: true as const } : {}),
   };
 }
 
@@ -78,6 +80,8 @@ export class ActionStage {
   }[] = [];
   /** Staged and sent entries in the order the model made them, for the record. */
   private readonly order: (StagedAction | { sent: number })[] = [];
+  /** Sends the cap does not count: the opening flow is the server's (specs/032). */
+  private uncapped = 0;
 
   /**
    * Whether the action is staged. A repeat of one already staged is. Compared
@@ -98,7 +102,7 @@ export class ActionStage {
 
   /** A flow sent this turn counts against the cap as a staged action does. */
   private get full(): boolean {
-    return this.accepted.length + this.sentNow.length >= MAX_ACTIONS_PER_TURN;
+    return this.accepted.length + this.sentNow.length - this.uncapped >= MAX_ACTIONS_PER_TURN;
   }
 
   /**
@@ -116,6 +120,8 @@ export class ActionStage {
     action: SendFlowAction,
     sends: FlowSends,
     first: readonly StagedAction[] = [],
+    /** Not counted against the cap: the server's opening flow (specs/032). */
+    options: { uncapped?: boolean } = {},
   ): Promise<boolean | undefined> {
     const earlier = this.sentNow.find(
       entry => entry.action.tool === 'send_flow' && entry.action.id === action.id,
@@ -126,7 +132,7 @@ export class ActionStage {
       await earlier.done;
       return earlier.records[0]?.status === 'performed';
     }
-    if (this.full) {
+    if (!options.uncapped && this.full) {
       if (!this.overCap.some(entry => entry.tool === 'send_flow' && entry.id === action.id)) {
         this.overCap.push(action);
       }
@@ -150,6 +156,7 @@ export class ActionStage {
       this.order[this.order.indexOf(entry.action)] = { sent: this.sentNow.length - 1 };
     }
     const entry = reserve(action);
+    if (options.uncapped) this.uncapped += 1;
     this.sentNow.push(entry);
     this.order.push({ sent: this.sentNow.length - 1 });
     const done = sends.send([...ahead.map(staged => staged.action), action]).then(groups => {
@@ -231,6 +238,11 @@ export function paymentLinkFlow(config: Tools) {
   return config.flows.find(flow => flow.role === 'payment_link');
 }
 
+/** The flow the server sends on a contact's first model turn, if the tenant marked one (specs/032). */
+export function openingFlow(config: Tools) {
+  return config.flows.find(flow => flow.role === 'opening');
+}
+
 /** The field the contact's course is kept in, if the tenant marked one (specs/028). */
 export function courseField(config: Tools) {
   return config.fields.find(field => field.course);
@@ -287,6 +299,11 @@ export interface ContactActions {
   course?: string | undefined;
   /** The course the conversation held before the request changed it, if it did. */
   courseChangedFrom?: string | undefined;
+  /**
+   * The model has never run for this contact, so the opening flow goes out
+   * before this turn's reply unless it escalates (specs/032).
+   */
+  firstModelTurn?: boolean | undefined;
 }
 
 export const NO_CONTACT_ACTIONS: ContactActions = { sentFlows: new Set() };
@@ -319,12 +336,22 @@ export function contactActionsFrom(
 const idsOf = (entries: { id: string }[]) =>
   entries.map(entry => entry.id) as [string, ...string[]];
 
-const catalogOf = (entries: { id: string; description: string; course?: string | undefined }[]) =>
+const catalogOf = (
+  entries: {
+    id: string;
+    description: string;
+    course?: string | undefined;
+    onStage?: string | undefined;
+  }[],
+) =>
   entries
-    .map(
-      entry =>
-        `- ${entry.id}${entry.course === undefined ? '' : ` (course ${entry.course})`}: ${entry.description}`,
-    )
+    .map(entry => {
+      const notes = [
+        entry.course === undefined ? null : `course ${entry.course}`,
+        entry.onStage === undefined ? null : `sent by the system when you record ${entry.onStage}`,
+      ].filter(Boolean);
+      return `- ${entry.id}${notes.length > 0 ? ` (${notes.join('; ')})` : ''}: ${entry.description}`;
+    })
     .join('\n');
 
 const STAGED =
@@ -332,6 +359,9 @@ const STAGED =
 
 const SENT_NOW =
   'The flow is sent when you call this, before your reply: the contact receives it first and your reply follows it. Do not repeat what it contains. The result says whether it went out.';
+
+const CONTACT_ASKED =
+  'The payment link is refused before the stage is prepared. Pass contactAsked: true only when the contact’s message this turn asks for the link, the payment methods or how to pay; it is recorded.';
 
 const STAGED_NOTE =
   'The note is staged, not written: it is written after your reply is sent. It replaces what the note held, so read it first with get_contact to add to it.';
@@ -355,7 +385,16 @@ export function buildTools(
    * another (specs/025). `flows`, when given, sends a flow when it is called
    * instead of staging it (specs/029).
    */
-  options: { nudgeTurn?: boolean; flows?: FlowSends | undefined } = {},
+  options: {
+    nudgeTurn?: boolean;
+    flows?: FlowSends | undefined;
+    /**
+     * Runs before the turn's first flow goes out: on a first model turn it
+     * sends the opening, so no content reaches the contact ahead of it
+     * (specs/032 § The opening flow is the server's, not the model's).
+     */
+    beforeFlow?: (() => Promise<void>) | undefined;
+  } = {},
 ): ToolSet | undefined {
   const tools: ToolSet = {};
   const funnel = funnelField(config);
@@ -397,10 +436,49 @@ export function buildTools(
   const fits = (flow: { course?: string | undefined }, current: string | undefined) =>
     flow.course === undefined || flow.course === current;
 
+  /**
+   * The earliest stage a write may name: the last one performed for this
+   * contact, or a later one already staged this turn. Parallel calls in one
+   * step must not walk a lead back any more than a later turn may.
+   */
+  // A payment link marked here before any await on its way out, so a call
+  // beside it in the same step already sees it (specs/029, specs/032).
+  let linkStarting = 0;
+  const stageFloor = () =>
+    Math.max(
+      stageIndex(contact.funnelStage),
+      linkStarting > 0 ? stageIndex(LINK_SENT) : -1,
+      ...stage.staged.map(action =>
+        action.tool === 'set_field' && action.id === funnel?.id ? stageIndex(action.value) : -1,
+      ),
+      // Writes already made this turn, a payment link's `link_sent` among
+      // them (specs/029), so nothing staged after can walk the stage back.
+      ...stage.sent.flatMap(sent =>
+        sent.records.map(record =>
+          record.tool === 'set_field' && record.id === funnel?.id && record.status === 'performed'
+            ? stageIndex(record.value)
+            : -1,
+        ),
+      ),
+      // A payment link still in flight counts at the stage it is about to
+      // write: a call in the same step runs while it waits (the SDK starts a
+      // step's calls together), and would otherwise stage a lower write
+      // that lands after `link_sent`. If the link then fails, the turn has
+      // at most one step left.
+      ...stage.sent.map(sent =>
+        sent.pending && sent.action.tool === 'send_flow' && sent.action.followOn?.id === funnel?.id
+          ? stageIndex(sent.action.followOn?.value)
+          : -1,
+      ),
+    );
+
   // A flow already sent to this contact is not offered again, so a repeat is
   // unrepresentable rather than discouraged (specs/023 § Every content flow
   // is a leaf, sent once). A course change does not bring one back (specs/028).
-  const unsent = config.flows.filter(flow => flow.repeatable || !contact.sentFlows.has(flow.id));
+  // The opening flow is the server's to send, never the model's (specs/032).
+  const unsent = config.flows.filter(
+    flow => flow.role !== 'opening' && (flow.repeatable || !contact.sentFlows.has(flow.id)),
+  );
   if (unsent.length > 0) {
     const flows = new Map(unsent.map(flow => [flow.id, flow]));
     // The enum holds every unsent flow, so one the agent makes available by
@@ -417,13 +495,38 @@ export function buildTools(
           ? 'None yet: record the contact’s course with set_field first.'
           : 'None: everything for this contact’s course has been sent.';
     const sends = options.flows;
+    // The payment link waits for readiness unless the contact asked to pay
+    // (specs/032 § The payment link waits for readiness).
+    const gated = funnel !== undefined && unsent.some(flow => flow.role === 'payment_link');
     tools.send_flow = tool({
-      description: `Send the contact one of these flows.\n${listing}\n${sends ? SENT_NOW : STAGED}`,
-      inputSchema: z.object({ flow: z.enum(idsOf(unsent)) }),
-      execute: async ({ flow }) => {
+      description:
+        `Send the contact one of these flows.\n${listing}\n${sends ? SENT_NOW : STAGED}` +
+        (gated ? `\n${CONTACT_ASKED}` : ''),
+      inputSchema: gated
+        ? z.object({ flow: z.enum(idsOf(unsent)), contactAsked: z.boolean().optional() })
+        : z.object({ flow: z.enum(idsOf(unsent)) }),
+      execute: async (input: { flow: string; contactAsked?: boolean | undefined }) => {
+        const { flow } = input;
         const entry = flows.get(flow)!;
         // Another course's content is refused, whatever the model names.
         if (!fits(entry, turnCourse())) return sends ? { sent: false } : { staged: false };
+        // Recorded only when it opened the gate, so the bypass rate counts
+        // bypasses, not every claim the model makes (specs/032).
+        const asked =
+          entry.role === 'payment_link' &&
+          input.contactAsked === true &&
+          funnel !== undefined &&
+          stageFloor() < stageIndex(PREPARED);
+        if (
+          entry.role === 'payment_link' &&
+          funnel &&
+          !asked &&
+          stageFloor() < stageIndex(PREPARED)
+        ) {
+          return sends
+            ? { sent: false, reason: 'not_prepared' }
+            : { staged: false, reason: 'not_prepared' };
+        }
         // The server, not the model, records that the link went out, and only
         // once the flow itself has (specs/023 § The sale ends at the
         // payment-link flow).
@@ -444,8 +547,20 @@ export function buildTools(
           id: flow,
           flowNs: entry.flowNs,
           ...(followOn ? { followOn } : {}),
+          ...(asked ? { contactAsked: true as const } : {}),
         };
         if (!sends) return { staged: stage.stage(action) };
+        // The opening goes first on a first model turn (specs/032). A payment
+        // link is counted at link_sent before the await, so a funnel or course
+        // write made beside it is refused rather than landing after it (specs/029).
+        const link = entry.role === 'payment_link' && funnel !== undefined;
+        if (link) linkStarting += 1;
+        try {
+          if (options.beforeFlow) await options.beforeFlow();
+        } finally {
+          // From here the reserved entry counts while the link is in flight.
+          if (link) linkStarting -= 1;
+        }
         // Sent now, so the reply written after it follows it (specs/029). A
         // payment link takes the turn's staged stage writes ahead of it, so
         // its `link_sent` is the last stage ManyChat is given.
@@ -492,38 +607,36 @@ export function buildTools(
       .join('\n');
 
     /**
-     * The earliest stage a write may name: the last one performed for this
-     * contact, or a later one already staged this turn. Parallel calls in one
-     * step must not walk a lead back any more than a later turn may.
+     * The flow tied to a stage the model just moved the contact to, sent as a
+     * flow the model calls is (specs/032 § A stage move can carry a flow):
+     * once per contact, only for the turn's course, and only for the stage
+     * written, never one skipped.
      */
-    const stageFloor = () =>
-      Math.max(
-        stageIndex(contact.funnelStage),
-        ...stage.staged.map(action =>
-          action.tool === 'set_field' && action.id === funnel?.id ? stageIndex(action.value) : -1,
-        ),
-        // Writes already made this turn, a payment link's `link_sent` among
-        // them (specs/029), so nothing staged after can walk the stage back.
-        ...stage.sent.flatMap(sent =>
-          sent.records.map(record =>
-            record.tool === 'set_field' && record.id === funnel?.id && record.status === 'performed'
-              ? stageIndex(record.value)
-              : -1,
-          ),
-        ),
-        // A payment link still in flight counts at the stage it is about to
-        // write: a call in the same step runs while it waits (the SDK starts a
-        // step's calls together), and would otherwise stage a lower write
-        // that lands after `link_sent`. If the link then fails, the turn has
-        // at most one step left.
-        ...stage.sent.map(sent =>
-          sent.pending &&
-          sent.action.tool === 'send_flow' &&
-          sent.action.followOn?.id === funnel?.id
-            ? stageIndex(sent.action.followOn?.value)
-            : -1,
-        ),
-      );
+    const overCap = (id: string) => ({ flowDropped: id, reason: 'over the per-turn limit' });
+    const sendTied = async (value: string) => {
+      const tied = config.flows.find(flow => flow.onStage === value);
+      if (!tied || !fits(tied, turnCourse())) return {};
+      if (!tied.repeatable && contact.sentFlows.has(tied.id)) return {};
+      if (stage.sent.some(sent => sent.action.tool === 'send_flow' && sent.action.id === tied.id)) {
+        return {};
+      }
+      const action: SendFlowAction = {
+        tool: 'send_flow',
+        id: tied.id,
+        flowNs: tied.flowNs,
+        origin: 'stage',
+      };
+      if (!options.flows) {
+        // `stage` refuses only over the cap; a repeat is reported as staged.
+        return stage.stage(action) ? { flowStaged: tied.id } : overCap(tied.id);
+      }
+      if (options.beforeFlow) await options.beforeFlow();
+      const sent = await stage.send(action, options.flows);
+      // Dropped over the cap is not refused by ManyChat: the model may still
+      // send the flow itself on a later turn (specs/032).
+      if (sent === undefined) return overCap(tied.id);
+      return sent ? { flowSent: tied.id } : { flowRefused: tied.id };
+    };
 
     tools.set_field = tool({
       description: `Record one of these choices on the contact.\n${listing}\n${STAGED}`,
@@ -536,23 +649,24 @@ export function buildTools(
           message: 'value is not one of this field’s configured values',
           path: ['value'],
         }),
-      execute: ({ field, value }) => {
+      execute: async ({ field, value }) => {
         // The stage only moves forward (specs/023 § The funnel is a field the
         // agent moves).
-        if (field === funnel?.id && stageIndex(value) < stageFloor()) return { staged: false };
+        const floor = stageFloor();
+        if (field === funnel?.id && stageIndex(value) < floor) return { staged: false };
         if (field !== course?.id) {
           // The server's measurement of the write, never the model's choice
           // (specs/027 § An event is a measurement).
           const event = field === funnel?.id ? eventFor(config, contact, value) : undefined;
-          return {
-            staged: stage.stage({
-              tool: 'set_field',
-              id: field,
-              field: fields.get(field)!.field,
-              value,
-              ...(event ? { followOn: event } : {}),
-            }),
-          };
+          const staged = stage.stage({
+            tool: 'set_field',
+            id: field,
+            field: fields.get(field)!.field,
+            value,
+            ...(event ? { followOn: event } : {}),
+          });
+          const moved = field === funnel?.id && staged && stageIndex(value) > floor;
+          return moved ? { staged, ...(await sendTied(value)) } : { staged };
         }
         // Once a course and its price have been put to the contact, a person
         // decides a switch (specs/028 § The course may change until the offer).

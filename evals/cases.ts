@@ -43,6 +43,8 @@ export const Case = z.object({
     .object({
       funnel_stage: z.string().optional(),
       course: z.string().optional(),
+      /** The model has never run for this contact (specs/032 § The opening flow). */
+      first_model_turn: z.boolean().optional(),
     })
     .optional(),
   expect: z.object({

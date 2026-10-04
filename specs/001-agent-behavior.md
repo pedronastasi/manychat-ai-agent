@@ -19,7 +19,8 @@ register, and take a new lead from first reply to the payment link. Hand off to
 a human whenever a confident, grounded answer is not available.
 
 The agent closes the sale (ADR-0015): it qualifies, chooses content, answers
-objections from the catalog and sends the payment link, as `023` specifies. It
+objections from the catalog, checks the contact is ready to start and sends
+the payment link, as `023` and `032` specify. It
 does not negotiate, improvise policy, create commitments the catalog does not
 hold, or confirm a payment it cannot see. Every limit in this spec on what it
 may claim is unchanged.

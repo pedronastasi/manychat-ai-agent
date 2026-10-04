@@ -378,11 +378,14 @@ describe('each cancellation reason cancels without a model call (specs/025 V3)',
       fetchImpl: api.fetch,
     });
     const stage = new ActionStage();
-    await buildTools(tools, stage)!.send_flow!.execute!({ flow: 'enrolment_link' } as never, {
-      toolCallId: 'test',
-      messages: [],
-      context: {},
-    });
+    await buildTools(tools, stage)!.send_flow!.execute!(
+      { flow: 'enrolment_link', contactAsked: true } as never,
+      {
+        toolCallId: 'test',
+        messages: [],
+        context: {},
+      },
+    );
     const turnId = await new ConversationStore(db).recordAgentReply(id, 'Here it is.', 'deferred', {
       bound: true,
       actions: stage.records('staged'),
@@ -406,7 +409,7 @@ describe('each cancellation reason cancels without a model call (specs/025 V3)',
     await new ConversationStore(db).recordAgentReply(id, 'Here it is.', 'answered_inline', {
       bound: true,
       actions: [
-        { tool: 'send_flow', id: 'enrolment_link', status: 'performed' },
+        { tool: 'send_flow', id: 'enrolment_link', status: 'performed', contactAsked: true },
         { tool: 'set_field', id: 'funnel_stage', value: 'link_sent', status: 'performed' },
       ],
     });

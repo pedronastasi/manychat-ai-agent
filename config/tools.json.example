@@ -1,6 +1,13 @@
 {
   "flows": [
     {
+      "id": "welcome_note",
+      "flowNs": "content00000000000000_000007",
+      "description": "A short welcome voice note that asks whether the contact has studied the subject before. The system sends it on the contact's first turn.",
+      "role": "opening",
+      "settleSeconds": 10
+    },
+    {
       "id": "foundation_brochure",
       "flowNs": "content00000000000000_000001",
       "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it.",
@@ -9,7 +16,8 @@
     {
       "id": "student_results",
       "flowNs": "content00000000000000_000002",
-      "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it.",
+      "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it. The system also sends it when you record nurturing.",
+      "onStage": "nurturing",
       "settleSeconds": 4
     },
     {
@@ -48,7 +56,7 @@
     {
       "id": "funnel_stage",
       "field": "funnel_stage",
-      "values": ["new", "qualifying", "nurturing", "offered", "link_sent"],
+      "values": ["new", "qualifying", "nurturing", "offered", "prepared", "link_sent"],
       "description": "Where the sale stands with this contact.",
       "funnel": true
     },

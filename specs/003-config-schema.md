@@ -63,9 +63,11 @@ Optional. The flows, tags and field values the agent may act with (`012`). Absen
 the agent is offered no tools and behaves as it did before `012`.
 
 - `flows[]` — `id`, `flowNs`, `description`, optional `repeatable` and
-  `role: "payment_link"` (`023`), optional `course`, a catalog course id
-  (`028`), optional `settleSeconds`, an integer from 0 to 30: how long the
-  flow plays, which a reply sent after it waits for (`030`)
+  `role`, `"payment_link"` (`023`) or `"opening"` (`032`), optional `course`,
+  a catalog course id (`028`), optional `settleSeconds`, an integer from 0 to
+  30: how long the flow plays, which a reply sent after it waits for (`030`),
+  optional `onStage`, a funnel stage other than `new` and `link_sent` at which
+  the server sends the flow (`032`)
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
   optional `funnel` (`023`) and `course` (`028`)
@@ -91,7 +93,11 @@ A tag id is unique across `tags` and `readable.tags`, and a field id across
 `fields` and `readable.fields`, because `get_contact` returns them side by side.
 At most one flow may have `role: "payment_link"`, and at most one field may be
 marked `funnel`. A `funnel` field's `values` must be the stages of `023` in
-order: `new`, `qualifying`, `nurturing`, `offered`, `link_sent`.
+order: `new`, `qualifying`, `nurturing`, `offered`, `prepared`, `link_sent`.
+At most one flow may have `role: "opening"`, and it carries no `course` and is
+not `repeatable`. At most one flow may be tied to each `onStage`, never the
+`opening` or `payment_link` flow, and only when a field is marked `funnel`
+(`032`).
 `events` need a `funnel` field, at most one entry per `stage`, and a `flowNs`
 no `flows[]` entry or other event uses (`027`).
 

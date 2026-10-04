@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-04
+pr: 157
 constitution: [C1, C6, C9]
 adr: [0015, 0019]
 ---
@@ -59,7 +61,13 @@ was rolled out count, so an existing contact does not receive it.
   after the guardrails, has `escalate: false`, the server sends the opening
   flow and then delivers the reply, which waits for it as `030` says. A first
   message that reports a payment, complains or asks for a person escalates,
-  and the opening is not sent, then or later.
+  and the opening is not sent, then or later, unless a flow went out on that
+  turn first (next point).
+- **Nothing goes out ahead of it.** A flow the model sends during the turn
+  (`029`) would reach the contact before the opening. So on a first model
+  turn the server sends the opening just before the model's first flow,
+  stage-tied ones included, and that flow follows it. The opening has then
+  gone out even if the turn later escalates, as the flow has.
 - **The model does not choose it.** The opening flow is never in
   `send_flow`'s enum. On a first model turn the system instructions tell the
   model that the flow will go out before its reply unless it escalates, so the
@@ -68,9 +76,16 @@ was rolled out count, so an existing contact does not receive it.
 - **No tag decides it.** A contact who heard the same content in the tenant's
   entry flow may hear it twice. That is accepted: a repeat costs one message;
   a lead who never hears it costs the opening.
-- **It is recorded like any flow.** The `turns.actions` entry carries
-  `"origin": "opening"`, and the `012` history note lists it as a performed
+- **It is recorded like any flow**, even on a turn that offered the model
+  no tool, as when the opening is the tenant's only flow. The `turns.actions`
+  entry carries `"origin": "opening"`, and the `012` history note lists it as a performed
   flow, so no later turn sends it again.
+- **Once, when first messages arrive together.** A contact who sends three
+  messages in a row starts three turns that are each a first model turn. The
+  turn that sends the flow first claims it on the conversation row, in one
+  conditional update, and the others send nothing (`026 § A scheduled job
+runs where its claim is atomic` takes the same approach). Their models
+  were told the flow would go out; one did, so the reply still follows it.
 
 When the model loses the race (`002`), the holding line goes out at the
 deadline, and the opening flow is sent when the deferred call settles without
@@ -120,7 +135,11 @@ contact receives it before the reply, and the reply waits for it (`030`).
   does not receive two flows at once.
 - **The model is told.** `set_field`'s result names the flow sent, as
   `flowSent`, or one ManyChat refused, as `flowRefused`, so the reply does not
-  repeat the flow's content or claim it went out.
+  repeat the flow's content or claim it went out. On a nudge turn it says
+  `flowStaged`. A tied flow past the per-turn cap is neither: it comes back
+  as `flowDropped` with the reason, since it was never sent and the stage
+  move will not send it again, so the model knows it may still send the flow
+  itself on a later turn.
 - **It counts against the cap**, since the model's write caused it, and it is
   recorded with `"origin": "stage"`.
 
@@ -167,8 +186,10 @@ message in this turn asks for the link, the payment methods or how to pay.
 the link the link; this keeps that true. A lead ready to pay is never held
 back for a conversation they did not ask for.
 
-The model asserts `contactAsked`, and nothing here can check it. So it is
-recorded on the payment link's `turns.actions` entry, and the bypass rate,
+The model asserts `contactAsked`, and nothing here can check it. So when it
+opened the gate, the payment link sent before `prepared`, it is recorded on
+the link's `turns.actions` entry; a link at or after `prepared` records none,
+whatever the model passed, and the bypass rate,
 payment links sent with `contactAsked` over all payment links sent in a
 week, is reported beside `023`'s two measures. A model that claims the
 contact asked whenever it wants to close shows up as a bypass rate near one.
@@ -206,8 +227,13 @@ the file fails at load.
    `onStage`, an `onStage` of `new` or `link_sent` or outside the funnel
    values, and a funnel field without `prepared`, each fail at load.
 2. An integration test over the ManyChat HTTP boundary asserts the opening
-   flow is sent before the reply on a first model turn, not sent when that
-   turn escalates, not sent on a later turn or after a scripted opening, and
+   flow is sent before the reply on a first model turn and recorded with its
+   origin; that it is not sent when that turn escalates, nor on any later
+   turn; that it is sent on the first model turn after a scripted opening;
+   that three first messages arriving together send it once; and that a
+   deferred call sends it after the holding line; that it goes out before a
+   flow the model sends on the same turn, even one whose turn then escalates;
+   and that it is recorded when it is the tenant's only flow. A unit test asserts it is
    absent from `send_flow`'s enum.
 3. A unit test asserts a funnel write to a tied stage sends the tied flow
    once, names it in the result as `flowSent`, sends nothing when the flow
@@ -216,16 +242,19 @@ the file fails at load.
 4. A unit test asserts the payment-link flow is refused with `not_prepared`
    before `prepared`, accepted after `prepared` performed or staged earlier in
    the turn, accepted with `contactAsked`, and that `contactAsked` is recorded.
-5. Golden eval cases, demo tenant: a first "hi" and a first course question
-   both get the opening; a first message reporting a payment does not; a lead
-   at `offered` is asked the readiness question, not for the enrolment; a lead
-   who asks how to pay at `nurturing` gets the link with `contactAsked`; a lead
-   who never asks to pay does not.
+5. Golden eval cases, demo tenant. The suite runs the model without the turn
+   handler, so it cannot see the server send the opening; it asserts the
+   decision that gates it instead: on a first model turn, a "hi" and a course
+   question do not escalate, and a reported payment does. A lead at `offered`
+   who accepts the price stages no link, and its reply is reviewed for the
+   readiness question; a lead who asks how to pay at `nurturing` stages the
+   link.
 
 What this misses: `contactAsked` is the model's word, and only the bypass rate
 and a person reading conversations catch a model that overclaims it. Whether
 the readiness question builds trust or only delays the sale is a judgement no
 assertion makes; paid enrolment against the `023` baseline is the measure. A
 contact who heard the opening in the tenant's entry flow hears it again, by
-design. And a stage flow sent on a turn that then escalates has still gone
-out, as every flow has since `029`.
+design. A stage flow sent on a turn that then escalates has still gone out,
+as every flow has since `029`. And the golden set never sees the opening
+itself go out; only the integration test does, against a fake ManyChat.

@@ -48,6 +48,7 @@ order:
 | `qualifying` | The agent is asking what it needs to choose a course        |
 | `nurturing`  | The agent knows the fit and is sending content to build it  |
 | `offered`    | A course and its catalog price have been put to the contact |
+| `prepared`   | The contact was asked what they still need to start (`032`) |
 | `link_sent`  | The payment-link flow was performed                         |
 
 `enrolled` exists in the tenant's ManyChat account but is **not** in the
@@ -96,8 +97,10 @@ A contact who asks for the link before qualifying gets the link.
 
 ## The agent asks for the sale, and never invents a reason to buy now
 
-Once the stage is `offered`, the agent's closing question asks for the
-enrolment, plainly. That is the change ADR-0015 makes.
+Once the stage is `prepared`, the agent's closing question asks for the
+enrolment, plainly. That is the change ADR-0015 makes. At `offered` it asks
+what the contact still needs to start instead (`032 § Readiness comes between
+the offer and the link`).
 
 What it may not do is unchanged from `001`: no invented urgency, no
 "only two places left" or "price goes up Friday" unless that exact fact is in
@@ -132,7 +135,8 @@ covers.
 ## The sale ends at the payment-link flow
 
 Exactly one `flows[]` entry may carry `"role": "payment_link"`; a second is a
-load failure. When that flow is performed, the server writes the funnel field
+load failure. It is refused before `prepared` unless the model says the
+contact asked to pay (`032 § The payment link waits for readiness`). When that flow is performed, the server writes the funnel field
 to `link_sent` as a follow-on action. It is recorded in `turns.actions` like
 any other, is not staged by the model, and does not count against the
 per-turn cap. If the flow fails, the stage is not written. If the tenant
@@ -162,6 +166,9 @@ tenant only (C1): no real course names, prices, flow names or flow ids.
 | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------- |
 | Link-sent rate | Contacts whose payment-link flow was `performed`, over contacts with a first turn in the same week | `turns.actions`, this service |
 | Paid enrolment | Contacts the tenant tagged `enrolled`, over the same denominator                                   | The tenant's ManyChat account |
+
+A third figure, the bypass rate, is reported beside them: payment links
+recorded with `contactAsked` over all payment links sent (`032`).
 
 Link-sent rate is the leading indicator: this service can compute it, daily.
 Paid enrolment is the outcome, and this service cannot see it. They are

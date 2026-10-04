@@ -214,7 +214,7 @@ describe('a performed funnel write sends its event after it (specs/027 V3)', () 
 /* -------------------------------------------------------------------------- */
 
 describe('the payment-link flow fires its event last (specs/027 V4)', () => {
-  const sendLink: Call = ['send_flow', { flow: 'enrolment_link' }];
+  const sendLink: Call = ['send_flow', { flow: 'enrolment_link', contactAsked: true }];
 
   it('makes three requests in order: flow, link_sent write, event', async () => {
     await inlineTurn([sendLink]);

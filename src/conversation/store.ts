@@ -190,6 +190,36 @@ export class ConversationStore {
     });
   }
 
+  /**
+   * Whether the model has run for this contact before: an agent turn that
+   * recorded the model that wrote it. The opening flow goes only to a contact
+   * for whom none has (specs/032 § The opening flow is the server's).
+   */
+  async hasModelTurn(conversationId: string): Promise<boolean> {
+    const row = await this.db.query.turns.findFirst({
+      where: and(
+        eq(turns.conversationId, conversationId),
+        eq(turns.role, 'agent'),
+        isNotNull(turns.model),
+      ),
+      columns: { id: true },
+    });
+    return row !== undefined;
+  }
+
+  /**
+   * Claims the contact's opening flow, once: true for the one caller that
+   * set the mark, false for every other, concurrent ones included (specs/032).
+   */
+  async claimOpening(conversationId: string): Promise<boolean> {
+    const rows = await this.db
+      .update(conversations)
+      .set({ openingSentAt: sql`now()`, updatedAt: sql`now()` })
+      .where(and(eq(conversations.id, conversationId), isNull(conversations.openingSentAt)))
+      .returning({ id: conversations.id });
+    return rows.length > 0;
+  }
+
   async markEscalated(conversationId: string) {
     await this.db
       .update(conversations)

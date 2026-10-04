@@ -58,7 +58,7 @@ today.
 
 | Tool          | ManyChat endpoint                          | Model supplies            |
 | ------------- | ------------------------------------------ | ------------------------- |
-| `send_flow`   | `POST /fb/sending/sendFlow`                | a flow id                 |
+| `send_flow`   | `POST /fb/sending/sendFlow`                | a flow id, `contactAsked` |
 | `add_tag`     | `POST /fb/subscriber/addTagByName`         | a tag id                  |
 | `remove_tag`  | `POST /fb/subscriber/removeTagByName`      | a tag id                  |
 | `set_field`   | `POST /fb/subscriber/setCustomFieldByName` | a field id and a value id |
@@ -262,7 +262,9 @@ or contact text, so the record needs no redaction under C5.
 A server-performed follow-on is recorded beside the action that carried it:
 the `link_sent` write after the payment-link flow (`023`), and a
 `{ "tool": "send_event", "id": … }` entry after a funnel write that fired a
-conversion event (`027`). `send_event` is a record kind, not a tool.
+conversion event (`027`). `send_event` is a record kind, not a tool. A flow the server sent without the
+model calling it carries `origin`, `opening` or `stage`, and a payment link
+sent before `prepared` carries `contactAsked: true` (`032`).
 
 ## Performed actions reach the model on later turns
 

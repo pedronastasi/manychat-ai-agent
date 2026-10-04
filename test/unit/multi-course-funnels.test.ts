@@ -164,7 +164,9 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
     const stage = new ActionStage();
     const built = buildTools(tools, stage, on(undefined));
     expect(await call(built, 'send_flow', { flow: 'student_results' })).toEqual({ staged: true });
-    expect(await call(built, 'send_flow', { flow: 'enrolment_link' })).toEqual({ staged: true });
+    expect(await call(built, 'send_flow', { flow: 'enrolment_link', contactAsked: true })).toEqual({
+      staged: true,
+    });
     for (const flow of ['foundation_brochure', 'advanced_brochure', 'intensive_brochure']) {
       expect(await call(built, 'send_flow', { flow })).toEqual({ staged: false });
     }

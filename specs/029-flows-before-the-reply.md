@@ -52,6 +52,10 @@ says so, and that the reply must not repeat what the flow contains.
 Every other write (tags, fields, notes, nudges) stays staged and is performed
 after the reply, as `012` describes (ADR-0019).
 
+A flow the server sends on a funnel write to its tied stage goes out the same
+way, during the call; the opening flow goes out after the model's reply
+settles and before it is delivered (`032`).
+
 ### A payment link takes the turn's stage writes with it
 
 The payment link writes `link_sent` as it goes out. A funnel write the model
