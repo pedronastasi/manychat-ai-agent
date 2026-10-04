@@ -398,6 +398,33 @@ describe('the payment link waits for readiness (specs/032 V4)', () => {
     ]);
   });
 
+  it('refuses a course or stage write beside a link waiting on the opening', async () => {
+    const stage = new ActionStage();
+    const { flows, performed } = sender();
+    let openingSent = false;
+    const beforeFlow = async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      openingSent = true;
+    };
+    const built = buildTools(tools, stage, at('new', { course: 'foundation' }), undefined, {
+      flows,
+      beforeFlow,
+    });
+    // One step: the SDK starts these together, so the writes run during the await.
+    const [linked, course, funnel] = await Promise.all([
+      call(built, 'send_flow', { flow: 'enrolment_link', contactAsked: true }),
+      call(built, 'set_field', { field: 'course', value: 'advanced' }),
+      call(built, 'set_field', { field: 'funnel_stage', value: 'offered' }),
+    ]);
+
+    expect(openingSent).toBe(true);
+    expect(linked).toEqual({ sent: true });
+    expect(course).toEqual({ staged: false });
+    expect(funnel).toEqual({ staged: false });
+    expect(stage.staged).toEqual([]);
+    expect(performed.map(action => action.id)).toEqual(['enrolment_link', 'funnel_stage']);
+  });
+
   it('tells the model when it may pass contactAsked', () => {
     const built = buildTools(tools, new ActionStage(), at('offered'));
     expect(built!.send_flow!.description).toContain('Pass contactAsked: true only when');

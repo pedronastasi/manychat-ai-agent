@@ -441,9 +441,13 @@ export function buildTools(
    * contact, or a later one already staged this turn. Parallel calls in one
    * step must not walk a lead back any more than a later turn may.
    */
+  // A payment link marked here before any await on its way out, so a call
+  // beside it in the same step already sees it (specs/029, specs/032).
+  let linkStarting = 0;
   const stageFloor = () =>
     Math.max(
       stageIndex(contact.funnelStage),
+      linkStarting > 0 ? stageIndex(LINK_SENT) : -1,
       ...stage.staged.map(action =>
         action.tool === 'set_field' && action.id === funnel?.id ? stageIndex(action.value) : -1,
       ),
@@ -546,10 +550,17 @@ export function buildTools(
           ...(asked ? { contactAsked: true as const } : {}),
         };
         if (!sends) return { staged: stage.stage(action) };
-        // The opening goes first on a first model turn (specs/032). Awaited
-        // only when there is one: a tick here would let a parallel funnel
-        // write miss a payment link about to be in flight (specs/029).
-        if (options.beforeFlow) await options.beforeFlow();
+        // The opening goes first on a first model turn (specs/032). A payment
+        // link is counted at link_sent before the await, so a funnel or course
+        // write made beside it is refused rather than landing after it (specs/029).
+        const link = entry.role === 'payment_link' && funnel !== undefined;
+        if (link) linkStarting += 1;
+        try {
+          if (options.beforeFlow) await options.beforeFlow();
+        } finally {
+          // From here the reserved entry counts while the link is in flight.
+          if (link) linkStarting -= 1;
+        }
         // Sent now, so the reply written after it follows it (specs/029). A
         // payment link takes the turn's staged stage writes ahead of it, so
         // its `link_sent` is the last stage ManyChat is given.
