@@ -100,6 +100,13 @@ The runner, the race, the guardrails, the outbox, the registry and the ManyChat
 client are not exported. A tenant who needs one of them has found a missing
 configuration option or plugin hook, and the fix belongs upstream.
 
+The mock model helpers live in `test/helpers/model.ts` today, outside `dist/`
+and outside the allowlist below. Exporting them means moving them under `src/`,
+where the build emits them, and this repository's own tests then import them
+from there. A helper published to tenants is a fake other people rely on, so it
+honours the provider contract it stands in for, nested `usage` shape included,
+as `CLAUDE.md` already requires of this repository's own fakes.
+
 **The package is published from an allowlist.** `files` in `package.json` names
 `dist/`, `db/migrations/`, `README.md`, `LICENSE` and `CHANGELOG.md`, and
 nothing else. A maintainer's working tree holds a real `config/` and `.env`.
@@ -209,9 +216,14 @@ alone.
 So the sanctioned route is `pnpm patch manychat-ai-agent@<version>`, committed
 in the tenant project, with the same fix opened upstream at the same time.
 pnpm keys the patch to that exact version, and fails the install when the
-version it targets is no longer the one installed. The next upgrade therefore
-cannot silently drop a patch or silently keep one; it forces the tenant to
-confirm that the upstream fix landed and to delete the patch.
+version it targets is no longer the one installed: `ERR_PNPM_UNUSED_PATCH`,
+exit code 1, checked with pnpm 12.6.0 on 2026-10-04. The next upgrade
+therefore cannot silently drop a patch or silently keep one; it forces the
+tenant to confirm that the upstream fix landed and to delete the patch.
+
+That holds only while `allowUnusedPatches` is off, which is pnpm's default. The
+scaffolder never sets it, because setting it turns the forced removal back into
+a silent one.
 
 A patch is an escape hatch, not a way to extend the agent. ADR-0021 names
 more than one live patch in any tenant at once as the condition for revisiting
@@ -322,7 +334,8 @@ made here first and the contract table above records it.
 - A test runs the scaffolder into a temporary directory and asserts the
   generated `config/` equals `config/*.example` byte for byte, the generated CI
   fails on a public repository, `agent config check` passes, and
-  `agent eval` against the mock model passes on the generated suite.
+  `agent eval` against the mock model passes on the generated suite. It also
+  asserts the generated project does not set `allowUnusedPatches`.
 - For each `agent upgrade` migration, a test runs it on the previous release's
   example config and asserts the result passes `agent config check`, and that a
   second run changes nothing.
@@ -333,8 +346,10 @@ made here first and the contract table above records it.
   from the model; a string parameter outside a note field, a clashing name, and
   an unsupported `apiVersion` each stop startup; and the context it receives
   holds no model, database or prompt.
-- A test asserts `release.yml` is the only workflow with `id-token: write` or
-  `packages: write`, extending `010`'s `contents: write` check.
+- A test asserts `release.yml` is the only workflow with `packages: write`,
+  extending `010`'s `contents: write` check. `id-token: write` is already held
+  by `docs.yml`, `claude.yml` and `claude-code-review.yml`, so the test asserts
+  only that `release.yml` requests it.
 - The release image is checked once, on the first release: it starts with a
   mounted fixture `config/`, answers `agent simulate`, and contains no
   `config/`.
