@@ -112,8 +112,8 @@ notes refuses:
 | `get_contact`, `write_note` (`024`) | Unchanged                                   |
 | The opening flow (`032`)            | Not sent (see the next section)             |
 
-A refusal makes no request and counts against the turn's action cap like any
-refused call (`012 § The loop is bounded at four steps`).
+A refusal makes no request and, like `032`'s `not_prepared`, does not count
+against the turn's action cap (`012 § The loop is bounded at four steps`).
 
 The gate checks the contact's intent as the server knows it, which includes a
 write to `prospect` staged earlier in the same turn. So a first message that
