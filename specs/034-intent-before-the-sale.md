@@ -63,9 +63,10 @@ Intent moves one way: unknown to `not_prospect` to `prospect`, and unknown to
 The server knows a contact's intent from its own records: the last
 `performed` write to the intent field in `turns.actions`, or a write staged
 earlier in the same turn. It never reads intent from the inbound request or
-from the contact's ManyChat fields, so nothing the channel sends can open the
-sale (C4). Each turn the model is told the result in an `INTENT:` notice,
-beside `FUNNEL:` and outside the fence.
+from the contact's ManyChat fields. What the channel sends can inform the
+model's judgement, as an advert's course does below, but only the model's own
+write opens the sale (C4). Each turn the model is told the result in an
+`INTENT:` notice, beside `FUNNEL:` and outside the fence.
 
 At most one field may carry `intent`, a field may not be both `intent` and
 `funnel` or `course` (`028`), and a funnel field requires an intent field:
@@ -82,8 +83,13 @@ The system instructions tell the model to record `prospect` when the contact:
 - says they want to learn what a course teaches, or asks which course suits
   them;
 - asks for the payment link or how to pay;
-- arrived through a course's advert, so the entry flow set their course
-  before they wrote (`028`).
+- arrived through a course's advert: the conversation has a stored course
+  (`028`) that the agent did not write.
+
+Only a stored course counts. `028` stores a course only from a request bound
+to the contact's token (`019`), while an unbound request's course narrows the
+turn's flows without being stored. So a course key on a forged request is
+never stored, and cannot be the reason the model records `prospect`.
 
 And `not_prospect` when the contact says they are already enrolled, are a
 former student, offer a product or service, ask for work, or wrote to the
@@ -130,15 +136,37 @@ here can check, and refusing all of them fails closed (C6).
 ## The opening waits for a prospect
 
 `032` sends the opening flow on the contact's first model turn. This replaces
-that rule: **the opening is sent on the turn that first stages a write of
-`prospect`, if that turn's reply does not escalate**, then the reply is
-delivered after it, as `030` says. That may be the first turn ("how much is
-the course?") or a later one ("actually, I would like to enrol").
+that rule: **the opening belongs to the turn that first stages a write of
+`prospect`**, the _prospect turn_. That may be the first turn ("how much is
+the course?") or a later one ("actually, I would like to enrol"). Within that
+turn, `032`'s timing holds unchanged:
+
+- **Before the first flow, even if the turn escalates.** When the model sends
+  a flow on the prospect turn (`029`), stage-tied ones included, the server
+  sends the opening just before it. The opening has then gone out even if the
+  turn later escalates, as the flow has. This is the common case: a price
+  question is recorded as `prospect` and answered with a content flow in one
+  turn.
+- **Otherwise, before the reply, if the reply does not escalate.** With no
+  flow on the turn, the server sends the opening once the reply settles with
+  `escalate: false`, and the reply is delivered after it, as `030` says.
+- **An escalated prospect turn with no flow forfeits it.** The turn's
+  `prospect` write is discarded with every staged action (`012 § Guardrails
+run before any action is performed`), so the contact is unknown again and
+  the model records `prospect` on a later turn. That later turn does not send
+  the opening: a person has been handed the conversation, and an opening
+  arriving after them would restart a conversation they are already having.
+  It matches `032`, where an escalated first turn is not sent the opening
+  "then or later". The discarded write is recorded on its turn (`012 § Every
+staged action is recorded on its turn`), which is how a later turn knows.
+
+And across turns:
 
 - **A non-prospect never receives it.** A contact who stays unknown or
   `not_prospect` is never sent the opening.
 - **At most once.** A contact with an `origin: "opening"` entry in
-  `turns.actions` is not sent it again, whatever their intent does next.
+  `turns.actions`, or an earlier prospect turn, is not sent it again,
+  whatever their intent does next.
 - **It needs the write.** A contact who counts as a prospect by the rollout
   rule below never staged the write, so is not sent it.
 
@@ -150,8 +178,8 @@ before the loop runs that this turn will make the contact a prospect.
 
 Everything else in `032 § The opening flow is the server's, not the model's`
 holds: the model never chooses it, it is recorded with `"origin": "opening"`,
-it does not count against the cap, and a lost race sends it when the deferred
-call settles.
+it does not count against the cap, concurrent first messages send it once,
+and a lost race sends it when the deferred call settles.
 
 ## A non-prospect gets the front desk, and can still become a lead
 
@@ -222,18 +250,24 @@ file fails at load.
    each fail at load.
 2. A unit test asserts that, before `prospect`, `send_flow`, `add_tag`,
    `remove_tag`, `schedule_nudge` and `set_field` on any field but intent
-   return `not_prospect` with no request; that `get_contact` and `write_note`
+   return `not_prospect` with no request and without using a slot of the
+   turn's action cap; that `get_contact` and `write_note`
    are unaffected; that each is accepted after `prospect` is performed or
    staged earlier in the turn; and that a write from `prospect` to
    `not_prospect` is refused.
 3. A unit test asserts the `INTENT:` notice follows the last performed write,
    ignores an intent value in the inbound request, and reads a contact whose
    funnel stage is past `new` and who has no intent write as `prospect`.
-4. An integration test over the ManyChat HTTP boundary asserts the opening is
-   sent before the reply on the turn that first stages `prospect`, on a first
-   turn and on a later one; not sent on an unknown or `not_prospect` turn, on
-   an escalating turn, to a prospect by the rollout rule, or a second time.
-5. Golden eval cases, demo tenant: a first "hi" is not sent the opening, calls
+4. An integration test over the ManyChat HTTP boundary asserts that on the
+   prospect turn, a first turn or a later one, the opening is sent just
+   before the model's first flow, and stays sent when that turn then
+   escalates; that with no flow it is sent before a non-escalating reply; and
+   that it is not sent on an unknown or `not_prospect` turn, on an escalated
+   prospect turn with no flow or on any turn after one, to a prospect by the
+   rollout rule, or a second time.
+5. A unit test asserts that a course stored from a bound request reaches the
+   model as an advert's course, and a course on an unbound request does not.
+6. Golden eval cases, demo tenant: a first "hi" is not sent the opening, calls
    no sales tool and asks how it can help; a first price question is recorded
    `prospect`, sent the opening and answered; a current student and a
    supplier are recorded `not_prospect` and not asked to enrol; a "hi" from a
@@ -247,4 +281,6 @@ prospect share and a person reading conversations catch it. The golden cases
 cover the phrasings they thought of. And a non-prospect who says, to be sent
 something, that they want to enrol becomes a prospect: that is the gate
 working as written, not a breach, since everything the sale can send is
-already the tenant's to send.
+already the tenant's to send. The advert criterion trusts the token binding
+of `019`: a contact whose advert course was set on an unbound request is
+judged on their words alone, and a "hi" from them stays unknown.
