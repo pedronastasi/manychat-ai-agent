@@ -191,8 +191,10 @@ student asking whether Thursday's class is moved is escalated as
 `out_of_scope` if the catalog does not say; that is the front desk working.
 
 The reply does not sell. The closing question offers further help, never the
-enrolment, and the SALES instructions apply only from `prospect` on. `001`
-rule 8, "continue the sales flow", becomes "continue the conversation".
+enrolment, and the SALES instructions apply only from `prospect` on. Rule 8
+of the system instructions (`src/agent/prompt.ts`, "Read short replies in
+context") tells the model to "continue the sales flow"; it becomes "continue
+the conversation".
 
 `not_prospect` is not a verdict. A supplier who asks, two messages later,
 what the course costs is a prospect from that turn: the model records it, the
@@ -223,7 +225,8 @@ non-leads, which is the failure this spec cannot see turn by turn.
 ## What this changes elsewhere
 
 - `001 § Role`: the agent sells only to a contact recorded as a prospect, and
-  is the front desk for everyone else; rule 8 drops "sales".
+  is the front desk for everyone else. The system instructions' rule 8 in
+  `src/agent/prompt.ts` drops "sales" in the same pull request.
 - `023 § The funnel is a field the agent moves`: a funnel write is refused
   before `prospect`; `§ Qualify before sending content` begins once the
   contact is a prospect; `§ Success is measured twice` gains the two measures
@@ -268,12 +271,16 @@ file fails at load.
    rollout rule, or a second time.
 5. A unit test asserts that a course stored from a bound request reaches the
    model as an advert's course, and a course on an unbound request does not.
-6. Golden eval cases, demo tenant: a first "hi" is not sent the opening, calls
-   no sales tool and asks how it can help; a first price question is recorded
-   `prospect`, sent the opening and answered; a current student and a
-   supplier are recorded `not_prospect` and not asked to enrol; a "hi" from a
-   course advert is recorded `prospect`; a `not_prospect` contact who later
-   asks to enrol is recorded `prospect` and sent the opening.
+6. Golden eval cases, demo tenant. The suite runs the model without the turn
+   handler, so it cannot see the server send the opening
+   (`032 § Verification`); it asserts the decision that gates it instead. A
+   first "hi" stages no intent write and no sales tool, does not escalate,
+   and its reply is reviewed for asking how it can help; a first price
+   question stages `prospect` and is answered; a current student and a supplier stage
+   `not_prospect`, and their replies are reviewed for not asking them to
+   enrol; a "hi" with an advert's course stages `prospect`; a `not_prospect`
+   contact who later asks to enrol stages `prospect`. Whether the opening goes
+   out is item 4's.
 
 What this misses: intent is the model's judgement, and every check above
 assumes it judged right. A prospect read as `not_prospect` is a lost sale that
