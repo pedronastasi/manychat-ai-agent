@@ -179,8 +179,10 @@ message in this turn asks for the link, the payment methods or how to pay.
 the link the link; this keeps that true. A lead ready to pay is never held
 back for a conversation they did not ask for.
 
-The model asserts `contactAsked`, and nothing here can check it. So it is
-recorded on the payment link's `turns.actions` entry, and the bypass rate,
+The model asserts `contactAsked`, and nothing here can check it. So when it
+opened the gate, the payment link sent before `prepared`, it is recorded on
+the link's `turns.actions` entry; a link at or after `prepared` records none,
+whatever the model passed, and the bypass rate,
 payment links sent with `contactAsked` over all payment links sent in a
 week, is reported beside `023`'s two measures. A model that claims the
 contact asked whenever it wants to close shows up as a bypass rate near one.

@@ -497,7 +497,13 @@ export function buildTools(
         const entry = flows.get(flow)!;
         // Another course's content is refused, whatever the model names.
         if (!fits(entry, turnCourse())) return sends ? { sent: false } : { staged: false };
-        const asked = entry.role === 'payment_link' && input.contactAsked === true;
+        // Recorded only when it opened the gate, so the bypass rate counts
+        // bypasses, not every claim the model makes (specs/032).
+        const asked =
+          entry.role === 'payment_link' &&
+          input.contactAsked === true &&
+          funnel !== undefined &&
+          stageFloor() < stageIndex(PREPARED);
         if (
           entry.role === 'payment_link' &&
           funnel &&

@@ -378,6 +378,18 @@ describe('the payment link waits for readiness (specs/032 V4)', () => {
     });
   });
 
+  it('records no contactAsked when the link was not gated', async () => {
+    const { built, stage } = await link(at('prepared'));
+    expect(await call(built, 'send_flow', { flow: 'enrolment_link', contactAsked: true })).toEqual({
+      sent: true,
+    });
+    expect(stage.records('staged')[0]).toEqual({
+      tool: 'send_flow',
+      id: 'enrolment_link',
+      status: 'performed',
+    });
+  });
+
   it('records no contactAsked on any other flow', async () => {
     const { built, stage } = await link(at('nurturing'));
     await call(built, 'send_flow', { flow: 'fitting_it_in', contactAsked: true });
