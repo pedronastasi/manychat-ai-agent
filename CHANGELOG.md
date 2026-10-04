@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.14.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.13.1...manychat-ai-agent-v0.14.0) (2026-10-04)
+
+
+### Features
+
+* open with the server's flow and check readiness before the link (spec 032) ([f7b947e](https://github.com/pedronastasi/manychat-ai-agent/commit/f7b947eb6e270c3a79be1fbc31ce27c80a5ce593))
+* open with the server's flow and check readiness before the link (spec 032) ([bec2650](https://github.com/pedronastasi/manychat-ai-agent/commit/bec26501574cc5bb0bd8704a478d0f011efe00de))
+
+
+### Bug Fixes
+
+* count a payment link at link_sent before it waits for the opening (spec 032) ([138dc9d](https://github.com/pedronastasi/manychat-ai-agent/commit/138dc9d15855780336f944da563e064c77d75017))
+* record contactAsked only when it opened the payment gate (spec 032) ([456c2a4](https://github.com/pedronastasi/manychat-ai-agent/commit/456c2a4fa984c9ed9a51f4b63debad1649443a2d))
+* say flowDropped when a stage-tied flow is over the cap (spec 032) ([219eedf](https://github.com/pedronastasi/manychat-ai-agent/commit/219eedf1befcaa4e4d1b6027404d3b007283d211))
+* send the opening before any flow, and record it without tools (spec 032) ([96aa775](https://github.com/pedronastasi/manychat-ai-agent/commit/96aa77573d0e34210aaae146b2c9e45a83d00140))
+
+
+### Specs and Docs
+
+* record PR 157 in spec 032 ([43d429c](https://github.com/pedronastasi/manychat-ai-agent/commit/43d429ca0867a06ddbdea8e5921d46801b9b4bd2))
+* specify relationship before the sale (spec 032) ([227049c](https://github.com/pedronastasi/manychat-ai-agent/commit/227049c50f0c36a4307d10f722081784b6911d9a))
+
 ## [0.13.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.13.0...manychat-ai-agent-v0.13.1) (2026-10-04)
 
 
