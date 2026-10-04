@@ -46,6 +46,7 @@ test fails the suite.
 | [031 — Learning From Outcomes](031-learning-from-outcomes.md)                              | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C7         | [0020], [0015], [0011]                                                                 |
 | [032 — Relationship Before the Sale](032-relationship-before-the-sale.md)                  | implemented | 2026-10-04  | #157 | 4     | C1, C6, C9                         | [0015], [0019]                                                                         |
 | [033 — Tenant Projects Depend on the Agent, Not Fork It](033-tenant-projects-not-forks.md) | specified   | —           | —    | —     | C1, C2, C6, C8, C9                 | [0021], [0018], [0005], [0010]                                                         |
+| [034 — Intent Before the Sale](034-intent-before-the-sale.md)                              | specified   | —           | —    | —     | C1, C4, C6, C9                     | [0015]                                                                                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
