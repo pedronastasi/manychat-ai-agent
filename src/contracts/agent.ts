@@ -190,6 +190,13 @@ export const SendEventAction = z.object({
 });
 export type SendEventAction = z.infer<typeof SendEventAction>;
 
+/**
+ * Why the server sent a flow the model did not call: the contact's first model
+ * turn, or a funnel write to the stage the flow is tied to (specs/032).
+ */
+export const FlowOrigin = z.enum(['opening', 'stage']);
+export type FlowOrigin = z.infer<typeof FlowOrigin>;
+
 const SetFieldAction = z.object({
   tool: z.literal('set_field'),
   id: z.string(),
@@ -220,6 +227,10 @@ export const StagedAction = z.discriminatedUnion('tool', [
      * (specs/023 § The sale ends at the payment-link flow).
      */
     followOn: SetFieldAction.optional(),
+    /** Sent by the server, not chosen by the model (specs/032). */
+    origin: FlowOrigin.optional(),
+    /** The payment link sent before `prepared`, on the model's word (specs/032). */
+    contactAsked: z.literal(true).optional(),
   }),
   z.object({ tool: z.literal('add_tag'), id: z.string(), tag: z.string() }),
   z.object({ tool: z.literal('remove_tag'), id: z.string(), tag: z.string() }),
@@ -271,5 +282,7 @@ export const ActionRecord = z.object({
   length: z.number().int().nonnegative().optional(),
   status: ActionStatus,
   error: z.string().optional(),
+  origin: FlowOrigin.optional(),
+  contactAsked: z.literal(true).optional(),
 });
 export type ActionRecord = z.infer<typeof ActionRecord>;

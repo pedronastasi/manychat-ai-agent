@@ -48,6 +48,11 @@ export const conversations = pgTable(
      * (specs/028). A nudge turn, which has no request, reads it from here.
      */
     course: text('course'),
+    /**
+     * When the opening flow was claimed for this contact: set once, by the one
+     * turn that sends it, so concurrent first messages send it once (specs/032).
+     */
+    openingSentAt: timestamp('opening_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

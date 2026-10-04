@@ -23,7 +23,7 @@ import {
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
 import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
-import { ActionStage, contactActionsFrom, knownCourse } from '../agent/tools.ts';
+import { ActionStage, contactActionsFrom, knownCourse, openingFlow } from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
@@ -312,6 +312,11 @@ export class TurnHandler {
     // contact's ManyChat record, not their words, and they narrow what the
     // tools offer, so a request without the token cannot resend a flow or
     // walk the sale back (specs/023).
+    // The opening goes to a contact the model has never answered, unless
+    // the turn escalates (specs/032 § The opening flow is the server's).
+    const openingEntry = openingFlow(tools);
+    const firstModelTurn =
+      openingEntry !== undefined && !(await this.store.hasModelTurn(conversation.id));
     const contact =
       tools.flows.length + tools.fields.length > 0
         ? {
@@ -321,6 +326,7 @@ export class TurnHandler {
               historySince,
             ),
             ...course,
+            firstModelTurn,
           }
         : undefined;
 
@@ -386,7 +392,7 @@ export class TurnHandler {
     // A media turn's download and transcription share the model's deadline and
     // abort signal (specs/020 § Download and transcription run inside the
     // race), so the bound on a runaway model call also bounds a runaway fetch.
-    const work: Promise<Completion> = media
+    const answered: Promise<Completion> = media
       ? this.readMedia(media, {
           userTurnId,
           tenantId: inbound.tenantId,
@@ -409,6 +415,17 @@ export class TurnHandler {
             flows,
           })
           .then(result => ({ kind: 'model' as const, result }));
+    // Inside the race, as a flow the model calls is (specs/029): a send that
+    // runs past the deadline is deferred with the reply it precedes.
+    const work: Promise<Completion> =
+      openingEntry && firstModelTurn
+        ? answered.then(async done => {
+            if (done.kind === 'model' && !done.result.reply.escalate) {
+              await this.sendOpening(openingEntry, conversation.id, stage, flows, logger);
+            }
+            return done;
+          })
+        : answered;
     const completion = work
       .then(done => ({ kind: 'done' as const, done }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
@@ -659,6 +676,33 @@ export class TurnHandler {
       },
       staged.length > 0 ? { staged, turnId } : undefined,
     );
+  }
+
+  /**
+   * Sends the opening flow before the first model reply, once per contact:
+   * the claim on the conversation makes concurrent first messages send it
+   * once (specs/032). Not counted against the cap. A failure costs the
+   * opening, never the reply.
+   */
+  private async sendOpening(
+    opening: { id: string; flowNs: string },
+    conversationId: string,
+    stage: ActionStage,
+    flows: FlowSends,
+    logger: TurnLogger,
+  ): Promise<void> {
+    try {
+      if (!(await this.store.claimOpening(conversationId))) return;
+      const sent = await stage.send(
+        { tool: 'send_flow', id: opening.id, flowNs: opening.flowNs, origin: 'opening' },
+        flows,
+        [],
+        { uncapped: true },
+      );
+      logger.info({ flow: opening.id, sent }, 'opening flow sent');
+    } catch (error) {
+      logger.error({ err: String(error) }, 'opening flow not sent');
+    }
   }
 
   /**

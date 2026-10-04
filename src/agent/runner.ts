@@ -11,6 +11,7 @@ import {
   funnelNotice,
   mediaNotice,
   nudgeNotice,
+  openingNotice,
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
@@ -18,7 +19,14 @@ import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
 import type { FlowSends } from './flows.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
-import { ActionStage, buildTools, courseField, funnelField, MAX_STEPS } from './tools.ts';
+import {
+  ActionStage,
+  buildTools,
+  courseField,
+  funnelField,
+  MAX_STEPS,
+  openingFlow,
+} from './tools.ts';
 import type { ContactActions } from './tools.ts';
 
 export interface AgentUsage {
@@ -268,7 +276,9 @@ export class GenerateTextRunner implements AgentRunner {
           flows,
         })
       : undefined;
+    const opening = contact?.firstModelTurn ? openingFlow(config.tools ?? NO_TOOLS) : undefined;
     const contactNotices = [
+      ...(opening ? [openingNotice(opening)] : []),
       ...(funnelField(config.tools ?? NO_TOOLS) ? [funnelNotice(contact?.funnelStage)] : []),
       ...(courseField(config.tools ?? NO_TOOLS)
         ? [courseNotice(contact?.course, contact?.courseChangedFrom)]

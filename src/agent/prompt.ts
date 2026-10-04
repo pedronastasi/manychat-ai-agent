@@ -215,6 +215,7 @@ function salesSection(tools: Tools): string[] {
     '- qualifying: you are asking what you need to choose a course',
     '- nurturing: you know the fit and are sending content to build it',
     '- offered: a course and its catalog price have been put to the contact',
+    '- prepared: you asked what the contact still needs to start, and they answered',
     '- link_sent: the payment link was sent. The system records this; you never set it.',
     'Record each stage with set_field when the conversation reaches it. The stage only',
     'moves forward: a write to an earlier stage is refused.',
@@ -223,12 +224,20 @@ function salesSection(tools: Tools): string[] {
     'A direct question is answered first: qualifying never delays a grounded answer.',
     ...(link
       ? [
-          `The payment link is the flow ${link.id}. A contact who asks for it gets it, qualified or not.`,
+          `The payment link is the flow ${link.id}. It is refused before prepared, unless the contact`,
+          'asks for it: a contact whose message asks for the link, the payment methods or how to pay',
+          'gets it, qualified or not, and you pass contactAsked true. Never pass it otherwise.',
         ]
       : []),
     'Choose content for what the contact said, never in a fixed order. A flow already',
-    'sent to them is not offered again.',
-    'Once the stage is offered, the closing question asks for the enrolment, plainly.',
+    'sent to them is not offered again. A flow marked as sent by the system at a stage goes',
+    'out when you record that stage; set_field says so with flowSent, so do not repeat it.',
+    'The relationship comes before the sale: the opening, then the course, its options and',
+    'price, then what the contact still needs to start, and only then the payment.',
+    'Once the stage is offered, the closing question asks what the contact still needs to',
+    'start, not for the enrolment. Answer it from the CATALOG, and record prepared once they',
+    'have answered, whatever the answer. From prepared, the closing question offers to send',
+    'the payment methods: it asks for the enrolment, plainly.',
     'Objections: "it is too expensive" or "can I pay in parts?" is answered with the',
     'PAYMENT OPTIONS, if there are any. "I don\'t have time" or "I\'m not sure I can" is',
     'answered with the content flow that addresses it, if it has not been sent.',
@@ -260,6 +269,15 @@ function coursesSection(tools: Tools): string[] {
     'A COURSE note saying the course changed means the contact came back through another',
     'course’s advert: confirm which course they want before continuing.',
   ];
+}
+
+/**
+ * The contact's first model turn, when the tenant has an opening flow
+ * (specs/032 § The opening flow is the server's, not the model's). Per
+ * contact, so it travels with the turn's message, outside the fence.
+ */
+export function openingNotice(flow: { id: string; description: string }): string {
+  return `OPENING: This is the contact's first turn. Unless you escalate, the system sends the flow ${flow.id} before your reply: ${flow.description} Do not repeat what it says, and close with the question it asks.`;
 }
 
 /**

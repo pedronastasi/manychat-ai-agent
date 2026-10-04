@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-04
 constitution: [C1, C6, C9]
 adr: [0015, 0019]
 ---
@@ -71,6 +72,12 @@ was rolled out count, so an existing contact does not receive it.
 - **It is recorded like any flow.** The `turns.actions` entry carries
   `"origin": "opening"`, and the `012` history note lists it as a performed
   flow, so no later turn sends it again.
+- **Once, when first messages arrive together.** A contact who sends three
+  messages in a row starts three turns that are each a first model turn. The
+  turn that sends the flow first claims it on the conversation row, in one
+  conditional update, and the others send nothing (`026 § A scheduled job
+runs where its claim is atomic` takes the same approach). Their models
+  were told the flow would go out; one did, so the reply still follows it.
 
 When the model loses the race (`002`), the holding line goes out at the
 deadline, and the opening flow is sent when the deferred call settles without
@@ -120,7 +127,8 @@ contact receives it before the reply, and the reply waits for it (`030`).
   does not receive two flows at once.
 - **The model is told.** `set_field`'s result names the flow sent, as
   `flowSent`, or one ManyChat refused, as `flowRefused`, so the reply does not
-  repeat the flow's content or claim it went out.
+  repeat the flow's content or claim it went out. On a nudge turn it says
+  `flowStaged`.
 - **It counts against the cap**, since the model's write caused it, and it is
   recorded with `"origin": "stage"`.
 
@@ -206,8 +214,11 @@ the file fails at load.
    `onStage`, an `onStage` of `new` or `link_sent` or outside the funnel
    values, and a funnel field without `prepared`, each fail at load.
 2. An integration test over the ManyChat HTTP boundary asserts the opening
-   flow is sent before the reply on a first model turn, not sent when that
-   turn escalates, not sent on a later turn or after a scripted opening, and
+   flow is sent before the reply on a first model turn and recorded with its
+   origin; that it is not sent when that turn escalates, nor on any later
+   turn; that it is sent on the first model turn after a scripted opening;
+   that three first messages arriving together send it once; and that a
+   deferred call sends it after the holding line. A unit test asserts it is
    absent from `send_flow`'s enum.
 3. A unit test asserts a funnel write to a tied stage sends the tied flow
    once, names it in the result as `flowSent`, sends nothing when the flow
@@ -216,16 +227,19 @@ the file fails at load.
 4. A unit test asserts the payment-link flow is refused with `not_prepared`
    before `prepared`, accepted after `prepared` performed or staged earlier in
    the turn, accepted with `contactAsked`, and that `contactAsked` is recorded.
-5. Golden eval cases, demo tenant: a first "hi" and a first course question
-   both get the opening; a first message reporting a payment does not; a lead
-   at `offered` is asked the readiness question, not for the enrolment; a lead
-   who asks how to pay at `nurturing` gets the link with `contactAsked`; a lead
-   who never asks to pay does not.
+5. Golden eval cases, demo tenant. The suite runs the model without the turn
+   handler, so it cannot see the server send the opening; it asserts the
+   decision that gates it instead: on a first model turn, a "hi" and a course
+   question do not escalate, and a reported payment does. A lead at `offered`
+   who accepts the price stages no link, and its reply is reviewed for the
+   readiness question; a lead who asks how to pay at `nurturing` stages the
+   link.
 
 What this misses: `contactAsked` is the model's word, and only the bypass rate
 and a person reading conversations catch a model that overclaims it. Whether
 the readiness question builds trust or only delays the sale is a judgement no
 assertion makes; paid enrolment against the `023` baseline is the measure. A
 contact who heard the opening in the tenant's entry flow hears it again, by
-design. And a stage flow sent on a turn that then escalates has still gone
-out, as every flow has since `029`.
+design. A stage flow sent on a turn that then escalates has still gone out,
+as every flow has since `029`. And the golden set never sees the opening
+itself go out; only the integration test does, against a fake ManyChat.

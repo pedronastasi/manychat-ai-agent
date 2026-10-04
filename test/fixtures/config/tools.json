@@ -47,7 +47,7 @@
     {
       "id": "funnel_stage",
       "field": "funnel_stage",
-      "values": ["new", "qualifying", "nurturing", "offered", "link_sent"],
+      "values": ["new", "qualifying", "nurturing", "offered", "prepared", "link_sent"],
       "description": "Where the sale stands with this contact.",
       "funnel": true
     },
