@@ -160,9 +160,9 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
 
   it('sends the payment link’s link_sent write and event with it', async () => {
     const seen: { atReply?: string[] } = {};
-    await handler(scriptedRunner([['send_flow', { flow: 'enrolment_link' }]], {}, seen)).handle(
-      inbound('send me the link'),
-    );
+    await handler(
+      scriptedRunner([['send_flow', { flow: 'enrolment_link', contactAsked: true }]], {}, seen),
+    ).handle(inbound('send me the link'));
 
     expect(seen.atReply).toEqual([
       `sendFlow ${flowNs('enrolment_link')}`,
@@ -171,7 +171,7 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
     ]);
     const [turn] = await agentTurns();
     expect(turn!.actions).toEqual([
-      { tool: 'send_flow', id: 'enrolment_link', status: 'performed' },
+      { tool: 'send_flow', id: 'enrolment_link', status: 'performed', contactAsked: true },
       { tool: 'set_field', id: 'funnel_stage', value: 'link_sent', status: 'performed' },
       { tool: 'send_event', id: 'checkout_started', status: 'performed' },
     ]);
@@ -183,7 +183,7 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
       scriptedRunner(
         [
           ['set_field', { field: 'funnel_stage', value: 'offered' }],
-          ['send_flow', { flow: 'enrolment_link' }],
+          ['send_flow', { flow: 'enrolment_link', contactAsked: true }],
           // A later write may not walk the stage back from link_sent.
           ['set_field', { field: 'funnel_stage', value: 'nurturing' }],
         ],
@@ -204,7 +204,7 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
     const [turn] = await agentTurns();
     expect(turn!.actions).toEqual([
       { tool: 'set_field', id: 'funnel_stage', value: 'offered', status: 'performed' },
-      { tool: 'send_flow', id: 'enrolment_link', status: 'performed' },
+      { tool: 'send_flow', id: 'enrolment_link', status: 'performed', contactAsked: true },
       { tool: 'set_field', id: 'funnel_stage', value: 'link_sent', status: 'performed' },
       { tool: 'send_event', id: 'checkout_started', status: 'performed' },
     ]);
@@ -224,7 +224,10 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
         // One step: the SDK starts both calls together.
         outcomes.push(
           ...(await Promise.all([
-            built.send_flow!.execute!({ flow: 'enrolment_link' } as never, options),
+            built.send_flow!.execute!(
+              { flow: 'enrolment_link', contactAsked: true } as never,
+              options,
+            ),
             built.set_field!.execute!(
               { field: 'funnel_stage', value: 'offered' } as never,
               options,

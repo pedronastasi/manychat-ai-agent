@@ -66,8 +66,9 @@ function flowRunner(flow: string, opts: { delayMs?: number; seen?: ContactAction
     run: async ({ stage = new ActionStage(), contact }) => {
       if (contact) opts.seen?.push(contact);
       const built = buildTools(tools, stage, contact);
+      // A contact who asks for the link gets it before prepared (specs/032).
       await built?.send_flow?.execute?.(
-        { flow },
+        { flow, contactAsked: true },
         { toolCallId: 'test', messages: [], context: {} },
       );
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
@@ -120,7 +121,7 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
     ]);
     const [turn] = await agentTurns();
     expect(turn!.actions).toEqual([
-      { tool: 'send_flow', id: 'enrolment_link', status: 'performed' },
+      { tool: 'send_flow', id: 'enrolment_link', status: 'performed', contactAsked: true },
       LINK_SENT_WRITE,
     ]);
   });
@@ -135,7 +136,12 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
     expect(actions.performed).toHaveLength(0);
     const [turn] = await agentTurns();
     expect(turn!.actions).toEqual([
-      expect.objectContaining({ tool: 'send_flow', id: 'enrolment_link', status: 'failed' }),
+      expect.objectContaining({
+        tool: 'send_flow',
+        id: 'enrolment_link',
+        status: 'failed',
+        contactAsked: true,
+      }),
     ]);
   });
 
@@ -160,7 +166,7 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
       async () => {
         const [turn] = await agentTurns();
         expect(turn?.actions).toEqual([
-          { tool: 'send_flow', id: 'enrolment_link', status: 'staged' },
+          { tool: 'send_flow', id: 'enrolment_link', status: 'staged', contactAsked: true },
         ]);
       },
       { timeout: 3000 },
@@ -187,7 +193,7 @@ describe('the payment-link flow writes link_sent after it (specs/023 V4)', () =>
     expect(events).toEqual(['text', 'enrolment_link', 'funnel_stage=link_sent']);
     const [turn] = await agentTurns();
     expect(turn!.actions).toEqual([
-      { tool: 'send_flow', id: 'enrolment_link', status: 'performed' },
+      { tool: 'send_flow', id: 'enrolment_link', status: 'performed', contactAsked: true },
       LINK_SENT_WRITE,
     ]);
   });

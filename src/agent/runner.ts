@@ -11,6 +11,7 @@ import {
   funnelNotice,
   mediaNotice,
   nudgeNotice,
+  openingNotice,
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
@@ -18,7 +19,14 @@ import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
 import type { FlowSends } from './flows.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
-import { ActionStage, buildTools, courseField, funnelField, MAX_STEPS } from './tools.ts';
+import {
+  ActionStage,
+  buildTools,
+  courseField,
+  funnelField,
+  MAX_STEPS,
+  openingFlow,
+} from './tools.ts';
 import type { ContactActions } from './tools.ts';
 
 export interface AgentUsage {
@@ -105,6 +113,8 @@ export interface AgentTurnInput {
    * Absent, flows are staged and sent after the reply, as every write is.
    */
   flows?: FlowSends | undefined;
+  /** Sends the opening before the turn's first flow, on a first model turn (specs/032). */
+  beforeFlow?: (() => Promise<void>) | undefined;
   /**
    * Set on a nudge turn: no contact wrote, and the model decides whether to
    * follow up on silence since this time (specs/025). `text` is then unused.
@@ -256,6 +266,7 @@ export class GenerateTextRunner implements AgentRunner {
     contact,
     reads,
     flows,
+    beforeFlow,
     nudge,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
@@ -266,9 +277,12 @@ export class GenerateTextRunner implements AgentRunner {
       ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads, {
           nudgeTurn: nudge !== undefined,
           flows,
+          beforeFlow,
         })
       : undefined;
+    const opening = contact?.firstModelTurn ? openingFlow(config.tools ?? NO_TOOLS) : undefined;
     const contactNotices = [
+      ...(opening ? [openingNotice(opening)] : []),
       ...(funnelField(config.tools ?? NO_TOOLS) ? [funnelNotice(contact?.funnelStage)] : []),
       ...(courseField(config.tools ?? NO_TOOLS)
         ? [courseNotice(contact?.course, contact?.courseChangedFrom)]

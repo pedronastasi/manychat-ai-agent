@@ -162,7 +162,7 @@ describe('funnel and payment-link config is checked at load (specs/023 V2)', () 
     const load = loadWith(raw => {
       raw.fields[0]!.values = ['new', 'offered', 'qualifying', 'nurturing', 'link_sent'];
     });
-    expect(load).toThrow(/values must be new, qualifying, nurturing, offered, link_sent/);
+    expect(load).toThrow(/values must be new, qualifying, nurturing, offered, prepared, link_sent/);
   });
 
   it('refuses a funnel field that lists enrolled, which only a person sets', () => {
@@ -225,7 +225,7 @@ describe('each flow is sent once per contact (specs/023 V3)', () => {
           actions: [
             { tool: 'send_flow', id: 'fitting_it_in', status: 'failed', error: 'refused' },
             { tool: 'send_flow', id: 'foundation_brochure', status: 'discarded' },
-            { tool: 'send_flow', id: 'enrolment_link', status: 'staged' },
+            { tool: 'send_flow', id: 'enrolment_link', status: 'staged', contactAsked: true },
           ],
         },
         { createdAt: now, actions: null },
@@ -270,7 +270,7 @@ describe('the sale ends at the payment-link flow (specs/023)', () => {
   it('stages link_sent as a follow-on of the payment-link flow, outside the cap', async () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage);
-    await call(built, 'send_flow', { flow: 'enrolment_link' });
+    await call(built, 'send_flow', { flow: 'enrolment_link', contactAsked: true });
 
     expect(stage.staged).toEqual([
       {
@@ -283,11 +283,12 @@ describe('the sale ends at the payment-link flow (specs/023)', () => {
           field: 'funnel_stage',
           value: 'link_sent',
         },
+        contactAsked: true,
       },
     ]);
     // One staged action, not two: the follow-on does not count against the cap.
     expect(stage.records('staged')).toEqual([
-      { tool: 'send_flow', id: 'enrolment_link', status: 'staged' },
+      { tool: 'send_flow', id: 'enrolment_link', status: 'staged', contactAsked: true },
     ]);
   });
 
@@ -295,7 +296,10 @@ describe('the sale ends at the payment-link flow (specs/023)', () => {
     const stage = new ActionStage();
     await call(buildTools(tools, stage), 'send_flow', { flow: 'student_results' });
     const noFunnel: Tools = { ...tools, fields: tools.fields.filter(field => !field.funnel) };
-    await call(buildTools(noFunnel, stage), 'send_flow', { flow: 'enrolment_link' });
+    await call(buildTools(noFunnel, stage), 'send_flow', {
+      flow: 'enrolment_link',
+      contactAsked: true,
+    });
 
     expect(stage.staged.every(action => !('followOn' in action))).toBe(true);
   });
@@ -322,7 +326,9 @@ describe('the funnel rules are the system’s (specs/023 § The selling voice is
     expect(staticPrefix).toContain('The field funnel_stage records where the sale is');
     expect(staticPrefix).toContain('The payment link is the flow enrolment_link');
     expect(staticPrefix).toContain('Ask one question per turn');
-    expect(staticPrefix).toContain('closing question asks for the enrolment');
+    // The plain ask moves from offered to prepared (specs/032 § Readiness comes
+    // between the offer and the link).
+    expect(staticPrefix).toContain('From prepared, the closing question offers to send');
   });
 
   it('leaves the SALES rules out for a tenant without a funnel', () => {

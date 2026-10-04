@@ -81,6 +81,7 @@ async function main() {
             sentFlows: new Set(),
             funnelStage: testCase.contact.funnel_stage,
             course: testCase.contact.course,
+            firstModelTurn: testCase.contact.first_model_turn,
           }
         : undefined,
       // A fixed time, so the trigger note is the same on every run.
