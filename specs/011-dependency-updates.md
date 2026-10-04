@@ -21,8 +21,8 @@ Drizzle, the AI SDK and three provider packages — and an unconfigured bot on a
 weekly schedule will open something in the order of five to fifteen pull
 requests a month, each one a single version bump.
 
-Every one of those runs three CI jobs: the full `verify` pipeline, Gitleaks over
-the entire history, and CodeQL. And every one arrives asking a human the same
+Every one of those runs four CI jobs: the full `verify` pipeline, the docs build
+and Renovate config check, Gitleaks over the entire history, and CodeQL. And every one arrives asking a human the same
 question, to which the honest answer is almost always "I have no idea, did CI
 pass?"
 

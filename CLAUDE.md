@@ -145,7 +145,7 @@ Nine non-negotiable clauses:
 
 ## CI
 
-GitHub Actions (`ci.yml`): typecheck → lint → format:check → test:coverage → eval:mock → build → docs:build, plus Gitleaks (secrets scan) and CodeQL. `docs.yml` deploys the docs site to GitHub Pages on every push to `main`.
+GitHub Actions (`ci.yml`): `verify` runs typecheck → lint → format:check → test:coverage → eval:mock → build; `docs` runs the Renovate config validator and docs:build beside it; plus Gitleaks (secrets scan) and CodeQL. `docs.yml` deploys the docs site to GitHub Pages on every push to `main`.
 
 ## Environment
 
