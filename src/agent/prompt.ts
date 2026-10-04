@@ -232,6 +232,8 @@ function salesSection(tools: Tools): string[] {
     'Choose content for what the contact said, never in a fixed order. A flow already',
     'sent to them is not offered again. A flow marked as sent by the system at a stage goes',
     'out when you record that stage; set_field says so with flowSent, so do not repeat it.',
+    'flowDropped means it did not go out, over the per-turn limit: send it yourself on a',
+    'later turn if it still fits.',
     'The relationship comes before the sale: the opening, then the course, its options and',
     'price, then what the contact still needs to start, and only then the payment.',
     'Once the stage is offered, the closing question asks what the contact still needs to',

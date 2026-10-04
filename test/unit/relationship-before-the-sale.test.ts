@@ -266,6 +266,51 @@ describe('a funnel write to a tied stage sends its flow (specs/032 V3)', () => {
     expect(stage.staged.map(action => action.id)).toEqual(['funnel_stage', 'student_results']);
   });
 
+  /** A stage with seven actions already staged, so the funnel write is the eighth. */
+  const nearlyFull = () => {
+    const stage = new ActionStage();
+    for (let index = 0; index < 7; index++) {
+      stage.stage({ tool: 'add_tag', id: `tag_${index}`, tag: `tag-${index}` });
+    }
+    return stage;
+  };
+
+  it('says flowDropped, not flowRefused, when the write fills the cap', async () => {
+    const stage = nearlyFull();
+    const { flows, performed } = sender();
+    const built = buildTools(tools, stage, at('qualifying'), undefined, { flows });
+    const result = await call(built, 'set_field', { field: 'funnel_stage', value: 'nurturing' });
+
+    expect(result).toEqual({
+      staged: true,
+      flowDropped: 'student_results',
+      reason: 'over the per-turn limit',
+    });
+    expect(performed).toHaveLength(0);
+  });
+
+  it('says flowDropped on a nudge turn when the write fills the cap', async () => {
+    const built = buildTools(tools, nearlyFull(), at('qualifying'), undefined, { nudgeTurn: true });
+    const result = await call(built, 'set_field', { field: 'funnel_stage', value: 'nurturing' });
+    expect(result).toEqual({
+      staged: true,
+      flowDropped: 'student_results',
+      reason: 'over the per-turn limit',
+    });
+  });
+
+  it('says flowRefused only when ManyChat refused the flow', async () => {
+    const flows = new FlowSends({
+      performer: { performAction: () => Promise.reject(new Error('flow not found')) },
+      subscriberId: 's1',
+      logger: { warn: vi.fn() },
+      tools,
+    });
+    const built = buildTools(tools, new ActionStage(), at('qualifying'), undefined, { flows });
+    const result = await call(built, 'set_field', { field: 'funnel_stage', value: 'nurturing' });
+    expect(result).toEqual({ staged: true, flowRefused: 'student_results' });
+  });
+
   it('marks tied flows in the send_flow listing', () => {
     const built = buildTools(tools, new ActionStage(), at('qualifying'));
     expect(built!.send_flow!.description).toContain(

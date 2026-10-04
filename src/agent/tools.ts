@@ -582,6 +582,7 @@ export function buildTools(
      * once per contact, only for the turn's course, and only for the stage
      * written, never one skipped.
      */
+    const overCap = (id: string) => ({ flowDropped: id, reason: 'over the per-turn limit' });
     const sendTied = async (value: string) => {
       const tied = config.flows.find(flow => flow.onStage === value);
       if (!tied || !fits(tied, turnCourse())) return {};
@@ -596,9 +597,13 @@ export function buildTools(
         origin: 'stage',
       };
       if (!options.flows) {
-        return stage.stage(action) ? { flowStaged: tied.id } : { flowRefused: tied.id };
+        // `stage` refuses only over the cap; a repeat is reported as staged.
+        return stage.stage(action) ? { flowStaged: tied.id } : overCap(tied.id);
       }
       const sent = await stage.send(action, options.flows);
+      // Dropped over the cap is not refused by ManyChat: the model may still
+      // send the flow itself on a later turn (specs/032).
+      if (sent === undefined) return overCap(tied.id);
       return sent ? { flowSent: tied.id } : { flowRefused: tied.id };
     };
 

@@ -129,7 +129,10 @@ contact receives it before the reply, and the reply waits for it (`030`).
 - **The model is told.** `set_field`'s result names the flow sent, as
   `flowSent`, or one ManyChat refused, as `flowRefused`, so the reply does not
   repeat the flow's content or claim it went out. On a nudge turn it says
-  `flowStaged`.
+  `flowStaged`. A tied flow past the per-turn cap is neither: it comes back
+  as `flowDropped` with the reason, since it was never sent and the stage
+  move will not send it again, so the model knows it may still send the flow
+  itself on a later turn.
 - **It counts against the cap**, since the model's write caused it, and it is
   recorded with `"origin": "stage"`.
 
