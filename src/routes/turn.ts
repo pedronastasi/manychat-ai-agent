@@ -389,6 +389,15 @@ export class TurnHandler {
       deadlineTimer = setTimeout(() => resolve('deadline'), this.deps.raceDeadlineMs);
     });
 
+    // Once per turn, whichever comes first: the model's first flow, or its
+    // reply settling (specs/032 § The opening flow is the server's).
+    let openingSend: Promise<void> | undefined;
+    const sendOpening =
+      openingEntry && firstModelTurn
+        ? () =>
+            (openingSend ??= this.sendOpening(openingEntry, conversation.id, stage, flows, logger))
+        : undefined;
+
     // A media turn's download and transcription share the model's deadline and
     // abort signal (specs/020 § Download and transcription run inside the
     // race), so the bound on a runaway model call also bounds a runaway fetch.
@@ -403,6 +412,7 @@ export class TurnHandler {
           contact,
           reads,
           flows,
+          beforeFlow: sendOpening,
         })
       : this.deps.runner
           .run({
@@ -413,19 +423,17 @@ export class TurnHandler {
             contact,
             reads,
             flows,
+            beforeFlow: sendOpening,
           })
           .then(result => ({ kind: 'model' as const, result }));
     // Inside the race, as a flow the model calls is (specs/029): a send that
     // runs past the deadline is deferred with the reply it precedes.
-    const work: Promise<Completion> =
-      openingEntry && firstModelTurn
-        ? answered.then(async done => {
-            if (done.kind === 'model' && !done.result.reply.escalate) {
-              await this.sendOpening(openingEntry, conversation.id, stage, flows, logger);
-            }
-            return done;
-          })
-        : answered;
+    const work: Promise<Completion> = sendOpening
+      ? answered.then(async done => {
+          if (done.kind === 'model' && !done.result.reply.escalate) await sendOpening();
+          return done;
+        })
+      : answered;
     const completion = work
       .then(done => ({ kind: 'done' as const, done }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
@@ -439,11 +447,14 @@ export class TurnHandler {
     const settle = async (result: AgentResult, outcome: TurnOutcome) => {
       // Null when no tool was offered, so it reads apart from "offered, none
       // chosen" (specs/012 § Every staged action is recorded on its turn).
-      const actions = !result.toolsOffered
-        ? null
-        : result.reply.escalate
-          ? (discard(performable(result)) ?? [])
-          : stage.records('staged');
+      // A flow the server sent is recorded even when the model was offered no
+      // tool: the opening may be a tenant's only flow (specs/032).
+      const actions =
+        !result.toolsOffered && stage.sent.length === 0
+          ? null
+          : result.reply.escalate
+            ? (discard(performable(result)) ?? [])
+            : stage.records('staged');
       const turnId = await this.store.recordAgentReply(
         conversation.id,
         result.reply.messages.join('\n'),
@@ -744,6 +755,7 @@ export class TurnHandler {
       contact: ContactActions | undefined;
       reads: ContactReads | undefined;
       flows: FlowSends | undefined;
+      beforeFlow: (() => Promise<void>) | undefined;
     },
   ): Promise<Completion> {
     const { rules } = this.deps;
@@ -812,6 +824,7 @@ export class TurnHandler {
       contact: ctx.contact,
       reads: ctx.reads,
       flows: ctx.flows,
+      beforeFlow: ctx.beforeFlow,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

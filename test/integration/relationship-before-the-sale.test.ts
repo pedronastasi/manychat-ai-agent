@@ -3,6 +3,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { TurnHandler } from '../../src/routes/turn.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
+import { ActionStage, buildTools } from '../../src/agent/tools.ts';
 import type { ContactActions } from '../../src/agent/tools.ts';
 import { RulesSchema, ToolsSchema } from '../../src/contracts/config.ts';
 import type { Tools } from '../../src/contracts/config.ts';
@@ -112,12 +113,47 @@ function runner(
   } satisfies AgentRunner;
 }
 
-const handler = (agent: AgentRunner, raceDeadlineMs = 2000) =>
+/** A model that sends `flow` through the real tools mid-call, then answers or escalates. */
+function flowRunner(flow: string, opts: { escalate?: boolean } = {}) {
+  return {
+    run: async ({ stage = new ActionStage(), contact, flows, beforeFlow }) => {
+      const built = buildTools(tools, stage, contact, undefined, { flows, beforeFlow });
+      await built?.send_flow?.execute?.({ flow } as never, {
+        toolCallId: 'test',
+        messages: [],
+        context: {},
+      });
+      const result: AgentResult = {
+        reply: {
+          messages: ['Here it is.'],
+          escalate: opts.escalate ?? false,
+          escalation_reason: opts.escalate ? 'out_of_scope' : null,
+          confidence: 0.9,
+          closing_question: null,
+        },
+        ...(opts.escalate ? { escalatedBy: 'model' as const } : {}),
+        model: 'mock:demo',
+        usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 80, costUsd: 0.001 },
+        interventions: [],
+        latencyMs: 5,
+        toolsOffered: true,
+      };
+      return result;
+    },
+  } satisfies AgentRunner;
+}
+
+const sentFlows = () =>
+  api.calls
+    .filter(call => call.path === '/fb/sending/sendFlow')
+    .map(call => String(call.body.flow_ns));
+
+const handler = (agent: AgentRunner, raceDeadlineMs = 2000, config: Tools = tools) =>
   new TurnHandler({
     db,
     runner: agent,
     rules,
-    tools,
+    tools: config,
     logger,
     raceDeadlineMs,
     modelAbortMs: 5000,
@@ -190,6 +226,37 @@ describe('the opening flow goes out on the first model turn (specs/032 V2)', () 
     expect(out.reply.messages).toEqual(['One moment.']);
 
     await vi.waitFor(async () => expect(await agentTurns()).toHaveLength(1), { timeout: 3000 });
+    expect(openingSends()).toBe(1);
+    expect((await agentTurns())[0]!.actions).toEqual([
+      { tool: 'send_flow', id: 'welcome_note', status: 'performed', origin: 'opening' },
+    ]);
+  });
+
+  it('goes out before a flow the model sends on the same turn', async () => {
+    const brochure = tools.flows.find(flow => flow.id === 'student_results')!.flowNs;
+    await handler(flowRunner('student_results')).handle(inbound('can I really learn this?'));
+
+    expect(sentFlows()).toEqual([OPENING_NS, brochure]);
+    expect((await agentTurns())[0]!.actions).toEqual([
+      { tool: 'send_flow', id: 'welcome_note', status: 'performed', origin: 'opening' },
+      { tool: 'send_flow', id: 'student_results', status: 'performed' },
+    ]);
+  });
+
+  it('has gone out with a model flow even when that turn then escalates', async () => {
+    await handler(flowRunner('student_results', { escalate: true })).handle(inbound('hello'));
+    expect(openingSends()).toBe(1);
+  });
+
+  it('is recorded when it is the tenant’s only flow, and no tool is offered', async () => {
+    const onlyOpening = ToolsSchema.parse({
+      flows: tools.flows.filter(flow => flow.role === 'opening'),
+    });
+    const agent = {
+      run: async () => ({ ...(await runner().run({} as never)), toolsOffered: false }),
+    } satisfies AgentRunner;
+    await handler(agent, 2000, onlyOpening).handle(inbound('hi'));
+
     expect(openingSends()).toBe(1);
     expect((await agentTurns())[0]!.actions).toEqual([
       { tool: 'send_flow', id: 'welcome_note', status: 'performed', origin: 'opening' },

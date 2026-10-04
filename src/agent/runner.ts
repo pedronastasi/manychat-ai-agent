@@ -113,6 +113,8 @@ export interface AgentTurnInput {
    * Absent, flows are staged and sent after the reply, as every write is.
    */
   flows?: FlowSends | undefined;
+  /** Sends the opening before the turn's first flow, on a first model turn (specs/032). */
+  beforeFlow?: (() => Promise<void>) | undefined;
   /**
    * Set on a nudge turn: no contact wrote, and the model decides whether to
    * follow up on silence since this time (specs/025). `text` is then unused.
@@ -264,6 +266,7 @@ export class GenerateTextRunner implements AgentRunner {
     contact,
     reads,
     flows,
+    beforeFlow,
     nudge,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
@@ -274,6 +277,7 @@ export class GenerateTextRunner implements AgentRunner {
       ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads, {
           nudgeTurn: nudge !== undefined,
           flows,
+          beforeFlow,
         })
       : undefined;
     const opening = contact?.firstModelTurn ? openingFlow(config.tools ?? NO_TOOLS) : undefined;

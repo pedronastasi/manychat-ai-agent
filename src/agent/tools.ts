@@ -385,7 +385,16 @@ export function buildTools(
    * another (specs/025). `flows`, when given, sends a flow when it is called
    * instead of staging it (specs/029).
    */
-  options: { nudgeTurn?: boolean; flows?: FlowSends | undefined } = {},
+  options: {
+    nudgeTurn?: boolean;
+    flows?: FlowSends | undefined;
+    /**
+     * Runs before the turn's first flow goes out: on a first model turn it
+     * sends the opening, so no content reaches the contact ahead of it
+     * (specs/032 § The opening flow is the server's, not the model's).
+     */
+    beforeFlow?: (() => Promise<void>) | undefined;
+  } = {},
 ): ToolSet | undefined {
   const tools: ToolSet = {};
   const funnel = funnelField(config);
@@ -537,6 +546,10 @@ export function buildTools(
           ...(asked ? { contactAsked: true as const } : {}),
         };
         if (!sends) return { staged: stage.stage(action) };
+        // The opening goes first on a first model turn (specs/032). Awaited
+        // only when there is one: a tick here would let a parallel funnel
+        // write miss a payment link about to be in flight (specs/029).
+        if (options.beforeFlow) await options.beforeFlow();
         // Sent now, so the reply written after it follows it (specs/029). A
         // payment link takes the turn's staged stage writes ahead of it, so
         // its `link_sent` is the last stage ManyChat is given.
@@ -606,6 +619,7 @@ export function buildTools(
         // `stage` refuses only over the cap; a repeat is reported as staged.
         return stage.stage(action) ? { flowStaged: tied.id } : overCap(tied.id);
       }
+      if (options.beforeFlow) await options.beforeFlow();
       const sent = await stage.send(action, options.flows);
       // Dropped over the cap is not refused by ManyChat: the model may still
       // send the flow itself on a later turn (specs/032).

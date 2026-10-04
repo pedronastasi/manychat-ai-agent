@@ -61,7 +61,13 @@ was rolled out count, so an existing contact does not receive it.
   after the guardrails, has `escalate: false`, the server sends the opening
   flow and then delivers the reply, which waits for it as `030` says. A first
   message that reports a payment, complains or asks for a person escalates,
-  and the opening is not sent, then or later.
+  and the opening is not sent, then or later, unless a flow went out on that
+  turn first (next point).
+- **Nothing goes out ahead of it.** A flow the model sends during the turn
+  (`029`) would reach the contact before the opening. So on a first model
+  turn the server sends the opening just before the model's first flow,
+  stage-tied ones included, and that flow follows it. The opening has then
+  gone out even if the turn later escalates, as the flow has.
 - **The model does not choose it.** The opening flow is never in
   `send_flow`'s enum. On a first model turn the system instructions tell the
   model that the flow will go out before its reply unless it escalates, so the
@@ -70,8 +76,9 @@ was rolled out count, so an existing contact does not receive it.
 - **No tag decides it.** A contact who heard the same content in the tenant's
   entry flow may hear it twice. That is accepted: a repeat costs one message;
   a lead who never hears it costs the opening.
-- **It is recorded like any flow.** The `turns.actions` entry carries
-  `"origin": "opening"`, and the `012` history note lists it as a performed
+- **It is recorded like any flow**, even on a turn that offered the model
+  no tool, as when the opening is the tenant's only flow. The `turns.actions`
+  entry carries `"origin": "opening"`, and the `012` history note lists it as a performed
   flow, so no later turn sends it again.
 - **Once, when first messages arrive together.** A contact who sends three
   messages in a row starts three turns that are each a first model turn. The
@@ -224,7 +231,9 @@ the file fails at load.
    origin; that it is not sent when that turn escalates, nor on any later
    turn; that it is sent on the first model turn after a scripted opening;
    that three first messages arriving together send it once; and that a
-   deferred call sends it after the holding line. A unit test asserts it is
+   deferred call sends it after the holding line; that it goes out before a
+   flow the model sends on the same turn, even one whose turn then escalates;
+   and that it is recorded when it is the tenant's only flow. A unit test asserts it is
    absent from `send_flow`'s enum.
 3. A unit test asserts a funnel write to a tied stage sends the tied flow
    once, names it in the result as `flowSent`, sends nothing when the flow
