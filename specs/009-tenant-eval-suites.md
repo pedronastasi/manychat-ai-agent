@@ -181,6 +181,11 @@ field, not by encoding exception logic here. A tenant whose prompt exempts
 escalations and refusals writes those cases without it. The framework does not
 know which turns are exempt and must not guess.
 
+False asserts the opposite: the final message does not end with `?`. It is for
+a turn whose question was already asked by something else, as the opening flow
+asks it before a first reply (`032`), where a question from the agent is that
+question a second time.
+
 ## Register is the assertion that cannot be one
 
 A tenant may need replies that read as a warm salesperson rather than a

@@ -172,10 +172,11 @@ And across turns:
   rule below never staged the write, so is not sent it.
 
 The model learns of it from the write itself: `set_field`'s result for the
-intent write names the opening as `openingQueued`, so the reply does not
-repeat what the flow says and closes with the question the flow asks. That
-replaces `032`'s first-turn system instruction, since the server cannot know
-before the loop runs that this turn will make the contact a prospect.
+intent write names the opening as `openingQueued`, so the reply neither
+greets the contact again nor repeats what the flow says or asks (`032 § The
+opening flow is the server's, not the model's`). That replaces `032`'s
+first-turn system instruction, since the server cannot know before the loop
+runs that this turn will make the contact a prospect.
 
 Everything else in `032 § The opening flow is the server's, not the model's`
 holds: the model never chooses it, it is recorded with `"origin": "opening"`,
