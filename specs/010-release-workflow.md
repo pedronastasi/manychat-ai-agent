@@ -235,6 +235,11 @@ and merging the two would hand it some.
 
 ## Deliberately not in scope
 
+ADR-0021 reverses the first three exclusions below, and
+`033-tenant-projects-not-forks.md` specifies what replaces them. They describe
+the release as it is until that spec is implemented, and the pull request that
+implements it rewrites them.
+
 **npm publish.** `package.json` sets `private: true`, so publication is not
 merely unimplemented, it is refused by the tooling. Publishing is a separate
 decision about supporting external consumers, and it brings a registry token
