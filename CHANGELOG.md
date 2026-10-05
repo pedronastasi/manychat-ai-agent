@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.2](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.15.1...manychat-ai-agent-v0.15.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* name the repository in package.json so npm accepts the provenance ([6c472c4](https://github.com/pedronastasi/manychat-ai-agent/commit/6c472c470d07a84741161129465401eefe5072fd))
+* name the repository in package.json so npm accepts the provenance ([8c4f7bc](https://github.com/pedronastasi/manychat-ai-agent/commit/8c4f7bcbd4fe7d0e4df2c986807d53d2afeb4b48))
+
 ## [0.15.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.15.0...manychat-ai-agent-v0.15.1) (2026-10-05)
 
 
