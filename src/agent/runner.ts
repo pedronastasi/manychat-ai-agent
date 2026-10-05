@@ -10,8 +10,8 @@ import {
   fenceUserText,
   funnelNotice,
   mediaNotice,
+  intentNotice,
   nudgeNotice,
-  openingNotice,
   stagedNotice,
 } from './prompt.ts';
 import { applyGuardrails, escalationReply } from './guardrails.ts';
@@ -24,8 +24,10 @@ import {
   buildTools,
   courseField,
   funnelField,
+  intentField,
   MAX_STEPS,
   openingFlow,
+  stagesProspect,
 } from './tools.ts';
 import type { ContactActions } from './tools.ts';
 
@@ -113,7 +115,7 @@ export interface AgentTurnInput {
    * Absent, flows are staged and sent after the reply, as every write is.
    */
   flows?: FlowSends | undefined;
-  /** Sends the opening before the turn's first flow, on a first model turn (specs/032). */
+  /** Sends the opening before the turn's first flow, on the prospect turn (specs/034). */
   beforeFlow?: (() => Promise<void>) | undefined;
   /**
    * Set on a nudge turn: no contact wrote, and the model decides whether to
@@ -280,9 +282,13 @@ export class GenerateTextRunner implements AgentRunner {
           beforeFlow,
         })
       : undefined;
-    const opening = contact?.firstModelTurn ? openingFlow(config.tools ?? NO_TOOLS) : undefined;
+    // The opening is no longer known before the loop runs: the prospect write
+    // that queues it says so, and the reply step is told below (specs/034).
+    const opening = contact?.openingDue ? openingFlow(config.tools ?? NO_TOOLS) : undefined;
     const contactNotices = [
-      ...(opening ? [openingNotice(opening)] : []),
+      ...(intentField(config.tools ?? NO_TOOLS)
+        ? [intentNotice(contact?.intent, contact?.advertCourse)]
+        : []),
       ...(funnelField(config.tools ?? NO_TOOLS) ? [funnelNotice(contact?.funnelStage)] : []),
       ...(courseField(config.tools ?? NO_TOOLS)
         ? [courseNotice(contact?.course, contact?.courseChangedFrom)]
@@ -311,7 +317,16 @@ export class GenerateTextRunner implements AgentRunner {
                   activeTools: [],
                   messages: [
                     ...messages,
-                    { role: 'user' as const, content: stagedNotice(stage, reads?.latest) },
+                    {
+                      role: 'user' as const,
+                      content: stagedNotice(
+                        stage,
+                        reads?.latest,
+                        opening && stagesProspect(stage, config.tools ?? NO_TOOLS)
+                          ? opening
+                          : undefined,
+                      ),
+                    },
                   ],
                 }
               : undefined,

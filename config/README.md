@@ -168,8 +168,16 @@ takes a contact as a parameter.
 
 ### The sales funnel (optional)
 
-Three keys turn on the sales funnel of `specs/023-sales-funnel.md`:
+Four keys turn on the sales funnel of `specs/023-sales-funnel.md`:
 
+- **`intent: true`** on one field marks where the agent records whether the
+  contact means to enrol (`specs/034-intent-before-the-sale.md`). Its `values`
+  must be exactly `not_prospect`, `prospect`, in that order, and the funnel
+  needs it. Until the agent records `prospect`, it sends no flow, sets no other
+  field or tag and schedules no follow-up: a current student, a supplier or a
+  wrong number gets answers from the catalog and a person for the rest, never a
+  sales pitch. `prospect` is final. A contact the funnel had already moved past
+  `new` before you added the field counts as a prospect.
 - **`funnel: true`** on one field marks it as the place the agent records where
   the sale stands. Its `values` must be exactly `new`, `qualifying`, `nurturing`,
   `offered`, `link_sent`, in that order. The stage only moves forward, and the
@@ -216,8 +224,10 @@ Most of this happens in your ManyChat account, not here:
 1. **Measure the baseline first.** Record your enrolment rate over the four
    weeks before rollout, and the dates it covers. Without it, nothing can show
    the funnel changed anything.
-2. **Create the funnel field** in ManyChat with the name you put in `field`,
-   plus one field per qualification question. Create an `enrolled` tag for the
+2. **Create the intent and funnel fields** in ManyChat with the names you put
+   in `field`, plus one field per qualification question. Create them before
+   deploying: a `tools.json` with a funnel field and no intent field fails to
+   load. Use a name your own flows do not already write. Create an `enrolled` tag for the
    person who confirms payments; the agent never sets it.
 3. **Make each content flow a leaf.** Open every flow listed in `flows` and
    remove any step that starts another flow.
@@ -258,6 +268,36 @@ SELECT f.week, count(*) AS contacts, count(l.id) AS link_sent,
 FROM firsts f LEFT JOIN linked l USING (id)
 GROUP BY f.week ORDER BY f.week;
 ```
+
+Since `specs/034`, two more figures sit beside it. Replace `intent` with your
+intent field's `id`, and `enrolment_link` with your payment-link flow's:
+
+```sql
+WITH firsts AS (
+  SELECT c.id, date_trunc('week', min(t.created_at)) AS week
+  FROM conversations c JOIN turns t ON t.conversation_id = c.id
+  GROUP BY c.id
+), prospects AS (
+  SELECT DISTINCT t.conversation_id AS id
+  FROM turns t, jsonb_array_elements(t.actions) AS a
+  WHERE a ->> 'tool' = 'set_field' AND a ->> 'id' = 'intent'
+    AND a ->> 'value' = 'prospect' AND a ->> 'status' = 'performed'
+), linked AS (
+  SELECT DISTINCT t.conversation_id AS id
+  FROM turns t, jsonb_array_elements(t.actions) AS a
+  WHERE a ->> 'tool' = 'send_flow' AND a ->> 'id' = 'enrolment_link'
+    AND a ->> 'status' = 'performed'
+)
+SELECT f.week, count(*) AS contacts, count(p.id) AS prospects,
+       round(100.0 * count(p.id) / count(*), 1) AS prospect_share_pct,
+       round(100.0 * count(l.id) FILTER (WHERE p.id IS NOT NULL)
+             / nullif(count(p.id), 0), 1) AS prospect_link_sent_pct
+FROM firsts f LEFT JOIN prospects p USING (id) LEFT JOIN linked l USING (id)
+GROUP BY f.week ORDER BY f.week;
+```
+
+A prospect share that falls while the number of contacts holds steady means
+the agent is reading leads as non-leads: read those conversations.
 
 A rising link-sent rate with a flat enrolment rate means the agent is asking
 too early, or too hard. Only the enrolment rate tells a better agent from a

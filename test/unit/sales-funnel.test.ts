@@ -21,6 +21,7 @@ import type { ActionRecord } from '../../src/contracts/agent.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { mockModel } from '../helpers/model.ts';
 import { createMockModel } from '../../src/agent/mock-provider.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/023-sales-funnel.md § Verification items 1, 2, 3 and 6, against the
@@ -59,7 +60,7 @@ async function call(built: ReturnType<typeof buildTools>, name: string, input: o
 describe('the funnel only moves forward (specs/023 V1)', () => {
   it('refuses a write to a stage earlier than the last performed one', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, stagedAt('offered'));
+    const built = buildTools(tools, stage, asProspect(stagedAt('offered')));
 
     expect(await call(built, 'set_field', { field: 'funnel_stage', value: 'qualifying' })).toEqual({
       staged: false,
@@ -69,7 +70,7 @@ describe('the funnel only moves forward (specs/023 V1)', () => {
 
   it('accepts the same stage and a later one', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, stagedAt('nurturing'));
+    const built = buildTools(tools, stage, asProspect(stagedAt('nurturing')));
 
     expect(await call(built, 'set_field', { field: 'funnel_stage', value: 'nurturing' })).toEqual({
       staged: true,
@@ -81,7 +82,7 @@ describe('the funnel only moves forward (specs/023 V1)', () => {
 
   it('refuses a walk back within one turn, before anything was performed', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage);
+    const built = buildTools(tools, stage, asProspect());
 
     await call(built, 'set_field', { field: 'funnel_stage', value: 'offered' });
     expect(await call(built, 'set_field', { field: 'funnel_stage', value: 'nurturing' })).toEqual({
@@ -91,7 +92,7 @@ describe('the funnel only moves forward (specs/023 V1)', () => {
 
   it('leaves the other fields alone', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, stagedAt('offered'));
+    const built = buildTools(tools, stage, asProspect(stagedAt('offered')));
 
     expect(await call(built, 'set_field', { field: 'prior_experience', value: 'none' })).toEqual({
       staged: true,
@@ -99,7 +100,7 @@ describe('the funnel only moves forward (specs/023 V1)', () => {
   });
 
   it('keeps link_sent out of the model’s enum', async () => {
-    const built = buildTools(tools, new ActionStage())!;
+    const built = buildTools(tools, new ActionStage(), asProspect())!;
     const schema = built.set_field!.inputSchema;
 
     expect(await enumOf(schema, 'value')).not.toContain('link_sent');
@@ -207,7 +208,7 @@ describe('each flow is sent once per contact (specs/023 V3)', () => {
       tools,
       since,
     );
-    const built = buildTools(tools, new ActionStage(), contact)!;
+    const built = buildTools(tools, new ActionStage(), asProspect(contact))!;
     const ids = await enumOf(built.send_flow!.inputSchema, 'flow');
 
     expect(ids).not.toContain('foundation_brochure');
@@ -239,7 +240,7 @@ describe('each flow is sent once per contact (specs/023 V3)', () => {
   it('stops offering send_flow once every flow is sent', () => {
     const onlyContent: Tools = { ...NO_TOOLS, flows: tools.flows.slice(0, 1) };
     const contact: ContactActions = { sentFlows: new Set(['foundation_brochure']) };
-    expect(buildTools(onlyContent, new ActionStage(), contact)).toBeUndefined();
+    expect(buildTools(onlyContent, new ActionStage(), asProspect(contact))).toBeUndefined();
   });
 
   it('reads the stage last performed, however old', () => {
@@ -269,7 +270,7 @@ describe('each flow is sent once per contact (specs/023 V3)', () => {
 describe('the sale ends at the payment-link flow (specs/023)', () => {
   it('stages link_sent as a follow-on of the payment-link flow, outside the cap', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage);
+    const built = buildTools(tools, stage, asProspect());
     await call(built, 'send_flow', { flow: 'enrolment_link', contactAsked: true });
 
     expect(stage.staged).toEqual([
@@ -294,9 +295,9 @@ describe('the sale ends at the payment-link flow (specs/023)', () => {
 
   it('carries no follow-on on a content flow, or without a funnel field', async () => {
     const stage = new ActionStage();
-    await call(buildTools(tools, stage), 'send_flow', { flow: 'student_results' });
+    await call(buildTools(tools, stage, asProspect()), 'send_flow', { flow: 'student_results' });
     const noFunnel: Tools = { ...tools, fields: tools.fields.filter(field => !field.funnel) };
-    await call(buildTools(noFunnel, stage), 'send_flow', {
+    await call(buildTools(noFunnel, stage, asProspect()), 'send_flow', {
       flow: 'enrolment_link',
       contactAsked: true,
     });

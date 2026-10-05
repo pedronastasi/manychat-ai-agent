@@ -72,6 +72,11 @@ about staging applies to the other five.
 `025` adds a fifth, `schedule_nudge`, which takes a delay id and is performed
 as a row in this service's database, not as a ManyChat request.
 
+When the tenant marks an intent field (`034`), every write but `set_field` on
+that field and `write_note` may return `reason: "not_prospect"`: until the
+contact is a prospect, it is refused with no request and takes no slot of the
+turn's cap. `get_contact` is unaffected.
+
 Each parameter is a `z.enum` built from `config/tools.json` at load, so the
 model can only name something the tenant configured (C3). A tool whose list is
 empty is not offered at all. The file reloads on `SIGHUP` with the rest of the

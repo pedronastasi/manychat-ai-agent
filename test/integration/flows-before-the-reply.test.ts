@@ -11,6 +11,7 @@ import { loadTenantConfig } from '../../src/config/loader.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/029-flows-before-the-reply.md § Verification items 4 and 5: on an
@@ -93,7 +94,7 @@ function scriptedRunner(
 ) {
   return {
     run: async ({ stage = new ActionStage(), contact, flows }) => {
-      const built = buildTools(tools, stage, contact, undefined, { flows });
+      const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
       for (const [name, input] of calls) {
         await built?.[name]?.execute?.(input as never, {
           toolCallId: 'test',
@@ -219,7 +220,7 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
     const outcomes: object[] = [];
     const runner: AgentRunner = {
       run: async ({ stage = new ActionStage(), contact, flows }) => {
-        const built = buildTools(tools, stage, contact, undefined, { flows })!;
+        const built = buildTools(tools, stage, asProspect(contact), undefined, { flows })!;
         const options = { toolCallId: 'test', messages: [], context: {} };
         // One step: the SDK starts both calls together.
         outcomes.push(
@@ -334,7 +335,7 @@ describe('an escalation does not recall a sent flow (specs/029 V5)', () => {
     // Sends the flow, then never answers until the abort fires.
     const runner: AgentRunner = {
       run: async ({ stage = new ActionStage(), contact, flows, signal }) => {
-        const built = buildTools(tools, stage, contact, undefined, { flows });
+        const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
         await built?.send_flow?.execute?.({ flow: 'student_results' } as never, {
           toolCallId: 'test',
           messages: [],
@@ -369,7 +370,7 @@ describe('an escalation does not recall a sent flow (specs/029 V5)', () => {
       );
     const runner: AgentRunner = {
       run: ({ stage = new ActionStage(), contact, flows, signal }) => {
-        const built = buildTools(tools, stage, contact, undefined, { flows });
+        const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
         // Called and not awaited, as a tool still running when the abort lands.
         void built?.send_flow?.execute?.({ flow: 'student_results' } as never, {
           toolCallId: 'test',

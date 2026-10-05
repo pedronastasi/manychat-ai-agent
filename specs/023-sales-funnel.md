@@ -39,7 +39,9 @@ the duplication described above.
 ## The funnel is a field the agent moves, not a sequence the contact is pushed through
 
 The agent's position in the sale is a `set_field` enum field from `012`,
-declared with `"funnel": true` in `tools.json`. Its values are the stages, in
+declared with `"funnel": true` in `tools.json`. Since `034`, a funnel field
+requires an intent field, and a funnel write is refused with `not_prospect`
+until the contact is recorded as a prospect. Its values are the stages, in
 order:
 
 | Stage        | Meaning                                                     |
@@ -83,6 +85,9 @@ one course is also accepted only on a turn whose course is that course, and a
 course change does not bring back a flow already sent (`028`).
 
 ## Qualify before sending content
+
+Qualifying begins once the contact is a prospect (`034`): a contact who wrote
+for something else is never qualified.
 
 Content chosen without knowing the lead is the drip again, one piece at a
 time. So the system instructions tell the model to learn, before the first
@@ -169,6 +174,12 @@ tenant only (C1): no real course names, prices, flow names or flow ids.
 
 A third figure, the bypass rate, is reported beside them: payment links
 recorded with `contactAsked` over all payment links sent (`032`).
+
+`034` adds two more: the prospect share, contacts with an intent write of
+`prospect` over contacts with a first turn the same week, and the prospect
+link-sent rate, contacts whose payment-link flow was `performed` over that
+week's prospects. The link-sent rate above is still reported, so the series
+before and after `034` stays comparable.
 
 Link-sent rate is the leading indicator: this service can compute it, daily.
 Paid enrolment is the outcome, and this service cannot see it. They are

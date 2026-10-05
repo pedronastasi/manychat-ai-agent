@@ -70,7 +70,7 @@ the agent is offered no tools and behaves as it did before `012`.
   the server sends the flow (`032`)
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
-  optional `funnel` (`023`) and `course` (`028`)
+  optional `funnel` (`023`), `course` (`028`) and `intent` (`034`)
 - `readable` — `tags[]` and `fields[]` in the shapes above, which `get_contact`
   returns but no tool writes (`024`)
 - `notes[]` — `id`, `field`, `maxLength` (at most 500), `neverRendered` (must be
@@ -100,6 +100,10 @@ not `repeatable`. At most one flow may be tied to each `onStage`, never the
 (`032`).
 `events` need a `funnel` field, at most one entry per `stage`, and a `flowNs`
 no `flows[]` entry or other event uses (`027`).
+
+At most one field may be marked `intent`, not the `funnel` or `course` field,
+and its `values` must be exactly `not_prospect`, `prospect`, in that order. A
+`funnel` field and an `opening` flow each require an `intent` field (`034`).
 
 At most one field may be marked `course`, and not the `funnel` field. Its
 `values` must be exactly the `catalog.json` course ids, in any order. A flow's

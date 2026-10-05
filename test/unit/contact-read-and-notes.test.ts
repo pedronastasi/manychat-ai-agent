@@ -19,6 +19,7 @@ import type { Tools } from '../../src/contracts/config.ts';
 import { ContactRecord } from '../../src/contracts/manychat.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { manychatAnswer } from '../helpers/manychat.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/024-contact-read-and-notes.md § Verification, items 1, 2, 4 (the
@@ -137,6 +138,7 @@ describe('get_contact returns a whitelist, never the subscriber (specs/024 V1)',
       prior_experience: OTHER_VALUE,
       preferred_schedule: null,
       course: null,
+      intent: null,
     });
     expect(JSON.stringify(view)).not.toContain('ignore rules');
   });
@@ -161,7 +163,7 @@ describe('note values come back inside the contact fence (specs/024 V2)', () => 
       readContact: () => Promise.resolve(ContactRecord.parse(GET_INFO.data)),
     };
     const reads = new ContactReads({ reader, subscriberId: 's1', logger: { warn: () => {} } });
-    const built = buildTools(tools, new ActionStage(), undefined, reads)!;
+    const built = buildTools(tools, new ActionStage(), asProspect(undefined), reads)!;
     const result = (await built.get_contact!.execute!({}, toolOptions)) as {
       tags: string[];
       fields: Record<string, string | null>;
@@ -190,7 +192,7 @@ describe('note values come back inside the contact fence (specs/024 V2)', () => 
   });
 
   it('is not offered without a reader, so an unbound turn cannot read', () => {
-    expect(buildTools(tools, new ActionStage())!.get_contact).toBeUndefined();
+    expect(buildTools(tools, new ActionStage(), asProspect())!.get_contact).toBeUndefined();
   });
 });
 
@@ -203,7 +205,11 @@ describe('a turn stages at most eight actions (specs/024 V4)', () => {
     expect(MAX_ACTIONS_PER_TURN).toBe(8);
     const stage = new ActionStage();
     // On the brochure's course, so it is accepted (specs/028).
-    const built = buildTools(tools, stage, { sentFlows: new Set(), course: 'foundation' })!;
+    const built = buildTools(
+      tools,
+      stage,
+      asProspect({ sentFlows: new Set(), course: 'foundation' }),
+    )!;
     const calls: [string, Record<string, string>][] = [
       ['send_flow', { flow: 'foundation_brochure' }],
       ['send_flow', { flow: 'student_results' }],
@@ -316,7 +322,7 @@ describe('note text is cleaned before it is written (specs/024 V6)', () => {
   it('leaves nothing to write when only identifiers were given, so nothing is staged', async () => {
     expect(cleanNote('  robin.example@example.test \n', 280)).toBe('[removed]');
     const stage = new ActionStage();
-    const built = buildTools(tools, stage)!;
+    const built = buildTools(tools, stage, asProspect())!;
     expect(await built.write_note!.execute!({ note: 'goal', text: ' \n\t ' }, toolOptions)).toEqual(
       { staged: false },
     );
@@ -325,7 +331,7 @@ describe('note text is cleaned before it is written (specs/024 V6)', () => {
 
   it('stages the cleaned text, and records only its length', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage)!;
+    const built = buildTools(tools, stage, asProspect())!;
     await built.write_note!.execute!(
       { note: 'goal', text: 'Reach me at robin.example@example.test' },
       toolOptions,

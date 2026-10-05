@@ -51,6 +51,12 @@ A `flows[]` entry may carry `"role": "opening"`. At most one may, it carries
 no `course` (`028`), and it may not also be the `payment_link` flow, nor
 `repeatable`; each is a load failure.
 
+> **Amended by `034`.** The opening is no longer sent on the first model turn
+> but on the _prospect turn_, the turn that first stages a write of
+> `prospect` (`034 § The opening waits for a prospect`), and an `opening` flow
+> requires an intent field. The timing within that turn below still holds; the
+> first-turn system instruction is replaced by `set_field`'s `openingQueued`.
+
 The opening flow is sent on the contact's **first model turn**: the first
 turn for this conversation on which the model runs. A turn answered by the
 scripted opening (`001`) or escalated before the model ran (budget, rate or
@@ -231,8 +237,9 @@ the file fails at load.
    one that is also `payment_link` or `repeatable`, two flows on one
    `onStage`, an `onStage` of `new` or `link_sent` or outside the funnel
    values, and a funnel field without `prepared`, each fail at load.
-2. An integration test over the ManyChat HTTP boundary asserts the opening
-   flow is sent before the reply on a first model turn and recorded with its
+2. _Superseded by `034 § Verification` item 4, which holds the integration
+   test for the prospect turn._ An integration test over the ManyChat HTTP
+   boundary asserted the opening flow is sent before the reply on a first model turn and recorded with its
    origin; that it is not sent when that turn escalates, nor on any later
    turn; that it is sent on the first model turn after a scripted opening;
    that three first messages arriving together send it once; and that a
@@ -249,8 +256,10 @@ the file fails at load.
    the turn, accepted with `contactAsked`, and that `contactAsked` is recorded.
 5. Golden eval cases, demo tenant. The suite runs the model without the turn
    handler, so it cannot see the server send the opening; it asserts the
-   decision that gates it instead: on a first model turn, a "hi" and a course
-   question do not escalate, and a reported payment does. A lead at `offered`
+   decision that gates it instead: a "hi" and a course question do not
+   escalate, and a reported payment does. Since `034`, a first "hi" stages no
+   intent write and so gets no opening, and a course question stages
+   `prospect`, which queues it. A lead at `offered`
    who accepts the price stages no link, and its reply is reviewed for the
    readiness question; a lead who asks how to pay at `nurturing` stages the
    link.
