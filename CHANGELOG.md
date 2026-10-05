@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.15.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.14.0...manychat-ai-agent-v0.15.0) (2026-10-05)
+
+
+### Features
+
+* publish the agent as a package with a CLI and declared exports (spec 033) ([5666764](https://github.com/pedronastasi/manychat-ai-agent/commit/5666764fdb4bea8b8c173cd01bb911162c4e9432))
+* publish the agent as a package with a CLI and declared exports (spec 033) ([bf0f704](https://github.com/pedronastasi/manychat-ai-agent/commit/bf0f704a484a14d150a2f68e5b041789a9c12a07))
+* withhold the sale until the contact is a prospect (spec 034) ([7e48e7d](https://github.com/pedronastasi/manychat-ai-agent/commit/7e48e7d6ff00dd3b0f6353daa9e500749e2e9ee1))
+* withhold the sale until the contact is a prospect (spec 034) ([1bd15f0](https://github.com/pedronastasi/manychat-ai-agent/commit/1bd15f0fc8e769ee47e84ce28716916cf4737d60))
+
+
+### Bug Fixes
+
+* load the tenant's .env in the agent CLI, and align the guide with spec 033 ([9eccff5](https://github.com/pedronastasi/manychat-ai-agent/commit/9eccff5e0ca1648251f3aa5f53bbefcc2625e1d7))
+* make the installed package boot, redact and publish as spec 033 says ([90fb886](https://github.com/pedronastasi/manychat-ai-agent/commit/90fb8866110f6bf474d575ebe66b5988b5fec89e))
+* stop the reply after the opening flow greeting and asking again (spec 032) ([bd0098d](https://github.com/pedronastasi/manychat-ai-agent/commit/bd0098d6c7a60ccbd8b79d8f442f329697aebde1))
+* stop the reply after the opening flow greeting and asking again (spec 032) ([705ad16](https://github.com/pedronastasi/manychat-ai-agent/commit/705ad16545e03f62ce6ea0d86cafd3b9e92c307f))
+
+
+### Specs and Docs
+
+* guide the move from a deployment fork to a tenant project ([9e72917](https://github.com/pedronastasi/manychat-ai-agent/commit/9e72917ba7d49e5e5888a04b2986da25a876b1f2))
+* judge spec 033's fork move by copied content, not shared file names ([a5d110f](https://github.com/pedronastasi/manychat-ai-agent/commit/a5d110f7ace770da50d7429f0446a044d84b3260))
+* let the fork keep its own housekeeping files in spec 033's move criteria ([5844aed](https://github.com/pedronastasi/manychat-ai-agent/commit/5844aedc691ec36df7f6592c2f68a93054086da2))
+* point spec 034 at the prompt's rule 8 and at what the evals can see ([79fe8f4](https://github.com/pedronastasi/manychat-ai-agent/commit/79fe8f43bc4d92618e5d8313c261638d11f97a2c))
+* record PR 166 in spec 033 ([2163243](https://github.com/pedronastasi/manychat-ai-agent/commit/216324311d54b4f000f43fc4e30932aced672d92))
+* record PR 167 in spec 034 ([dd6e6d9](https://github.com/pedronastasi/manychat-ai-agent/commit/dd6e6d99ce000147304e58e6dde282b3c55e7a29))
+* rewrap spec 034's eval item ([ce6b064](https://github.com/pedronastasi/manychat-ai-agent/commit/ce6b0646843009bcbd8267e3d48f77f1818efc92))
+* scope the release-only permission check to packages: write (spec 033) ([c37dadb](https://github.com/pedronastasi/manychat-ai-agent/commit/c37dadb1080dc0fc46fa9a231deda369b19c3f6e))
+* settle the opening's timing and the advert signal in spec 034 ([6b1e76e](https://github.com/pedronastasi/manychat-ai-agent/commit/6b1e76eb5eda05d63982a2438b697682a550834e))
+* specify intent before the sale (spec 034) ([0f2bb69](https://github.com/pedronastasi/manychat-ai-agent/commit/0f2bb69342faf04c3a9edd742035ea361066d380))
+* specify tenant projects that depend on the agent, not fork it (spec 033) ([e375f54](https://github.com/pedronastasi/manychat-ai-agent/commit/e375f5418f3785d7bed9dcb83c200408fee04ef4))
+* split spec 033 into the package, the scaffolder (035) and plugins (036) ([e910e11](https://github.com/pedronastasi/manychat-ai-agent/commit/e910e113183977891628d0ecff9d69dfb8ba7dbd))
+* split spec 033 into the package, the scaffolder (035) and plugins (036) ([39258be](https://github.com/pedronastasi/manychat-ai-agent/commit/39258bee4ed6bd15ef4c3830057a35fdc39996d4))
+
 ## [0.14.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.13.1...manychat-ai-agent-v0.14.0) (2026-10-04)
 
 
