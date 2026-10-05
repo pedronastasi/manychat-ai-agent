@@ -64,9 +64,11 @@ async function enumOf(schema: unknown, parameter: string): Promise<unknown[]> {
   return json.properties[parameter]?.enum ?? [];
 }
 
+/** A contact at `stage`: a prospect, as one past new is by the rollout rule (specs/034). */
 const at = (stage: string, extra: Partial<ContactActions> = {}): ContactActions => ({
   sentFlows: new Set(),
   funnelStage: stage,
+  intent: 'prospect',
   ...extra,
 });
 
@@ -176,7 +178,7 @@ describe('opening and stage-tied flows are checked at load (specs/032 V1)', () =
 
 describe('the opening flow is the server’s (specs/032 V2)', () => {
   it('is absent from send_flow’s enum, on a first turn or any other', async () => {
-    for (const contact of [at('new', { firstModelTurn: true }), at('nurturing')]) {
+    for (const contact of [at('new', { openingDue: true }), at('nurturing')]) {
       const built = buildTools(tools, new ActionStage(), contact);
       const ids = await enumOf(built!.send_flow!.inputSchema, 'flow');
       expect(ids).not.toContain('welcome_note');
@@ -184,10 +186,11 @@ describe('the opening flow is the server’s (specs/032 V2)', () => {
     }
   });
 
-  it('tells the model, on its first turn, that the flow goes before its reply', () => {
+  // On the prospect turn since specs/034, not the first turn.
+  it('tells the model, on the prospect turn, that the flow goes before its reply', () => {
     const notice = openingNotice(tools.flows.find(flow => flow.role === 'opening')!);
-    expect(notice).toContain('first turn');
-    expect(notice).toContain('welcome_note before your reply');
+    expect(notice).toContain('Recording prospect queued the flow welcome_note');
+    expect(notice).toContain('sends it before your reply');
     expect(notice).toContain('Unless you escalate');
   });
 

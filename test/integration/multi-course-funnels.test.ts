@@ -16,6 +16,7 @@ import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import type { ContactRecord } from '../../src/contracts/manychat.ts';
 import { FakeActions, FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/028-multi-course-funnels.md § Verification item 5: the conversation's
@@ -69,7 +70,7 @@ function courseRunner(opts: { course?: string; delayMs?: number } = {}) {
     run: async input => {
       inputs.push(input);
       const stage = input.stage ?? new ActionStage();
-      const built = buildTools(tools, stage, input.contact, undefined, {
+      const built = buildTools(tools, stage, asProspect(input.contact), undefined, {
         nudgeTurn: input.nudge !== undefined,
       });
       if (opts.course) {

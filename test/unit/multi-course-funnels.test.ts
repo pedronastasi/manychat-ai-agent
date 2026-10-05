@@ -18,6 +18,7 @@ import type { ActionRecord, StagedAction } from '../../src/contracts/agent.ts';
 import { ManyChatInbound } from '../../src/contracts/manychat.ts';
 import { ManyChatAdapter, renderManyChat } from '../../src/channels/manychat/adapter.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/028-multi-course-funnels.md § Verification items 1, 2, 3, 4 and 6,
@@ -150,7 +151,7 @@ describe('course config is checked at load (specs/028 V1)', () => {
 describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () => {
   it('refuses another course’s flow', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on('foundation'));
+    const built = buildTools(tools, stage, asProspect(on('foundation')));
     expect(await call(built, 'send_flow', { flow: 'advanced_brochure' })).toEqual({
       staged: false,
     });
@@ -162,7 +163,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
 
   it('accepts a flow without a course on a turn with no known course, and no course flow', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on(undefined));
+    const built = buildTools(tools, stage, asProspect(on(undefined)));
     expect(await call(built, 'send_flow', { flow: 'student_results' })).toEqual({ staged: true });
     expect(await call(built, 'send_flow', { flow: 'enrolment_link', contactAsked: true })).toEqual({
       staged: true,
@@ -174,7 +175,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
 
   it('accepts the new course’s flow after set_field on the course field earlier in the turn', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on(undefined));
+    const built = buildTools(tools, stage, asProspect(on(undefined)));
     expect(await call(built, 'send_flow', { flow: 'advanced_brochure' })).toEqual({
       staged: false,
     });
@@ -200,7 +201,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
   });
 
   it('describes only the flows it can accept now, each with its course', () => {
-    const description = buildTools(tools, new ActionStage(), on('advanced'))!.send_flow!
+    const description = buildTools(tools, new ActionStage(), asProspect(on('advanced')))!.send_flow!
       .description!;
     expect(description).toContain('- advanced_brochure (course advanced):');
     expect(description).toContain('- student_results:');
@@ -217,20 +218,28 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
     };
     const sent = { sentFlows: new Set([...shared, 'foundation_brochure']) };
 
-    const unplaced = buildTools(onlyCourseFlows, new ActionStage(), { ...sent, course: undefined });
+    const unplaced = buildTools(
+      onlyCourseFlows,
+      new ActionStage(),
+      asProspect({ ...sent, course: undefined }),
+    );
     expect(unplaced!.send_flow!.description).toContain('record the contact’s course');
 
-    const placed = buildTools(onlyCourseFlows, new ActionStage(), {
-      ...sent,
-      course: 'foundation',
-    });
+    const placed = buildTools(
+      onlyCourseFlows,
+      new ActionStage(),
+      asProspect({
+        ...sent,
+        course: 'foundation',
+      }),
+    );
     expect(placed!.send_flow!.description).toContain('everything for this contact’s course');
     expect(placed!.send_flow!.description).not.toContain('set_field');
   });
 
   it('marks a staged write to the course field, and only that one', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on(undefined));
+    const built = buildTools(tools, stage, asProspect(on(undefined)));
     await call(built, 'set_field', { field: 'course', value: 'foundation' });
     await call(built, 'set_field', { field: 'prior_experience', value: 'none' });
     expect(stage.staged).toEqual([
@@ -249,7 +258,7 @@ describe('the course is locked from the offer (specs/028 V3)', () => {
 
   it.each(FUNNEL_STAGES.slice(lockedFrom))('refuses a course write at %s', async funnelStage => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on('foundation', { funnelStage }));
+    const built = buildTools(tools, stage, asProspect(on('foundation', { funnelStage })));
     expect(await call(built, 'set_field', { field: 'course', value: 'advanced' })).toEqual({
       staged: false,
     });
@@ -258,14 +267,14 @@ describe('the course is locked from the offer (specs/028 V3)', () => {
 
   it.each(FUNNEL_STAGES.slice(0, lockedFrom))('accepts a course write at %s', async funnelStage => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on('foundation', { funnelStage }));
+    const built = buildTools(tools, stage, asProspect(on('foundation', { funnelStage })));
     expect(await call(built, 'set_field', { field: 'course', value: 'advanced' })).toMatchObject({
       staged: true,
     });
   });
 
   it('accepts one with no stage recorded yet', async () => {
-    const built = buildTools(tools, new ActionStage(), on(undefined));
+    const built = buildTools(tools, new ActionStage(), asProspect(on(undefined)));
     expect(await call(built, 'set_field', { field: 'course', value: 'advanced' })).toMatchObject({
       staged: true,
     });
@@ -273,7 +282,11 @@ describe('the course is locked from the offer (specs/028 V3)', () => {
 
   it('refuses one after offered was staged earlier in the same turn', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, on('foundation', { funnelStage: 'nurturing' }));
+    const built = buildTools(
+      tools,
+      stage,
+      asProspect(on('foundation', { funnelStage: 'nurturing' })),
+    );
     await call(built, 'set_field', { field: 'funnel_stage', value: 'offered' });
     expect(await call(built, 'set_field', { field: 'course', value: 'advanced' })).toEqual({
       staged: false,
@@ -371,7 +384,7 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
       new Date(0),
     );
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, { ...contact, course: 'advanced' });
+    const built = buildTools(tools, stage, asProspect({ ...contact, course: 'advanced' }));
     const description = built!.send_flow!.description!;
 
     expect(description).not.toContain('student_results');
@@ -381,7 +394,11 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
     });
 
     // Moving back does not restore what was received on the first course.
-    const back = buildTools(tools, new ActionStage(), { ...contact, course: 'foundation' });
+    const back = buildTools(
+      tools,
+      new ActionStage(),
+      asProspect({ ...contact, course: 'foundation' }),
+    );
     expect(back!.send_flow!.description).not.toContain('foundation_brochure');
   });
 });

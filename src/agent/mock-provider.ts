@@ -193,12 +193,8 @@ function respondTo(text: string, paymentOptions: boolean): string {
     );
   }
   if (/(hello|hi|good morning|good afternoon|hey)/.test(lower)) {
-    return reply(
-      ["Hi! Tell me which course you're interested in and I'll send the details."],
-      false,
-      null,
-      0.92,
-    );
+    // Intent unknown: greet and ask, pitching nothing (specs/034).
+    return reply(['Hi! Thanks for writing.'], false, null, 0.92, 'How can I help you today?');
   }
   return reply(
     ["I don'lower have that to hand - let me pass you to someone on the team."],
@@ -257,12 +253,16 @@ const BROCHURES: Record<string, string> = {
   'weekend-intensive': 'intensive_brochure',
 };
 
-/** The server's notes on the contact, read from the turn's message: stage and course. */
-function contactNotes(options: LanguageModelV4CallOptions): {
+interface ContactNotes {
   stage?: string | undefined;
   course?: string | undefined;
-} {
-  const notes: { stage?: string | undefined; course?: string | undefined } = {};
+  intent?: string | undefined;
+  advert?: boolean | undefined;
+}
+
+/** The server's notes on the contact, read from the turn's message: stage, course and intent. */
+function contactNotes(options: LanguageModelV4CallOptions): ContactNotes {
+  const notes: ContactNotes = {};
   for (const entry of options.prompt) {
     if (entry.role !== 'user' || typeof entry.content === 'string') continue;
     for (const part of entry.content) {
@@ -274,14 +274,25 @@ function contactNotes(options: LanguageModelV4CallOptions): {
           part.text,
         );
       if (course) notes.course = course[1];
+      if (part.text.startsWith('INTENT: This contact is a prospect.')) notes.intent = 'prospect';
+      if (part.text.includes('(not_prospect)')) notes.intent = 'not_prospect';
+      if (part.text.startsWith('INTENT:') && part.text.includes('through the advert')) {
+        notes.advert = true;
+      }
     }
   }
   return notes;
 }
 
-/** Whether the tenant marks a course field, read from the tool it offers (specs/028). */
+/** Whether the tenant marks a course field, read from the tool it offers or the prompt (specs/028). */
 function hasCourseField(options: LanguageModelV4CallOptions): boolean {
-  return offered(options, 'set_field', 'field').includes('course');
+  // The reply step offers no tools, so the system prompt's section says so there.
+  return (
+    offered(options, 'set_field', 'field').includes('course') ||
+    options.prompt.some(
+      entry => entry.role === 'system' && entry.content.split('\n').includes('COURSES'),
+    )
+  );
 }
 
 /** A contact who wants a different course from the one recorded (specs/028). */
@@ -318,7 +329,7 @@ type MockAction = { toolName: string; input: Record<string, string | boolean> };
  * when the tool offers it: a flow already sent is not offered again, and a
  * tenant without one has nothing to send (specs/012, specs/023).
  */
-function chooseActions(options: LanguageModelV4CallOptions, text: string): MockAction[] {
+function saleActions(options: LanguageModelV4CallOptions, text: string): MockAction[] {
   const lower = text.toLowerCase();
   const flows = offered(options, 'send_flow', 'flow');
   const flow = (id: string | undefined): MockAction[] =>
@@ -367,6 +378,40 @@ function chooseActions(options: LanguageModelV4CallOptions, text: string): MockA
   return [];
 }
 
+/** A contact who wrote for something other than enrolling (specs/034). */
+const NOT_PROSPECT =
+  /(already enrolled|already (taking|doing|on) (the|your)|i'?m (a|one of your) (current |former )?student|former student|we (sell|supply|distribute)|i (sell|supply)|looking for (a )?(job|work)|wrong number)/;
+
+/** What a prospect asks about, beyond what a sale action already answers (specs/034). */
+const PROSPECT =
+  /(price|cost|how much|fee|when|start|schedule|what day|enrol|sign up|syllabus|teach|learn|know more|tell me (more )?about|interested|which course|link|pay)/;
+
+/**
+ * What a correct agent stages, intent first: until the contact is a prospect
+ * every other write refuses, so the prospect write comes before them in the
+ * same turn (specs/034 § Until intent is prospect, the sale's tools refuse).
+ */
+function chooseActions(options: LanguageModelV4CallOptions, text: string): MockAction[] {
+  const lower = text.toLowerCase();
+  // A nudge turn has no contact message to judge intent from (specs/025).
+  if (text.includes(NUDGE_NOTE_OPEN)) return saleActions(options, text);
+  const notes = contactNotes(options);
+  const gated = offered(options, 'set_field', 'value').includes('prospect');
+  if (!gated || notes.intent === 'prospect') return saleActions(options, text);
+  const intent = (value: string): MockAction => ({
+    toolName: 'set_field',
+    input: { field: 'intent', value },
+  });
+  if (NOT_PROSPECT.test(lower)) return notes.intent === undefined ? [intent('not_prospect')] : [];
+  // The sale's actions, judged as if the gate were open: whatever would
+  // start one is prospect intent.
+  const actions = saleActions(options, text);
+  if (actions.length > 0 || PROSPECT.test(lower) || notes.advert) {
+    return [intent('prospect'), ...actions];
+  }
+  return [];
+}
+
 /**
  * The next action to call: the first of `chooseActions` not yet called this
  * turn, or the last again once all were (staging a repeat is a no-op).
@@ -405,6 +450,16 @@ function stagedNote(options: LanguageModelV4CallOptions): string | undefined {
  * never that it arrived.
  */
 function stagedReply(note: string): string {
+  // A contact who is not a prospect gets the front desk: what they need is
+  // not in the catalog, so a person takes it (specs/034).
+  if (note.includes('intent=not_prospect')) {
+    return reply(
+      ["Thanks for letting me know - I'll pass this to someone on the team who can help."],
+      true,
+      'out_of_scope',
+      0.9,
+    );
+  }
   if (note.includes('set_field course=') && !note.includes('send_flow')) {
     return reply(
       ['Sure - that course sounds like a better fit for you.'],
@@ -526,8 +581,16 @@ export function createMockModel(modelId: string): LanguageModelV4 {
 
     doGenerate: async (options: LanguageModelV4CallOptions) => {
       const message = lastUserMessage(options);
-      const note = stagedNote(options);
-      const action = note === undefined ? chooseAction(options, message.text) : null;
+      const staged = stagedNote(options);
+      // Only the prospect write staged: the message is answered as it would
+      // be without it (specs/034).
+      const note =
+        staged !== undefined &&
+        !staged.includes('intent=not_prospect') &&
+        !/(send_flow|course=|funnel_stage=)/.test(staged)
+          ? undefined
+          : staged;
+      const action = staged === undefined ? chooseAction(options, message.text) : null;
       if (action !== null) {
         return {
           content: [

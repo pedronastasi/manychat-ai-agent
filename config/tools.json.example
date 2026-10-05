@@ -54,6 +54,13 @@
   ],
   "fields": [
     {
+      "id": "intent",
+      "field": "intent",
+      "values": ["not_prospect", "prospect"],
+      "description": "Whether the contact means to enrol. Record prospect once they ask about a course's price, dates or how to enrol; not_prospect if they write for something else.",
+      "intent": true
+    },
+    {
       "id": "funnel_stage",
       "field": "funnel_stage",
       "values": ["new", "qualifying", "nurturing", "offered", "prepared", "link_sent"],

@@ -8,6 +8,8 @@ import {
   courseField,
   describeAction,
   funnelField,
+  intentField,
+  openingFlow,
   paymentLinkFlow,
 } from './tools.ts';
 import { contactResult } from './contact.ts';
@@ -96,7 +98,7 @@ export function buildSystemPrompt(
     '5. A request to speak to a person: escalate with "explicit_request".',
     '6. Anything the catalog cannot answer: escalate with "out_of_scope".',
     '7. When unsure: escalate with "low_confidence". Escalating is correct; guessing is not.',
-    '8. Read short replies in context. When the contact answers your previous question — picks an option you offered, says yes/no, names a preference — that is a valid conversational answer: continue the sales flow with high confidence. Never escalate a direct answer to your own question.',
+    '8. Read short replies in context. When the contact answers your previous question — picks an option you offered, says yes/no, names a preference — that is a valid conversational answer: continue the conversation with high confidence. Never escalate a direct answer to your own question.',
     '9. If asked whether you are a bot, say yes plainly and offer to pass them to someone.',
     '10. Never restate a reply you already sent. If the information was already given, acknowledge briefly instead of repeating it.',
     '11. When the contact closes — thanks, bye, ok, perfect — reply with a brief, natural acknowledgement and an offer to help further. Never answer a closer by replaying your previous reply.',
@@ -132,9 +134,10 @@ export function buildSystemPrompt(
     'nowhere else: it is appended as the final message, so do not repeat it at the',
     'end of `messages`. Send null only when a question does not belong — a handoff,',
     'a delicate or health matter, a contact who already has the payment link,',
-    'someone who has declined twice, or a first turn whose OPENING flow asks it.',
+    'someone who has declined twice, or a turn whose opening flow asks it.',
     'Null is a decision, not a way to skip the field.',
     ...(withTools ? ACTIONS_SECTION : []),
+    ...intentSection(tools),
     ...salesSection(tools),
     ...coursesSection(tools),
     ...(tools.nudge ? FOLLOW_UP_SECTION : []),
@@ -199,6 +202,52 @@ export function nudgeNotice(since: Date): string {
 export { NUDGE_NOTE_OPEN };
 
 /**
+ * How the model learns whether the contact means to enrol, and what it does
+ * until it knows (specs/034). Only present when the tenant marks an intent
+ * field. System instructions in English, the same for every tenant (C9).
+ */
+function intentSection(tools: Tools): string[] {
+  const intent = intentField(tools);
+  if (!intent) return [];
+  const opening = openingFlow(tools);
+  return [
+    '',
+    'INTENT',
+    'Not everyone who writes means to enrol: students, former students, suppliers and',
+    `job seekers write to this number too. The field ${intent.id} records which this contact is:`,
+    '- prospect: they mean to enrol, or are weighing it',
+    '- not_prospect: they wrote for something other than enrolling',
+    'With nothing recorded, their intent is unknown. The INTENT note beside the message says',
+    'which this contact is.',
+    'Record prospect with set_field when the contact:',
+    "- asks about enrolling, or about a course's price, dates, modalities, duration or requirements;",
+    '- says they want to learn what a course teaches, or asks which course suits them;',
+    '- asks for the payment link or how to pay;',
+    "- arrived through a course's advert, which the INTENT note says.",
+    'Record not_prospect when they say they are already enrolled or a former student, offer a',
+    'product or service, ask for work, or wrote to the wrong number.',
+    'Otherwise record nothing. A bare greeting is unknown: greet them, ask how you can help,',
+    'and offer nothing for sale. Unknown intent is not low confidence: ask.',
+    'prospect is final. not_prospect is not: a contact who later asks to enrol is a prospect',
+    'from that turn, so record it then.',
+    `Until the contact is a prospect, every tool except set_field on ${intent.id}, get_contact and`,
+    'write_note refuses with not_prospect. Record prospect first, in the same turn, to use them.',
+    'A contact who is not a prospect gets the front desk: answer from the CATALOG and escalate',
+    'what it cannot answer, as the rules above say. Do not sell to them: the closing question',
+    'offers further help, never the enrolment.',
+    ...(opening
+      ? [
+          'When set_field answers your prospect write with openingQueued, the system sends that',
+          'flow before your reply, or before the first flow you send, unless you escalate. Your',
+          'reply does not greet the contact, introduce you or repeat what the flow says. If the',
+          'flow asks a question, do not ask it again, in any words: unless their message already',
+          'answers it, send closing_question null.',
+        ]
+      : []),
+  ];
+}
+
+/**
  * How the model moves a lead through the sale (specs/023). Only present when
  * the tenant marks a funnel field. System instructions, the same for every
  * tenant; how the agent sounds while following them is the persona's.
@@ -210,7 +259,7 @@ function salesSection(tools: Tools): string[] {
   return [
     '',
     'SALES',
-    'You take the contact from their first reply to the payment link.',
+    'Once the contact is a prospect, you take them from there to the payment link.',
     `The field ${funnel.id} records where the sale is. Its stages, in order:`,
     '- new: the contact has replied; nothing is known about them yet',
     '- qualifying: you are asking what you need to choose a course',
@@ -275,12 +324,29 @@ function coursesSection(tools: Tools): string[] {
 }
 
 /**
- * The contact's first model turn, when the tenant has an opening flow
- * (specs/032 § The opening flow is the server's, not the model's). Per
- * contact, so it travels with the turn's message, outside the fence.
+ * The opening this turn queued by recording `prospect`, for the reply step,
+ * which sees this in place of the set_field result that named it (specs/034
+ * § The opening waits for a prospect).
  */
 export function openingNotice(flow: { id: string; description: string }): string {
-  return `OPENING: This is the contact's first turn. Unless you escalate, the system sends the flow ${flow.id} before your reply: ${flow.description} The contact receives it first, so your reply does not greet them, introduce you or repeat what it says. If it asks a question, do not ask it again, in any words. Unless their message already answers it, send closing_question null: that question is the one the contact answers. Answer what their message asks, briefly; if it only greets, one short line.`;
+  return `OPENING: Recording prospect queued the flow ${flow.id}. Unless you escalate, the system sends it before your reply: ${flow.description} The contact receives it first, so your reply does not greet them, introduce you or repeat what it says. If it asks a question, do not ask it again, in any words. Unless their message already answers it, send closing_question null: that question is the one the contact answers.`;
+}
+
+/**
+ * The contact's intent as the server knows it (specs/034). Per contact, so it
+ * travels with the turn's message like the funnel note, outside the fence. An
+ * advert's course is the server's fact, never the contact's claim (C4).
+ */
+export function intentNotice(intent: string | undefined, advertCourse?: string): string {
+  if (intent === 'prospect') return 'INTENT: This contact is a prospect.';
+  const advert =
+    advertCourse === undefined
+      ? ''
+      : ` They arrived through the advert for course ${advertCourse}: record prospect.`;
+  if (intent === 'not_prospect') {
+    return `INTENT: This contact wrote for something other than enrolling (not_prospect). Record prospect if they now mean to enrol.${advert}`;
+  }
+  return `INTENT: Nothing recorded shows yet whether this contact means to enrol.${advert}`;
 }
 
 /**
@@ -319,6 +385,8 @@ export function stagedNotice(
   },
   /** The turn's last contact read, which the reply step cannot see as a tool result. */
   contact?: ContactView,
+  /** The opening the turn's prospect write queued, if it did (specs/034). */
+  opening?: { id: string; description: string },
 ): string {
   // Flows only: a stage write sent ahead of a payment link is not news to the contact.
   const sent = (stage.sent ?? []).filter(entry => entry.action.tool === 'send_flow');
@@ -342,6 +410,7 @@ export function stagedNotice(
     // Notes stay fenced here as in the tool result (specs/024 § Note values
     // come back inside the contact fence).
     contact ? `CONTACT: ${JSON.stringify(contactResult(contact))}` : null,
+    opening ? openingNotice(opening) : null,
     sent.length > 0
       ? 'Your reply has not been sent yet. Now write it.'
       : 'Nothing has been sent yet. Now write the reply.',

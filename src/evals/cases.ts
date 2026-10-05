@@ -36,15 +36,19 @@ export const Case = z.object({
   nudge: z.boolean().optional(),
   /**
    * What the server already knows about the contact as the turn starts: the
-   * funnel stage last performed (specs/023) and the course (specs/028).
+   * funnel stage last performed (specs/023), the course (specs/028) and intent (specs/034).
    * Absent, the contact is new.
    */
   contact: z
     .object({
       funnel_stage: z.string().optional(),
       course: z.string().optional(),
-      /** The model has never run for this contact (specs/032 § The opening flow). */
-      first_model_turn: z.boolean().optional(),
+      /** The contact's recorded intent; absent is unknown (specs/034). */
+      intent: z.enum(['not_prospect', 'prospect']).optional(),
+      /** The opening goes out on the turn that stages prospect (specs/034). */
+      opening_due: z.boolean().optional(),
+      /** The course of the advert the contact arrived through (specs/034). */
+      advert_course: z.string().optional(),
     })
     .optional(),
   expect: z.object({

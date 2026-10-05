@@ -48,7 +48,9 @@ decides whether it is still allowed when the time comes.**
 `schedule_nudge` takes a delay id, and is offered only when this section is
 present. It is a write, and is staged like any `012` action: discarded if the
 turn escalates, performed after the reply is delivered. Performing it means
-inserting a row in a `nudges` table, not a ManyChat request.
+inserting a row in a `nudges` table, not a ManyChat request. Since `034`, it
+is refused with `not_prospect` until the contact is a prospect, so a
+non-prospect is never followed up.
 
 `humanActiveTag` is optional: the name of a tag in the tenant's ManyChat
 account that their team or flows set while a person is handling the contact.

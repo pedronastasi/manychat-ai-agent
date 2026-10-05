@@ -69,6 +69,13 @@
       "values": ["foundation", "advanced", "weekend-intensive"],
       "description": "The course this contact is buying. Set it as soon as the contact chooses one, or the fit is clear.",
       "course": true
+    },
+    {
+      "id": "intent",
+      "field": "intent",
+      "values": ["not_prospect", "prospect"],
+      "description": "Whether the contact means to enrol. Record prospect once they ask about a course's price, dates or how to enrol; not_prospect if they write for something else.",
+      "intent": true
     }
   ],
   "readable": {

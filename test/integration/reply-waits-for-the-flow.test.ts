@@ -10,6 +10,7 @@ import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/030-reply-waits-for-the-flow.md § Verification items 4 and 5: a reply
@@ -80,7 +81,7 @@ type Call = [tool: string, input: object];
 function scriptedRunner(calls: Call[], opts: { delayMs?: number; fail?: boolean } = {}) {
   return {
     run: async ({ stage = new ActionStage(), contact, flows }) => {
-      const built = buildTools(tools, stage, contact, undefined, { flows });
+      const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
       for (const [name, input] of calls) {
         await built?.[name]?.execute?.(input as never, {
           toolCallId: 'test',
