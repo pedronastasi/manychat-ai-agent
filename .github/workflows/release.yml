@@ -6,6 +6,9 @@ on:
 # Separate from ci.yml on purpose (specs/010-release-workflow.md § What a
 # release contains): ci.yml runs on pull requests from forks and keeps
 # `contents: read`. Merging the two would hand it write access.
+#
+# The publish jobs declare their own grants: id-token for npm trusted
+# publishing, packages for GHCR (specs/033). Neither reaches release-please.
 permissions:
   contents: write
   pull-requests: write
@@ -17,9 +20,62 @@ jobs:
     # PRs — and on the org repo it fails because GITHUB_TOKEN cannot open PRs.
     if: github.repository == 'pedronastasi/manychat-ai-agent'
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       # No checkout step: the action works through the API, not the worktree.
       - uses: googleapis/release-please-action@v5
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  publish-npm:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Trusted publishing: the OIDC token is the credential, so no stored
+      # registry token exists to leak (specs/033). The exchange needs npm >= 11.5.1,
+      # which the Node release alone does not guarantee.
+      - run: npm install -g npm@^11.5.1
+      - run: npm publish --provenance --access public
+
+  publish-image:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ needs.release-please.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest

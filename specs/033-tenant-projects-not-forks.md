@@ -1,5 +1,6 @@
 ---
 status: specified
+pr: 166
 constitution: [C1, C6, C8, C9]
 adr: [0021, 0018]
 ---
@@ -88,6 +89,11 @@ It drops `private: true` and declares its surface explicitly.
 then exits. A tenant's CI calls it, so a typo in a flow id fails a pull request
 rather than a container at boot. That is what the existing fork's tenant tests
 were reaching into `src/` to do.
+
+Every command loads `.env` from the working directory when one is there, as the
+scripts it replaces did with `--env-file=.env`. A variable already set in the
+environment wins over the file, so CI and a container set theirs as before. A
+missing or malformed variable is reported as the environment, not as `config/`.
 
 **Entry points, through an `exports` map.** Everything not listed here cannot
 be imported, and Node refuses the attempt:
@@ -198,6 +204,13 @@ A patch is an escape hatch, not a way to extend the agent. ADR-0021 names
 more than one live patch in any tenant at once as the condition for revisiting
 this whole design: it would mean configuration and plugins are not enough.
 
+**Open: the patch does not reach production.** `pnpm patch` changes the
+installed npm package, which is what a tenant's CI, evals and `agent` commands
+run. Production runs the published image, and the patch does not touch it, so
+the route above fixes CI and not the deployment. Until this spec says how a
+patched fix reaches the running service, an urgent fix production needs ships
+as an upstream release.
+
 ## The existing fork becomes the first tenant project, and then it is not a fork
 
 The existing deployment is the proof that the contract is enough, so moving it
@@ -216,6 +229,8 @@ deployment's repository:
   its own;
 - no longer documents a rebase-and-force-push sync.
 
+The steps, for this fork or any other, are in
+[Moving a deployment fork to a tenant project](../docs/guides/moving-a-fork-to-a-tenant-project.md).
 Its specs, runbook and workflows stay in its own repository; none of them moves
 here (C1). If the move needs a change this spec did not foresee, the change is
 made here first and the contract table above records it.
@@ -245,8 +260,13 @@ made here first and the contract table above records it.
   second run changes nothing.
 - A test asserts each CLI command in the table exists and exits non-zero on an
   invalid `config/`.
-- A test asserts `release.yml` is the only workflow with `packages: write`,
-  extending `010`'s `contents: write` check. `id-token: write` is already held
+- A test asserts `release.yml` is the only workflow this repository ships with
+  `packages: write`, extending `010`'s `contents: write` check. The test names
+  the shipped workflows. In this repository's own CI it also checks every
+  other file in `.github/workflows/`, so a new workflow cannot hold the grant
+  unlisted. Elsewhere it checks the named ones only: a deployment fork's own
+  workflow that pushes its image is the tenant's, until the fork becomes a
+  tenant project. `id-token: write` is already held
   by `docs.yml`, `claude.yml` and `claude-code-review.yml`, so the test asserts
   only that `release.yml` requests it.
 - The release image is checked once, on the first release: it starts with a

@@ -52,6 +52,9 @@ export default tseslint.config(
       'scripts/**/*.ts',
       'src/channels/manychat/simulator.ts',
       'src/backfill.ts',
+      'src/cli.ts',
+      'src/cli/**/*.ts',
+      'src/evals/**/*.ts',
       '*.config.ts',
     ],
     rules: { 'no-console': 'off' },
@@ -61,7 +64,7 @@ export default tseslint.config(
     // Test APIs are untyped by nature: `response.json()` is `any`, and mock
     // implementations satisfy async interfaces without awaiting anything.
     // Enforcing these here produces casts that obscure what a test asserts.
-    files: ['test/**/*.ts'],
+    files: ['test/**/*.ts', 'src/testing/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',

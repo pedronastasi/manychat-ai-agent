@@ -1,10 +1,29 @@
 {
   "name": "manychat-ai-agent",
   "version": "0.14.0",
-  "private": true,
   "description": "A provider-agnostic conversational AI agent gateway that bridges no-code chat platforms to any LLM.",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "agent": "dist/cli.js"
+  },
+  "exports": {
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "default": "./dist/config/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "db/migrations/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=22"
   },
@@ -39,6 +58,7 @@
     "@ai-sdk/anthropic": "^4.0.53",
     "@ai-sdk/google": "^4.0.69",
     "@ai-sdk/openai": "^4.0.66",
+    "@ai-sdk/provider": "4.0.21",
     "@fastify/helmet": "^13.1.1",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/swagger": "^9.8.1",
@@ -48,11 +68,11 @@
     "fastify": "^5.12.4",
     "fastify-type-provider-zod": "^7.0.0",
     "manychat-sdk": "^0.1.0",
+    "pino": "^10.4.0",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "4.0.21",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",

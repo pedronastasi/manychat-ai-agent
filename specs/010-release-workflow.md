@@ -195,9 +195,9 @@ credentials in this repository's blast radius are the thing to minimise.
 | GitHub Release      | Yes      | Body is the changelog section              |
 | `CHANGELOG.md`      | Yes      | Cumulative, newest first                   |
 | `package.json` bump | Yes      | `version` only                             |
-| npm publish         | No       | See below                                  |
-| Container image     | No       | See below                                  |
-| Build artefacts     | No       | Consumers build from source                |
+| npm publish         | Yes      | `manychat-ai-agent`, with provenance (033) |
+| Container image     | Yes      | `ghcr.io/<owner>/manychat-ai-agent` (033)  |
+| Build artefacts     | Yes      | `dist/`, inside the package and the image  |
 
 The workflow runs on push to `main`, and needs write access that `ci.yml`
 deliberately does not have:
@@ -212,12 +212,24 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+  publish-npm: # needs release-please; runs only when release_created
+    permissions: { contents: read, id-token: write }
+  publish-image: # needs release-please; runs only when release_created
+    permissions: { contents: read, packages: write }
 ```
+
+Abridged: `.github/workflows/release.yml` holds the publish steps. Each write
+grant sits on the job that uses it, so `release-please` never holds
+`id-token` or `packages`, and npm publish authenticates through OIDC trusted
+publishing with no stored registry token (`033`).
 
 The workflow points at the two configuration files and declares nothing about
 the release itself. The action also accepts a `release-type` input inline, which
@@ -225,8 +237,10 @@ would put the release's shape in two places — the changelog sections and the
 pre-1.0 bump rules have to live in the config file regardless, so the workflow
 is kept to permissions and wiring.
 
-There is no `actions/checkout` step. The action operates through the GitHub API
-rather than a working tree, so a checkout would be cost with no effect.
+The `release-please` job has no `actions/checkout` step. The action operates
+through the GitHub API rather than a working tree, so a checkout would be cost
+with no effect. The publish jobs do check out, at the release tag, because they
+build what they ship.
 
 This lives in `.github/workflows/release.yml`, separate from `ci.yml`. Keeping
 them apart is what lets `ci.yml` keep `permissions: contents: read` — the
@@ -235,24 +249,21 @@ and merging the two would hand it some.
 
 ## Deliberately not in scope
 
-ADR-0021 reverses the first three exclusions below.
-`033-tenant-projects-not-forks.md` specifies npm publish and the release image,
-and `035-create-scaffolds-a-tenant-project.md` the second package that needs a
-monorepo manifest. They describe the release as it is until those specs are
-implemented, and the pull request that implements each rewrites its own.
+ADR-0021 reversed the first two exclusions below.
+`033-tenant-projects-not-forks.md` specifies npm publish and the release image;
+`release.yml` now carries both, keyed off `release-please`'s `release_created`
+output, and grants `id-token: write` (OIDC trusted publishing) and
+`packages: write` (GHCR) to the publish jobs alone. `package.json` drops
+`private: true` and publishes from an allowlist (`files`). The third exclusion
+remains until `035` is implemented.
 
-**npm publish.** `package.json` sets `private: true`, so publication is not
-merely unimplemented, it is refused by the tooling. Publishing is a separate
-decision about supporting external consumers, and it brings a registry token
-into the release path. When it is made, it is an added step keyed off
-`release-please`'s `release_created` output, and it does not change anything
-specified here.
+**npm publish.** Specified by `033`. Each release publishes `manychat-ai-agent`
+to npm with OIDC provenance, from a clean checkout at the release tag.
 
-**Container images.** The deployment artefact is built outside this repository,
-in each tenant's own deployment repository. A release here is a source-level
-marker; what consumes it is that repository's concern. The one image this repository does build is
-the test-service image of `015-test-service.md`, tagged by commit SHA, never
-by version, and never attached to a release.
+**Container images.** Specified by `033`. Each release also pushes
+`ghcr.io/<owner>/manychat-ai-agent:<version>` and `:latest`. The test-service
+image of `015-test-service.md` remains separate, tagged by commit SHA and never
+by version.
 
 **Monorepo manifests.** `release-please` supports releasing many packages from
 one repository. There is one package. The manifest file exists only because v4

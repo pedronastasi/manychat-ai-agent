@@ -42,6 +42,22 @@ describe('runMigrations', () => {
     await close();
   });
 
+  it('finds its migrations from a cwd that has none (specs/033)', async () => {
+    // A tenant project runs `agent serve` from its own root; the migrations
+    // ship under node_modules, not beside the tenant's config/.
+    const { db, close } = freshDb();
+    const elsewhere = mkdtempSync(join(tmpdir(), 'tenant-root-'));
+    const cwd = process.cwd();
+    try {
+      process.chdir(elsewhere);
+      expect((await runMigrations(db)).length).toBeGreaterThan(0);
+    } finally {
+      process.chdir(cwd);
+      rmSync(elsewhere, { recursive: true, force: true });
+      await close();
+    }
+  });
+
   it('is idempotent — a second run applies nothing', async () => {
     // The embedded dev database boots on every start; re-running must be safe.
     const { db, close } = freshDb();

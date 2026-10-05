@@ -23,6 +23,7 @@ export const API_PAGE = 'api/index.md';
  */
 export const ALLOWLIST: readonly Section[] = [
   { label: 'Project', files: ['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md'] },
+  { label: 'Guides', directory: 'docs/guides' },
   { label: 'Specs', directory: 'specs' },
   { label: 'Decisions', directory: 'docs/adr' },
   // By name: the rest of config/ is where a deployment's real files sit.

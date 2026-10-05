@@ -155,4 +155,49 @@ describe('write access is confined to the release workflow', () => {
     expect(body).toMatch(/contents:\s*write/);
     expect(body).toMatch(/pull-requests:\s*write/);
   });
+
+  // specs/033 V5: of the workflows this repository ships, only release.yml
+  // holds packages: write. A deployment fork adds its own image-pushing
+  // workflow beside these, which is the tenant's to grant.
+  const shipped = ['ci.yml', 'claude-code-review.yml', 'claude.yml', 'docs.yml', 'release.yml'];
+  // The repository release.yml's own guard names, so the two cannot drift.
+  const home = /github\.repository == '([^']+)'/.exec(
+    readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8'),
+  )?.[1];
+  const inHomeCi = home !== undefined && process.env.GITHUB_REPOSITORY === home;
+  const checked = inHomeCi ? workflows : shipped;
+
+  it('names workflows that exist', () => {
+    expect(home).toBeDefined();
+    expect(workflows).toEqual(expect.arrayContaining(shipped));
+  });
+
+  it.each(checked.filter(name => name !== 'release.yml'))(
+    '%s does not request packages: write',
+    name => {
+      const body = readFileSync(join(WORKFLOW_DIR, name), 'utf8');
+      expect(body).not.toMatch(/packages:\s*write/);
+    },
+  );
+
+  it('release.yml requests packages: write and id-token: write', () => {
+    const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
+    expect(body).toMatch(/packages:\s*write/);
+    expect(body).toMatch(/id-token:\s*write/);
+  });
+
+  it('release.yml grants them per job, not to the whole workflow', () => {
+    // Above `jobs:` is the workflow-level block, which release-please inherits.
+    const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
+    const workflowLevel = body.slice(0, body.indexOf('\njobs:'));
+    expect(workflowLevel).not.toMatch(/id-token:\s*write/);
+    expect(workflowLevel).not.toMatch(/packages:\s*write/);
+  });
+
+  it('release.yml publishes to npm without a stored token', () => {
+    // specs/033 § What changes in other specs: trusted publishing, "but no
+    // stored credential".
+    const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
+    expect(body).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
+  });
 });

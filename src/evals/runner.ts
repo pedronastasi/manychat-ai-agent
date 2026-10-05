@@ -1,0 +1,130 @@
+import { loadEnv, loadTenantConfig } from '../config/loader.ts';
+import { resolveModel } from '../agent/registry.ts';
+import { GenerateTextRunner } from '../agent/runner.ts';
+import { ActionStage, describeAction } from '../agent/tools.ts';
+import { checkCase, classify, evalDir, loadCases } from './cases.ts';
+import type { Status } from './cases.ts';
+
+interface Outcome {
+  id: string;
+  status: Status;
+  failures: string[];
+  latencyMs: number;
+  costUsd: number;
+}
+
+/** When a nudge case's contact went quiet (specs/025). Invented, and fixed. */
+const NUDGE_SINCE = new Date('2026-01-15T10:00:00Z');
+
+const GREEN = '\x1b[32m';
+const RED = '\x1b[31m';
+const YELLOW = '\x1b[33m';
+const DIM = '\x1b[2m';
+const RESET = '\x1b[0m';
+
+const MARKS: Record<Status, string> = {
+  passed: `${GREEN}pass${RESET}`,
+  failed: `${RED}FAIL${RESET}`,
+  reviewed: `${YELLOW}read${RESET}`,
+};
+
+export async function runEval(): Promise<void> {
+  const env = loadEnv();
+  const configDir = process.env.CONFIG_DIR ?? 'config';
+  const suiteDir = evalDir();
+
+  const tenant = loadTenantConfig(configDir);
+  const cases = loadCases(suiteDir);
+
+  // Defaults to the race deadline, so a suite that sets nothing behaves as
+  // before. A tenant evaluating a reasoning model raises this rather than
+  // RACE_DEADLINE_MS, which the live request path depends on.
+  const latencyBudgetMs = Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS);
+
+  const runner = new GenerateTextRunner({
+    model: resolveModel(env.AGENT_MODEL),
+    modelSpec: env.AGENT_MODEL,
+    config: () => tenant,
+    maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
+    temperature: env.AGENT_TEMPERATURE,
+    reasoningEffort: env.AGENT_REASONING_EFFORT,
+  });
+
+  console.log(`\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   cases: ${cases.length}\n`);
+
+  const outcomes: Outcome[] = [];
+  for (const testCase of cases) {
+    // Nothing staged here is performed: the suite reads the choice, and no
+    // ManyChat account is involved (specs/012).
+    const stage = new ActionStage();
+    const result = await runner.run({
+      text: testCase.text,
+      history: testCase.history,
+      stage,
+      contact: testCase.contact
+        ? {
+            sentFlows: new Set(),
+            funnelStage: testCase.contact.funnel_stage,
+            course: testCase.contact.course,
+            intent: testCase.contact.intent,
+            openingDue: testCase.contact.opening_due,
+            advertCourse: testCase.contact.advert_course,
+          }
+        : undefined,
+      // A fixed time, so the trigger note is the same on every run.
+      nudge: testCase.nudge ? { since: NUDGE_SINCE } : undefined,
+    });
+    const actions = result.toolsOffered ? stage.staged.map(describeAction) : null;
+    const failures = checkCase({
+      testCase,
+      reply: result.reply,
+      catalog: tenant.catalog,
+      latencyMs: result.latencyMs,
+      latencyBudgetMs,
+      actions,
+      interventions: result.interventions,
+    });
+
+    const status = classify(failures, testCase.review);
+
+    outcomes.push({
+      id: testCase.id,
+      status,
+      failures,
+      latencyMs: result.latencyMs,
+      costUsd: result.usage.costUsd,
+    });
+
+    console.log(
+      `  ${MARKS[status]}  ${testCase.id.padEnd(28)} ${DIM}${result.latencyMs}ms${RESET}`,
+    );
+    for (const failure of failures) console.log(`        ${RED}${failure}${RESET}`);
+    if (result.interventions.length > 0)
+      console.log(`        ${DIM}interventions: ${result.interventions.join(', ')}${RESET}`);
+    if (actions !== null && actions.length > 0)
+      console.log(`        ${DIM}actions: ${actions.join(', ')}${RESET}`);
+    // The criterion is printed next to the reply so the person already reading
+    // the output is told what to look for, rather than left to notice drift.
+    if (testCase.review !== undefined)
+      console.log(`        ${YELLOW}review: ${testCase.review}${RESET}`);
+    // Replies are printed so a human reads them; a green suite whose tone has
+    // drifted is still a failure, and only a person can see that.
+    for (const text of result.reply.messages) console.log(`        ${DIM}${text}${RESET}`);
+  }
+
+  const count = (status: Status) => outcomes.filter(outcome => outcome.status === status).length;
+  const failed = count('failed');
+  const reviewed = count('reviewed');
+
+  const latencies = outcomes
+    .map(outcome => outcome.latencyMs)
+    .sort((first, second) => first - second);
+  const p95 = latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * 0.95))] ?? 0;
+  const cost = outcomes.reduce((total, outcome) => total + outcome.costUsd, 0);
+
+  // Three counts, not two: a suite of nothing but `review` cases must not be
+  // able to report itself green (specs/009 § Verification).
+  const summary = `${count('passed')} passed   ${failed} failed   ${reviewed} to review`;
+  console.log(`\n  ${summary}   p95 ${p95}ms   cost $${cost.toFixed(4)}\n`);
+  process.exit(failed === 0 ? 0 : 1);
+}
