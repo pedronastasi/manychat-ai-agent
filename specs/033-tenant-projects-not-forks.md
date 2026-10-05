@@ -204,9 +204,9 @@ The existing deployment is the proof that the contract is enough, so moving it
 is part of this spec, not a follow-up. The move is finished when the
 deployment's repository:
 
-- has no `upstream` remote, and holds only the paths the contract table above
-  names plus its own `.gitignore`, `README.md`, `renovate.json` and lockfile.
-  Those four share a name with files here, but not their content;
+- has no `upstream` remote, and no file copied from this repository. Files it
+  writes for itself, such as its `.gitignore`, `README.md`, lockfile, specs and
+  runbook, may share a name with one here; what they may not share is content;
 - depends on a published `manychat-ai-agent` version and runs the published
   image at that version in production;
 - has tenant tests that import only the public entry points, with the
