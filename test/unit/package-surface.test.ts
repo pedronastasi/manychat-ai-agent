@@ -236,6 +236,44 @@ describe('CLI commands exist and reject invalid config (specs/033 V4)', () => {
     expect(await run(['node', 'agent', 'nonexistent'])).toBe(2);
   });
 
+  it('reports a missing variable as the environment, not as config/', async () => {
+    vi.stubEnv('CONFIG_DIR', 'test/fixtures/config');
+    vi.stubEnv('MANYCHAT_SHARED_SECRET', undefined);
+    expect(await run(['node', 'agent', 'config', 'check'])).toBe(1);
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('invalid environment'));
+    expect(stderr).not.toHaveBeenCalledWith(expect.stringContaining('invalid config'));
+  });
+
+  it("the bin reads the tenant's .env from the directory it runs in", () => {
+    // The tenant project's root holds config/ and .env and nothing else; no
+    // variable comes from the shell (specs/033 § the tenant contract).
+    const tenant = mkdtempSync(join(tmpdir(), 'agent-tenant-root-'));
+    try {
+      cpSync('test/fixtures/config', join(tenant, 'config'), { recursive: true });
+      writeFileSync(
+        join(tenant, '.env'),
+        Object.entries(ciEnv)
+          .map(([name, value]) => `${name}=${value}`)
+          .join('\n'),
+      );
+      const result = spawnSync(
+        'node',
+        [
+          '--experimental-strip-types',
+          '--disable-warning=ExperimentalWarning',
+          join(process.cwd(), 'src/cli.ts'),
+          'config',
+          'check',
+        ],
+        { cwd: tenant, encoding: 'utf8', env: { PATH: process.env.PATH } },
+      );
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(0);
+    } finally {
+      rmSync(tenant, { recursive: true, force: true });
+    }
+  });
+
   it('the bin passes the exit code to the process', () => {
     // Two real processes, not one per command: each spawn competes for CPU
     // with the timing assertions elsewhere in the suite.

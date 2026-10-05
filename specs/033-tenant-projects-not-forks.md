@@ -90,6 +90,11 @@ then exits. A tenant's CI calls it, so a typo in a flow id fails a pull request
 rather than a container at boot. That is what the existing fork's tenant tests
 were reaching into `src/` to do.
 
+Every command loads `.env` from the working directory when one is there, as the
+scripts it replaces did with `--env-file=.env`. A variable already set in the
+environment wins over the file, so CI and a container set theirs as before. A
+missing or malformed variable is reported as the environment, not as `config/`.
+
 **Entry points, through an `exports` map.** Everything not listed here cannot
 be imported, and Node refuses the attempt:
 
@@ -198,6 +203,13 @@ into a silent one, and `035`'s scaffolder does not write it.
 A patch is an escape hatch, not a way to extend the agent. ADR-0021 names
 more than one live patch in any tenant at once as the condition for revisiting
 this whole design: it would mean configuration and plugins are not enough.
+
+**Open: the patch does not reach production.** `pnpm patch` changes the
+installed npm package, which is what a tenant's CI, evals and `agent` commands
+run. Production runs the published image, and the patch does not touch it, so
+the route above fixes CI and not the deployment. Until this spec says how a
+patched fix reaches the running service, an urgent fix production needs ships
+as an upstream release.
 
 ## The existing fork becomes the first tenant project, and then it is not a fork
 

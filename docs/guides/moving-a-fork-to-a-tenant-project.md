@@ -81,7 +81,7 @@ Your `package.json` replaces upstream's:
     "test": "vitest run"
   },
   "dependencies": {
-    "manychat-ai-agent": "<version>"
+    "manychat-ai-agent": "^<version>"
   },
   "devDependencies": {
     "vitest": "<the version you use today>"
@@ -89,9 +89,35 @@ Your `package.json` replaces upstream's:
 }
 ```
 
-Pin the exact version, the same one as the image tag, so CI checks the code
-production runs. Keep `"private": true`: it stops an accidental `npm publish`
-of your configuration.
+Use a caret range, as
+[spec 033](../../specs/033-tenant-projects-not-forks.md#a-release-is-a-version-bump-and-a-breaking-config-change-ships-its-migration)
+does. Before 1.0 a breaking release moves the minor version, and `^0.14.0`
+never crosses into `0.15`, so the range takes patch releases and leaves every
+breaking one to you. The lockfile still fixes the exact version CI installs.
+Keep `"private": true`: it stops an accidental `npm publish` of your
+configuration.
+
+The image tag in your Compose files must be that same exact version, or CI
+checks different code from the code production runs. Let Renovate update both
+in one pull request:
+
+```json
+{
+  "packageRules": [
+    {
+      "matchPackageNames": ["manychat-ai-agent", "ghcr.io/<owner>/manychat-ai-agent"],
+      "groupName": "manychat-ai-agent"
+    }
+  ]
+}
+```
+
+and have CI fail when they drift:
+
+```sh
+locked=$(node -p "JSON.parse(require('fs').readFileSync('node_modules/manychat-ai-agent/package.json', 'utf8')).version")
+grep -q "manychat-ai-agent:$locked" docker-compose.yml || { echo "image tag is not $locked"; exit 1; }
+```
 
 Then:
 
@@ -102,8 +128,10 @@ pnpm exec agent config check
 
 `agent config check` runs the validation the server runs at startup and exits.
 It reads the same environment variables the server does (the
-[`.env` table in spec 003](../../specs/003-config-schema.md#env)), so run it
-with your `.env` loaded or with placeholder values in CI.
+[`.env` table in spec 003](../../specs/003-config-schema.md#env)). Every `agent`
+command loads `.env` from the directory you run it in, and a variable already
+set in the shell wins over the file. In CI, where there is no `.env`, set
+placeholder values (step 5).
 
 `DATABASE_URL=pglite`, the embedded database, works only from a clone of this
 repository. From the package, run Postgres for local work too; the Compose file
@@ -214,8 +242,9 @@ the one in your Compose file.
 
 1. Read the release's changelog. Before 1.0, a minor version can break things
    ([spec 010](../../specs/010-release-workflow.md)).
-2. Bump `manychat-ai-agent` in `package.json` and the image tag in every Compose
-   file, to the same version.
+2. Renovate's pull request moves the lockfile and the image tag together. For a
+   breaking release, also move the range in `package.json` (`^0.14.0` to
+   `^0.15.0`); the range alone will not cross it.
 3. `pnpm install`, then `pnpm exec agent upgrade`. It rewrites `config/` to
    the new version's shape, and running it twice changes nothing. (Not
    `pnpm upgrade`: that is pnpm's own command for updating dependencies.)
@@ -239,10 +268,12 @@ with `ERR_PNPM_UNUSED_PATCH` until you delete the patch, which is the moment to
 confirm the upstream fix landed. Never set `allowUnusedPatches`: it turns that
 check off.
 
-**Open question.** A patch changes the npm package, which is what your CI runs.
-The image production runs is the published one, so the patch does not reach it.
-Spec 033 does not yet say how a patched fix reaches production. Until it does,
-a fix production needs goes out as an upstream release.
+**A patch does not reach production yet.** It changes the npm package, which is
+what your CI runs, but production runs the published image, which the patch
+does not touch.
+[Spec 033](../../specs/033-tenant-projects-not-forks.md#an-urgent-fix-is-a-pnpm-patch-and-an-upstream-pull-request-together)
+records this as open. Until it is settled, a fix production needs goes out as
+an upstream release.
 
 ## When the move is finished
 

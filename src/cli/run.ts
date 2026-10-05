@@ -1,4 +1,5 @@
 import { loadEnv, loadTenantConfig, ConfigError, reservedNames } from '../config/loader.ts';
+import type { Env } from '../contracts/config.ts';
 import type { Database } from '../db/client.ts';
 
 export const COMMANDS: Record<string, string> = {
@@ -29,8 +30,19 @@ function command(args: string[]): string | undefined {
 
 /** Every command fails closed on a config/ that `agent serve` would refuse (C6). */
 function configIsValid(dir: string): boolean {
+  // Checked apart, so a missing variable is not reported as a broken config/.
+  let env: Env;
   try {
-    loadTenantConfig(dir, reservedNames(loadEnv()));
+    env = loadEnv();
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      console.error(`invalid environment: ${error.message}`);
+      return false;
+    }
+    throw error;
+  }
+  try {
+    loadTenantConfig(dir, reservedNames(env));
     return true;
   } catch (error) {
     if (error instanceof ConfigError) {
