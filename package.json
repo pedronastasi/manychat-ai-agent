@@ -3,6 +3,10 @@
   "version": "0.15.1",
   "description": "A provider-agnostic conversational AI agent gateway that bridges no-code chat platforms to any LLM.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pedronastasi/manychat-ai-agent.git"
+  },
   "type": "module",
   "bin": {
     "agent": "dist/cli.js"

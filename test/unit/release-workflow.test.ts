@@ -200,4 +200,14 @@ describe('write access is confined to the release workflow', () => {
     const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
     expect(body).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
   });
+
+  it('package.json names the repository the provenance is signed from', () => {
+    // specs/010 § npm publish: npm refuses a provenance publish with E422
+    // when repository.url does not match the repository the workflow ran in.
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      repository?: { url?: string };
+    };
+    const url = (pkg.repository?.url ?? '').replace(/^git\+/, '').replace(/\.git$/, '');
+    expect(url).toBe(`https://github.com/${home}`);
+  });
 });
