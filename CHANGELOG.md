@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.15.0...manychat-ai-agent-v0.15.1) (2026-10-05)
+
+
+### Dependencies
+
+* **deps:** update pnpm to v12.9.1 ([2cd8fa8](https://github.com/pedronastasi/manychat-ai-agent/commit/2cd8fa8a3aa4510e619dc951ef0d05c833551db0))
+
 ## [0.15.0](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.14.0...manychat-ai-agent-v0.15.0) (2026-10-05)
 
 
