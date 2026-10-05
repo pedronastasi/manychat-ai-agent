@@ -175,6 +175,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^4.0.66
         version: 4.0.83(zod@4.6.5)
+      '@ai-sdk/provider':
+        specifier: 4.0.21
+        version: 4.0.21
       '@fastify/helmet':
         specifier: ^13.1.1
         version: 13.1.1
@@ -202,6 +205,9 @@ importers:
       manychat-sdk:
         specifier: ^0.1.0
         version: 0.1.0
+      pino:
+        specifier: ^10.4.0
+        version: 10.4.0
       postgres:
         specifier: ^3.4.9
         version: 3.4.9
@@ -209,9 +215,6 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@ai-sdk/provider':
-        specifier: 4.0.21
-        version: 4.0.21
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8

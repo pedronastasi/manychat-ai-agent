@@ -53,6 +53,7 @@ export default tseslint.config(
       'src/channels/manychat/simulator.ts',
       'src/backfill.ts',
       'src/cli.ts',
+      'src/cli/**/*.ts',
       'src/evals/**/*.ts',
       '*.config.ts',
     ],

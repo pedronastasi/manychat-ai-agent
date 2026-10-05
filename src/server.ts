@@ -30,7 +30,8 @@ import { MediaResolver } from './media/resolver.ts';
 import { TurnHandler } from './routes/turn.ts';
 import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
 import { escalationReply } from './agent/guardrails.ts';
-import { REDACT_PATHS, mediaScrubbingStream, redactText } from './observability/redact.ts';
+import { mediaScrubbingStream, redactText } from './observability/redact.ts';
+import { loggerOptions } from './observability/logger.ts';
 
 const MESSAGE_ROUTE = '/v1/channels/manychat/message';
 
@@ -73,9 +74,8 @@ export async function buildServer(opts: BuildOptions) {
 
   const app = Fastify({
     logger: {
-      level: env.LOG_LEVEL,
       // Redaction lives here so no call site can forget it (Constitution C5).
-      redact: { paths: REDACT_PATHS, remove: true },
+      ...loggerOptions(env.LOG_LEVEL),
       // And media URLs leave every line, whichever field carried them (specs/020).
       stream: mediaScrubbingStream(opts.logStream ?? process.stdout),
     },

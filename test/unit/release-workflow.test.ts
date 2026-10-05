@@ -171,4 +171,19 @@ describe('write access is confined to the release workflow', () => {
     expect(body).toMatch(/packages:\s*write/);
     expect(body).toMatch(/id-token:\s*write/);
   });
+
+  it('release.yml grants them per job, not to the whole workflow', () => {
+    // Above `jobs:` is the workflow-level block, which release-please inherits.
+    const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
+    const workflowLevel = body.slice(0, body.indexOf('\njobs:'));
+    expect(workflowLevel).not.toMatch(/id-token:\s*write/);
+    expect(workflowLevel).not.toMatch(/packages:\s*write/);
+  });
+
+  it('release.yml publishes to npm without a stored token', () => {
+    // specs/033 § What changes in other specs: trusted publishing, "but no
+    // stored credential".
+    const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
+    expect(body).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
+  });
 });

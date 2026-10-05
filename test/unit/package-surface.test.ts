@@ -1,19 +1,21 @@
 /**
  * specs/033-tenant-projects-not-forks.md § Verification.
  *
- * V1: `npm pack --dry-run --json` contains exactly the allowlist, not config/
- *     or .env.
- * V2: `exports` map names the listed entry points, and unlisted paths are
- *     refused with ERR_PACKAGE_PATH_NOT_EXPORTED.
+ * V1: `npm pack --dry-run --json`, in a tree holding a config/prompt.md and a
+ *     .env, packs exactly the allowlist.
+ * V2: the `exports` map names exactly the listed entry points, and an unlisted
+ *     path fails with ERR_PACKAGE_PATH_NOT_EXPORTED.
  * V3: `agent upgrade` migrations are idempotent.
- * V4: CLI commands exist and exit non-zero on invalid config.
+ * V4: each CLI command in the spec's table exists and exits non-zero on an
+ *     invalid config/.
  */
-import { describe, it, expect } from 'vitest';
-import { execSync, execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdtempSync, cpSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, cpSync, rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runMigrations } from '../../src/migrations/index.ts';
+import { COMMANDS, run } from '../../src/cli/run.ts';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   name: string;
@@ -23,54 +25,59 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   private?: boolean;
 };
 
+function plant(root: string, files: string[]) {
+  for (const file of files) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), 'invented\n');
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* V1: npm pack allowlist                                              */
 /* ------------------------------------------------------------------ */
 
 describe('the packed tarball contains exactly the allowlist (specs/033 V1)', () => {
-  // npm pack --dry-run --json lists what `npm publish` would ship. Running it
-  // in a tree that has config/ and .env proves they stay out.
-  const packed: { path: string }[] = (() => {
-    try {
-      const raw = execSync('npm pack --dry-run --json 2>/dev/null', { encoding: 'utf8' });
-      const parsed = JSON.parse(raw) as { files: { path: string }[] }[];
-      return parsed[0]?.files ?? [];
-    } catch {
-      return [];
-    }
-  })();
+  const shipped = [
+    'dist/cli.js',
+    'dist/config/index.js',
+    'db/migrations/0000_invented.sql',
+    'README.md',
+    'LICENSE',
+    'CHANGELOG.md',
+  ];
+  const withheld = [
+    'config/prompt.md',
+    '.env',
+    'src/main.ts',
+    'test/unit/invented.test.ts',
+    'evals/golden/cases.jsonl',
+  ];
+  let root: string;
+  let packed: string[];
 
-  it('ran npm pack', () => {
-    expect(packed.length).toBeGreaterThan(0);
+  beforeAll(() => {
+    // A copy of the real package.json in a tree that holds what must stay out:
+    // the `files` field under test, and nothing in CI that happens to be absent.
+    root = mkdtempSync(join(tmpdir(), 'agent-pack-'));
+    writeFileSync(join(root, 'package.json'), readFileSync('package.json'));
+    plant(root, [...shipped, ...withheld]);
+    const raw = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    packed = (JSON.parse(raw) as { files: { path: string }[] }[])[0]!.files.map(file => file.path);
   });
 
-  it('does not ship config/', () => {
-    const configFiles = packed.filter(file => file.path.startsWith('config/'));
-    expect(configFiles).toEqual([]);
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  it('packs the allowlist and package.json, and nothing else', () => {
+    expect(packed.sort()).toEqual([...shipped, 'package.json'].sort());
   });
 
-  it('does not ship .env', () => {
-    const envFiles = packed.filter(file => file.path === '.env' || file.path.startsWith('.env.'));
-    expect(envFiles).toEqual([]);
-  });
-
-  it('does not ship test/ or evals/', () => {
-    const testFiles = packed.filter(
-      file => file.path.startsWith('test/') || file.path.startsWith('evals/'),
-    );
-    expect(testFiles).toEqual([]);
-  });
-
-  it('ships only files in the allowlist', () => {
-    const allowed = ['dist/', 'db/migrations/', 'README.md', 'LICENSE', 'CHANGELOG.md'];
-    // package.json is always included by npm regardless of the files field.
-    const allAllowed = [...allowed, 'package.json'];
-    for (const file of packed) {
-      const ok = allAllowed.some(
-        prefix => file.path === prefix || (prefix.endsWith('/') && file.path.startsWith(prefix)),
-      );
-      expect(ok, `unexpected file in tarball: ${file.path}`).toBe(true);
-    }
+  it('leaves config/prompt.md and .env out', () => {
+    expect(packed).not.toContain('config/prompt.md');
+    expect(packed).not.toContain('.env');
   });
 
   it('is not marked private', () => {
@@ -83,42 +90,39 @@ describe('the packed tarball contains exactly the allowlist (specs/033 V1)', () 
 /* ------------------------------------------------------------------ */
 
 describe('the exports map matches the spec table (specs/033 V2)', () => {
-  const exports = pkg.exports ?? {};
-
-  it('exports ./config', () => {
-    expect(exports).toHaveProperty('./config');
+  it('names exactly ./config and ./testing (the bare specifier waits for 036)', () => {
+    expect(Object.keys(pkg.exports ?? {}).sort()).toEqual(['./config', './testing']);
   });
 
-  it('exports ./testing', () => {
-    expect(exports).toHaveProperty('./testing');
-  });
-
-  it('does not export the bare specifier (until 036)', () => {
-    expect('.' in exports).toBe(false);
-  });
-
-  it('refuses an unlisted deep import', () => {
-    // Node's module resolution throws ERR_PACKAGE_PATH_NOT_EXPORTED when an
-    // exports map is present and the path is not listed. We verify by asking
-    // Node to resolve it in a subprocess.
-    const script = `
-      try {
-        require.resolve('manychat-ai-agent/dist/agent/runner.js');
-        process.exit(0);
-      } catch (e) {
-        if (e.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') process.exit(42);
-        process.exit(1);
-      }
-    `;
+  it('resolves a listed entry point and refuses an unlisted deep import', () => {
+    // Installed under node_modules of a stand-in tenant project, so Node's own
+    // resolver applies the exports map.
+    const tenant = mkdtempSync(join(tmpdir(), 'agent-tenant-'));
     try {
-      execSync(`node -e "${script.replace(/\n/g, ' ')}"`, { stdio: 'pipe' });
-      // If it succeeds (exit 0), the exports map is not blocking deep imports.
-      // This can happen when node_modules doesn't have the package installed
-      // (i.e., running from source). In that case we verify the field exists.
-      expect(pkg.exports).toBeDefined();
-    } catch (error) {
-      const err = error as { status: number };
-      expect(err.status).toBe(42);
+      const installed = join(tenant, 'node_modules', pkg.name);
+      mkdirSync(installed, { recursive: true });
+      writeFileSync(join(installed, 'package.json'), readFileSync('package.json'));
+      plant(installed, ['dist/config/index.js', 'dist/testing/index.js', 'dist/agent/runner.js']);
+
+      const script = `
+        const outcome = specifier => {
+          try { require.resolve(specifier); return 'resolved'; }
+          catch (error) { return error.code; }
+        };
+        console.log(JSON.stringify({
+          config: outcome('${pkg.name}/config'),
+          testing: outcome('${pkg.name}/testing'),
+          deep: outcome('${pkg.name}/dist/agent/runner.js'),
+        }));
+      `;
+      const out = execFileSync('node', ['-e', script], { cwd: tenant, encoding: 'utf8' });
+      expect(JSON.parse(out)).toEqual({
+        config: 'resolved',
+        testing: 'resolved',
+        deep: 'ERR_PACKAGE_PATH_NOT_EXPORTED',
+      });
+    } finally {
+      rmSync(tenant, { recursive: true, force: true });
     }
   });
 });
@@ -167,51 +171,92 @@ function readConfig(dir: string): Record<string, string> {
 /* V4: CLI commands exist and fail on invalid config                    */
 /* ------------------------------------------------------------------ */
 
+/** The commands in the spec's own table, so a row added there is tested here. */
+const specCommands = [
+  ...readFileSync('specs/033-tenant-projects-not-forks.md', 'utf8').matchAll(
+    /^\|\s*`agent ([a-z ]+?)(?: "[^"]*")?`\s*\|/gm,
+  ),
+].map(row => row[1]!);
+
 describe('CLI commands exist and reject invalid config (specs/033 V4)', () => {
-  const cli = 'src/cli.ts';
-  const nodeFlags = ['--experimental-strip-types', '--disable-warning=ExperimentalWarning'];
-  const badConfigDir = mkdtempSync(join(tmpdir(), 'bad-config-'));
+  // The values ci.yml sets, so only config/ can be what is wrong.
+  const ciEnv = {
+    AGENT_MODEL: 'mock:demo',
+    PUBLIC_BASE_URL: 'https://ci.example.com',
+    MANYCHAT_SHARED_SECRET: 'ci-secret-ci-secret-ci-secret-xx',
+    DATABASE_URL: 'pglite',
+  };
 
-  // Write invalid config so `config check` and others fail.
-  writeFileSync(join(badConfigDir, 'prompt.md'), 'test persona');
-  writeFileSync(join(badConfigDir, 'catalog.json'), '{}');
-  writeFileSync(join(badConfigDir, 'rules.json'), '{}');
-
-  it('exits 2 with no arguments (usage)', () => {
-    try {
-      execFileSync('node', [...nodeFlags, cli], { stdio: 'pipe' });
-      expect.unreachable('should have exited non-zero');
-    } catch (error) {
-      expect((error as { status: number }).status).toBe(2);
-    }
+  let badConfig: string;
+  let stderr: ReturnType<typeof vi.spyOn>;
+  beforeAll(() => {
+    badConfig = mkdtempSync(join(tmpdir(), 'bad-config-'));
+    writeFileSync(join(badConfig, 'prompt.md'), 'invented persona');
+    writeFileSync(join(badConfig, 'catalog.json'), '{}');
+    writeFileSync(join(badConfig, 'rules.json'), '{}');
+  });
+  afterAll(() => rmSync(badConfig, { recursive: true, force: true }));
+  beforeEach(() => {
+    for (const [name, value] of Object.entries(ciEnv)) vi.stubEnv(name, value);
+    vi.stubEnv('CONFIG_DIR', badConfig);
+    stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
-  it('exits non-zero for config check on invalid config', () => {
-    try {
-      execFileSync('node', [...nodeFlags, cli, 'config', 'check'], {
-        stdio: 'pipe',
-        env: {
-          ...process.env,
-          CONFIG_DIR: badConfigDir,
-          MANYCHAT_SHARED_SECRET: 'test-secret-test-secret-xx',
-        },
-      });
-      expect.unreachable('should have exited non-zero');
-    } catch (error) {
-      expect((error as { status: number }).status).not.toBe(0);
-    }
+  it('read the command table from the spec, and the CLI declares the same', () => {
+    expect(specCommands).toEqual([
+      'serve',
+      'worker',
+      'eval',
+      'simulate',
+      'config check',
+      'upgrade',
+      'tokens backfill',
+    ]);
+    expect(Object.keys(COMMANDS)).toEqual(specCommands);
   });
 
-  it('prints usage for unknown commands', () => {
-    try {
-      execFileSync('node', [...nodeFlags, cli, 'nonexistent'], { stdio: 'pipe' });
-      expect.unreachable('should have exited non-zero');
-    } catch (error) {
-      expect((error as { status: number }).status).toBe(2);
-    }
+  it('passes config check on a valid config, so the environment is not the failure', async () => {
+    vi.stubEnv('CONFIG_DIR', 'test/fixtures/config');
+    expect(await run(['node', 'agent', 'config', 'check'])).toBe(0);
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
+  it.each(specCommands)('agent %s exits non-zero on an invalid config/', async command => {
+    expect(await run(['node', 'agent', ...command.split(' ')])).toBe(1);
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(`invalid config (${badConfig})`));
+  });
+
+  it('exits 2 with usage for no command or an unknown one', async () => {
+    expect(await run(['node', 'agent'])).toBe(2);
+    expect(await run(['node', 'agent', 'nonexistent'])).toBe(2);
+  });
+
+  it('the bin passes the exit code to the process', () => {
+    // Two real processes, not one per command: each spawn competes for CPU
+    // with the timing assertions elsewhere in the suite.
+    const bin = (args: string[]) =>
+      spawnSync(
+        'node',
+        [
+          '--experimental-strip-types',
+          '--disable-warning=ExperimentalWarning',
+          'src/cli.ts',
+          ...args,
+        ],
+        { encoding: 'utf8', env: { ...process.env, ...ciEnv, CONFIG_DIR: badConfig } },
+      );
+    expect(bin([]).status).toBe(2);
+    const upgrade = bin(['upgrade']);
+    expect(upgrade.status).toBe(1);
+    expect(upgrade.stderr).toContain(`invalid config (${badConfig})`);
   });
 
   it('has a bin entry for agent', () => {
-    expect(pkg.bin).toHaveProperty('agent');
+    expect(pkg.bin).toEqual({ agent: 'dist/cli.js' });
   });
 });

@@ -7,13 +7,11 @@ on:
 # release contains): ci.yml runs on pull requests from forks and keeps
 # `contents: read`. Merging the two would hand it write access.
 #
-# id-token: OIDC trusted publishing on npm (specs/033).
-# packages: push the release image to GHCR (specs/033).
+# The publish jobs declare their own grants: id-token for npm trusted
+# publishing, packages for GHCR (specs/033). Neither reaches release-please.
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
-  packages: write
 
 jobs:
   release-please:
@@ -52,9 +50,11 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm publish --no-git-checks --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Trusted publishing: the OIDC token is the credential, so no stored
+      # registry token exists to leak (specs/033). The exchange needs npm >= 11.5.1,
+      # which the Node release alone does not guarantee.
+      - run: npm install -g npm@^11.5.1
+      - run: npm publish --provenance --access public
 
   publish-image:
     needs: release-please
