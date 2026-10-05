@@ -86,6 +86,7 @@ So the published set is **exactly** these, and nothing else:
 | `README.md`                                   | Home page         |
 | `CONTRIBUTING.md`, `SECURITY.md`              | Top-level pages   |
 | `CHANGELOG.md`                                | Release history   |
+| `docs/guides/*.md`                            | Guides section    |
 | `specs/*.md` (`specs/README.md` as its index) | Specs section     |
 | `docs/adr/*.md`                               | Decisions section |
 | `config/README.md`, by name                   | Configuration     |
@@ -94,6 +95,10 @@ So the published set is **exactly** these, and nothing else:
 A Markdown file outside those paths is unpublished until a change to this spec
 and to the allowlist adds it. The allowlist is published content, so widening it
 is a C1 decision, not a configuration tweak.
+
+Guides are written for operators from the start, with invented names and
+values, so they are reviewed as public text in the pull request that adds them.
+The first is `033`'s move from a fork to a tenant project.
 
 The CHANGELOG is included because it has already been reviewed as a diff before
 the tag existed (`010-release-workflow.md`). The site adds a place it can be

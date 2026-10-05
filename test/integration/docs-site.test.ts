@@ -22,6 +22,7 @@ const ALLOWLIST = [
   'CONTRIBUTING.md',
   'SECURITY.md',
   'CHANGELOG.md',
+  ...markdownIn('docs/guides'),
   ...markdownIn('specs'),
   ...markdownIn('docs/adr'),
   'config/README.md',

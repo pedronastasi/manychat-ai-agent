@@ -217,6 +217,8 @@ deployment's repository:
   its own;
 - no longer documents a rebase-and-force-push sync.
 
+The steps, for this fork or any other, are in
+[Moving a deployment fork to a tenant project](../docs/guides/moving-a-fork-to-a-tenant-project.md).
 Its specs, runbook and workflows stay in its own repository; none of them moves
 here (C1). If the move needs a change this spec did not foresee, the change is
 made here first and the contract table above records it.
