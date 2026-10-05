@@ -235,24 +235,21 @@ and merging the two would hand it some.
 
 ## Deliberately not in scope
 
-ADR-0021 reverses the first three exclusions below.
-`033-tenant-projects-not-forks.md` specifies npm publish and the release image,
-and `035-create-scaffolds-a-tenant-project.md` the second package that needs a
-monorepo manifest. They describe the release as it is until those specs are
-implemented, and the pull request that implements each rewrites its own.
+ADR-0021 reversed the first two exclusions below.
+`033-tenant-projects-not-forks.md` specifies npm publish and the release image;
+`release.yml` now carries both, keyed off `release-please`'s `release_created`
+output, and adds `id-token: write` (OIDC trusted publishing) and
+`packages: write` (GHCR) to the workflow's permissions. `package.json` drops
+`private: true` and publishes from an allowlist (`files`). The third exclusion
+remains until `035` is implemented.
 
-**npm publish.** `package.json` sets `private: true`, so publication is not
-merely unimplemented, it is refused by the tooling. Publishing is a separate
-decision about supporting external consumers, and it brings a registry token
-into the release path. When it is made, it is an added step keyed off
-`release-please`'s `release_created` output, and it does not change anything
-specified here.
+**npm publish.** Specified by `033`. Each release publishes `manychat-ai-agent`
+to npm with OIDC provenance, from a clean checkout at the release tag.
 
-**Container images.** The deployment artefact is built outside this repository,
-in each tenant's own deployment repository. A release here is a source-level
-marker; what consumes it is that repository's concern. The one image this repository does build is
-the test-service image of `015-test-service.md`, tagged by commit SHA, never
-by version, and never attached to a release.
+**Container images.** Specified by `033`. Each release also pushes
+`ghcr.io/<owner>/manychat-ai-agent:<version>` and `:latest`. The test-service
+image of `015-test-service.md` remains separate, tagged by commit SHA and never
+by version.
 
 **Monorepo manifests.** `release-please` supports releasing many packages from
 one repository. There is one package. The manifest file exists only because v4

@@ -155,4 +155,20 @@ describe('write access is confined to the release workflow', () => {
     expect(body).toMatch(/contents:\s*write/);
     expect(body).toMatch(/pull-requests:\s*write/);
   });
+
+  // specs/033 V5: packages: write is confined to release.yml, and release.yml
+  // requests id-token: write for OIDC trusted publishing.
+  it.each(workflows.filter(name => name !== 'release.yml'))(
+    '%s does not request packages: write',
+    name => {
+      const body = readFileSync(join(WORKFLOW_DIR, name), 'utf8');
+      expect(body).not.toMatch(/packages:\s*write/);
+    },
+  );
+
+  it('release.yml requests packages: write and id-token: write', () => {
+    const body = readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8');
+    expect(body).toMatch(/packages:\s*write/);
+    expect(body).toMatch(/id-token:\s*write/);
+  });
 });
