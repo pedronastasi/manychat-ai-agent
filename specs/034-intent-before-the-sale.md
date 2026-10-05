@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-05
+pr: 167
 constitution: [C1, C4, C6, C9]
 adr: [0015]
 ---
@@ -72,6 +74,9 @@ write opens the sale (C4). Each turn the model is told the result in an
 At most one field may carry `intent`, a field may not be both `intent` and
 `funnel` or `course` (`028`), and a funnel field requires an intent field:
 each is a load failure. A deployment that sells cannot run without the gate.
+So does an `opening` flow (`032`): it goes out on the turn that records
+`prospect`, so without an intent field it never would, and a tenant would lose
+it without being told.
 The field and its values are the system's, not the tenant's, as `023`'s stages
 are.
 
@@ -251,8 +256,8 @@ file fails at load.
 
 1. Config tests assert that a funnel field without an intent field, an intent
    field whose values are not exactly `not_prospect` and `prospect`, two
-   intent fields, and a field that is both `intent` and `funnel` or `course`
-   each fail at load.
+   intent fields, a field that is both `intent` and `funnel` or `course`, and
+   an `opening` flow without an intent field each fail at load.
 2. A unit test asserts that, before `prospect`, `send_flow`, `add_tag`,
    `remove_tag`, `schedule_nudge` and `set_field` on any field but intent
    return `not_prospect` with no request and without using a slot of the
@@ -270,8 +275,10 @@ file fails at load.
    that it is not sent on an unknown or `not_prospect` turn, on an escalated
    prospect turn with no flow or on any turn after one, to a prospect by the
    rollout rule, or a second time.
-5. A unit test asserts that a course stored from a bound request reaches the
-   model as an advert's course, and a course on an unbound request does not.
+5. An integration test asserts that a course stored from a bound request
+   reaches the model as an advert's course, and a course on an unbound
+   request, or one the agent wrote, does not. It runs the turn handler, which
+   is where the binding is known.
 6. Golden eval cases, demo tenant. The suite runs the model without the turn
    handler, so it cannot see the server send the opening (`032 § Verification`);
    it asserts the decision that gates it instead. A first "hi" stages no intent

@@ -11,6 +11,7 @@ import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { mockModel } from '../helpers/model.ts';
 import { manychatAnswer } from '../helpers/manychat.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/025-in-window-nudge.md § Verification items 1, 2 (the tool offer) and
@@ -81,19 +82,21 @@ describe('the nudge section is checked at load (specs/025 V1)', () => {
   });
 
   it('offers schedule_nudge with a nudge section and not without one', () => {
-    const withNudge = buildTools(tools, new ActionStage());
+    const withNudge = buildTools(tools, new ActionStage(), asProspect());
     expect(Object.keys(withNudge!)).toContain('schedule_nudge');
 
     const withoutNudge = loadWithNudge(undefined)().tools!;
     expect(withoutNudge.nudge).toBeUndefined();
-    expect(Object.keys(buildTools(withoutNudge, new ActionStage())!)).not.toContain(
+    expect(Object.keys(buildTools(withoutNudge, new ActionStage(), asProspect())!)).not.toContain(
       'schedule_nudge',
     );
   });
 
   it('offers schedule_nudge to a tenant whose only tool is the nudge', () => {
     const only = { ...NO_TOOLS, nudge: tools.nudge };
-    expect(Object.keys(buildTools(only, new ActionStage())!)).toEqual(['schedule_nudge']);
+    expect(Object.keys(buildTools(only, new ActionStage(), asProspect())!)).toEqual([
+      'schedule_nudge',
+    ]);
     expect(buildSystemPrompt('', tenant.catalog, tenant.rules, only).staticPrefix).toContain(
       'FOLLOW-UPS',
     );
@@ -101,7 +104,9 @@ describe('the nudge section is checked at load (specs/025 V1)', () => {
 
   it('never shows the model humanActiveTag', () => {
     const { staticPrefix } = buildSystemPrompt('', tenant.catalog, tenant.rules, tools);
-    const description = String(buildTools(tools, new ActionStage())!.schedule_nudge!.description);
+    const description = String(
+      buildTools(tools, new ActionStage(), asProspect())!.schedule_nudge!.description,
+    );
     expect(staticPrefix).not.toContain(tools.nudge!.humanActiveTag!);
     expect(description).not.toContain(tools.nudge!.humanActiveTag!);
   });
@@ -110,7 +115,7 @@ describe('the nudge section is checked at load (specs/025 V1)', () => {
 describe('a nudge turn is offered no schedule_nudge (specs/025 V2)', () => {
   it('stages the delay the model names, with its minutes', async () => {
     const stage = new ActionStage();
-    const built = buildTools(tools, stage);
+    const built = buildTools(tools, stage, asProspect());
     const execute = built!.schedule_nudge!.execute!;
     await execute({ delay: 'tomorrow' } as never, {
       toolCallId: 'test',
@@ -121,7 +126,9 @@ describe('a nudge turn is offered no schedule_nudge (specs/025 V2)', () => {
   });
 
   it('builds no schedule_nudge for a nudge turn', () => {
-    const built = buildTools(tools, new ActionStage(), undefined, undefined, { nudgeTurn: true });
+    const built = buildTools(tools, new ActionStage(), asProspect(undefined), undefined, {
+      nudgeTurn: true,
+    });
     expect(Object.keys(built!)).not.toContain('schedule_nudge');
     expect(Object.keys(built!)).toContain('send_flow');
   });

@@ -132,7 +132,10 @@ The graph has three nodes and a step counter in its state:
    which `029` sends when called, with its follow-ons, through the
    `ManyChatClient` port, and which returns `{ sent: … }`; the Python node
    does the same, keeping one send per flow per turn and the stage floor that
-   counts a payment link in flight. A read (`get_contact`, when `024` lands) is
+   counts a payment link in flight. Before the contact is a prospect, the
+   node refuses every write but the intent field and `write_note` with
+   `not_prospect`, as `034` specifies, and sends the opening on the turn that
+   first stages `prospect`, not the first model turn. A read (`get_contact`, when `024` lands) is
    performed through the `ManyChatClient` port, with its own timeout, and
    returns its result or `{ available: false }`. Then back to `model`, unless
    the counter has reached the cap less one.

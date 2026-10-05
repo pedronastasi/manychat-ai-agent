@@ -1,6 +1,7 @@
 import type { Database } from '../db/client.ts';
 import type { AgentRunner, AgentResult } from '../agent/runner.ts';
 import type {
+  ActionRecord,
   InboundMedia,
   InboundMessage,
   AgentReply,
@@ -23,7 +24,14 @@ import {
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
 import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
-import { ActionStage, contactActionsFrom, knownCourse, openingFlow } from '../agent/tools.ts';
+import {
+  ActionStage,
+  contactActionsFrom,
+  courseField,
+  knownCourse,
+  openingFlow,
+  stagesProspect,
+} from '../agent/tools.ts';
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
@@ -123,6 +131,31 @@ export interface TurnResult {
  * ManyChat's answer could quote the token it was sent (specs/022 § Error text
  * stays within what C5 and 019 allow).
  */
+/**
+ * The course the contact arrived through, as the model is told it: one stored
+ * from a bound request that the agent never wrote (specs/034 § What counts as
+ * prospect intent). An unbound request's course is never stored (specs/028),
+ * so it is never one, and a forged request cannot make a contact a prospect.
+ */
+function advertCourseOf(
+  stored: string | undefined,
+  turns: readonly { actions: readonly ActionRecord[] | null }[],
+  tools: Tools,
+): { advertCourse?: string } {
+  const field = courseField(tools);
+  if (stored === undefined || field === undefined) return {};
+  const written = turns.some(turn =>
+    (turn.actions ?? []).some(
+      action =>
+        action.tool === 'set_field' &&
+        action.id === field.id &&
+        action.value === stored &&
+        action.status === 'performed',
+    ),
+  );
+  return written ? {} : { advertCourse: stored };
+}
+
 function describeWriteError(error: unknown) {
   if (!(error instanceof Error)) return { name: typeof error };
   return {
@@ -312,21 +345,31 @@ export class TurnHandler {
     // contact's ManyChat record, not their words, and they narrow what the
     // tools offer, so a request without the token cannot resend a flow or
     // walk the sale back (specs/023).
-    // The opening goes to a contact the model has never answered, unless
-    // the turn escalates (specs/032 § The opening flow is the server's).
     const openingEntry = openingFlow(tools);
-    const firstModelTurn =
-      openingEntry !== undefined && !(await this.store.hasModelTurn(conversation.id));
-    const contact =
+    const actionHistory =
       tools.flows.length + tools.fields.length > 0
+        ? await this.store.actionHistory(conversation.id)
+        : undefined;
+    const recorded = actionHistory && contactActionsFrom(actionHistory, tools, historySince);
+    // The opening belongs to the turn that first stages `prospect`, once per
+    // contact, and never to a prospect by the rollout rule (specs/034 § The
+    // opening waits for a prospect).
+    const openingDue =
+      openingEntry !== undefined &&
+      recorded !== undefined &&
+      !recorded.openingSpent &&
+      recorded.intent !== 'prospect';
+    const contact =
+      actionHistory && recorded
         ? {
-            ...contactActionsFrom(
-              await this.store.actionHistory(conversation.id),
-              tools,
-              historySince,
-            ),
+            ...recorded,
             ...course,
-            firstModelTurn,
+            openingDue,
+            ...advertCourseOf(
+              bound ? (requestCourse ?? keptCourse) : keptCourse,
+              actionHistory,
+              tools,
+            ),
           }
         : undefined;
 
@@ -392,10 +435,20 @@ export class TurnHandler {
     // Once per turn, whichever comes first: the model's first flow, or its
     // reply settling (specs/032 § The opening flow is the server's).
     let openingSend: Promise<void> | undefined;
+    // Only once this turn has staged `prospect`: before that the gate refuses
+    // every flow, so nothing can call it early (specs/034).
     const sendOpening =
-      openingEntry && firstModelTurn
-        ? () =>
-            (openingSend ??= this.sendOpening(openingEntry, conversation.id, stage, flows, logger))
+      openingEntry && openingDue
+        ? async () => {
+            if (!stagesProspect(stage, tools)) return;
+            await (openingSend ??= this.sendOpening(
+              openingEntry,
+              conversation.id,
+              stage,
+              flows,
+              logger,
+            ));
+          }
         : undefined;
 
     // A media turn's download and transcription share the model's deadline and

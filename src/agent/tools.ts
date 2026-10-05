@@ -1,7 +1,7 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
-import { FUNNEL_STAGES, LINK_SENT, PREPARED } from '../contracts/config.ts';
-import type { Tools } from '../contracts/config.ts';
+import { FUNNEL_STAGES, LINK_SENT, PREPARED, PROSPECT } from '../contracts/config.ts';
+import type { Tools, INTENT_VALUES } from '../contracts/config.ts';
 import type {
   ActionRecord,
   ActionStatus,
@@ -238,7 +238,7 @@ export function paymentLinkFlow(config: Tools) {
   return config.flows.find(flow => flow.role === 'payment_link');
 }
 
-/** The flow the server sends on a contact's first model turn, if the tenant marked one (specs/032). */
+/** The flow the server sends on a contact's prospect turn, if the tenant marked one (specs/034). */
 export function openingFlow(config: Tools) {
   return config.flows.find(flow => flow.role === 'opening');
 }
@@ -246,6 +246,24 @@ export function openingFlow(config: Tools) {
 /** The field the contact's course is kept in, if the tenant marked one (specs/028). */
 export function courseField(config: Tools) {
   return config.fields.find(field => field.course);
+}
+
+/** The field the contact's intent is kept in, if the tenant marked one (specs/034). */
+export function intentField(config: Tools) {
+  return config.fields.find(field => field.intent);
+}
+
+export type Intent = (typeof INTENT_VALUES)[number];
+
+/**
+ * Whether the turn staged a write of `prospect`, which makes it the turn the
+ * opening belongs to (specs/034 § The opening waits for a prospect).
+ */
+export function stagesProspect(stage: ActionStage, config: Tools): boolean {
+  const intent = intentField(config);
+  return stage.staged.some(
+    action => action.tool === 'set_field' && action.id === intent?.id && action.value === PROSPECT,
+  );
 }
 
 /**
@@ -300,10 +318,27 @@ export interface ContactActions {
   /** The course the conversation held before the request changed it, if it did. */
   courseChangedFrom?: string | undefined;
   /**
-   * The model has never run for this contact, so the opening flow goes out
-   * before this turn's reply unless it escalates (specs/032).
+   * The contact's intent as the server knows it: the last performed write,
+   * or `prospect` by the rollout rule. Absent is unknown (specs/034).
    */
-  firstModelTurn?: boolean | undefined;
+  intent?: Intent | undefined;
+  /**
+   * The contact has had the opening, or a turn that staged `prospect`, so
+   * the opening is never sent again (specs/034 § The opening waits for a
+   * prospect).
+   */
+  openingSpent?: boolean | undefined;
+  /**
+   * The opening goes out on this turn if it stages `prospect` and does not
+   * forfeit it by escalating (specs/034 § The opening waits for a prospect).
+   */
+  openingDue?: boolean | undefined;
+  /**
+   * The course a bound request stored and the agent did not write: the
+   * contact arrived through its advert (specs/034 § What counts as prospect
+   * intent).
+   */
+  advertCourse?: string | undefined;
 }
 
 export const NO_CONTACT_ACTIONS: ContactActions = { sentFlows: new Set() };
@@ -313,7 +348,7 @@ export const NO_CONTACT_ACTIONS: ContactActions = { sentFlows: new Set() };
  *
  * Flows count only inside the history window (specs/018): a contact back
  * after it starts clean, as their history does. The stage counts however old,
- * because it only ever moves forward.
+ * because it only ever moves forward, and so do intent and the opening.
  */
 export function contactActionsFrom(
   turns: readonly { createdAt: Date; actions: readonly ActionRecord[] | null }[],
@@ -321,16 +356,42 @@ export function contactActionsFrom(
   since: Date,
 ): ContactActions {
   const funnel = funnelField(config);
+  const intentId = intentField(config)?.id;
   const sentFlows = new Set<string>();
   let funnelStage: string | undefined;
+  let intent: Intent | undefined;
+  let openingSpent = false;
   for (const turn of turns) {
     for (const action of turn.actions ?? []) {
+      // A turn that staged `prospect` spent the opening whatever became of
+      // the write: an escalation discards it and forfeits the opening
+      // (specs/034). One dropped over the cap was never staged.
+      if (
+        (action.tool === 'send_flow' && action.origin === 'opening') ||
+        (action.tool === 'set_field' &&
+          action.id === intentId &&
+          action.value === PROSPECT &&
+          action.status !== 'dropped_over_cap')
+      ) {
+        openingSpent = true;
+      }
       if (action.status !== 'performed') continue;
       if (action.tool === 'send_flow' && turn.createdAt >= since) sentFlows.add(action.id);
       if (action.tool === 'set_field' && action.id === funnel?.id) funnelStage = action.value;
+      if (action.tool === 'set_field' && action.id === intentId) intent = action.value as Intent;
     }
   }
-  return { sentFlows, funnelStage };
+  // A contact already being sold to before the gate counts as a prospect
+  // without a write (specs/034 § Existing contacts are not asked again).
+  if (intentId !== undefined && intent === undefined && stageIndex(funnelStage) > 0) {
+    intent = PROSPECT;
+  }
+  return {
+    sentFlows,
+    funnelStage,
+    ...(intent === undefined ? {} : { intent }),
+    ...(openingSpent ? { openingSpent } : {}),
+  };
 }
 
 const idsOf = (entries: { id: string }[]) =>
@@ -389,7 +450,7 @@ export function buildTools(
     nudgeTurn?: boolean;
     flows?: FlowSends | undefined;
     /**
-     * Runs before the turn's first flow goes out: on a first model turn it
+     * Runs before the turn's first flow goes out: on the prospect turn it
      * sends the opening, so no content reaches the contact ahead of it
      * (specs/032 § The opening flow is the server's, not the model's).
      */
@@ -398,6 +459,26 @@ export function buildTools(
 ): ToolSet | undefined {
   const tools: ToolSet = {};
   const funnel = funnelField(config);
+  const intent = intentField(config);
+
+  /**
+   * The contact's intent as the server knows it, a write staged earlier this
+   * turn included, so a first message can be recorded as a prospect and sold
+   * to in one turn (specs/034 § Until intent is prospect, the sale's tools
+   * refuse).
+   */
+  const turnIntent = (): Intent | undefined => {
+    const staged = stage.staged.findLast(
+      (action): action is Extract<StagedAction, { tool: 'set_field' }> =>
+        action.tool === 'set_field' && action.id === intent?.id,
+    );
+    return (staged?.value as Intent | undefined) ?? contact.intent;
+  };
+  // Refused rather than removed from the enums: removing them would rule out
+  // the same-turn unlock. A refusal makes no request and takes no slot of the
+  // cap (specs/034).
+  const closed = () => intent !== undefined && turnIntent() !== PROSPECT;
+  const NOT_PROSPECT = { staged: false, reason: 'not_prospect' } as const;
 
   // Performed when called, unlike every write (ADR-0016), and offered only
   // when there is something configured to read.
@@ -506,6 +587,7 @@ export function buildTools(
         ? z.object({ flow: z.enum(idsOf(unsent)), contactAsked: z.boolean().optional() })
         : z.object({ flow: z.enum(idsOf(unsent)) }),
       execute: async (input: { flow: string; contactAsked?: boolean | undefined }) => {
+        if (closed()) return sends ? { sent: false, reason: 'not_prospect' } : NOT_PROSPECT;
         const { flow } = input;
         const entry = flows.get(flow)!;
         // Another course's content is refused, whatever the model names.
@@ -550,7 +632,7 @@ export function buildTools(
           ...(asked ? { contactAsked: true as const } : {}),
         };
         if (!sends) return { staged: stage.stage(action) };
-        // The opening goes first on a first model turn (specs/032). A payment
+        // The opening goes first on the prospect turn (specs/034). A payment
         // link is counted at link_sent before the await, so a funnel or course
         // write made beside it is refused rather than landing after it (specs/029).
         const link = entry.role === 'payment_link' && funnel !== undefined;
@@ -580,16 +662,18 @@ export function buildTools(
     tools.add_tag = tool({
       description: `Add one of these tags to the contact.\n${catalogOf(config.tags)}\n${STAGED}`,
       inputSchema: input,
-      execute: ({ tag }) => ({
-        staged: stage.stage({ tool: 'add_tag', id: tag, tag: tags.get(tag)!.tag }),
-      }),
+      execute: ({ tag }) =>
+        closed()
+          ? NOT_PROSPECT
+          : { staged: stage.stage({ tool: 'add_tag', id: tag, tag: tags.get(tag)!.tag }) },
     });
     tools.remove_tag = tool({
       description: `Remove one of these tags from the contact.\n${catalogOf(config.tags)}\n${STAGED}`,
       inputSchema: input,
-      execute: ({ tag }) => ({
-        staged: stage.stage({ tool: 'remove_tag', id: tag, tag: tags.get(tag)!.tag }),
-      }),
+      execute: ({ tag }) =>
+        closed()
+          ? NOT_PROSPECT
+          : { staged: stage.stage({ tool: 'remove_tag', id: tag, tag: tags.get(tag)!.tag }) },
     });
   }
 
@@ -650,6 +734,30 @@ export function buildTools(
           path: ['value'],
         }),
       execute: async ({ field, value }) => {
+        if (field === intent?.id) {
+          // Intent moves one way, and `prospect` is final (specs/034 § Intent
+          // is a field the model records).
+          const before = turnIntent();
+          if (before === PROSPECT && value !== PROSPECT) return { staged: false };
+          const staged = stage.stage({
+            tool: 'set_field',
+            id: field,
+            field: fields.get(field)!.field,
+            value,
+          });
+          // The opening belongs to the turn that first stages `prospect`, and
+          // the result says so, since the server could not know before the
+          // loop ran (specs/034 § The opening waits for a prospect).
+          const opening = openingFlow(config);
+          return staged &&
+            value === PROSPECT &&
+            before !== PROSPECT &&
+            contact.openingDue &&
+            opening
+            ? { staged, openingQueued: { flow: opening.id, description: opening.description } }
+            : { staged };
+        }
+        if (closed()) return NOT_PROSPECT;
         // The stage only moves forward (specs/023 § The funnel is a field the
         // agent moves).
         const floor = stageFloor();
@@ -733,13 +841,17 @@ export function buildTools(
         `Give yourself one more turn later, if the contact has not written by then.\n${listing}\n` +
         `A later call replaces an earlier one. ${STAGED}`,
       inputSchema: z.object({ delay: z.enum(idsOf(config.nudge.delays)) }),
-      execute: ({ delay }) => ({
-        staged: stage.stage({
-          tool: 'schedule_nudge',
-          id: delay,
-          minutes: delays.get(delay)!.minutes,
-        }),
-      }),
+      // A non-prospect is never followed up (specs/034).
+      execute: ({ delay }) =>
+        closed()
+          ? NOT_PROSPECT
+          : {
+              staged: stage.stage({
+                tool: 'schedule_nudge',
+                id: delay,
+                minutes: delays.get(delay)!.minutes,
+              }),
+            },
     });
   }
 

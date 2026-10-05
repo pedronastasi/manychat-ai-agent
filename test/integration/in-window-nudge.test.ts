@@ -19,6 +19,7 @@ import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import type { ContactReader } from '../../src/channels/manychat/client.ts';
 import type { ContactRecord } from '../../src/contracts/manychat.ts';
 import { FakeActions, FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
+import { asProspect } from '../helpers/intent.ts';
 
 /**
  * specs/025-in-window-nudge.md § Verification items 2 (one pending row),
@@ -76,7 +77,7 @@ function scriptedRunner(reply: AgentReply, flow?: string) {
     run: async input => {
       inputs.push(input);
       const stage = input.stage ?? new ActionStage();
-      const built = buildTools(tools, stage, input.contact, undefined, {
+      const built = buildTools(tools, stage, asProspect(input.contact), undefined, {
         nudgeTurn: input.nudge !== undefined,
       });
       if (flow) {
@@ -203,7 +204,7 @@ describe('at most one nudge waits per contact (specs/025 V2)', () => {
     const contactFields = new FakeContactFields();
     const runner: AgentRunner = {
       run: async ({ stage = new ActionStage() }) => {
-        const built = buildTools(tools, stage);
+        const built = buildTools(tools, stage, asProspect());
         await built!.schedule_nudge!.execute!({ delay: 'later_today' } as never, {
           toolCallId: 'test',
           messages: [],
@@ -378,7 +379,7 @@ describe('each cancellation reason cancels without a model call (specs/025 V3)',
       fetchImpl: api.fetch,
     });
     const stage = new ActionStage();
-    await buildTools(tools, stage)!.send_flow!.execute!(
+    await buildTools(tools, stage, asProspect())!.send_flow!.execute!(
       { flow: 'enrolment_link', contactAsked: true } as never,
       {
         toolCallId: 'test',
@@ -595,7 +596,7 @@ describe('a sent nudge is delivered through the reply field and flow (specs/025 
         const built = buildTools(
           tools,
           input.stage ?? new ActionStage(),
-          input.contact,
+          asProspect(input.contact),
           undefined,
           {
             nudgeTurn: input.nudge !== undefined,

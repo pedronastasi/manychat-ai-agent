@@ -216,6 +216,15 @@ export const PREPARED = 'prepared';
 export const LINK_SENT = 'link_sent';
 
 /**
+ * Whether the contact means to enrol, in the order intent may move
+ * (specs/034 § Intent is a field the model records). No value is unknown.
+ */
+export const INTENT_VALUES = ['not_prospect', 'prospect'] as const;
+
+/** The intent that opens the sale's tools, and is final once recorded (specs/034). */
+export const PROSPECT = 'prospect';
+
+/**
  * The latest a nudge may be scheduled for: an hour inside WhatsApp's 24-hour
  * window, for the worker's poll, a deferred delivery and the model call. Chosen,
  * not measured (specs/025 § The agent schedules a nudge; it does not send one).
@@ -399,10 +408,36 @@ export const ToolsSchema = z
            * (specs/028).
            */
           course: z.boolean().optional(),
+          /**
+           * The field the contact's intent is kept in: until it is `prospect`
+           * every sales tool refuses (specs/034).
+           */
+          intent: z.boolean().optional(),
         }),
       )
       .default([])
       .refine(uniqueIds, 'field ids must be unique')
+      .refine(
+        fields => fields.filter(field => field.intent).length <= 1,
+        'only one field may be marked "intent"',
+      )
+      .refine(
+        fields => !fields.some(field => field.intent && (field.funnel || field.course)),
+        'a field may not be marked both "intent" and "funnel" or "course"',
+      )
+      // The values are the system's, as the funnel's stages are (specs/034).
+      .refine(
+        fields =>
+          fields
+            .filter(field => field.intent)
+            .every(field => field.values.join() === INTENT_VALUES.join()),
+        `an "intent" field's values must be ${INTENT_VALUES.join(', ')}, in that order`,
+      )
+      // A deployment that sells cannot run without the gate (specs/034).
+      .refine(
+        fields => !fields.some(field => field.funnel) || fields.some(field => field.intent),
+        'a field marked "funnel" needs a field marked "intent"',
+      )
       .refine(
         fields => fields.filter(field => field.funnel).length <= 1,
         'only one field may be marked "funnel"',
@@ -462,6 +497,17 @@ export const ToolsSchema = z
     message: 'nudge.humanActiveTag may not be a tag the agent writes',
     path: ['nudge'],
   })
+  // The opening goes out on the turn that records `prospect`, so without an
+  // intent field it never would (specs/034 § The opening waits for a prospect).
+  .refine(
+    tools =>
+      !tools.flows.some(flow => flow.role === 'opening') ||
+      tools.fields.some(field => field.intent),
+    {
+      message: 'an "opening" flow needs a field marked "intent"',
+      path: ['flows'],
+    },
+  )
   // A flow tied to a stage needs a stage to be tied to (specs/032).
   .refine(
     tools => !tools.flows.some(flow => flow.onStage) || tools.fields.some(field => field.funnel),
