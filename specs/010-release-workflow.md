@@ -260,6 +260,18 @@ remains until `035` is implemented.
 **npm publish.** Specified by `033`. Each release publishes `manychat-ai-agent`
 to npm with OIDC provenance, from a clean checkout at the release tag.
 
+npm checks the provenance against the package before it accepts a publish.
+It refuses with `E422` unless `package.json`'s `repository.url` names the
+repository the workflow ran in, and a test asserts that the URL matches the
+repository `release.yml`'s guard names. Two settings live on npmjs.com rather
+than in this repository. The first is the package's trusted publisher:
+`release.yml` in this repository, with no environment. The second is its
+allowed actions, which must include `npm publish`. The default allows only
+`npm stage publish`, and with that default the workflow fails with
+`E403 OIDC permission denied for this action`. The first version (0.15.0)
+was published by hand, because npm cannot attach a trusted publisher to a
+package that does not exist yet.
+
 **Container images.** Specified by `033`. Each release also pushes
 `ghcr.io/<owner>/manychat-ai-agent:<version>` and `:latest`. The test-service
 image of `015-test-service.md` remains separate, tagged by commit SHA and never
