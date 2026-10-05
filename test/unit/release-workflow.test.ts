@@ -156,9 +156,23 @@ describe('write access is confined to the release workflow', () => {
     expect(body).toMatch(/pull-requests:\s*write/);
   });
 
-  // specs/033 V5: packages: write is confined to release.yml, and release.yml
-  // requests id-token: write for OIDC trusted publishing.
-  it.each(workflows.filter(name => name !== 'release.yml'))(
+  // specs/033 V5: of the workflows this repository ships, only release.yml
+  // holds packages: write. A deployment fork adds its own image-pushing
+  // workflow beside these, which is the tenant's to grant.
+  const shipped = ['ci.yml', 'claude-code-review.yml', 'claude.yml', 'docs.yml', 'release.yml'];
+  // The repository release.yml's own guard names, so the two cannot drift.
+  const home = /github\.repository == '([^']+)'/.exec(
+    readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8'),
+  )?.[1];
+  const inHomeCi = home !== undefined && process.env.GITHUB_REPOSITORY === home;
+  const checked = inHomeCi ? workflows : shipped;
+
+  it('names workflows that exist', () => {
+    expect(home).toBeDefined();
+    expect(workflows).toEqual(expect.arrayContaining(shipped));
+  });
+
+  it.each(checked.filter(name => name !== 'release.yml'))(
     '%s does not request packages: write',
     name => {
       const body = readFileSync(join(WORKFLOW_DIR, name), 'utf8');

@@ -246,8 +246,13 @@ made here first and the contract table above records it.
   second run changes nothing.
 - A test asserts each CLI command in the table exists and exits non-zero on an
   invalid `config/`.
-- A test asserts `release.yml` is the only workflow with `packages: write`,
-  extending `010`'s `contents: write` check. `id-token: write` is already held
+- A test asserts `release.yml` is the only workflow this repository ships with
+  `packages: write`, extending `010`'s `contents: write` check. The test names
+  the shipped workflows. In this repository's own CI it also checks every
+  other file in `.github/workflows/`, so a new workflow cannot hold the grant
+  unlisted. Elsewhere it checks the named ones only: a deployment fork's own
+  workflow that pushes its image is the tenant's, until the fork becomes a
+  tenant project. `id-token: write` is already held
   by `docs.yml`, `claude.yml` and `claude-code-review.yml`, so the test asserts
   only that `release.yml` requests it.
 - The release image is checked once, on the first release: it starts with a
