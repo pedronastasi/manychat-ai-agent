@@ -83,6 +83,10 @@ later.
   fallback, not only a model reply.
 - A turn that loses the race while a reply to the contact is queued sends no
   holding line: a reply is already on its way.
+- A reply that fails and goes back for a retry holds the contact's later
+  replies back until it is delivered or dead-lettered. The worker hands the
+  rest of that contact's batch back, and no later reply to them is claimed
+  while an earlier one is being sent or waits out its retry.
 
 The worker then delivers the contact's rows in the order they were written,
 with the gap between them (`002`).
@@ -127,7 +131,9 @@ with the gap between them (`002`).
    line.
 5. A queue test asserts that a reply row is due no earlier than a reply queued
    for the same contact, and that a delivered row, a failed row, a token write
-   and another contact's reply hold nothing back.
+   and another contact's reply hold nothing back. Others assert that a later
+   reply is not claimed while an earlier one is being sent or waits out a
+   retry, and that a retried reply takes the rest of its contact's batch back.
 6. An integration test asserts that an unbound turn while tokens are enforced
    neither waits for a bound turn nor holds one up.
 7. A test through the server asserts that two requests for one contact share

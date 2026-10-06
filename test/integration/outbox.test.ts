@@ -353,6 +353,43 @@ describe('specs/037 § A reply never overtakes an earlier one (V5)', () => {
     expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
   });
 
+  it("holds a contact's later reply back while an earlier one waits out a retry", async () => {
+    const first = await enqueue('s1', 'first');
+    const second = await enqueue('s1', 'second');
+    await enqueue('s2', 'for someone else');
+    const [claimed] = await queue().claimBatch(1);
+    expect(claimed?.id).toBe(first);
+    await queue().markFailed(first, 1, 'upstream', true);
+
+    // Due, but behind a reply backing off: another contact's goes, it does not.
+    const due = await queue().claimBatch(10);
+    expect(due.map(row => row.subscriberId)).toEqual(['s2']);
+    expect(await rowById(second)).toMatchObject({ status: 'pending' });
+  });
+
+  it("holds a contact's later reply back while an earlier one is being sent", async () => {
+    await enqueue('s1', 'first');
+    await queue().claimBatch(1);
+    await enqueue('s1', 'second');
+    expect(await queue().claimBatch(10)).toEqual([]);
+  });
+
+  it("a retried reply takes the rest of its contact's batch back with it", async () => {
+    const first = await enqueue('s1', 'first');
+    const second = await enqueue('s1', 'second');
+    const client = stubClient();
+    client.sendText = (subscriberId, messages) =>
+      messages[0] === 'first'
+        ? Promise.reject(manychatError(503, 'unavailable'))
+        : Promise.resolve(void client.sent.push({ subscriberId, messages }));
+
+    const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
+    expect(result).toMatchObject({ retrying: 1, released: 1, delivered: 0 });
+    expect(client.sent).toEqual([]);
+    expect(await rowById(first)).toMatchObject({ status: 'pending', attempts: 1 });
+    expect(await rowById(second)).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
   it('finds no queued reply once the last one is delivered', async () => {
     const only = await enqueue('s1', 'only');
     expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);

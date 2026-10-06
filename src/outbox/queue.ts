@@ -126,8 +126,21 @@ export class OutboxQueue {
       WITH claimed AS (
         UPDATE ${outbox} SET status = 'delivering', attempts = ${outbox.attempts} + 1
         WHERE id IN (
-          SELECT id FROM ${outbox}
+          SELECT id FROM ${outbox} candidate
           WHERE status = 'pending' AND next_attempt_at <= now()
+            -- A reply waits while an earlier one to the contact is being sent
+            -- or waits out a retry, so it cannot overtake it (specs/037).
+            AND NOT (kind = 'reply' AND EXISTS (
+              SELECT 1 FROM ${outbox} earlier
+              WHERE earlier.tenant_id = candidate.tenant_id
+                AND earlier.subscriber_id = candidate.subscriber_id
+                AND earlier.kind = 'reply'
+                AND earlier.created_at < candidate.created_at
+                AND (
+                  earlier.status = 'delivering'
+                  OR (earlier.status = 'pending' AND earlier.next_attempt_at > now())
+                )
+            ))
           ORDER BY next_attempt_at
           FOR UPDATE SKIP LOCKED
           LIMIT ${limit}

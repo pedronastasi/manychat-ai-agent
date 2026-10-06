@@ -143,7 +143,15 @@ export class OutboxWorker {
             result.released += rest.length;
             return;
           }
-          await this.process(row, result);
+          const outcome = await this.process(row, result);
+          // A reply going back for a retry holds the contact's later rows
+          // back with it, so none of them overtakes it (specs/037).
+          if (outcome === 'retrying' && row.kind === 'reply') {
+            const rest = contactRows.slice(index + 1).map(unsent => unsent.id);
+            await this.queue.release(rest);
+            result.released += rest.length;
+            return;
+          }
         }
       }),
     );
@@ -154,13 +162,17 @@ export class OutboxWorker {
     return result;
   }
 
-  private async process(row: OutboxRow, result: DrainResult): Promise<void> {
+  private async process(
+    row: OutboxRow,
+    result: DrainResult,
+  ): Promise<'delivered' | 'retrying' | 'dead-lettered'> {
     const { logger } = this.opts;
     try {
       await this.deliver(row);
       await this.queue.markDelivered(row.id);
       result.delivered++;
       if (row.kind === 'reply') await this.performDeferred(row);
+      return 'delivered';
     } catch (error) {
       // ManyChat's own verdict when it is ManyChat's error, and a retry
       // otherwise: an unknown failure, such as the database, must not
@@ -190,6 +202,7 @@ export class OutboxWorker {
           'outbox delivery retrying',
         );
       }
+      return outcome;
     }
   }
 
