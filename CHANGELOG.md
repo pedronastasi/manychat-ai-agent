@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.17.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.17.0...v0.17.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency @ai-sdk/provider to v4.0.22 ([#140](https://github.com/pedronastasi/manychat-ai-agent/issues/140)) ([1177517](https://github.com/pedronastasi/manychat-ai-agent/commit/1177517f781c981497de4d41e279e01640e8c55d))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([0ae62c4](https://github.com/pedronastasi/manychat-ai-agent/commit/0ae62c4defdfdae998ca99abe4b6364c65d01868))
+* **deps:** lock file maintenance ([d178897](https://github.com/pedronastasi/manychat-ai-agent/commit/d1788977ffd898eef4c81735350b2638b8f10de2))
+* **deps:** update github actions ([0241f86](https://github.com/pedronastasi/manychat-ai-agent/commit/0241f8608927e81e9339ad45cd2101a6ed6cac5e))
+* **deps:** update github actions (major) ([e26d157](https://github.com/pedronastasi/manychat-ai-agent/commit/e26d1576abb97747686e244504c1a3fd1c0cc38d))
+
 ## [0.17.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.16.0...v0.17.0) (2026-10-06)
 
 
