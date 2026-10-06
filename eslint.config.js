@@ -7,6 +7,7 @@ export default tseslint.config(
       'dist/**',
       'node_modules/**',
       'coverage/**',
+      'packages/create/agent/**',
       'db/migrations/**',
       '.vitepress/cache/**',
       '.vitepress/dist/**',
@@ -38,7 +39,7 @@ export default tseslint.config(
 
   {
     // Plain Node scripts: declare the globals they legitimately use.
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'packages/create/**/*.mjs'],
     languageOptions: {
       globals: { console: 'readonly', process: 'readonly' },
     },

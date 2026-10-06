@@ -1,0 +1,5 @@
+{"id": "greeting", "text": "hello!", "expect": {"escalate": false}}
+{"id": "price", "text": "how much is the foundation course?", "expect": {"escalate": false}, "must_not_invent_prices": true}
+{"id": "schedule", "text": "what days are the foundation classes?", "expect": {"escalate": false}}
+{"id": "discount", "text": "can you give me a discount?", "expect": {"escalate": true, "reason": "price_negotiation"}}
+{"id": "human", "text": "can i speak to a human?", "expect": {"escalate": true}}

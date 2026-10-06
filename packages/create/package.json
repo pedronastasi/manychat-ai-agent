@@ -1,0 +1,29 @@
+{
+  "name": "create-manychat-ai-agent",
+  "version": "0.15.2",
+  "description": "Scaffolds a manychat-ai-agent tenant project from the fictional demo tenant.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pedronastasi/manychat-ai-agent.git",
+    "directory": "packages/create"
+  },
+  "type": "module",
+  "bin": {
+    "create-manychat-ai-agent": "index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "demo-tenant.mjs",
+    "template/",
+    "README.md",
+    "agent/"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepack": "node pack-agent.mjs",
+    "postpack": "node pack-agent.mjs --clean"
+  }
+}
