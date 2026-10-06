@@ -166,6 +166,12 @@ weekly schedule already spaces updates, and auto-merge only reaches patches that
 pass the full CI pipeline. A supply-chain compromise that passes CI is not
 stopped by an age gate anyway.
 
+The Claude reviewer (`claude-code-review.yml`) skips Renovate's pull requests,
+by their author, `renovate[bot]`, so a person merging `main` into one does not
+start a review either. A diff of version ranges and a lockfile gives it nothing
+CI does not already check, and the release notes a minor or a major needs read
+are not in the diff at all.
+
 ## Dependency PRs feed the release, and the titles are what make that work
 
 The `:semanticCommits` preset titles Renovate's pull requests with the
@@ -240,6 +246,9 @@ handles urgent ones.
   toolchain manager, matching the exclusions above, **and that both exclusions
   appear after the rule that grants it.** Order is what makes them effective,
   and the validator has no opinion about it.
+- A test asserts `claude-code-review.yml` skips pull requests authored by
+  `renovate[bot]` and `github-actions[bot]`, matched on the author rather than
+  the actor of the run.
 - The first grouped patch PR is observed end to end: it opens on schedule, CI
   runs, it merges without intervention, and the following Release PR contains
   the resulting `fix(deps)` entries.
