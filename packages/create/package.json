@@ -1,6 +1,6 @@
 {
   "name": "create-manychat-ai-agent",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "description": "Scaffolds a manychat-ai-agent tenant project from the fictional demo tenant.",
   "license": "MIT",
   "repository": {

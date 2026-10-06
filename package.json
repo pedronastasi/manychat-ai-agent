@@ -1,6 +1,6 @@
 {
   "name": "manychat-ai-agent",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "description": "A provider-agnostic conversational AI agent gateway that bridges no-code chat platforms to any LLM.",
   "license": "MIT",
   "repository": {
