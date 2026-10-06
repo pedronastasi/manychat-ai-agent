@@ -11,6 +11,8 @@ config/*
 # --- Build / deps ------------------------------------------------------------
 node_modules/
 dist/
+# The demo tenant, copied into the scaffolder only while it is packed (specs/035).
+packages/create/agent/
 *.tsbuildinfo
 
 # --- Documentation site (specs/014) -----------------------------------------

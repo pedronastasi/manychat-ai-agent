@@ -93,6 +93,7 @@ config/                # Tenant config (gitignored; *.example committed)
 docs/adr/              # Architecture Decision Records (0001–0020)
 specs/                 # Specification documents (000–032)
 evals/golden/          # Golden eval cases (cases.jsonl)
+packages/create/       # create-manychat-ai-agent: scaffolds a tenant project (specs/035)
 ```
 
 ## Testing conventions

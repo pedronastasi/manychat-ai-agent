@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-06
 constitution: [C1, C9]
 adr: [0021]
 ---
@@ -42,7 +43,12 @@ It writes:
 - `evals/<name>/cases.jsonl` with a few cases against the demo tenant, so
   `agent eval` has a suite to run on the first day.
 - `package.json` depending on `manychat-ai-agent` at `^<version>`, the version
-  of the scaffolder that ran.
+  of the scaffolder that ran. It is `private`, so the tenant's `config/` is
+  never published with it. The offline `.env` needs the embedded database
+  installed, which the agent declares as an optional peer dependency so its
+  image does not carry it; the generated project installs it as a dev
+  dependency. Its `test` script passes while `test/` is empty, so CI is green
+  before the tenant writes a test.
 - `docker-compose.yml` running the image at the same version.
 - `.github/workflows/ci.yml` running `agent config check`, the mock eval suite
   and the tenant tests.
