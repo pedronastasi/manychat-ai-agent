@@ -226,6 +226,9 @@ same pending row, which is the race ADR-0004 exists to avoid.
 - **No reaper exists.** A row claimed by a worker that dies before marking it
   stays `delivering` (read in `queue.ts` on 2026-10-02). Both workers finish
   their in-flight batch on `SIGTERM`, and a deploy never kills one mid-batch.
+  The TypeScript worker's batch ends sooner on a stop: it finishes each
+  contact's current reply and hands their later rows back (`002 § Messages to
+one contact are paced`).
 
 What does not coexist is anything held in memory:
 

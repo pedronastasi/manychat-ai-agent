@@ -29,6 +29,8 @@ export interface DrainResult {
   delivered: number;
   retrying: number;
   deadLettered: number;
+  /** Claimed, then handed back unattempted because the worker is stopping. */
+  released: number;
 }
 
 export class OutboxWorker {
@@ -38,6 +40,12 @@ export class OutboxWorker {
   private readonly store: ConversationStore;
   private readonly nudges: NudgeStore;
   private running = false;
+  /**
+   * Set by the stop function. A contact's rows after the one being sent go
+   * back to the queue, so a stop waits for one reply per contact, not a
+   * contact's whole paced chain (specs/002 § Messages to one contact are paced).
+   */
+  private stopping = false;
   private settled: Promise<void> = Promise.resolve();
 
   constructor(opts: WorkerOptions) {
@@ -116,6 +124,7 @@ export class OutboxWorker {
       delivered: 0,
       retrying: 0,
       deadLettered: 0,
+      released: 0,
     };
 
     // One contact's rows in the order claimed, so their replies arrive in
@@ -127,7 +136,15 @@ export class OutboxWorker {
     }
     const contacts = await Promise.allSettled(
       [...byContact.values()].map(async contactRows => {
-        for (const row of contactRows) await this.process(row, result);
+        for (const [index, row] of contactRows.entries()) {
+          if (this.stopping) {
+            const rest = contactRows.slice(index).map(unsent => unsent.id);
+            await this.queue.release(rest);
+            result.released += rest.length;
+            return;
+          }
+          await this.process(row, result);
+        }
       }),
     );
     // Every contact's rows have finished before a failure is reported, so a
@@ -204,6 +221,7 @@ export class OutboxWorker {
 
     return async () => {
       this.running = false;
+      this.stopping = true;
       await this.settled;
     };
   }

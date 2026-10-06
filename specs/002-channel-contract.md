@@ -208,6 +208,11 @@ So the agent paces, per contact, `MANYCHAT_REPLY_GAP_MS` (default 2000, at most
   next send is.
 - One contact never waits for another. The worker delivers each contact's rows
   in the order they were written, and different contacts at the same time.
+- A stopping worker finishes the reply it is sending to each contact and
+  hands that contact's later rows back to the queue unattempted. Otherwise a
+  stop would wait out a whole paced chain, and a deploy's grace period could
+  end mid-batch and strand rows as `delivering`, which nothing reclaims
+  (`026`).
 
 What this does not cover:
 
@@ -256,6 +261,8 @@ format. These are the checks that would actually catch a violation:
 6. A worker test holds one contact's first reply and asserts another contact's
    is delivered meanwhile, and the held contact's second reply only after its
    first. A queue test asserts a claimed batch reads back in the order written.
+   A worker test stops mid-batch and asserts the contact's next row is pending
+   again, its attempt taken back.
 
 What this misses: none of it proves WhatsApp delivered anything. ManyChat
 returns `{"status":"success"}` when it accepts a trigger, and acceptance is not

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { outbox } from '../db/schema.ts';
 import type { AgentReply, StagedAction } from '../contracts/agent.ts';
@@ -126,6 +126,18 @@ export class OutboxQueue {
           attempts: row.attempts,
         }) as OutboxRow,
     );
+  }
+
+  /**
+   * Hands claimed rows back unattempted: due again at once, with the claim's
+   * attempt taken back (specs/002 § Messages to one contact are paced).
+   */
+  async release(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(outbox)
+      .set({ status: 'pending', attempts: sql`${outbox.attempts} - 1` })
+      .where(and(inArray(outbox.id, [...ids]), eq(outbox.status, 'delivering')));
   }
 
   async markDelivered(id: string): Promise<void> {

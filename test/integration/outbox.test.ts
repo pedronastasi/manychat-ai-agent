@@ -275,6 +275,35 @@ describe('specs/002 § Messages to one contact are paced', () => {
     expect(started.filter(text => text !== 'for someone else')).toEqual(['first', 'second']);
   });
 
+  it("on stop, sends each contact's current reply and hands the rest back", async () => {
+    const first = await enqueue('paced', 'first');
+    const second = await enqueue('paced', 'second');
+
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    const started: string[] = [];
+    const client: ManyChatClient = {
+      sendText: (_subscriberId, messages) => {
+        started.push(messages[0]!);
+        return messages[0] === 'first' ? held : Promise.resolve();
+      },
+      writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
+    };
+
+    const stop = new OutboxWorker({ db, client, logger: silentLogger, pollIntervalMs: 10 }).start();
+    await vi.waitFor(() => expect(started).toEqual(['first']));
+    const stopped = stop();
+    release();
+    await stopped;
+
+    // A paced chain would hold the stop for a gap per reply; the next worker
+    // sends the rest, as if this one had never claimed it.
+    expect(started).toEqual(['first']);
+    expect(await rowById(first)).toMatchObject({ status: 'delivered' });
+    expect(await rowById(second)).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
   it('reads a batch back in the order its rows were written', async () => {
     const ids: string[] = [];
     for (const text of ['a', 'b', 'c', 'd', 'e']) ids.push(await enqueue('s1', text));
