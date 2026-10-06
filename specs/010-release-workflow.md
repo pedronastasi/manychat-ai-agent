@@ -187,6 +187,12 @@ deliberately not used. It trades a long-lived credential with write access for
 CI runs over a three-file diff that CI cannot fail on, and C1's premise is that
 credentials in this repository's blast radius are the thing to minimise.
 
+The Claude reviewer (`claude-code-review.yml`) skips the Release PR for the same
+reason, and by its author, `github-actions[bot]`, rather than by who started the
+run. A person re-running checks on it would otherwise spend a review on a
+version bump and a changelog generated from commits each reviewed on its own
+pull request.
+
 ## What a release contains
 
 | Artefact            | Produced | Notes                                      |
@@ -309,6 +315,8 @@ before anyone is on one is complexity with no reader.
   in CI rather than at the next release.
 - `ci.yml` retains `permissions: contents: read`. A test asserts no workflow
   other than `release.yml` requests `contents: write`.
+- A test asserts `claude-code-review.yml` skips pull requests authored by
+  `github-actions[bot]`, the Release PR's author.
 
 **What this does not prove.** Nothing here checks the changelog for tenant data
 (C1). The Release PR puts the text in front of a human with the `006` checklist
