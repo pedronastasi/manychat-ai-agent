@@ -14,23 +14,24 @@ import { join } from 'node:path';
 const WORKFLOW_DIR = '.github/workflows';
 const SPEC_PATH = 'specs/010-release-workflow.md';
 
-const config = JSON.parse(readFileSync('release-please-config.json', 'utf8')) as {
-  packages: Record<
-    string,
-    {
-      'bump-minor-pre-major'?: boolean;
-      'bump-patch-for-minor-pre-major'?: boolean;
-      'changelog-sections'?: {
-        type: string;
-        scope?: string;
-        section: string;
-        hidden?: boolean;
-      }[];
-    }
-  >;
+interface ReleaseSettings {
+  'bump-minor-pre-major'?: boolean;
+  'bump-patch-for-minor-pre-major'?: boolean;
+  'changelog-sections'?: {
+    type: string;
+    scope?: string;
+    section: string;
+    hidden?: boolean;
+  }[];
+}
+
+const config = JSON.parse(readFileSync('release-please-config.json', 'utf8')) as ReleaseSettings & {
+  packages: Record<string, ReleaseSettings>;
 };
 
-const rootPackage = config.packages['.'];
+// Top-level settings are release-please's defaults for every package, which a
+// package's own entry overrides (specs/035 releases two from one config).
+const rootPackage: ReleaseSettings = { ...config, ...config.packages['.'] };
 const sections = rootPackage?.['changelog-sections'] ?? [];
 
 /**

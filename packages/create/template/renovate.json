@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "packageRules": [
+    {
+      "description": "The agent's npm package and its image are one version: CI checks the package, docker-compose.yml runs the image. A release arrives as one pull request moving both, never automerged.",
+      "matchPackageNames": ["manychat-ai-agent", "ghcr.io/pedronastasi/manychat-ai-agent"],
+      "groupName": "manychat-ai-agent",
+      "automerge": false
+    }
+  ]
+}

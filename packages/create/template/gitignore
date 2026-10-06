@@ -1,0 +1,8 @@
+node_modules/
+
+# Credentials live in each developer's .env and in the server's, never here.
+.env
+.env.*
+
+# config/ is tracked: it is this tenant's configuration, and the repository
+# holding it stays private. CI fails when it is not (specs/035).
