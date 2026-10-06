@@ -1,5 +1,16 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { cpSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { ToolExecutionOptions, ToolSet } from 'ai';
 import { definePlugin, defineTool, PLUGIN_API_VERSION } from '../../src/index.ts';
 import { loadPlugins, PluginError } from '../../src/plugins/loader.ts';
@@ -90,7 +101,7 @@ async function call(tools: ToolSet, name: string, input: unknown): Promise<unkno
 /* The bare entry point                                                        */
 /* -------------------------------------------------------------------------- */
 
-describe('the bare entry point exports definePlugin (specs/036 § Plugins extend the agent)', () => {
+describe('the bare entry point exports definePlugin (specs/036 V1)', () => {
   it('exports definePlugin, defineTool and the API version, each returning what it is given', () => {
     const tool = defineTool({
       name: 'invented_tool',
@@ -109,7 +120,7 @@ describe('the bare entry point exports definePlugin (specs/036 § Plugins extend
 /* Loading                                                                     */
 /* -------------------------------------------------------------------------- */
 
-describe('plugins are listed in config/plugins.json and loaded at boot (specs/036)', () => {
+describe('plugins are listed in config/plugins.json and loaded at boot (specs/036 V2)', () => {
   it('loads none when the tenant has no plugins.json', async () => {
     const { configDir } = project(undefined);
     const loaded = await loadPlugins(configDir);
@@ -123,9 +134,50 @@ describe('plugins are listed in config/plugins.json and loaded at boot (specs/03
     expect(loaded.names).toEqual(['example-crm']);
     expect(loaded.hasTools).toBe(true);
   });
+
+  it('loads a plugin copied into the image, where the agent links itself into node_modules', async () => {
+    // The image's layout: the agent at its root, config/ mounted beside
+    // node_modules, and the link the Dockerfile makes so a plugin's bare
+    // import finds the agent.
+    expect(readFileSync('Dockerfile', 'utf8')).toMatch(
+      /^RUN ln -s \/app \/app\/node_modules\/manychat-ai-agent$/m,
+    );
+    const app = mkdtempSync(join(tmpdir(), 'agent-image-'));
+    cleanup.push(() => rmSync(app, { recursive: true, force: true }));
+    writeFileSync(
+      join(app, 'package.json'),
+      JSON.stringify({
+        name: 'manychat-ai-agent',
+        type: 'module',
+        exports: { '.': './dist/index.js' },
+      }),
+    );
+    mkdirSync(join(app, 'dist'));
+    writeFileSync(
+      join(app, 'dist', 'index.js'),
+      `export * from ${JSON.stringify(pathToFileURL(resolve('src/index.ts')).href)};\n`,
+    );
+    mkdirSync(join(app, 'config'));
+    writeFileSync(
+      join(app, 'config', 'plugins.json'),
+      JSON.stringify({ plugins: [EXAMPLE_PLUGIN] }),
+    );
+    mkdirSync(join(app, 'node_modules'));
+    cpSync(
+      join('test/fixtures/plugins', EXAMPLE_PLUGIN),
+      join(app, 'node_modules', EXAMPLE_PLUGIN),
+      {
+        recursive: true,
+      },
+    );
+    symlinkSync(app, join(app, 'node_modules', 'manychat-ai-agent'));
+
+    const loaded = await loadPlugins(join(app, 'config'));
+    expect(loaded.names).toEqual(['example-crm']);
+  });
 });
 
-describe('a plugin that does not load stops the server (specs/036)', () => {
+describe('a plugin that does not load stops the server (specs/036 V3)', () => {
   const refused = async (configDir: string, message: RegExp) => {
     const error = await loadPlugins(configDir).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(PluginError);
@@ -197,7 +249,7 @@ describe('a plugin that does not load stops the server (specs/036)', () => {
 /* A plugin tool is a staged action                                            */
 /* -------------------------------------------------------------------------- */
 
-describe('a plugin tool is a staged action (specs/036 § A plugin tool is a staged action)', () => {
+describe('a plugin tool is a staged action (specs/036 V4)', () => {
   it('is offered beside the built-in tools, and a call stages it without performing it', async () => {
     const { tool, calls } = recordingTool();
     const stage = new ActionStage();
@@ -300,7 +352,7 @@ describe('a plugin tool is a staged action (specs/036 § A plugin tool is a stag
 /* What a plugin is given, and how its perform ends                            */
 /* -------------------------------------------------------------------------- */
 
-describe('what a plugin is never given (specs/036 § What a plugin is never given)', () => {
+describe('what a plugin is never given (specs/036 V5)', () => {
   const action: StagedAction = {
     tool: 'plugin',
     id: 'crm_log_lead',
@@ -406,7 +458,7 @@ describe('what a plugin is never given (specs/036 § What a plugin is never give
 /* agent config check                                                          */
 /* -------------------------------------------------------------------------- */
 
-describe('agent config check loads the plugins as agent serve does (specs/036)', () => {
+describe('agent config check loads the plugins as agent serve does (specs/036 V7)', () => {
   // The values ci.yml sets, so only the plugins can be what is wrong.
   const ciEnv = {
     AGENT_MODEL: 'mock:demo',

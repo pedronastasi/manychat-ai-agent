@@ -30,6 +30,9 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
 # Migrations are applied at startup, so they must ship with the image.
 COPY --chown=node:node db/migrations ./db/migrations
+# A plugin copied into node_modules imports the bare `manychat-ai-agent`
+# (specs/036); this link resolves it to the agent itself.
+RUN ln -s /app /app/node_modules/manychat-ai-agent
 
 USER node
 EXPOSE 3000

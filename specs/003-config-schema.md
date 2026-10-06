@@ -19,6 +19,7 @@ config/
   catalog.json     courses, prices, schedule (gitignored)
   rules.json       thresholds, escalation    (gitignored)
   tools.json       optional agent actions    (gitignored)
+  plugins.json     optional plugin packages  (gitignored, 036)
   *.example        committed scaffolds for the fictional demo tenant
 .env               credentials and model selection (gitignored)
 ```

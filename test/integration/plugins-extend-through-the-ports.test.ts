@@ -163,7 +163,7 @@ async function waitFor(ready: () => boolean | Promise<boolean>, timeoutMs = 5000
   }
 }
 
-describe('a plugin tool is staged and performed after the reply (specs/036)', () => {
+describe('a plugin tool is staged and performed after the reply (specs/036 V6)', () => {
   it('on the inline path: offered to the model, staged by its call, performed after the response', async () => {
     const { lines, logger } = journal();
     const { model: languageModel, calls } = model(ANSWER);

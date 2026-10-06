@@ -42,7 +42,8 @@ Everything in this spec is code in this repository, identical for every tenant:
 the tools, staging, the `tools.json` schema and its startup checks, the
 delivery order on both paths, the outbox payload, and the per-turn action
 record.
-A deployment never implements a tool. It supplies:
+A deployment implements a tool only as a plugin, through this mechanism
+(`036`). Otherwise it supplies:
 
 - `config/tools.json`, which says which flows, tags and field values exist and
   when each should be used (gitignored, C1);

@@ -683,3 +683,18 @@ ORDER BY t.seq;
   listing it here.
 - **Actions need `MANYCHAT_API_TOKEN`.** Without it every action is recorded as
   `failed`.
+
+## `plugins.json`: tools of your own (optional)
+
+When `tools.json` cannot express an action, a write to your own CRM say, a
+plugin package adds a tool the agent stages and performs exactly as it does its
+own. `config/plugins.json` lists the packages to load:
+
+```json
+{ "plugins": ["agent-plugin-example-crm"] }
+```
+
+There is no example file, because every package listed must be installed or the
+server refuses to start. Plugins load at boot, so a change to one is a restart,
+not `kill -HUP`. How to write one: `docs/guides/writing-a-plugin.md`; the design:
+`specs/036-plugins-extend-through-the-ports.md`.
