@@ -246,6 +246,43 @@ describe('drainOnce', () => {
   });
 });
 
+describe('specs/002 § Messages to one contact are paced', () => {
+  it("delivers one contact's replies in the order written, and other contacts alongside", async () => {
+    await enqueue('paced', 'first');
+    await enqueue('other', 'for someone else');
+    await enqueue('paced', 'second');
+
+    // The paced contact's first send hangs, as a reply waiting out its gap does.
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    const started: string[] = [];
+    const client: ManyChatClient = {
+      sendText: (_subscriberId, messages) => {
+        started.push(messages[0]!);
+        return messages[0] === 'first' ? held : Promise.resolve();
+      },
+      writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
+    };
+
+    const drained = new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
+    await vi.waitFor(() => expect(started).toContain('for someone else'));
+    expect(started).not.toContain('second');
+
+    release();
+    const result = await drained;
+    expect(result.delivered).toBe(3);
+    expect(started.filter(text => text !== 'for someone else')).toEqual(['first', 'second']);
+  });
+
+  it('reads a batch back in the order its rows were written', async () => {
+    const ids: string[] = [];
+    for (const text of ['a', 'b', 'c', 'd', 'e']) ids.push(await enqueue('s1', text));
+    const claimed = await new OutboxQueue(db).claimBatch(10);
+    expect(claimed.map(row => row.id)).toEqual(ids);
+  });
+});
+
 describe('startWorker', () => {
   it('drains the queue while running and stops cleanly', async () => {
     await enqueue('polled');

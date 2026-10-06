@@ -110,7 +110,6 @@ export class OutboxWorker {
    * and so a deployment can run a single drain as a one-shot job.
    */
   async drainOnce(): Promise<DrainResult> {
-    const { logger } = this.opts;
     const rows = await this.queue.claimBatch(this.opts.batchSize ?? 10);
     const result: DrainResult = {
       claimed: rows.length,
@@ -119,44 +118,62 @@ export class OutboxWorker {
       deadLettered: 0,
     };
 
+    // One contact's rows in the order claimed, so their replies arrive in
+    // order; different contacts at once, so one contact's paced reply does not
+    // hold up everyone else's (specs/002 § Messages to one contact are paced).
+    const byContact = new Map<string, OutboxRow[]>();
     for (const row of rows) {
-      try {
-        await this.deliver(row);
-        await this.queue.markDelivered(row.id);
-        result.delivered++;
-        if (row.kind === 'reply') await this.performDeferred(row);
-      } catch (error) {
-        // ManyChat's own verdict when it is ManyChat's error, and a retry
-        // otherwise: an unknown failure, such as the database, must not
-        // discard a reply (specs/022 § Retries follow the SDK's retryable).
-        const retryable = error instanceof ManyChatError ? error.retryable : true;
-        // A token write's error is kept to its status: ManyChat's answer to it
-        // could quote the value it was sent (specs/019).
-        const message =
-          row.kind === 'contact_token'
-            ? `contact token write failed${error instanceof ManyChatApiError ? `: ${error.status}` : ''}`
-            : error instanceof Error
-              ? error.message
-              : String(error);
-        const outcome = await this.queue.markFailed(row.id, row.attempts, message, retryable);
-        if (outcome === 'dead-lettered') {
-          result.deadLettered++;
-          await this.dropDeferred(row);
-          // Dead letters are the signal that a contact never got their reply.
-          logger.error(
-            { outboxId: row.id, kind: row.kind, attempts: row.attempts },
-            'outbox dead-lettered',
-          );
-        } else {
-          result.retrying++;
-          logger.warn(
-            { outboxId: row.id, kind: row.kind, attempts: row.attempts },
-            'outbox delivery retrying',
-          );
-        }
+      byContact.set(row.subscriberId, [...(byContact.get(row.subscriberId) ?? []), row]);
+    }
+    const contacts = await Promise.allSettled(
+      [...byContact.values()].map(async contactRows => {
+        for (const row of contactRows) await this.process(row, result);
+      }),
+    );
+    // Every contact's rows have finished before a failure is reported, so a
+    // stop still waits for the whole batch.
+    const failed = contacts.find(contact => contact.status === 'rejected');
+    if (failed) throw failed.reason;
+    return result;
+  }
+
+  private async process(row: OutboxRow, result: DrainResult): Promise<void> {
+    const { logger } = this.opts;
+    try {
+      await this.deliver(row);
+      await this.queue.markDelivered(row.id);
+      result.delivered++;
+      if (row.kind === 'reply') await this.performDeferred(row);
+    } catch (error) {
+      // ManyChat's own verdict when it is ManyChat's error, and a retry
+      // otherwise: an unknown failure, such as the database, must not
+      // discard a reply (specs/022 § Retries follow the SDK's retryable).
+      const retryable = error instanceof ManyChatError ? error.retryable : true;
+      // A token write's error is kept to its status: ManyChat's answer to it
+      // could quote the value it was sent (specs/019).
+      const message =
+        row.kind === 'contact_token'
+          ? `contact token write failed${error instanceof ManyChatApiError ? `: ${error.status}` : ''}`
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      const outcome = await this.queue.markFailed(row.id, row.attempts, message, retryable);
+      if (outcome === 'dead-lettered') {
+        result.deadLettered++;
+        await this.dropDeferred(row);
+        // Dead letters are the signal that a contact never got their reply.
+        logger.error(
+          { outboxId: row.id, kind: row.kind, attempts: row.attempts },
+          'outbox dead-lettered',
+        );
+      } else {
+        result.retrying++;
+        logger.warn(
+          { outboxId: row.id, kind: row.kind, attempts: row.attempts },
+          'outbox delivery retrying',
+        );
       }
     }
-    return result;
   }
 
   /** Polling loop. Returns a stop function that finishes the in-flight batch. */

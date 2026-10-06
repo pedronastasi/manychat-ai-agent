@@ -661,6 +661,12 @@ export const EnvSchema = z
     // (specs/002-channel-contract.md § Verification).
     MANYCHAT_REPLY_FIELD: z.string().min(1).default('ai_message'),
     MANYCHAT_REPLY_FLOW_NS: optionalString,
+    /**
+     * The pause before each deferred reply message after the first, and
+     * between two replies to one contact (specs/002 § Messages to one contact
+     * are paced).
+     */
+    MANYCHAT_REPLY_GAP_MS: z.coerce.number().int().min(0).max(10_000).default(2_000),
     /** The contact's custom field that holds their token (specs/019, ADR-0012). */
     MANYCHAT_TOKEN_FIELD: z.string().min(1).default('ai_token'),
     /**

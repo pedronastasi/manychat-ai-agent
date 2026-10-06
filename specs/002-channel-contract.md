@@ -183,6 +183,43 @@ the custom field is scratch space and is never read back as a source of truth.
 A partial delivery counts as a failed attempt and re-enters the retry schedule
 whole. Retry and dead-lettering are unchanged — see ADR-0004.
 
+## Messages to one contact are paced
+
+A deferred reply of several messages used to go out back to back, a field write
+and a trigger per message with nothing between them. Two replies queued for one
+contact, a race lost on each of two messages or both waiting out the same flow
+(`030`), then arrived as one burst of seven messages, the first reply's
+question followed at once by the second reply.
+
+**A delay in the tenant's flow is not the fix.** The flow reads the field when
+its message step runs. A wait before that step lets the agent write the next
+message, and then the reset value, into the field while the flow waits, so
+the contact receives the last message several times, or the reset value itself.
+Observed on a live account on 2026-10-06, and undone the same day.
+
+So the agent paces, per contact, `MANYCHAT_REPLY_GAP_MS` (default 2000, at most
+10000):
+
+- Each message of a reply after the first is written that long after the
+  previous message's flow was triggered. This also gives a flow time to read
+  the field before the next message overwrites it.
+- A contact's next reply starts that long after the previous one ended. The
+  caller of the previous reply is not held for the gap; only the contact's
+  next send is.
+- One contact never waits for another. The worker delivers each contact's rows
+  in the order they were written, and different contacts at the same time.
+
+What this does not cover:
+
+- **Inline replies.** ManyChat renders the Dynamic Block's messages itself, and
+  the agent cannot space them.
+- **Two processes delivering to one contact.** The pacing lives in the process
+  that sends. A deployment with more than one worker can still send two
+  replies to one contact back to back.
+- **What the second reply says.** Pacing spaces the burst; it does not stop a
+  reply written without the one before it in its history from repeating it.
+  That is ordering turns per contact, a separate spec.
+
 ## Inbound payload
 
 ManyChat sends the fields configured in the Dynamic Block UI. We require at
@@ -213,6 +250,12 @@ format. These are the checks that would actually catch a violation:
    This is what fails if the implementation ever hoists the field write out of
    the per-row loop.
 4. A test asserts a retry re-writes the field rather than only re-triggering.
+5. Tests over fake timers assert the gap before each message after the first,
+   before a contact's next reply but not after the caller's own, never
+   between two contacts, and after a failed reply as after a delivered one.
+6. A worker test holds one contact's first reply and asserts another contact's
+   is delivered meanwhile, and the held contact's second reply only after its
+   first. A queue test asserts a claimed batch reads back in the order written.
 
 What this misses: none of it proves WhatsApp delivered anything. ManyChat
 returns `{"status":"success"}` when it accepts a trigger, and acceptance is not

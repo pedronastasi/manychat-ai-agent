@@ -89,16 +89,25 @@ export class OutboxQueue {
 
     // postgres-js returns a RowList (array); PGlite returns `{ rows }`. Tests run
     // against PGlite and production against postgres-js, so both are handled.
+    //
+    // RETURNING keeps no order, so the claimed rows are read back in the order
+    // they were written: one contact's replies go out in that order (specs/002
+    // § Messages to one contact are paced).
     const result: unknown = await this.db.execute(sql`
-      UPDATE ${outbox} SET status = 'delivering', attempts = ${outbox.attempts} + 1
-      WHERE id IN (
-        SELECT id FROM ${outbox}
-        WHERE status = 'pending' AND next_attempt_at <= now()
-        ORDER BY next_attempt_at
-        FOR UPDATE SKIP LOCKED
-        LIMIT ${limit}
+      WITH claimed AS (
+        UPDATE ${outbox} SET status = 'delivering', attempts = ${outbox.attempts} + 1
+        WHERE id IN (
+          SELECT id FROM ${outbox}
+          WHERE status = 'pending' AND next_attempt_at <= now()
+          ORDER BY next_attempt_at
+          FOR UPDATE SKIP LOCKED
+          LIMIT ${limit}
+        )
+        RETURNING id, tenant_id, subscriber_id, conversation_id, kind, payload, attempts, created_at
       )
-      RETURNING id, tenant_id, subscriber_id, conversation_id, kind, payload, attempts
+      SELECT id, tenant_id, subscriber_id, conversation_id, kind, payload, attempts
+      FROM claimed
+      ORDER BY created_at
     `);
 
     const rows: Row[] = Array.isArray(result)
