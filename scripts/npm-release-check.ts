@@ -44,7 +44,7 @@ export function shouldPublish(pkg: Manifest, lookup: Lookup, repository: string,
 }
 
 async function lookup(name: string): Promise<Lookup> {
-  const response = await fetch(`${REGISTRY}/${name.replace('/', '%2F')}`);
+  const response = await fetch(`${REGISTRY}/${name.replaceAll('/', '%2F')}`);
   if (response.status !== 200) return { status: response.status, versions: [] };
   const body = (await response.json()) as { versions?: Record<string, unknown> };
   return { status: 200, versions: Object.keys(body.versions ?? {}) };
