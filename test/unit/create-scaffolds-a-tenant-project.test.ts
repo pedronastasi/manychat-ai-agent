@@ -6,8 +6,8 @@
  *     repository; `agent config check` and `agent eval` against the mock model
  *     pass on the generated project; nothing it writes sets
  *     allowUnusedPatches.
- * V2: the release-please configuration releases `.` and `packages/create/` at
- *     one linked version.
+ * V2: the release-please configuration releases one package, sets the
+ *     scaffolder's version with the agent's, and the two versions are equal.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';

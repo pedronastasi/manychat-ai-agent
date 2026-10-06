@@ -255,14 +255,14 @@ and merging the two would hand it some.
 
 ## Deliberately not in scope
 
-ADR-0021 reversed all three exclusions below.
+ADR-0021 reversed two of the three exclusions below.
 `033-tenant-projects-not-forks.md` specifies npm publish and the release image;
 `release.yml` now carries both, keyed off `release-please`'s `release_created`
 output, and grants `id-token: write` (OIDC trusted publishing) and
 `packages: write` (GHCR) to the publish jobs alone. `package.json` drops
 `private: true` and publishes from an allowlist (`files`).
-`035-create-scaffolds-a-tenant-project.md` adds the second package, and with it
-the monorepo manifest.
+`035-create-scaffolds-a-tenant-project.md` adds a second package but releases
+it as part of the agent, so the monorepo-manifest exclusion stands.
 
 **npm publish.** Specified by `033`. Each release publishes `manychat-ai-agent`
 to npm with OIDC provenance, from a clean checkout at the release tag.
