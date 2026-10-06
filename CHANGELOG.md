@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.3](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.15.2...manychat-ai-agent-v0.15.3) (2026-10-06)
+
+
+### Specs and Docs
+
+* mark spec 033 implemented now the deployment fork has moved ([0c39980](https://github.com/pedronastasi/manychat-ai-agent/commit/0c399808effab470bf85ee38b98d8dd5fda8943c))
+* mark spec 033 implemented now the deployment fork has moved ([adecfe3](https://github.com/pedronastasi/manychat-ai-agent/commit/adecfe3508ff9b707b499f8e6d02ca4e7faf3ad1))
+* record what spec 033's release-image check accepted ([845332d](https://github.com/pedronastasi/manychat-ai-agent/commit/845332dc7cef98a5634ab69864ad4fba1c5433d5))
+
 ## [0.15.2](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.15.1...manychat-ai-agent-v0.15.2) (2026-10-05)
 
 
