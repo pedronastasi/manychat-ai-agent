@@ -7,7 +7,6 @@ import { createMarkdownRenderer } from 'vitepress';
 import { mermaidDiagrams, mermaidTag } from '../../.vitepress/diagrams.ts';
 
 import {
-  ALLOWLIST,
   API_PAGE,
   COLLAPSE_AFTER,
   REPOSITORY,
@@ -198,8 +197,13 @@ describe('the sidebar is derived (specs/014 § The sidebar is derived, never han
     const sidebar = deriveSidebar(root);
     const nav = deriveNav(root);
     const home = sidebar.find(group => group.items?.some(item => item.link === '/'));
+    // Against the sidebar, not ALLOWLIST: a section with no page yet, such as
+    // the API reference before it is generated, has neither a group nor an entry.
     expect(nav.map(item => item.text)).toEqual(
-      ALLOWLIST.map(section => section.label).filter(label => label !== home?.text),
+      sidebar.map(group => group.text).filter(text => text !== home?.text),
+    );
+    expect(nav.map(item => item.text)).toEqual(
+      expect.arrayContaining(['Guides', 'Specs', 'Decisions', 'Configuration']),
     );
     for (const item of nav) {
       const group = sidebar.find(candidate => candidate.text === item.text);
