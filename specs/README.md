@@ -49,7 +49,7 @@ test fails the suite.
 | [034 — Intent Before the Sale](034-intent-before-the-sale.md)                                                          | implemented | 2026-10-05  | #167 | 5     | C1, C4, C6, C9                     | [0015]                                                                                 |
 | [035 — `create` Scaffolds a Tenant Project from the Fixture Tenant](035-create-scaffolds-a-tenant-project.md)          | implemented | 2026-10-06  | #173 | 2     | C1, C9                             | [0021]                                                                                 |
 | [036 — Plugins Extend the Agent Through the Ports, and Cannot Reach the Race](036-plugins-extend-through-the-ports.md) | specified   | —           | —    | —     | C2, C4, C5, C6, C7                 | [0021], [0005], [0010], [0017]                                                         |
-| [037 — One Turn at a Time per Contact](037-one-turn-at-a-time-per-contact.md)                                          | specified   | —           | —    | 3     | C6, C7, C8                         | [0001], [0004]                                                                         |
+| [037 — One Turn at a Time per Contact](037-one-turn-at-a-time-per-contact.md)                                          | implemented | 2026-10-06  | #176 | 3     | C6, C7, C8                         | [0001], [0004]                                                                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
