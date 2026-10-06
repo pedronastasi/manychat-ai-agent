@@ -85,8 +85,9 @@ later.
   holding line: a reply is already on its way.
 - A reply that fails and goes back for a retry holds the contact's later
   replies back until it is delivered or dead-lettered. The worker hands the
-  rest of that contact's batch back, and no later reply to them is claimed
-  while an earlier one is being sent or waits out its retry.
+  rest of that contact's batch back, the contact's later replies move back to
+  its new time, and no later reply to them is claimed while an earlier one is
+  being sent or waits out its retry.
 
 The worker then delivers the contact's rows in the order they were written,
 with the gap between them (`002`).

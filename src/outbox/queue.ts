@@ -141,7 +141,7 @@ export class OutboxQueue {
                   OR (earlier.status = 'pending' AND earlier.next_attempt_at > now())
                 )
             ))
-          ORDER BY next_attempt_at
+          ORDER BY next_attempt_at, created_at
           FOR UPDATE SKIP LOCKED
           LIMIT ${limit}
         )
@@ -214,6 +214,21 @@ export class OutboxQueue {
           last_error = ${error},
           next_attempt_at = now() + (${backoffSeconds} * interval '1 second')
       WHERE id = ${id}
+    `);
+    // The contact's later replies move back with it, so none comes due before
+    // it and a full batch cannot claim one without it (specs/037 § A reply
+    // never overtakes an earlier one).
+    await this.db.execute(sql`
+      UPDATE ${outbox} later
+      SET next_attempt_at = GREATEST(later.next_attempt_at, failed.next_attempt_at)
+      FROM ${outbox} failed
+      WHERE failed.id = ${id}
+        AND failed.kind = 'reply'
+        AND later.tenant_id = failed.tenant_id
+        AND later.subscriber_id = failed.subscriber_id
+        AND later.kind = 'reply'
+        AND later.status IN ('pending', 'delivering')
+        AND later.created_at > failed.created_at
     `);
     return 'retrying';
   }

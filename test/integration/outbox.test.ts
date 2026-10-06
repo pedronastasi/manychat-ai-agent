@@ -367,6 +367,20 @@ describe('specs/037 § A reply never overtakes an earlier one (V5)', () => {
     expect(await rowById(second)).toMatchObject({ status: 'pending' });
   });
 
+  it('keeps a retried reply ahead once it comes due, however full the batch', async () => {
+    const first = await enqueue('s1', 'first');
+    const second = await enqueue('s1', 'second');
+    await queue().claimBatch(1);
+    await queue().markFailed(first, 1, 'upstream', true);
+    const due = async (id: string) => new Date((await rowById(id)).next_attempt_at).getTime();
+    expect(await due(second)).toBeGreaterThanOrEqual(await due(first));
+
+    // Time passes: both are due, and the batch has room for one.
+    await db.execute(sql`UPDATE outbox SET next_attempt_at = next_attempt_at - interval '1 hour'`);
+    const [claimed] = await queue().claimBatch(1);
+    expect(claimed?.id).toBe(first);
+  });
+
   it("holds a contact's later reply back while an earlier one is being sent", async () => {
     await enqueue('s1', 'first');
     await queue().claimBatch(1);
