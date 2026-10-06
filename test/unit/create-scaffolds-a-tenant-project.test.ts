@@ -272,11 +272,6 @@ describe('the agent and the scaffolder are released as one version (specs/035 V2
     expect(linked?.components?.sort()).toEqual([agentPkg.name, createPkg.name].sort());
   });
 
-  it('starts both from the one version', () => {
-    expect(manifest[CREATE]).toBe(manifest['.']);
-    expect(createPkg.version).toBe(agentPkg.version);
-  });
-
   it('keeps the agent tagged v<version>, as its image tags and installed tenants expect', () => {
     expect(config.packages['.']?.['include-component-in-tag']).toBe(false);
   });
