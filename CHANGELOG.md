@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.17.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.16.0...v0.17.0) (2026-10-06)
+
+
+### Features
+
+* pace replies to one contact, and run their turns one at a time (spec 037) ([6896cae](https://github.com/pedronastasi/manychat-ai-agent/commit/6896caee216985fb375593bdb58524bce8845053))
+
+
+### Bug Fixes
+
+* give a turn's place back when the contact read fails ([f85f57f](https://github.com/pedronastasi/manychat-ai-agent/commit/f85f57f8c178e4d1d82d7cc2256d4795d4ac50fd))
+* hand a waiting turn that fails to a person through the outbox ([db70c0b](https://github.com/pedronastasi/manychat-ai-agent/commit/db70c0b194b77901500b1c89f3e6c232fbd8bccc))
+* hand any silent turn that cannot settle to a person ([80f5e3e](https://github.com/pedronastasi/manychat-ai-agent/commit/80f5e3efb74e14ee3df68c1c4044bdbe05320247))
+* keep a retried reply ahead of the contact's later ones ([6fffa25](https://github.com/pedronastasi/manychat-ai-agent/commit/6fffa2546d80791fdf7252f40102dba830875556))
+* move a contact's later replies back with a retried one ([f6acfa2](https://github.com/pedronastasi/manychat-ai-agent/commit/f6acfa2c249743f1e4890b8dbf010182f06ff6c2))
+* take a turn's place in its contact's order on arrival ([6a9a309](https://github.com/pedronastasi/manychat-ai-agent/commit/6a9a3096e1f38817e194f6b5fa4c04fb7d42d7b8))
+
 ## [0.16.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.15.3...v0.16.0) (2026-10-06)
 
 
