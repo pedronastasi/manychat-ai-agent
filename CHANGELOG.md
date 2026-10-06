@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.15.3...v0.16.0) (2026-10-06)
+
+
+### Miscellaneous Chores
+
+* **manychat-ai-agent:** Synchronize manychat-ai-agent versions
+
 ## [0.15.3](https://github.com/pedronastasi/manychat-ai-agent/compare/manychat-ai-agent-v0.15.2...manychat-ai-agent-v0.15.3) (2026-10-06)
 
 
