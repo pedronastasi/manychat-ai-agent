@@ -236,6 +236,23 @@ describe('a reply to the contact still queued (specs/037 V4)', () => {
     await eventually(replyRows, found => found.length === 2);
   });
 
+  it('hands the contact to a person when that silent turn cannot settle (C6)', async () => {
+    await queueEarlier();
+    const { runner } = recordingRunner(() => 400);
+    const turn = await handler(runner, new TurnLanes(20_000), { raceDeadlineMs: 100 }).handle(
+      inbound('and the dates?'),
+    );
+    expect(turn.silent).toBe(true);
+    // The database fails before the model answers, so the reply is never recorded.
+    await db.execute(sql`DROP TABLE turns CASCADE`);
+
+    const rows = await eventually(replyRows, found => found.length === 2);
+    expect(rows.map(row => (row.payload as { messages: string[] }).messages)).toEqual([
+      ['held for a flow'],
+      ['Passing you to a person.'],
+    ]);
+  });
+
   it('queues a reply decided without the model behind it too', async () => {
     await queueEarlier();
     const strict = RulesSchema.parse({

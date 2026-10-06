@@ -255,7 +255,7 @@ export class TurnHandler {
           })
           .catch(async (error: unknown) => {
             logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
-            await this.handOffLate(inbound);
+            await this.handOffSilent(inbound);
           })
           .finally(leave);
         // The previous turn has started the conversation by now; its reply,
@@ -286,26 +286,34 @@ export class TurnHandler {
   }
 
   /**
-   * A turn that failed after its silent response, which no error handler can
+   * A turn that failed after a silent response, which no error handler can
    * answer any more: the handoff goes through the outbox instead, as the
    * route's error handler would have sent it (C6, specs/037).
    */
-  private async handOffLate(inbound: InboundMessage): Promise<void> {
+  private async handOffSilent(inbound: InboundMessage): Promise<void> {
     const { rules, logger } = this.deps;
+    let conversation;
     try {
-      const conversation = await this.store.find(inbound.tenantId, inbound.subscriberId);
+      conversation = await this.store.find(inbound.tenantId, inbound.subscriberId);
       await this.queue.enqueue({
         tenantId: inbound.tenantId,
         subscriberId: inbound.subscriberId,
         conversationId: conversation?.id ?? null,
         reply: escalationReply('low_confidence', rules.messages.escalation),
       });
-      if (conversation) {
-        await this.store.markEscalated(conversation.id);
-        await this.nudges.cancel(conversation.id, 'escalated');
-      }
     } catch (error) {
-      logger.error({ err: String(error) }, 'waiting turn handoff not queued');
+      logger.error({ err: String(error) }, 'silent turn handoff not queued');
+      return;
+    }
+    if (!conversation) return;
+    try {
+      await this.store.markEscalated(conversation.id);
+      await this.nudges.cancel(conversation.id, 'escalated');
+    } catch (error) {
+      logger.error(
+        { conversation: conversation.id, err: String(error) },
+        'silent turn handoff queued, escalation not recorded',
+      );
     }
   }
 
@@ -847,9 +855,9 @@ export class TurnHandler {
           });
         } catch (error) {
           logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
-          // A late turn's response was silent, so this is all the contact
-          // would get: nothing (C6).
-          if (opts.late) await this.handOffLate(inbound);
+          // A silent response, late or behind a queued reply or a flow, left
+          // the contact this reply and nothing else (C6).
+          if (silent) await this.handOffSilent(inbound);
         }
       });
       opts.onBackground?.(settling);

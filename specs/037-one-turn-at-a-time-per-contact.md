@@ -57,6 +57,8 @@ outbox. Turns wait in the order their requests arrived.
 - A turn that fails after that silent response is past the route's error
   handler, which answers a failure with the handoff (`017`). The handoff goes
   through the outbox instead, and the conversation is marked escalated (C6).
+  So does any turn whose response was silent and whose queued reply then
+  could not be written: one behind a queued reply, below, or a flow (`030`).
 - A previous turn that has not settled after `MODEL_ABORT_MS` plus the race
   deadline is no longer waited for, and the log line `turn wait expired` says
   so. Everything a turn runs is bounded by then. A turn stuck past that bound
