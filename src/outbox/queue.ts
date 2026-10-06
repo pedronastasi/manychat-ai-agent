@@ -55,6 +55,9 @@ export class OutboxQueue {
       payload.actions = [...input.actions.staged];
       payload.turnId = input.actions.turnId;
     }
+    const notBefore = input.notBefore
+      ? sql`${input.notBefore.toISOString()}::timestamptz`
+      : sql`now()`;
     const [row] = await this.db
       .insert(outbox)
       .values({
@@ -62,11 +65,37 @@ export class OutboxQueue {
         subscriberId: input.subscriberId,
         conversationId: input.conversationId,
         payload,
-        ...(input.notBefore ? { nextAttemptAt: input.notBefore } : {}),
+        // Never due before a reply already queued for the contact, so a later
+        // reply cannot overtake it (specs/037 § A reply never overtakes an
+        // earlier one). GREATEST ignores the NULL of a contact with none.
+        nextAttemptAt: sql`GREATEST(${notBefore}, (
+          SELECT max(${outbox.nextAttemptAt}) FROM ${outbox}
+          WHERE ${this.queuedReplies(input.tenantId, input.subscriberId)}
+        ))`,
       })
       .returning({ id: outbox.id });
     if (!row) throw new Error('enqueue: insert returned no row');
     return row.id;
+  }
+
+  /**
+   * Whether a reply to the contact is still queued: pending, or being
+   * delivered. A later reply goes behind it (specs/037).
+   */
+  async hasQueuedReply(tenantId: string, subscriberId: string): Promise<boolean> {
+    const result: unknown = await this.db.execute(
+      sql`SELECT 1 FROM ${outbox} WHERE ${this.queuedReplies(tenantId, subscriberId)} LIMIT 1`,
+    );
+    const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
+    return rows.length > 0;
+  }
+
+  /** A failed row is never sent and a token write is not a reply: neither holds one back. */
+  private queuedReplies(tenantId: string, subscriberId: string) {
+    return sql`${outbox.tenantId} = ${tenantId}
+      AND ${outbox.subscriberId} = ${subscriberId}
+      AND ${outbox.kind} = 'reply'
+      AND ${outbox.status} IN ('pending', 'delivering')`;
   }
 
   /**

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
+import { outbox } from '../../src/db/schema.ts';
 import { OutboxQueue, MAX_ATTEMPTS } from '../../src/outbox/queue.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { manychatError } from '../helpers/manychat.ts';
@@ -309,6 +310,54 @@ describe('specs/002 § Messages to one contact are paced', () => {
     for (const text of ['a', 'b', 'c', 'd', 'e']) ids.push(await enqueue('s1', text));
     const claimed = await new OutboxQueue(db).claimBatch(10);
     expect(claimed.map(row => row.id)).toEqual(ids);
+  });
+});
+
+describe('specs/037 § A reply never overtakes an earlier one (V5)', () => {
+  const dueAt = async (id: string) => (await rowById(id)).next_attempt_at;
+  const later = new Date(Date.now() + 60_000);
+  const queue = () => new OutboxQueue(db);
+  const held = () =>
+    queue().enqueue({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      conversationId: null,
+      reply: reply('held for a flow'),
+      notBefore: later,
+    });
+
+  it('is due no earlier than a reply already queued for the contact', async () => {
+    await held();
+    const next = await enqueue('s1', 'the next reply');
+    expect(new Date(await dueAt(next)).getTime()).toBe(later.getTime());
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
+  });
+
+  it('is held back by nothing delivered, failed, or for another contact', async () => {
+    const delivered = await held();
+    await queue().markDelivered(delivered);
+    const failed = await held();
+    await queue().markFailed(failed, MAX_ATTEMPTS, 'gone', false);
+    await enqueue('s2', 'for someone else');
+    await db.insert(outbox).values({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      conversationId: null,
+      kind: 'contact_token',
+      payload: { generation: 1 },
+      nextAttemptAt: later,
+    });
+
+    const next = await enqueue('s1', 'the next reply');
+    expect(new Date(await dueAt(next)).getTime()).toBeLessThan(later.getTime());
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
+  });
+
+  it('finds no queued reply once the last one is delivered', async () => {
+    const only = await enqueue('s1', 'only');
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
+    await queue().markDelivered(only);
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(false);
   });
 });
 

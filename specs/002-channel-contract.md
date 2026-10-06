@@ -53,9 +53,11 @@ token ManyChat holds and sends back (ADR-0012) is specified in
 }
 ```
 
-`messages` is empty only when a flow the turn sent is still playing and the
-reply follows it from the outbox; `external_message_callback` is registered
-all the same (`030`).
+`messages` is empty only when the reply follows from the outbox and the contact
+already has something to wait with: a flow the turn sent is still playing
+(`030`), a reply to them is already queued, or the turn waited out its deadline
+behind their previous one (`037`). `external_message_callback` is registered
+all the same.
 
 ### Channel capability matrix
 
@@ -109,7 +111,11 @@ when the flow ends (`030`).
 call continues and writes its result to the `outbox` table; a worker delivers it
 as described below. The reply is never dropped, only deferred. When a flow the
 turn sent is still playing, the response carries no message instead: the flow
-is the holding line (`030`).
+is the holding line (`030`), and so is a reply to the contact already queued
+(`037`).
+
+**The deadline runs from the request's arrival.** A turn first waits for the
+contact's previous turn to settle (`037`), and the wait counts against it.
 
 ## Deferred delivery goes through a flow, not the Send API
 
@@ -223,7 +229,8 @@ What this does not cover:
   replies to one contact back to back.
 - **What the second reply says.** Pacing spaces the burst; it does not stop a
   reply written without the one before it in its history from repeating it.
-  That is ordering turns per contact, a separate spec.
+  `037` orders a contact's turns, so the second reply is written after the
+  first and sent behind it.
 
 ## Inbound payload
 

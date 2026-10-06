@@ -28,6 +28,7 @@ import type { ConfigStore } from './config/loader.ts';
 import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
 import { MediaResolver } from './media/resolver.ts';
 import { TurnHandler } from './routes/turn.ts';
+import { TurnLanes } from './conversation/turns.ts';
 import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
 import { escalationReply } from './agent/guardrails.ts';
 import { mediaScrubbingStream, redactText } from './observability/redact.ts';
@@ -241,6 +242,9 @@ export async function buildServer(opts: BuildOptions) {
 
   /** Each inline turn's staged actions, until its response has been sent. */
   const afterResponse = new WeakMap<object, () => Promise<void>>();
+  // One for the process, so every request for a contact shares the order
+  // (specs/037). Past this bound everything a turn runs has ended (C6).
+  const lanes = new TurnLanes(env.MODEL_ABORT_MS + env.RACE_DEADLINE_MS);
 
   app.post(
     MESSAGE_ROUTE,
@@ -282,6 +286,7 @@ export async function buildServer(opts: BuildOptions) {
         actions: manychatClient,
         contacts,
         media,
+        lanes,
       });
       const turn = await handler.handle(inbound);
       const { reply, outcome, conversationId, binding } = turn;
