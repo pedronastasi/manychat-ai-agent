@@ -222,7 +222,14 @@ export class TurnHandler {
     // Only a turn that enters the contact's history is ordered. One without
     // the token gives its place back at once: it neither waits nor holds the
     // contact's own turns up.
-    const known = await this.store.find(inbound.tenantId, inbound.subscriberId);
+    // A failed read gives the place back, or the contact's next turn would
+    // wait out the whole bound for a turn that never ran.
+    const known = await this.store
+      .find(inbound.tenantId, inbound.subscriberId)
+      .catch((error: unknown) => {
+        slot.leave();
+        throw error;
+      });
     const binding = bindingFor(known, inbound.contactToken);
     if (binding === 'unbound' && tokensEnforced) {
       slot.leave();
