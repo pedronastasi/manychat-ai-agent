@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
+import { outbox } from '../../src/db/schema.ts';
 import { OutboxQueue, MAX_ATTEMPTS } from '../../src/outbox/queue.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { manychatError } from '../helpers/manychat.ts';
@@ -243,6 +244,171 @@ describe('drainOnce', () => {
     expect(result.delivered).toBe(1);
     expect(result.deadLettered).toBe(1);
     expect(client.sent.map(sent => sent.subscriberId)).toEqual(['good']);
+  });
+});
+
+describe('specs/002 § Messages to one contact are paced', () => {
+  it("delivers one contact's replies in the order written, and other contacts alongside", async () => {
+    await enqueue('paced', 'first');
+    await enqueue('other', 'for someone else');
+    await enqueue('paced', 'second');
+
+    // The paced contact's first send hangs, as a reply waiting out its gap does.
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    const started: string[] = [];
+    const client: ManyChatClient = {
+      sendText: (_subscriberId, messages) => {
+        started.push(messages[0]!);
+        return messages[0] === 'first' ? held : Promise.resolve();
+      },
+      writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
+    };
+
+    const drained = new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
+    await vi.waitFor(() => expect(started).toContain('for someone else'));
+    expect(started).not.toContain('second');
+
+    release();
+    const result = await drained;
+    expect(result.delivered).toBe(3);
+    expect(started.filter(text => text !== 'for someone else')).toEqual(['first', 'second']);
+  });
+
+  it("on stop, sends each contact's current reply and hands the rest back", async () => {
+    const first = await enqueue('paced', 'first');
+    const second = await enqueue('paced', 'second');
+
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    const started: string[] = [];
+    const client: ManyChatClient = {
+      sendText: (_subscriberId, messages) => {
+        started.push(messages[0]!);
+        return messages[0] === 'first' ? held : Promise.resolve();
+      },
+      writeToken: () => Promise.resolve(),
+      performAction: () => Promise.resolve(),
+    };
+
+    const stop = new OutboxWorker({ db, client, logger: silentLogger, pollIntervalMs: 10 }).start();
+    await vi.waitFor(() => expect(started).toEqual(['first']));
+    const stopped = stop();
+    release();
+    await stopped;
+
+    // A paced chain would hold the stop for a gap per reply; the next worker
+    // sends the rest, as if this one had never claimed it.
+    expect(started).toEqual(['first']);
+    expect(await rowById(first)).toMatchObject({ status: 'delivered' });
+    expect(await rowById(second)).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
+  it('reads a batch back in the order its rows were written', async () => {
+    const ids: string[] = [];
+    for (const text of ['a', 'b', 'c', 'd', 'e']) ids.push(await enqueue('s1', text));
+    const claimed = await new OutboxQueue(db).claimBatch(10);
+    expect(claimed.map(row => row.id)).toEqual(ids);
+  });
+});
+
+describe('specs/037 § A reply never overtakes an earlier one (V5)', () => {
+  const dueAt = async (id: string) => (await rowById(id)).next_attempt_at;
+  const later = new Date(Date.now() + 60_000);
+  const queue = () => new OutboxQueue(db);
+  const held = () =>
+    queue().enqueue({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      conversationId: null,
+      reply: reply('held for a flow'),
+      notBefore: later,
+    });
+
+  it('is due no earlier than a reply already queued for the contact', async () => {
+    await held();
+    const next = await enqueue('s1', 'the next reply');
+    expect(new Date(await dueAt(next)).getTime()).toBe(later.getTime());
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
+  });
+
+  it('is held back by nothing delivered, failed, or for another contact', async () => {
+    const delivered = await held();
+    await queue().markDelivered(delivered);
+    const failed = await held();
+    await queue().markFailed(failed, MAX_ATTEMPTS, 'gone', false);
+    await enqueue('s2', 'for someone else');
+    await db.insert(outbox).values({
+      tenantId: 'demo',
+      subscriberId: 's1',
+      conversationId: null,
+      kind: 'contact_token',
+      payload: { generation: 1 },
+      nextAttemptAt: later,
+    });
+
+    const next = await enqueue('s1', 'the next reply');
+    expect(new Date(await dueAt(next)).getTime()).toBeLessThan(later.getTime());
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
+  });
+
+  it("holds a contact's later reply back while an earlier one waits out a retry", async () => {
+    const first = await enqueue('s1', 'first');
+    const second = await enqueue('s1', 'second');
+    await enqueue('s2', 'for someone else');
+    const [claimed] = await queue().claimBatch(1);
+    expect(claimed?.id).toBe(first);
+    await queue().markFailed(first, 1, 'upstream', true);
+
+    // Due, but behind a reply backing off: another contact's goes, it does not.
+    const due = await queue().claimBatch(10);
+    expect(due.map(row => row.subscriberId)).toEqual(['s2']);
+    expect(await rowById(second)).toMatchObject({ status: 'pending' });
+  });
+
+  it('keeps a retried reply ahead once it comes due, however full the batch', async () => {
+    const first = await enqueue('s1', 'first');
+    const second = await enqueue('s1', 'second');
+    await queue().claimBatch(1);
+    await queue().markFailed(first, 1, 'upstream', true);
+    const due = async (id: string) => new Date((await rowById(id)).next_attempt_at).getTime();
+    expect(await due(second)).toBeGreaterThanOrEqual(await due(first));
+
+    // Time passes: both are due, and the batch has room for one.
+    await db.execute(sql`UPDATE outbox SET next_attempt_at = next_attempt_at - interval '1 hour'`);
+    const [claimed] = await queue().claimBatch(1);
+    expect(claimed?.id).toBe(first);
+  });
+
+  it("holds a contact's later reply back while an earlier one is being sent", async () => {
+    await enqueue('s1', 'first');
+    await queue().claimBatch(1);
+    await enqueue('s1', 'second');
+    expect(await queue().claimBatch(10)).toEqual([]);
+  });
+
+  it("a retried reply takes the rest of its contact's batch back with it", async () => {
+    const first = await enqueue('s1', 'first');
+    const second = await enqueue('s1', 'second');
+    const client = stubClient();
+    client.sendText = (subscriberId, messages) =>
+      messages[0] === 'first'
+        ? Promise.reject(manychatError(503, 'unavailable'))
+        : Promise.resolve(void client.sent.push({ subscriberId, messages }));
+
+    const result = await new OutboxWorker({ db, client, logger: silentLogger }).drainOnce();
+    expect(result).toMatchObject({ retrying: 1, released: 1, delivered: 0 });
+    expect(client.sent).toEqual([]);
+    expect(await rowById(first)).toMatchObject({ status: 'pending', attempts: 1 });
+    expect(await rowById(second)).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
+  it('finds no queued reply once the last one is delivered', async () => {
+    const only = await enqueue('s1', 'only');
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(true);
+    await queue().markDelivered(only);
+    expect(await queue().hasQueuedReply('demo', 's1')).toBe(false);
   });
 });
 

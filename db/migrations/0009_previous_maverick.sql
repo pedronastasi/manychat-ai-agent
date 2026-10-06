@@ -1,0 +1,1 @@
+CREATE INDEX "outbox_queued_reply_idx" ON "outbox" USING btree ("tenant_id","subscriber_id","created_at") WHERE "outbox"."kind" = 'reply' AND "outbox"."status" IN ('pending', 'delivering');

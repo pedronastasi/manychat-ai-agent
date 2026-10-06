@@ -45,6 +45,7 @@ import { performActions, performedCourse } from '../conversation/actions.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 import { FlowSends } from '../agent/flows.ts';
+import type { TurnLanes } from '../conversation/turns.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -73,6 +74,21 @@ export interface TurnDeps {
   contacts?: ContactReader | undefined;
   /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
   media?: MediaResolver | undefined;
+  /**
+   * The process's order of each contact's turns (specs/037). Shared by every
+   * request; without it, turns run side by side.
+   */
+  lanes?: TurnLanes | undefined;
+}
+
+/** How a turn runs once its contact's order lets it (specs/037). */
+interface RunOptions {
+  /** The race deadline, from the request's arrival (specs/002). */
+  deadlineAt: number;
+  /** Its response was already sent, silent: every reply goes to the outbox. */
+  late?: boolean;
+  /** Called with the work a lost race leaves running, which the turn settles in. */
+  onBackground?: (work: Promise<void>) => void;
 }
 
 /**
@@ -190,7 +206,125 @@ export class TurnHandler {
     this.nudges = new NudgeStore(deps.db);
   }
 
+  /**
+   * Runs the turn once the contact's previous one has settled (specs/037 §
+   * Turns that enter history run one at a time). A turn still waiting at its
+   * deadline is answered silently now and runs when its turn comes, through
+   * the outbox.
+   */
   async handle(inbound: InboundMessage): Promise<TurnResult> {
+    const { lanes, tokensEnforced, logger } = this.deps;
+    const deadlineAt = Date.now() + this.deps.raceDeadlineMs;
+    if (!lanes) return this.run(inbound, { deadlineAt });
+
+    // Its place is taken on arrival, before any read can reorder two requests.
+    const slot = lanes.enter(`${inbound.tenantId}:${inbound.subscriberId}`);
+    // Only a turn that enters the contact's history is ordered. One without
+    // the token gives its place back at once: it neither waits nor holds the
+    // contact's own turns up.
+    // A failed read gives the place back, or the contact's next turn would
+    // wait out the whole bound for a turn that never ran.
+    const known = await this.store
+      .find(inbound.tenantId, inbound.subscriberId)
+      .catch((error: unknown) => {
+        slot.leave();
+        throw error;
+      });
+    const binding = bindingFor(known, inbound.contactToken);
+    if (binding === 'unbound' && tokensEnforced) {
+      slot.leave();
+      return this.run(inbound, { deadlineAt });
+    }
+    // The next turn goes in once this one has settled: its reply recorded, and
+    // queued when the race was lost.
+    let background: Promise<void> = Promise.resolve();
+    const opts: RunOptions = {
+      deadlineAt,
+      onBackground: work => {
+        background = work;
+      },
+    };
+    const leave = () => void background.then(slot.leave, slot.leave);
+    const expired = () => logger.error({ conversation: known?.id }, 'turn wait expired');
+
+    if (slot.waited) {
+      let timer: NodeJS.Timeout | undefined;
+      const late = new Promise<'late'>(resolve => {
+        timer = setTimeout(() => resolve('late'), Math.max(0, deadlineAt - Date.now()));
+      });
+      const waited = await Promise.race([slot.ready, late]);
+      clearTimeout(timer);
+      if (waited === 'late') {
+        void slot.ready
+          .then(async ready => {
+            if (ready === 'expired') expired();
+            await this.run(inbound, { ...opts, late: true });
+          })
+          .catch(async (error: unknown) => {
+            logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
+            await this.handOffSilent(inbound);
+          })
+          .finally(leave);
+        // The previous turn has started the conversation by now; its reply,
+        // or its holding line, is the contact's answer for the moment.
+        const current = known ?? (await this.store.find(inbound.tenantId, inbound.subscriberId));
+        logger.info({ conversation: current?.id }, 'turn waits for the previous one');
+        return {
+          reply: {
+            messages: [],
+            escalate: false,
+            escalation_reason: null,
+            confidence: 1,
+            closing_question: null,
+          },
+          outcome: 'deferred',
+          conversationId: current?.id ?? '',
+          binding,
+          silent: true,
+        };
+      }
+      if (waited === 'expired') expired();
+    }
+    try {
+      return await this.run(inbound, opts);
+    } finally {
+      leave();
+    }
+  }
+
+  /**
+   * A turn that failed after a silent response, which no error handler can
+   * answer any more: the handoff goes through the outbox instead, as the
+   * route's error handler would have sent it (C6, specs/037).
+   */
+  private async handOffSilent(inbound: InboundMessage): Promise<void> {
+    const { rules, logger } = this.deps;
+    let conversation;
+    try {
+      conversation = await this.store.find(inbound.tenantId, inbound.subscriberId);
+      await this.queue.enqueue({
+        tenantId: inbound.tenantId,
+        subscriberId: inbound.subscriberId,
+        conversationId: conversation?.id ?? null,
+        reply: escalationReply('low_confidence', rules.messages.escalation),
+      });
+    } catch (error) {
+      logger.error({ err: String(error) }, 'silent turn handoff not queued');
+      return;
+    }
+    if (!conversation) return;
+    try {
+      await this.store.markEscalated(conversation.id);
+      await this.nudges.cancel(conversation.id, 'escalated');
+    } catch (error) {
+      logger.error(
+        { conversation: conversation.id, err: String(error) },
+        'silent turn handoff queued, escalation not recorded',
+      );
+    }
+  }
+
+  private async run(inbound: InboundMessage, opts: RunOptions): Promise<TurnResult> {
     const { rules, tokensEnforced } = this.deps;
     const now = new Date();
 
@@ -223,6 +357,39 @@ export class TurnHandler {
           );
     const logger = withConversation(this.deps.logger, conversation.id);
     const turn = { bound };
+
+    /**
+     * Whether this turn's reply has to go through the outbox behind the
+     * contact's: a reply to them is still queued, or this turn's response was
+     * already sent (specs/037 § A reply never overtakes an earlier one).
+     */
+    const mustQueue = async () =>
+      opts.late === true ||
+      (await this.queue.hasQueuedReply(inbound.tenantId, inbound.subscriberId));
+
+    /**
+     * Answers a turn decided without the model: inline, or behind the
+     * contact's queued reply with a silent response.
+     */
+    const answer = async (result: TurnResult): Promise<TurnResult> => {
+      if (!(await mustQueue())) return result;
+      try {
+        await this.queue.enqueue({
+          tenantId: inbound.tenantId,
+          subscriberId: inbound.subscriberId,
+          conversationId: conversation.id,
+          reply: result.reply,
+        });
+      } catch (error) {
+        // A late turn's response is gone, so its reply has nowhere else to go.
+        if (opts.late) throw error;
+        // Early is better than never: the reply goes out now.
+        logger.error({ err: String(error) }, 'failed to queue reply behind the previous one');
+        return result;
+      }
+      logger.info({ path: 'outbox' }, 'reply queued behind the previous one');
+      return { ...result, silent: true };
+    };
 
     // The request's course is ManyChat's value now, which already holds every
     // write this service performed, so it wins over the one kept here
@@ -294,7 +461,7 @@ export class TurnHandler {
     if (opening) {
       await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted', turn);
       logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
-      return {
+      return answer({
         reply: {
           messages: [opening],
           escalate: false,
@@ -307,7 +474,7 @@ export class TurnHandler {
         outcome: 'answered_scripted',
         conversationId: conversation.id,
         binding,
-      };
+      });
     }
 
     // Pre-model guards: each denial costs nothing and fails toward a human (C6).
@@ -330,7 +497,12 @@ export class TurnHandler {
       );
       await markEscalated();
       logger.info({ reason: denied.reason, detail: denied.detail }, 'turn escalated before model');
-      return { reply, outcome: 'escalated_precheck', conversationId: conversation.id, binding };
+      return answer({
+        reply,
+        outcome: 'escalated_precheck',
+        conversationId: conversation.id,
+        binding,
+      });
     }
 
     // History outlives the turn cap on purpose: a contact returning after two
@@ -426,10 +598,12 @@ export class TurnHandler {
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.deps.modelAbortMs);
 
+    // From the request's arrival, so a wait for the contact's previous turn
+    // counts against it (specs/037).
     let deadlineTimer: NodeJS.Timeout | undefined;
-    const deadlineAt = Date.now() + this.deps.raceDeadlineMs;
+    const { deadlineAt } = opts;
     const deadline = new Promise<'deadline'>(resolve => {
-      deadlineTimer = setTimeout(() => resolve('deadline'), this.deps.raceDeadlineMs);
+      deadlineTimer = setTimeout(() => resolve('deadline'), Math.max(0, deadlineAt - Date.now()));
     });
 
     // Once per turn, whichever comes first: the model's first flow, or its
@@ -491,7 +665,8 @@ export class TurnHandler {
       .then(done => ({ kind: 'done' as const, done }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
 
-    const winner = await Promise.race([completion, deadline]);
+    // A turn whose response already went out has no race left to win.
+    const winner = opts.late ? ('deadline' as const) : await Promise.race([completion, deadline]);
 
     /**
      * Persists usage, spend and what was staged. Shared by the inline and
@@ -559,8 +734,9 @@ export class TurnHandler {
     ): Promise<TurnResult> => {
       const until = flows.playsUntil;
       const now = Date.now();
-      if (until <= now) return result;
-      if (until <= deadlineAt) {
+      const queue = await mustQueue();
+      if (until <= now && !queue) return result;
+      if (until <= deadlineAt && !queue) {
         logger.info({ heldMs: until - now, path: 'inline' }, 'reply held for flow');
         await new Promise(resolve => setTimeout(resolve, until - now));
         return result;
@@ -572,14 +748,18 @@ export class TurnHandler {
           conversationId: conversation.id,
           reply: result.reply,
           actions,
-          notBefore: new Date(until),
+          notBefore: until > now ? new Date(until) : undefined,
         });
       } catch (error) {
         // Early is better than never: the reply goes out now, inside the flow.
         logger.error({ err: String(error) }, 'failed to hold reply for flow');
         return result;
       }
-      logger.info({ heldMs: until - now, path: 'outbox' }, 'reply held for flow');
+      if (until > now) {
+        logger.info({ heldMs: until - now, path: 'outbox' }, 'reply held for flow');
+      } else {
+        logger.info({ path: 'outbox' }, 'reply queued behind the previous one');
+      }
       return {
         reply: result.reply,
         outcome: result.outcome,
@@ -593,7 +773,9 @@ export class TurnHandler {
       clearTimeout(deadlineTimer);
       // A flow still playing is the contact's wait: a holding line now would
       // land inside it (specs/030 § A flow still playing is the holding line).
-      const silent = flows.playsUntil > Date.now();
+      // So would one while a reply to the contact is still queued: it is on
+      // its way (specs/037).
+      const silent = flows.playsUntil > Date.now() || (await mustQueue());
       const holding: AgentReply = {
         messages: [rules.messages.acknowledgement],
         escalate: false,
@@ -612,7 +794,7 @@ export class TurnHandler {
       // on a runaway call, and this is the only path where a call can outlive
       // the request — so clearing it here would leave the deferred call with no
       // bound at all. It is cleared below, when the call actually settles.
-      void completion.then(async outcome => {
+      const settling = completion.then(async outcome => {
         clearTimeout(abortTimer);
         try {
           if (outcome.kind === 'error') {
@@ -680,8 +862,12 @@ export class TurnHandler {
           });
         } catch (error) {
           logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
+          // A silent response, late or behind a queued reply or a flow, left
+          // the contact this reply and nothing else (C6).
+          if (silent) await this.handOffSilent(inbound);
         }
       });
+      opts.onBackground?.(settling);
 
       return {
         reply: holding,
@@ -709,7 +895,12 @@ export class TurnHandler {
     const { done } = winner;
     if (done.kind === 'decided') {
       await conclude(done);
-      return { reply: done.reply, outcome: done.outcome, conversationId: conversation.id, binding };
+      return answer({
+        reply: done.reply,
+        outcome: done.outcome,
+        conversationId: conversation.id,
+        binding,
+      });
     }
 
     // A failed call and a deliberate escalation both carry `escalate: true` and

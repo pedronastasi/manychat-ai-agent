@@ -67,6 +67,9 @@ const RATE_LIMIT = { requestsPerSecond: 10, burst: 5 };
  */
 const TIMEOUT_MS = 10_000;
 
+const pause = (ms: number) =>
+  ms > 0 ? new Promise<void>(resolve => setTimeout(resolve, ms)) : Promise.resolve();
+
 export interface ManyChatClientOptions {
   apiToken: string;
   baseUrl: string;
@@ -76,6 +79,12 @@ export interface ManyChatClientOptions {
   replyFlowNs: string;
   /** Custom field that holds the contact's token (specs/019). */
   tokenField: string;
+  /**
+   * How long a contact's next reply message waits after the last one's flow
+   * was triggered (specs/002 § Messages to one contact are paced). 0 sends
+   * them back to back.
+   */
+  replyGapMs?: number;
   /** The ManyChat HTTP boundary, faked by tests (specs/004). */
   fetchImpl?: typeof fetch;
 }
@@ -90,6 +99,13 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
   private readonly replyField: string;
   private readonly replyFlowNs: string;
   private readonly tokenField: string;
+  private readonly replyGapMs: number;
+  /**
+   * Each contact's sends, chained so that one starts only after the previous
+   * one and its gap have ended. An entry lives only while a send or its gap is
+   * pending.
+   */
+  private readonly lanes = new Map<string, Promise<void>>();
 
   constructor(opts: ManyChatClientOptions) {
     this.api = new ManyChat({
@@ -102,6 +118,7 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
     this.replyField = opts.replyField;
     this.replyFlowNs = opts.replyFlowNs;
     this.tokenField = opts.tokenField;
+    this.replyGapMs = opts.replyGapMs ?? 0;
   }
 
   /**
@@ -188,14 +205,37 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
     return ContactRecord.parse(subscriber);
   }
 
-  async sendText(subscriberId: string, messages: string[]): Promise<void> {
+  /**
+   * Sends one reply, after any earlier send to the same contact and its gap
+   * (specs/002 § Messages to one contact are paced). The returned promise
+   * settles with this reply's own delivery; the gap after it holds back only
+   * the contact's next send, never the caller.
+   */
+  sendText(subscriberId: string, messages: string[]): Promise<void> {
+    const before = this.lanes.get(subscriberId) ?? Promise.resolve();
+    const sending = before.then(() => this.sendEach(subscriberId, messages));
+    const lane = sending.then(
+      () => pause(this.replyGapMs),
+      () => pause(this.replyGapMs),
+    );
+    this.lanes.set(subscriberId, lane);
+    void lane.then(() => {
+      if (this.lanes.get(subscriberId) === lane) this.lanes.delete(subscriberId);
+    });
+    return sending;
+  }
+
+  private async sendEach(subscriberId: string, messages: string[]): Promise<void> {
     // Sequential, so the contact receives them in the order they were written,
     // and so each flow renders its own message rather than the last one written.
+    // The gap gives a flow time to render the field before the next message
+    // overwrites it, and spaces the messages as a person typing them would.
     //
     // The field is written immediately before each trigger and never assumed to
     // have survived: a retry re-runs both calls, because a field left over from
     // a half-finished attempt may since have been overwritten by another turn.
-    for (const text of messages) {
+    for (const [index, text] of messages.entries()) {
+      if (index > 0) await pause(this.replyGapMs);
       await this.sendOne(subscriberId, text);
     }
   }
@@ -232,6 +272,7 @@ export function manychatClientFor(
     replyField: env.MANYCHAT_REPLY_FIELD,
     replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
     tokenField: env.MANYCHAT_TOKEN_FIELD,
+    replyGapMs: env.MANYCHAT_REPLY_GAP_MS,
     ...(fetchImpl ? { fetchImpl } : {}),
   });
 }

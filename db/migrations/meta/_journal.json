@@ -64,6 +64,13 @@
       "when": 1791124104924,
       "tag": "0008_demonic_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791304707049,
+      "tag": "0009_previous_maverick",
+      "breakpoints": true
     }
   ]
 }

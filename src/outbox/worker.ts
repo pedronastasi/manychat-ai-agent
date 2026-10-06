@@ -29,6 +29,8 @@ export interface DrainResult {
   delivered: number;
   retrying: number;
   deadLettered: number;
+  /** Claimed, then handed back unattempted because the worker is stopping. */
+  released: number;
 }
 
 export class OutboxWorker {
@@ -38,6 +40,12 @@ export class OutboxWorker {
   private readonly store: ConversationStore;
   private readonly nudges: NudgeStore;
   private running = false;
+  /**
+   * Set by the stop function. A contact's rows after the one being sent go
+   * back to the queue, so a stop waits for one reply per contact, not a
+   * contact's whole paced chain (specs/002 § Messages to one contact are paced).
+   */
+  private stopping = false;
   private settled: Promise<void> = Promise.resolve();
 
   constructor(opts: WorkerOptions) {
@@ -110,53 +118,92 @@ export class OutboxWorker {
    * and so a deployment can run a single drain as a one-shot job.
    */
   async drainOnce(): Promise<DrainResult> {
-    const { logger } = this.opts;
     const rows = await this.queue.claimBatch(this.opts.batchSize ?? 10);
     const result: DrainResult = {
       claimed: rows.length,
       delivered: 0,
       retrying: 0,
       deadLettered: 0,
+      released: 0,
     };
 
+    // One contact's rows in the order claimed, so their replies arrive in
+    // order; different contacts at once, so one contact's paced reply does not
+    // hold up everyone else's (specs/002 § Messages to one contact are paced).
+    const byContact = new Map<string, OutboxRow[]>();
     for (const row of rows) {
-      try {
-        await this.deliver(row);
-        await this.queue.markDelivered(row.id);
-        result.delivered++;
-        if (row.kind === 'reply') await this.performDeferred(row);
-      } catch (error) {
-        // ManyChat's own verdict when it is ManyChat's error, and a retry
-        // otherwise: an unknown failure, such as the database, must not
-        // discard a reply (specs/022 § Retries follow the SDK's retryable).
-        const retryable = error instanceof ManyChatError ? error.retryable : true;
-        // A token write's error is kept to its status: ManyChat's answer to it
-        // could quote the value it was sent (specs/019).
-        const message =
-          row.kind === 'contact_token'
-            ? `contact token write failed${error instanceof ManyChatApiError ? `: ${error.status}` : ''}`
-            : error instanceof Error
-              ? error.message
-              : String(error);
-        const outcome = await this.queue.markFailed(row.id, row.attempts, message, retryable);
-        if (outcome === 'dead-lettered') {
-          result.deadLettered++;
-          await this.dropDeferred(row);
-          // Dead letters are the signal that a contact never got their reply.
-          logger.error(
-            { outboxId: row.id, kind: row.kind, attempts: row.attempts },
-            'outbox dead-lettered',
-          );
-        } else {
-          result.retrying++;
-          logger.warn(
-            { outboxId: row.id, kind: row.kind, attempts: row.attempts },
-            'outbox delivery retrying',
-          );
-        }
-      }
+      byContact.set(row.subscriberId, [...(byContact.get(row.subscriberId) ?? []), row]);
     }
+    const contacts = await Promise.allSettled(
+      [...byContact.values()].map(async contactRows => {
+        for (const [index, row] of contactRows.entries()) {
+          if (this.stopping) {
+            const rest = contactRows.slice(index).map(unsent => unsent.id);
+            await this.queue.release(rest);
+            result.released += rest.length;
+            return;
+          }
+          const outcome = await this.process(row, result);
+          // A reply going back for a retry holds the contact's later rows
+          // back with it, so none of them overtakes it (specs/037).
+          if (outcome === 'retrying' && row.kind === 'reply') {
+            const rest = contactRows.slice(index + 1).map(unsent => unsent.id);
+            await this.queue.release(rest);
+            result.released += rest.length;
+            return;
+          }
+        }
+      }),
+    );
+    // Every contact's chain has settled, finished or handed back, before a
+    // failure is reported, so no row is left delivering when a stop returns.
+    const failed = contacts.find(contact => contact.status === 'rejected');
+    if (failed) throw failed.reason;
     return result;
+  }
+
+  private async process(
+    row: OutboxRow,
+    result: DrainResult,
+  ): Promise<'delivered' | 'retrying' | 'dead-lettered'> {
+    const { logger } = this.opts;
+    try {
+      await this.deliver(row);
+      await this.queue.markDelivered(row.id);
+      result.delivered++;
+      if (row.kind === 'reply') await this.performDeferred(row);
+      return 'delivered';
+    } catch (error) {
+      // ManyChat's own verdict when it is ManyChat's error, and a retry
+      // otherwise: an unknown failure, such as the database, must not
+      // discard a reply (specs/022 § Retries follow the SDK's retryable).
+      const retryable = error instanceof ManyChatError ? error.retryable : true;
+      // A token write's error is kept to its status: ManyChat's answer to it
+      // could quote the value it was sent (specs/019).
+      const message =
+        row.kind === 'contact_token'
+          ? `contact token write failed${error instanceof ManyChatApiError ? `: ${error.status}` : ''}`
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      const outcome = await this.queue.markFailed(row.id, row.attempts, message, retryable);
+      if (outcome === 'dead-lettered') {
+        result.deadLettered++;
+        await this.dropDeferred(row);
+        // Dead letters are the signal that a contact never got their reply.
+        logger.error(
+          { outboxId: row.id, kind: row.kind, attempts: row.attempts },
+          'outbox dead-lettered',
+        );
+      } else {
+        result.retrying++;
+        logger.warn(
+          { outboxId: row.id, kind: row.kind, attempts: row.attempts },
+          'outbox delivery retrying',
+        );
+      }
+      return outcome;
+    }
   }
 
   /** Polling loop. Returns a stop function that finishes the in-flight batch. */
@@ -187,6 +234,7 @@ export class OutboxWorker {
 
     return async () => {
       this.running = false;
+      this.stopping = true;
       await this.settled;
     };
   }

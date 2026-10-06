@@ -132,7 +132,14 @@ export const outbox = pgTable(
   },
   // The worker's claim query orders by this; without the index it degrades to a
   // sequential scan once the table accumulates delivered rows.
-  table => [index('outbox_claim_idx').on(table.status, table.nextAttemptAt)],
+  table => [
+    index('outbox_claim_idx').on(table.status, table.nextAttemptAt),
+    // A contact's queued replies, read on every turn and every claim to keep
+    // their order (specs/037). Partial, so delivered rows never weigh on it.
+    index('outbox_queued_reply_idx')
+      .on(table.tenantId, table.subscriberId, table.createdAt)
+      .where(sql`${table.kind} = 'reply' AND ${table.status} IN ('pending', 'delivering')`),
+  ],
 );
 
 /**
