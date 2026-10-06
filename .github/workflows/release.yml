@@ -55,9 +55,10 @@ jobs:
       # which the Node release alone does not guarantee.
       - run: npm install -g npm@^11.5.1
       - run: npm publish --provenance --access public
-      # The scaffolder, from the same tag and at the same linked version, after
-      # the agent it depends on exists (specs/035). Its prepack copies the demo
-      # tenant in from the root of this checkout.
+      # The scaffolder, from the same tag and at the same version, after the
+      # agent it depends on exists (specs/035). The release sets its version
+      # with the agent's. Its prepack copies the demo tenant in from the root
+      # of this checkout.
       - run: npm publish --provenance --access public
         working-directory: packages/create
 

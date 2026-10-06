@@ -239,8 +239,9 @@ made here first and the contract table above records it.
 ## What changes in other specs
 
 - `010 § Deliberately not in scope` excluded npm publish, container images and
-  monorepo manifests. This spec specifies the first two, and `035` the third,
-  because only the scaffolder adds a second package. Publishing uses npm
+  monorepo manifests. This spec specifies the first two. The third stays
+  excluded: `035`'s scaffolder is a second package, released as part of the
+  agent under its version (`010 § Monorepo manifests`). Publishing uses npm
   trusted publishing and the workflow's own `GITHUB_TOKEN` for GHCR, so
   `release.yml` gains `id-token: write` and `packages: write` but no stored
   credential. `ci.yml` keeps `contents: read`.

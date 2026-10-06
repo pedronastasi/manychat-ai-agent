@@ -6,8 +6,8 @@
  *     repository; `agent config check` and `agent eval` against the mock model
  *     pass on the generated project; nothing it writes sets
  *     allowUnusedPatches.
- * V2: the release-please configuration releases `.` and `packages/create/` at
- *     one linked version.
+ * V2: the release-please configuration releases one package, sets the
+ *     scaffolder's version with the agent's, and the two versions are equal.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -252,37 +252,52 @@ describe('the published scaffolder carries the demo tenant it reads (specs/035 V
 
 describe('the agent and the scaffolder are released as one version (specs/035 V2)', () => {
   const config = JSON.parse(readFileSync('release-please-config.json', 'utf8')) as {
-    packages: Record<string, { component?: string; 'include-component-in-tag'?: boolean }>;
-    plugins?: { type: string; components?: string[] }[];
+    'separate-pull-requests'?: boolean;
+    packages: Record<
+      string,
+      {
+        component?: string;
+        'include-component-in-tag'?: boolean;
+        'extra-files'?: { type: string; path: string; jsonpath?: string }[];
+      }
+    >;
+    plugins?: unknown[];
   };
   const manifest = JSON.parse(readFileSync('.release-please-manifest.json', 'utf8')) as Record<
     string,
     string
   >;
 
-  it('releases . and packages/create', () => {
-    expect(Object.keys(config.packages).sort()).toEqual(['.', CREATE]);
-    expect(Object.keys(manifest).sort()).toEqual(['.', CREATE]);
+  it('releases one package, the agent, so there is one version and one tag', () => {
+    expect(Object.keys(config.packages)).toEqual(['.']);
+    expect(Object.keys(manifest)).toEqual(['.']);
+    expect(config.packages['.']?.component).toBe(agentPkg.name);
+    expect(config).not.toHaveProperty('plugins');
   });
 
-  it('links their versions, naming each package by its own name', () => {
-    expect(config.packages['.']?.component).toBe(agentPkg.name);
-    expect(config.packages[CREATE]?.component).toBe(createPkg.name);
-    const linked = config.plugins?.find(plugin => plugin.type === 'linked-versions');
-    expect(linked?.components?.sort()).toEqual([agentPkg.name, createPkg.name].sort());
+  it("sets the scaffolder's version with the agent's on every release", () => {
+    expect(config.packages['.']?.['extra-files']).toContainEqual({
+      type: 'json',
+      path: `${CREATE}/package.json`,
+      jsonpath: '$.version',
+    });
+    // The scaffolder writes `^<its version>` and the image tag `<its version>`
+    // into a new project, so a version behind the agent starts it a release
+    // behind.
+    expect(createPkg.version).toBe(agentPkg.version);
+    expect(createPkg.version).toBe(manifest['.']);
+  });
+
+  it('opens a release pull request per package, which release-please can match on merge', () => {
+    // With the merged pull request of a multi-package manifest, a release of
+    // the agent alone was never tagged: release-please matched it to no
+    // package (release-please 17.6.0, strategies/base.js), and 0.17.0 went
+    // out only after its release pull request was edited by hand.
+    expect(config['separate-pull-requests']).toBe(true);
   });
 
   it('keeps the agent tagged v<version>, as its image tags and installed tenants expect', () => {
     expect(config.packages['.']?.['include-component-in-tag']).toBe(false);
-  });
-
-  it('versions both with the same rules, so linking cannot pull one past 1.0', () => {
-    // A per-package bump setting would let a breaking change compute 1.0.0
-    // for one package, and linked versions would carry the other along.
-    for (const entry of Object.values(config.packages)) {
-      expect(entry).not.toHaveProperty('bump-minor-pre-major');
-      expect(entry).not.toHaveProperty('bump-patch-for-minor-pre-major');
-    }
   });
 
   it('publishes the scaffolder from the same tag, after the agent', () => {

@@ -3,6 +3,7 @@
   "release-type": "node",
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
+  "separate-pull-requests": true,
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },
@@ -14,14 +15,12 @@
     { "type": "ci", "section": "CI", "hidden": true }
   ],
   "packages": {
-    ".": { "component": "manychat-ai-agent", "include-component-in-tag": false },
-    "packages/create": { "component": "create-manychat-ai-agent" }
-  },
-  "plugins": [
-    {
-      "type": "linked-versions",
-      "groupName": "manychat-ai-agent",
-      "components": ["manychat-ai-agent", "create-manychat-ai-agent"]
+    ".": {
+      "component": "manychat-ai-agent",
+      "include-component-in-tag": false,
+      "extra-files": [
+        { "type": "json", "path": "packages/create/package.json", "jsonpath": "$.version" }
+      ]
     }
-  ]
+  }
 }
