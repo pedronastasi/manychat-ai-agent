@@ -30,8 +30,8 @@ export function bootstrapSteps(pkg: Manifest, repository: string, dir: string): 
     `${pkg.name} does not exist on npm, and trusted publishing cannot create a package.`,
     `Once, by hand: check out v${pkg.version}, run \`npm publish --access public\` in ${dir}`,
     `while logged in to npm, then on npmjs.com attach the trusted publisher (${repository},`,
-    'workflow release.yml, no environment) and allow `npm publish`. Do not re-run this job',
-    'afterwards: the hand-published version completes the release.',
+    'workflow release.yml, no environment) and allow `npm publish`. Then re-run this job:',
+    'the hand-published version is skipped and any package after it is published.',
   ].join(' ');
 }
 

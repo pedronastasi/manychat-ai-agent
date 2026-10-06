@@ -231,7 +231,9 @@ describe('specs/010 § npm publish: a release job can be re-run', () => {
     // Trusted publishing cannot create a package; npm answers a bare E404.
     expect(() =>
       shouldPublish(pkg, { status: 404, versions: [] }, repo, 'packages/create'),
-    ).toThrow(/does not exist on npm.*npm publish --access public.*example\/agent/);
+    ).toThrow(
+      /does not exist on npm.*npm publish --access public.*example\/agent.*re-run this job/,
+    );
   });
 
   it('fails any other registry answer rather than guessing', () => {
