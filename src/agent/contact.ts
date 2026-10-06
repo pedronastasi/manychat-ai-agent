@@ -75,6 +75,19 @@ export function contactResult(view: ContactView) {
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;
 
 /**
+ * Steps 1 and 2 of cleaning a note: identifier shapes become `[removed]`,
+ * control characters go and whitespace collapses. Also what the learning job
+ * applies to a transcript before the analyst reads it (specs/031).
+ */
+export function cleanText(text: string): string {
+  const stripped = IDENTIFIER_SHAPES.reduce(
+    (current, { shape }) => current.replace(shape, '[removed]'),
+    text,
+  );
+  return stripped.replace(CONTROL, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
  * A note's text as it may be written, or the empty string when nothing is
  * left (specs/024 § Note text is cleaned before it is written):
  *
@@ -83,11 +96,7 @@ const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;
  * 3. text over `maxLength` is cut at a word boundary.
  */
 export function cleanNote(text: string, maxLength: number): string {
-  const stripped = IDENTIFIER_SHAPES.reduce(
-    (current, { shape }) => current.replace(shape, '[removed]'),
-    text,
-  );
-  const collapsed = stripped.replace(CONTROL, ' ').replace(/\s+/g, ' ').trim();
+  const collapsed = cleanText(text);
   if (collapsed.length <= maxLength) return collapsed;
   const cut = collapsed.slice(0, maxLength + 1);
   const boundary = cut.lastIndexOf(' ');

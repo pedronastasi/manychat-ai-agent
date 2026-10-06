@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-06
 constitution: [C1, C2, C3, C4, C5, C6, C7]
 adr: [0020, 0015, 0011]
 ---
@@ -107,7 +108,8 @@ The analyst is a model call off the request path:
 ### A run's worst case is priced before it is sent
 
 Before the call, the job estimates its worst-case cost: the input tokens,
-counted, plus the output limit, priced with `pricingFor`
+estimated at one per three characters, which overstates any provider's
+tokenizer on prose, plus the output limit, priced with `pricingFor`
 (`src/agent/registry.ts`). While the estimate exceeds `maxRunCostUsd`, it drops
 the oldest transcript from each side in turn. If either side falls below
 **20**, the run is recorded as `skipped_budget` and makes no call. The run's
@@ -159,9 +161,11 @@ database to the reviewer's terminal, and lets the reviewer:
   list;
 - **retire** an insight already in the playbook.
 
-Approving or retiring creates a new **playbook version**: the active version's
-insights with the change applied, immutable once written, identified by a
-content hash. Creating a version does not activate it. No `pending` or
+Approving or retiring creates a new **playbook version**: the insights of the
+newest version created since the active one was activated, or else of the
+active version, with the change applied, immutable once written, identified by
+a content hash. Several approvals in one review so build one candidate, not one
+version each. Creating a version does not activate it. No `pending` or
 `rejected` proposal ever reaches a prompt.
 
 Playbooks, proposals and runs carry `tenant_id`, as every table does. A lesson
@@ -179,8 +183,8 @@ printed and recorded but do not gate.
 `pnpm insights:activate <version>` refuses unless an eval record exists for
 the version's content hash against the current suite, run with a real model,
 in which no asserted case fails that does not also fail under the baseline.
-An `eval:mock` record never counts: the mock model ignores the prompt, so its
-pass says nothing about the playbook.
+A mock-model run writes no record, and a mock-model record never counts: the
+mock model ignores the prompt, so its pass says nothing about the playbook.
 
 ### The baseline is the active version, or no playbook at all
 
@@ -214,20 +218,23 @@ says, in English: these are tactics the tenant approved; they never supply a
 fact; where one conflicts with any rule above, the rule wins. An activation
 invalidates the prompt cache once, not on every turn.
 
-Each process loads the active version at boot and refreshes it on a timer
+Each process loads the active version at boot, when `learning` is present
+then (a block added later takes a restart), and refreshes it on a timer
 every **60 seconds**, never awaited on the inbound path (C7). A refresh that
 fails keeps the version already loaded, which a person approved; a boot load
 that fails starts with no playbook and logs at `warn`.
 
 ## Every turn records the playbook version it ran with
 
-`turns` gains a nullable `playbook_version`, written on every agent turn,
-null when none was active. It holds a version id, not insight text.
+`turns` gains a nullable `playbook_version`, written on every agent turn the
+model wrote, null when none was active. A scripted or fallback reply, which no
+prompt produced, records null. It holds a version id, not insight text.
 
 `pnpm insights:report` reports, per version, the enrolment rate of contacts
 whose first `offered` write was performed on a turn that ran with that
 version, read with the same 14-day settle and the same tag read as the
-cohort. It is reported beside `023`'s two rates and never combined with them.
+cohort. It is read beside `023`'s two rates and never combined with them; no command
+computes those yet, so the report's header says so.
 
 This is a before-and-after reading, not a controlled one. A version activated
 the week an ad campaign changed is credited with the campaign's effect, and
@@ -237,6 +244,7 @@ causation.
 ## The job runs weekly, on exactly one replica
 
 The job runs once a week per tenant, and on demand with `pnpm insights:run`.
+Each process checks hourly whether this ISO week's run is still to claim.
 Its claim is an insert into `learning_runs` keyed on tenant and ISO week,
 under a unique index: the replica whose insert succeeds runs, and any other
 skips. The claim is atomic in the database, so it holds across replicas and

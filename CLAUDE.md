@@ -78,6 +78,7 @@ src/
   contracts/           # Zod schemas (agent, config, manychat)
   conversation/        # Budget enforcement, conversation/turn persistence
   db/                  # DB client factory, migrations, Drizzle schema
+  learning/            # Learning from outcomes: weekly job, playbook, insights CLI (specs/031)
   media/               # Inbound voice notes, images, videos: resolver, ffmpeg splitter
   nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
   observability/       # PII redaction

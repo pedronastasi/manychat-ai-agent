@@ -23,6 +23,8 @@ export interface TurnUsage {
   cacheReadTokens?: number | undefined;
   costUsd?: number | undefined;
   latencyMs?: number | undefined;
+  /** The playbook version the model ran with, null when none was active (specs/031). */
+  playbookVersion?: string | null | undefined;
 }
 
 const HOUR_MS = 3_600_000;
@@ -144,6 +146,7 @@ export class ConversationStore {
         cacheReadTokens: usage.cacheReadTokens ?? null,
         costUsd: usage.costUsd != null ? usage.costUsd.toFixed(6) : null,
         latencyMs: usage.latencyMs ?? null,
+        playbookVersion: usage.playbookVersion ?? null,
         actions: turn.actions ?? null,
       })
       .returning({ id: turns.id });

@@ -57,6 +57,8 @@ JSON edit and a restart — no prompt editing, no deploy.
 - `rate_limit` — per-subscriber turns per window
 - `historyDays` — how far back the model's history reaches, default 30
 - `idleResetHours` — hours of silence after which the turn cap resets, default 24 (`018`)
+- `learning` — optional: `language`, `enrolledTag` and `maxRunCostUsd`, all required
+  within it; turns on learning from outcomes and needs a `funnel` field (`031`)
 
 ## `tools.json`
 

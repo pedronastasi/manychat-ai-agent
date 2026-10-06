@@ -223,6 +223,10 @@ describe('CLI commands exist and reject invalid config (specs/033 V4)', () => {
       'config check',
       'upgrade',
       'tokens backfill',
+      'insights run',
+      'insights review',
+      'insights activate',
+      'insights report',
     ]);
     expect(Object.keys(COMMANDS)).toEqual(specCommands);
   });

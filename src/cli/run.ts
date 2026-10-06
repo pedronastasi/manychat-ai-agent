@@ -10,6 +10,10 @@ export const COMMANDS: Record<string, string> = {
   'config check': 'Validate config/ and environment, then exit',
   upgrade: 'Migrate config/ to the installed version',
   'tokens backfill': 'Issue contact tokens to existing contacts',
+  'insights run': 'Run this week’s learning job now (specs/031)',
+  'insights review': 'Approve, edit, reject or retire playbook insights',
+  'insights activate': 'Put a playbook version live once its eval passes',
+  'insights report': 'Enrolment rate by playbook version',
 };
 
 function usage(): number {
@@ -123,6 +127,14 @@ export async function run(argv: string[]): Promise<number | undefined> {
       return configIsValid(configDir) ? 0 : 1;
     }
 
+    case 'insights run':
+    case 'insights review':
+    case 'insights activate':
+    case 'insights report': {
+      const { runInsights } = await import('../learning/commands.ts');
+      return runInsights([cmd.split(' ')[1]!, ...rest]);
+    }
+
     case 'tokens backfill': {
       process.argv = ['node', 'backfill', ...rest];
       await import('../backfill.ts');
@@ -144,6 +156,7 @@ async function startWorkers(configDir: string) {
   const { ConfigStore } = await import('../config/loader.ts');
   const { createLogger } = await import('../observability/logger.ts');
   const { loadPlugins } = await import('../plugins/loader.ts');
+  const { playbookSource, startLearning } = await import('../learning/wiring.ts');
 
   const env = loadEnv();
   const logger = createLogger(env.LOG_LEVEL);
@@ -162,6 +175,7 @@ async function startWorkers(configDir: string) {
   if (migrated.length > 0) logger.info({ migrations: migrated }, 'migrations applied');
 
   const manychat = manychatClientFor(env);
+  const playbook = playbookSource(db, env, configStore.get(), logger);
 
   const runner = new GenerateTextRunner({
     model: resolveModel(env.AGENT_MODEL),
@@ -171,6 +185,7 @@ async function startWorkers(configDir: string) {
     temperature: env.AGENT_TEMPERATURE,
     reasoningEffort: env.AGENT_REASONING_EFFORT,
     plugins,
+    playbook,
   });
 
   const stopOutbox = new OutboxWorker({ db, client: manychat, logger, plugins }).start();
@@ -183,6 +198,15 @@ async function startWorkers(configDir: string) {
     modelAbortMs: env.MODEL_ABORT_MS,
   }).start();
 
+  const stopLearning = await startLearning({
+    db,
+    env,
+    config: () => configStore.get(),
+    contacts: manychat,
+    logger,
+    playbook,
+  });
+
   process.on('SIGHUP', () => {
     const result = configStore.reload();
     if (result.ok) logger.info('config reloaded');
@@ -191,6 +215,7 @@ async function startWorkers(configDir: string) {
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down');
+    await stopLearning();
     await stopNudges();
     await stopOutbox();
     process.exit(0);

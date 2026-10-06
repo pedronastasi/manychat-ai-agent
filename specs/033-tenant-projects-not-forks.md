@@ -75,15 +75,19 @@ It drops `private: true` and declares its surface explicitly.
 
 **The CLI, `agent`.** It replaces every `pnpm` script a tenant runs today:
 
-| Command                 | Replaces               | Does                                                                 |
-| ----------------------- | ---------------------- | -------------------------------------------------------------------- |
-| `agent serve`           | `pnpm start`           | Runs the server; applies migrations at boot, as now                  |
-| `agent worker`          | `pnpm worker`          | Runs the outbox and nudge workers                                    |
-| `agent eval`            | `pnpm eval`            | Runs the suite at `EVAL_DIR` against `CONFIG_DIR`                    |
-| `agent simulate "msg"`  | `pnpm simulate`        | Sends a Dynamic Block request to a running server                    |
-| `agent config check`    | A tenant test, today   | Parses `config/` with the schemas and the startup checks, then exits |
-| `agent upgrade`         | A manual edit          | Rewrites `config/` to the installed version's shape                  |
-| `agent tokens backfill` | `pnpm tokens:backfill` | As `019`                                                             |
+| Command                   | Replaces                 | Does                                                                 |
+| ------------------------- | ------------------------ | -------------------------------------------------------------------- |
+| `agent serve`             | `pnpm start`             | Runs the server; applies migrations at boot, as now                  |
+| `agent worker`            | `pnpm worker`            | Runs the outbox and nudge workers                                    |
+| `agent eval`              | `pnpm eval`              | Runs the suite at `EVAL_DIR` against `CONFIG_DIR`                    |
+| `agent simulate "msg"`    | `pnpm simulate`          | Sends a Dynamic Block request to a running server                    |
+| `agent config check`      | A tenant test, today     | Parses `config/` with the schemas and the startup checks, then exits |
+| `agent upgrade`           | A manual edit            | Rewrites `config/` to the installed version's shape                  |
+| `agent tokens backfill`   | `pnpm tokens:backfill`   | As `019`                                                             |
+| `agent insights run`      | `pnpm insights:run`      | As `031`                                                             |
+| `agent insights review`   | `pnpm insights:review`   | As `031`                                                             |
+| `agent insights activate` | `pnpm insights:activate` | As `031`                                                             |
+| `agent insights report`   | `pnpm insights:report`   | As `031`                                                             |
 
 `agent config check` runs the same validation `agent serve` runs at startup and
 then exits. A tenant's CI calls it, so a typo in a flow id fails a pull request

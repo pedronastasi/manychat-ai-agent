@@ -193,6 +193,7 @@ export class NudgeWorker {
       cacheReadTokens: result.usage.cacheReadTokens,
       costUsd: result.usage.costUsd,
       latencyMs: result.latencyMs,
+      playbookVersion: result.playbookVersion,
     };
 
     // Escalating is how the model declines. The contact asked nothing, so

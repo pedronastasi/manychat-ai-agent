@@ -192,11 +192,20 @@ export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): 
     );
   }
 
+  const tools = loadTools(dir, reserved, catalog.data);
+  // The cohort is contacts the funnel moved to offered: without a funnel
+  // field there is none to learn from (specs/031).
+  if (rules.data.learning && !tools.fields.some(field => field.funnel)) {
+    throw new ConfigError(
+      'Invalid rules.json:\n  learning: needs a field marked "funnel" in tools.json',
+    );
+  }
+
   return {
     persona: readFileSync(personaPath, 'utf8'),
     catalog: catalog.data,
     rules: rules.data,
-    tools: loadTools(dir, reserved, catalog.data),
+    tools,
   };
 }
 

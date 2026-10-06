@@ -16,6 +16,7 @@ import { OutboxWorker } from './outbox/worker.ts';
 import { NudgeWorker } from './nudge/worker.ts';
 import { buildServer } from './server.ts';
 import { loadPlugins } from './plugins/loader.ts';
+import { playbookSource, startLearning } from './learning/wiring.ts';
 
 export async function main() {
   const env = loadEnv();
@@ -37,6 +38,13 @@ export async function main() {
   // One client, and so one rate limiter, for the server and the worker alike:
   // one each would send at twice the configured rate (specs/022).
   const manychat = manychatClientFor(env);
+  // Logs through the server's logger once it exists; nothing logs before.
+  const logs = {
+    info: (obj: object, msg: string) => app.log.info(obj, msg),
+    warn: (obj: object, msg: string) => app.log.warn(obj, msg),
+    error: (obj: object, msg: string) => app.log.error(obj, msg),
+  };
+  const playbook = playbookSource(db, env, configStore.get(), logs);
   const { app, runner } = await buildServer({
     env,
     db,
@@ -44,6 +52,7 @@ export async function main() {
     manychat,
     contacts: manychat,
     plugins,
+    playbook,
   });
 
   const migrated = await runMigrations(db);
@@ -67,6 +76,17 @@ export async function main() {
     modelAbortMs: env.MODEL_ABORT_MS,
   }).start();
 
+  // The playbook and the weekly learning job (specs/031). Idle without a
+  // `learning` block or INSIGHT_MODEL.
+  const stopLearning = await startLearning({
+    db,
+    env,
+    config: () => configStore.get(),
+    contacts: manychat,
+    logger: logs,
+    playbook,
+  });
+
   // Prompt edits dominate the first weeks; a restart per wording tweak is the
   // friction that ends with people editing prompts in production (specs/003).
   process.on('SIGHUP', () => {
@@ -77,6 +97,7 @@ export async function main() {
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
+    await stopLearning();
     await stopNudges();
     await stopWorker();
     await app.close();

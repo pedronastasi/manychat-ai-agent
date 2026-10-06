@@ -136,7 +136,7 @@ export class UnknownProviderError extends Error {
  * Called once at startup rather than per request: a typo in AGENT_MODEL should
  * fail the deploy, not the first customer message.
  */
-export function resolveModel(spec: string): LanguageModel {
+export function resolveModel(spec: string, variable = 'AGENT_MODEL'): LanguageModel {
   // Offline provider for local dev, CI and demos. Keeping it behind the same
   // `provider:model` indirection means nothing downstream knows the difference.
   if (spec.startsWith('mock:')) {
@@ -145,7 +145,7 @@ export function resolveModel(spec: string): LanguageModel {
   try {
     return registry.languageModel(spec as Parameters<typeof registry.languageModel>[0]);
   } catch (cause) {
-    throw new UnknownProviderError(spec, cause);
+    throw new UnknownProviderError(spec, cause, variable);
   }
 }
 
