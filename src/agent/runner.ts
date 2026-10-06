@@ -30,6 +30,7 @@ import {
   stagesProspect,
 } from './tools.ts';
 import type { ContactActions } from './tools.ts';
+import type { Plugins } from '../plugins/plugins.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -228,6 +229,8 @@ export interface RunnerOptions {
    * what Constitution C5 forbids. Enable only against a trusted collector.
    */
   recordPromptsInTraces?: boolean;
+  /** The tenant's plugin tools, loaded once at boot (specs/036). */
+  plugins?: Plugins | undefined;
 }
 
 export class GenerateTextRunner implements AgentRunner {
@@ -249,11 +252,12 @@ export class GenerateTextRunner implements AgentRunner {
     const config = this.opts.config();
     if (this.cached?.config !== config) {
       const tools = config.tools ?? NO_TOOLS;
-      const withTools = offersTools(tools);
+      const pluginTools = this.opts.plugins?.hasTools ?? false;
+      const withTools = offersTools(tools) || pluginTools;
       this.cached = {
         config,
         withTools,
-        ...buildSystemPrompt(config.persona, config.catalog, config.rules, tools),
+        ...buildSystemPrompt(config.persona, config.catalog, config.rules, tools, { pluginTools }),
       };
     }
     return this.cached;
@@ -280,6 +284,7 @@ export class GenerateTextRunner implements AgentRunner {
           nudgeTurn: nudge !== undefined,
           flows,
           beforeFlow,
+          plugins: this.opts.plugins,
         })
       : undefined;
     // The opening is no longer known before the loop runs: the prospect write

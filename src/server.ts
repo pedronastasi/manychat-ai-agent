@@ -33,6 +33,7 @@ import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/
 import { escalationReply } from './agent/guardrails.ts';
 import { mediaScrubbingStream, redactText } from './observability/redact.ts';
 import { loggerOptions } from './observability/logger.ts';
+import { Plugins } from './plugins/plugins.ts';
 
 const MESSAGE_ROUTE = '/v1/channels/manychat/message';
 
@@ -61,6 +62,8 @@ export interface BuildOptions {
   transcriptionModel?: TranscriptionModel;
   /** Injected by tests to stand in for a server without ffmpeg. */
   ffmpegPaths?: FfmpegPaths;
+  /** The tenant's plugins, loaded once at boot (specs/036). None when absent. */
+  plugins?: Plugins;
 }
 
 /**
@@ -99,6 +102,7 @@ export async function buildServer(opts: BuildOptions) {
   const contacts = opts.contacts ?? built;
 
   const adapter = new ManyChatAdapter(manychatClient);
+  const plugins = opts.plugins ?? Plugins.NONE;
 
   const runner =
     opts.runner ??
@@ -111,6 +115,7 @@ export async function buildServer(opts: BuildOptions) {
       maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
       temperature: env.AGENT_TEMPERATURE,
       reasoningEffort: env.AGENT_REASONING_EFFORT,
+      plugins,
     });
 
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
@@ -283,7 +288,8 @@ export async function buildServer(opts: BuildOptions) {
         logger: request.log,
         tokenWriter: manychatClient,
         tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
-        actions: manychatClient,
+        // A plugin action goes to its plugin, the rest to ManyChat (specs/036).
+        actions: plugins.performer(manychatClient, request.log),
         contacts,
         media,
         lanes,

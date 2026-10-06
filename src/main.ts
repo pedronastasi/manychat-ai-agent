@@ -15,12 +15,16 @@ import { manychatClientFor } from './channels/manychat/client.ts';
 import { OutboxWorker } from './outbox/worker.ts';
 import { NudgeWorker } from './nudge/worker.ts';
 import { buildServer } from './server.ts';
+import { loadPlugins } from './plugins/loader.ts';
 
 export async function main() {
   const env = loadEnv();
   // A tool aimed at the reply flow or field fails the boot, and a reload that
   // introduces one is refused (specs/012).
-  const configStore = new ConfigStore(process.env.CONFIG_DIR ?? 'config', reservedNames(env));
+  const configDir = process.env.CONFIG_DIR ?? 'config';
+  const configStore = new ConfigStore(configDir, reservedNames(env));
+  // Code, loaded once: a plugin that does not load stops the boot (specs/036).
+  const plugins = await loadPlugins(configDir);
 
   let db: Database;
   if (isEmbedded(env.DATABASE_URL)) {
@@ -39,6 +43,7 @@ export async function main() {
     configStore,
     manychat,
     contacts: manychat,
+    plugins,
   });
 
   const migrated = await runMigrations(db);
@@ -48,6 +53,7 @@ export async function main() {
     db,
     client: manychat,
     logger: app.log,
+    plugins,
   }).start();
 
   // Follow-ups the agent scheduled (specs/025). Idle for a tenant without a
