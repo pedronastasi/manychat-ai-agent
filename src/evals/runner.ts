@@ -1,6 +1,7 @@
 import { loadEnv, loadTenantConfig } from '../config/loader.ts';
 import { resolveModel } from '../agent/registry.ts';
 import { GenerateTextRunner } from '../agent/runner.ts';
+import { loadPlugins } from '../plugins/loader.ts';
 import { ActionStage, describeAction } from '../agent/tools.ts';
 import { checkCase, classify, evalDir, loadCases } from './cases.ts';
 import type { Status } from './cases.ts';
@@ -34,6 +35,9 @@ export async function runEval(): Promise<void> {
   const suiteDir = evalDir();
 
   const tenant = loadTenantConfig(configDir);
+  // Offered as in production, so a suite can assert a plugin tool is chosen.
+  // Nothing staged here is performed (specs/036).
+  const plugins = await loadPlugins(configDir);
   const cases = loadCases(suiteDir);
 
   // Defaults to the race deadline, so a suite that sets nothing behaves as
@@ -48,6 +52,7 @@ export async function runEval(): Promise<void> {
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
     temperature: env.AGENT_TEMPERATURE,
     reasoningEffort: env.AGENT_REASONING_EFFORT,
+    plugins,
   });
 
   console.log(`\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   cases: ${cases.length}\n`);

@@ -97,7 +97,21 @@ export async function run(argv: string[]): Promise<number | undefined> {
     }
 
     case 'config check': {
-      console.log(`config check passed (${configDir})`);
+      // Plugins are checked as `agent serve` loads them, so a check that
+      // passes is a boot that does not stop on one (specs/036).
+      const { loadPlugins } = await import('../plugins/loader.ts');
+      let names: readonly string[];
+      try {
+        names = (await loadPlugins(configDir)).names;
+      } catch (error) {
+        if (error instanceof ConfigError) {
+          console.error(`invalid plugins (${configDir}): ${error.message}`);
+          return 1;
+        }
+        throw error;
+      }
+      const loaded = names.length > 0 ? `; plugins: ${names.join(', ')}` : '';
+      console.log(`config check passed (${configDir}${loaded})`);
       return 0;
     }
 
@@ -129,10 +143,12 @@ async function startWorkers(configDir: string) {
   const { resolveModel } = await import('../agent/registry.ts');
   const { ConfigStore } = await import('../config/loader.ts');
   const { createLogger } = await import('../observability/logger.ts');
+  const { loadPlugins } = await import('../plugins/loader.ts');
 
   const env = loadEnv();
   const logger = createLogger(env.LOG_LEVEL);
   const configStore = new ConfigStore(configDir, reservedNames(env));
+  const plugins = await loadPlugins(configDir);
 
   let db: Database;
   if (dbMod.isEmbedded(env.DATABASE_URL)) {
@@ -154,9 +170,10 @@ async function startWorkers(configDir: string) {
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
     temperature: env.AGENT_TEMPERATURE,
     reasoningEffort: env.AGENT_REASONING_EFFORT,
+    plugins,
   });
 
-  const stopOutbox = new OutboxWorker({ db, client: manychat, logger }).start();
+  const stopOutbox = new OutboxWorker({ db, client: manychat, logger, plugins }).start();
   const stopNudges = new NudgeWorker({
     db,
     runner,

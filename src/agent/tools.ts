@@ -12,6 +12,7 @@ import type {
 import { cleanNote, contactResult, UNAVAILABLE } from './contact.ts';
 import type { ContactReads } from './contact.ts';
 import type { FlowSends, SendFlowAction } from './flows.ts';
+import type { Plugins } from '../plugins/plugins.ts';
 
 /**
  * Steps one to three may call tools; step four offers none, so it must
@@ -455,6 +456,8 @@ export function buildTools(
      * (specs/032 § The opening flow is the server's, not the model's).
      */
     beforeFlow?: (() => Promise<void>) | undefined;
+    /** The tenant's plugin tools, staged as the built-in ones are (specs/036). */
+    plugins?: Plugins | undefined;
   } = {},
 ): ToolSet | undefined {
   const tools: ToolSet = {};
@@ -854,6 +857,10 @@ export function buildTools(
             },
     });
   }
+
+  // Added last, and a built-in name was refused when the plugin loaded, so a
+  // plugin can neither replace nor shadow one of the tools above.
+  options.plugins?.addTools(tools, stage, closed, description => `${description}\n${STAGED}`);
 
   return Object.keys(tools).length > 0 ? tools : undefined;
 }

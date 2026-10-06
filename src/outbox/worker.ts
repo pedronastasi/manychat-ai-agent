@@ -9,6 +9,8 @@ import { performActions, performedCourse } from '../conversation/actions.ts';
 import { recordOf } from '../agent/tools.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
+import type { ActionPerformer } from '../channels/manychat/client.ts';
+import type { Plugins } from '../plugins/plugins.ts';
 
 export interface WorkerLogger {
   info: (obj: object, msg: string) => void;
@@ -20,6 +22,8 @@ export interface WorkerOptions {
   db: Database;
   client: ManyChatClient;
   logger: WorkerLogger;
+  /** Performs the plugin actions deferred with a reply (specs/036). */
+  plugins?: Plugins | undefined;
   batchSize?: number;
   pollIntervalMs?: number;
 }
@@ -39,6 +43,7 @@ export class OutboxWorker {
   private readonly tokens: ContactTokens;
   private readonly store: ConversationStore;
   private readonly nudges: NudgeStore;
+  private readonly actions: ActionPerformer;
   private running = false;
   /**
    * Set by the stop function. A contact's rows after the one being sent go
@@ -54,6 +59,7 @@ export class OutboxWorker {
     this.tokens = new ContactTokens(opts.db, opts.client);
     this.store = new ConversationStore(opts.db);
     this.nudges = new NudgeStore(opts.db);
+    this.actions = opts.plugins ? opts.plugins.performer(opts.client, opts.logger) : opts.client;
   }
 
   /**
@@ -67,8 +73,8 @@ export class OutboxWorker {
     if (!actions || actions.length === 0) return;
     try {
       const performer = row.conversationId
-        ? new NudgingPerformer(this.opts.client, this.nudges, row.conversationId)
-        : this.opts.client;
+        ? new NudgingPerformer(this.actions, this.nudges, row.conversationId)
+        : this.actions;
       const outcomes = await performActions(performer, row.subscriberId, actions, this.opts.logger);
       if (turnId) await this.store.resolveStaged(turnId, outcomes);
       // The contact's course follows a write to it that ManyChat accepted (specs/028).

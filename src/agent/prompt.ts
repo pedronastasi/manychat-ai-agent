@@ -83,8 +83,10 @@ export function buildSystemPrompt(
   rules: Rules,
   /** This tenant's `tools.json` (specs/012); its funnel adds the SALES rules (specs/023). */
   tools: Tools = NO_TOOLS,
+  /** Whether the deployment's plugins add tools of their own (specs/036). */
+  options: { pluginTools?: boolean } = {},
 ): SystemPromptParts {
-  const withTools = offersTools(tools);
+  const withTools = offersTools(tools) || options.pluginTools === true;
   const staticPrefix = [
     persona.trim(),
     '',
@@ -137,6 +139,7 @@ export function buildSystemPrompt(
     'someone who has declined twice, or a turn whose opening flow asks it.',
     'Null is a decision, not a way to skip the field.',
     ...(withTools ? ACTIONS_SECTION : []),
+    ...(options.pluginTools ? PLUGIN_TOOLS_LINES : []),
     ...intentSection(tools),
     ...salesSection(tools),
     ...coursesSection(tools),
@@ -168,6 +171,15 @@ const ACTIONS_SECTION = [
   `An earlier reply of yours may end with ${ACTION_NOTE_OPEN} ...]. The system`,
   'writes that line, not you: it lists what reached ManyChat on that turn. Do not',
   'repeat those actions unless the contact asks, and never write such a line.',
+];
+
+/**
+ * Only when a plugin adds a tool, so a deployment without one gets the prompt
+ * it had before (specs/036).
+ */
+const PLUGIN_TOOLS_LINES = [
+  'This deployment adds tools of its own. They are staged like the others: performed',
+  'after your reply, and not at all if you escalate. Their description says when to use them.',
 ];
 
 const NUDGE_NOTE_OPEN = '[no reply from the contact since';

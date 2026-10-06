@@ -90,8 +90,8 @@ describe('the packed tarball contains exactly the allowlist (specs/033 V1)', () 
 /* ------------------------------------------------------------------ */
 
 describe('the exports map matches the spec table (specs/033 V2)', () => {
-  it('names exactly ./config and ./testing (the bare specifier waits for 036)', () => {
-    expect(Object.keys(pkg.exports ?? {}).sort()).toEqual(['./config', './testing']);
+  it('names exactly the bare entry point, ./config and ./testing (specs/036)', () => {
+    expect(Object.keys(pkg.exports ?? {}).sort()).toEqual(['.', './config', './testing']);
   });
 
   it('resolves a listed entry point and refuses an unlisted deep import', () => {
@@ -102,7 +102,12 @@ describe('the exports map matches the spec table (specs/033 V2)', () => {
       const installed = join(tenant, 'node_modules', pkg.name);
       mkdirSync(installed, { recursive: true });
       writeFileSync(join(installed, 'package.json'), readFileSync('package.json'));
-      plant(installed, ['dist/config/index.js', 'dist/testing/index.js', 'dist/agent/runner.js']);
+      plant(installed, [
+        'dist/index.js',
+        'dist/config/index.js',
+        'dist/testing/index.js',
+        'dist/agent/runner.js',
+      ]);
 
       const script = `
         const outcome = specifier => {
@@ -110,6 +115,7 @@ describe('the exports map matches the spec table (specs/033 V2)', () => {
           catch (error) { return error.code; }
         };
         console.log(JSON.stringify({
+          bare: outcome('${pkg.name}'),
           config: outcome('${pkg.name}/config'),
           testing: outcome('${pkg.name}/testing'),
           deep: outcome('${pkg.name}/dist/agent/runner.js'),
@@ -117,6 +123,7 @@ describe('the exports map matches the spec table (specs/033 V2)', () => {
       `;
       const out = execFileSync('node', ['-e', script], { cwd: tenant, encoding: 'utf8' });
       expect(JSON.parse(out)).toEqual({
+        bare: 'resolved',
         config: 'resolved',
         testing: 'resolved',
         deep: 'ERR_PACKAGE_PATH_NOT_EXPORTED',

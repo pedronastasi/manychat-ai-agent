@@ -167,9 +167,10 @@ export type ToolName = z.infer<typeof ToolName>;
  * What a turn's `actions` entry may record: a tool the model called, or a
  * `send_event`, which no model is ever offered. The server performs it as a
  * follow-on of a funnel write (specs/027 § Every event is recorded beside the
- * write that caused it).
+ * write that caused it). A plugin tool is recorded as `plugin`, its name as
+ * the id (specs/036).
  */
-export const ActionKind = z.enum([...ToolName.options, 'send_event']);
+export const ActionKind = z.enum([...ToolName.options, 'send_event', 'plugin']);
 export type ActionKind = z.infer<typeof ActionKind>;
 
 /**
@@ -252,6 +253,19 @@ export const StagedAction = z.discriminatedUnion('tool', [
    * `nudges`, never as a ManyChat request (specs/025).
    */
   z.object({ tool: z.literal('schedule_nudge'), id: z.string(), minutes: z.number() }),
+  /**
+   * A tool a tenant's plugin declares, `id` being its name. Its parameters
+   * were validated against the declaration when it was staged, and its notes
+   * cleaned and kept apart so they can be kept out of the logs as a
+   * `write_note`'s text is. The plugin performs it, never ManyChat (specs/036).
+   */
+  z.object({
+    tool: z.literal('plugin'),
+    id: z.string(),
+    plugin: z.string(),
+    params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+    notes: z.record(z.string(), z.string()).optional(),
+  }),
 ]);
 export type StagedAction = z.infer<typeof StagedAction>;
 

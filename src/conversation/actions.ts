@@ -17,7 +17,17 @@ function reasonFor(error: unknown, subscriberId: string, action: PerformableActi
   // A ManyChat error's message already names the endpoint, the status and
   // ManyChat's own message.
   const raw = error instanceof Error ? error.message : String(error);
-  const unquoted = action.tool === 'write_note' ? raw.split(action.text).join('[note]') : raw;
+  // A plugin's own error can quote anything it was given (specs/036).
+  const quoted =
+    action.tool === 'write_note'
+      ? [action.text]
+      : action.tool === 'plugin'
+        ? Object.values(action.notes ?? {})
+        : [];
+  const unquoted = quoted.reduce(
+    (text, value) => (value.length > 0 ? text.split(value).join('[note]') : text),
+    raw,
+  );
   return redactText(unquoted.split(subscriberId).join('[subscriber]')).slice(0, 200);
 }
 

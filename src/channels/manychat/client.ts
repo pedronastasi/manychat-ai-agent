@@ -189,6 +189,9 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
         // A row in `nudges`, written by NudgingPerformer (specs/025). Reaching
         // ManyChat with one means the wrapper was left out.
         throw new Error('schedule_nudge is not a ManyChat action');
+      case 'plugin':
+        // Performed by its plugin (specs/036); the same mistake as above.
+        throw new Error('a plugin tool is not a ManyChat action');
     }
   }
 

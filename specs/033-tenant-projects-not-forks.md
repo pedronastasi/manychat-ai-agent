@@ -49,17 +49,16 @@ So the rule is:
 This table is the tenant contract. It does not depend on the language: the
 TypeScript package and the Python service both read exactly this layout.
 
-| Path                 | Holds                                                   | Owned by |
-| -------------------- | ------------------------------------------------------- | -------- |
-| `config/`            | `prompt.md`, `catalog.json`, `rules.json`, `tools.json` | Tenant   |
-| `.env`               | Credentials and model selection (`003 § .env`)          | Tenant   |
-| `evals/<name>/`      | The tenant's eval suite (`009`)                         | Tenant   |
-| `test/`              | Tenant tests, importing only the public entry points    | Tenant   |
-| `docker-compose.yml` | Runs the published image with `config/` mounted         | Tenant   |
-| `.github/workflows/` | The tenant's CI and deployment                          | Tenant   |
-| `package.json`       | The agent as a dependency, at one pinned range          | Tenant   |
-
-`036` adds `config/plugins.json` to this table when it is implemented.
+| Path                  | Holds                                                   | Owned by |
+| --------------------- | ------------------------------------------------------- | -------- |
+| `config/`             | `prompt.md`, `catalog.json`, `rules.json`, `tools.json` | Tenant   |
+| `config/plugins.json` | The plugin packages to load, optional (`036`)           | Tenant   |
+| `.env`                | Credentials and model selection (`003 § .env`)          | Tenant   |
+| `evals/<name>/`       | The tenant's eval suite (`009`)                         | Tenant   |
+| `test/`               | Tenant tests, importing only the public entry points    | Tenant   |
+| `docker-compose.yml`  | Runs the published image with `config/` mounted         | Tenant   |
+| `.github/workflows/`  | The tenant's CI and deployment                          | Tenant   |
+| `package.json`        | The agent as a dependency, at one pinned range          | Tenant   |
 
 Nothing on this list is a file upstream also edits. That is the property the
 fork lacks, and the reason an upgrade can be a version bump.
@@ -101,11 +100,11 @@ be imported, and Node refuses the attempt:
 
 | Entry point                 | Exports                                                      |
 | --------------------------- | ------------------------------------------------------------ |
+| `manychat-ai-agent`         | `definePlugin`, `defineTool` and the plugin types (`036`)    |
 | `manychat-ai-agent/config`  | The config schemas, their inferred types, `loadTenantConfig` |
 | `manychat-ai-agent/testing` | The mock model helpers and `buildTools`, for tenant tests    |
 
-The bare `manychat-ai-agent` has no entry point until `036` gives it
-`definePlugin`. The runner, the race, the guardrails, the outbox, the registry
+The runner, the race, the guardrails, the outbox, the registry
 and the ManyChat client are not exported. A tenant who needs one of them has
 found a missing configuration option or plugin hook, and the fix belongs
 upstream.
@@ -171,7 +170,8 @@ What counts as breaking is now defined by the contract, not by the code:
 - a config file that parsed in the previous release and does not parse now;
 - an environment variable, CLI command, route or eval case field that is
   removed or renamed;
-- a plugin API change, once `036` defines one.
+- a plugin API change, as `036 § A plugin API change is a breaking change`
+  defines it.
 
 A pull request that breaks `config/` in this sense ships an `agent upgrade`
 migration in the same pull request. A migration is a function from the previous
