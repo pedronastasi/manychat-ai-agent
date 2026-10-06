@@ -20,6 +20,9 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://agent:agent@postgres:5432/agent
+      # The offline .env turns contact tokens off so `simulate` gets history.
+      # A deployment never runs that way: these override .env (specs/019).
+      CONTACT_TOKENS_ENFORCED: 'true'
       PORT: 3000
     # A directory, never single files: an editor that replaces a file leaves a
     # single-file mount showing the old one. SIGHUP reloads it.

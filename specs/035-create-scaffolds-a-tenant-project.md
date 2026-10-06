@@ -50,7 +50,9 @@ It writes:
   image does not carry it; the generated project installs it as a dev
   dependency. Its `test` script passes while `test/` is empty, so CI is green
   before the tenant writes a test.
-- `docker-compose.yml` running the image at the same version.
+- `docker-compose.yml` running the image at the same version. It loads `.env`
+  but sets `CONTACT_TOKENS_ENFORCED=true` itself, so the offline default never
+  reaches a deployment (`019`).
 - `.github/workflows/ci.yml` running `agent config check`, the mock eval suite
   and the tenant tests.
 - `renovate.json`, so a release arrives as a pull request.

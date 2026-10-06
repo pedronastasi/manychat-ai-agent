@@ -122,6 +122,16 @@ describe('create scaffolds a tenant project from the demo tenant (specs/035 V1)'
     );
   });
 
+  it('enforces contact tokens in the Compose deployment, whatever the offline .env says', () => {
+    // .env turns them off for `simulate`; Compose loads that same file, so the
+    // service's own environment, which wins over env_file, turns them back on.
+    const compose = parse(read('docker-compose.yml')) as {
+      services: { agent: { env_file: string[]; environment: Record<string, string> } };
+    };
+    expect(compose.services.agent.env_file).toContain('.env');
+    expect(compose.services.agent.environment.CONTACT_TOKENS_ENFORCED).toBe('true');
+  });
+
   it('groups the package and the image into one Renovate pull request', () => {
     const renovate = JSON.parse(read('renovate.json'));
     expect(renovate.packageRules).toContainEqual(
