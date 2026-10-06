@@ -77,10 +77,17 @@ repository a year later.
 
 `create-manychat-ai-agent@<version>` scaffolds a project that depends on
 `manychat-ai-agent@^<version>` and runs the image tagged `<version>`, so the
-three must exist together. The `release-please` manifest gains
-`packages/create/` beside `.`, with the two versions linked, and `release.yml`
-publishes both from the same tag. This is the monorepo manifest that
-`010 § Deliberately not in scope` excluded while there was one package.
+three must exist together. `release-please` releases one package, the agent,
+and sets `packages/create/package.json`'s version with it on every release, as
+an extra file. `release.yml` publishes both from the same tag.
+
+The first design was a two-package manifest with the versions linked. It
+failed twice. A release that changed only the agent bumped only the agent, so
+the scaffolder stayed a release behind and started new projects there. And
+the merged pull request of such a release named one package, which
+release-please then matched to neither, so 0.17.0 was never tagged until its
+pull request was edited by hand. With one package there is one version, one
+tag and one release pull request per release.
 
 ## Verification
 
@@ -89,8 +96,9 @@ publishes both from the same tag. This is the monorepo manifest that
   fails on a public repository, `agent config check` passes, and `agent eval`
   against the mock model passes on the generated suite. It also asserts the
   generated project does not set `allowUnusedPatches`.
-- A test asserts the `release-please` configuration releases `.` and
-  `packages/create/` at one linked version.
+- A test asserts the `release-please` configuration releases one package, sets
+  the scaffolder's version with the agent's, and that the two versions are
+  equal.
 
 **What this does not catch.** The public-repository check runs only in a
 tenant's GitHub Actions, and a tenant who deletes that step, or does not use

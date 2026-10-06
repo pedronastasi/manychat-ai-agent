@@ -255,14 +255,14 @@ and merging the two would hand it some.
 
 ## Deliberately not in scope
 
-ADR-0021 reversed all three exclusions below.
+ADR-0021 reversed two of the three exclusions below.
 `033-tenant-projects-not-forks.md` specifies npm publish and the release image;
 `release.yml` now carries both, keyed off `release-please`'s `release_created`
 output, and grants `id-token: write` (OIDC trusted publishing) and
 `packages: write` (GHCR) to the publish jobs alone. `package.json` drops
 `private: true` and publishes from an allowlist (`files`).
-`035-create-scaffolds-a-tenant-project.md` adds the second package, and with it
-the monorepo manifest.
+`035-create-scaffolds-a-tenant-project.md` adds a second package but releases
+it as part of the agent, so the monorepo-manifest exclusion stands.
 
 **npm publish.** Specified by `033`. Each release publishes `manychat-ai-agent`
 to npm with OIDC provenance, from a clean checkout at the release tag.
@@ -284,16 +284,19 @@ package that does not exist yet.
 image of `015-test-service.md` remains separate, tagged by commit SHA and never
 by version.
 
-**Monorepo manifests.** Specified by `035`. The manifest releases `.` and
-`packages/create/` (`create-manychat-ai-agent`) with the `linked-versions`
-plugin, so one release moves both to one version. The versioning settings sit
-at the top of `release-please-config.json`, where they apply to both packages:
-set on one alone, a breaking change could compute `1.0.0` for that package and
-the link would carry the other along. The agent keeps `v<version>` tags
-(`include-component-in-tag: false`); the scaffolder's carry its name.
-`publish-npm` publishes the scaffolder after the agent, from the same tag. Like
-the agent's first version, its first is published by hand, before its trusted
-publisher can be attached on npmjs.com.
+**Monorepo manifests.** Not used. `035`'s scaffolder,
+`packages/create/` (`create-manychat-ai-agent`), is released as part of the
+agent: the manifest holds one package, `.`, and its release sets
+`packages/create/package.json`'s version as an extra file, so one release
+moves both to one version under one `v<version>` tag
+(`include-component-in-tag: false`). A two-package manifest with linked
+versions was tried and dropped (`035 § The two packages are released as one
+version`). `separate-pull-requests` is set, so the release pull request's
+branch names the package, which is how release-please matches a merged one
+to the package it releases. `publish-npm` publishes the scaffolder after the
+agent, from the same tag. Like the agent's first version, its first is
+published by hand, before its trusted publisher can be attached on
+npmjs.com.
 
 **Pre-releases and release branches.** No `next`, `beta` or `rc` channel, and no
 maintenance branches. Every release is cut from `main`. A project with no
