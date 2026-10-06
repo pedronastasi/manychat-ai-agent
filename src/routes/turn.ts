@@ -217,13 +217,17 @@ export class TurnHandler {
     const deadlineAt = Date.now() + this.deps.raceDeadlineMs;
     if (!lanes) return this.run(inbound, { deadlineAt });
 
+    // Its place is taken on arrival, before any read can reorder two requests.
+    const slot = lanes.enter(`${inbound.tenantId}:${inbound.subscriberId}`);
     // Only a turn that enters the contact's history is ordered. One without
-    // the token neither waits nor holds the contact's own turns up.
+    // the token gives its place back at once: it neither waits nor holds the
+    // contact's own turns up.
     const known = await this.store.find(inbound.tenantId, inbound.subscriberId);
     const binding = bindingFor(known, inbound.contactToken);
-    if (binding === 'unbound' && tokensEnforced) return this.run(inbound, { deadlineAt });
-
-    const slot = lanes.enter(`${inbound.tenantId}:${inbound.subscriberId}`);
+    if (binding === 'unbound' && tokensEnforced) {
+      slot.leave();
+      return this.run(inbound, { deadlineAt });
+    }
     // The next turn goes in once this one has settled: its reply recorded, and
     // queued when the race was lost.
     let background: Promise<void> = Promise.resolve();
