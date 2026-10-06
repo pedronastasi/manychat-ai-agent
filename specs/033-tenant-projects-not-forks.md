@@ -270,9 +270,15 @@ made here first and the contract table above records it.
   tenant project. `id-token: write` is already held
   by `docs.yml`, `claude.yml` and `claude-code-review.yml`, so the test asserts
   only that `release.yml` requests it.
-- The release image is checked once, on the first release: it starts with a
-  mounted fixture `config/`, answers `agent simulate`, and contains no
-  `config/`.
+- The release image was checked once, at 0.15.2, and the check accepted
+  three things in place of a fixture boot and a listing of the image. It
+  served a tenant's real `config/`, mounted read-only, in a test environment
+  and then production. Every image tag up to 0.15.2 was built by
+  `release.yml` from a clean checkout, which holds no `config/` or `.env` to
+  copy, and the `Dockerfile`'s runtime stage copies only `node_modules`,
+  `dist`, `package.json` and `db/migrations`. Every published npm version's
+  file list contains neither, including the two published by hand before
+  trusted publishing worked.
 - The fork's migration is checked against the list above by reading the
   deployment repository. That repository is private, and no test here can see
   it. So the pull request that implements the package leaves this spec
