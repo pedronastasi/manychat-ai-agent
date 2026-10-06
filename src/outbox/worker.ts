@@ -147,8 +147,8 @@ export class OutboxWorker {
         }
       }),
     );
-    // Every contact's rows have finished before a failure is reported, so a
-    // stop still waits for the whole batch.
+    // Every contact's chain has settled, finished or handed back, before a
+    // failure is reported, so no row is left delivering when a stop returns.
     const failed = contacts.find(contact => contact.status === 'rejected');
     if (failed) throw failed.reason;
     return result;
