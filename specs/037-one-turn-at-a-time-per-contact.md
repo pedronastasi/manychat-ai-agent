@@ -54,6 +54,9 @@ outbox. Turns wait in the order their requests arrived.
   silent, as a response is while a flow plays (`030`), and the turn runs once
   the previous one settles, with its reply going through the outbox. The
   contact already has the previous turn's holding line, or its flow.
+- A turn that fails after that silent response is past the route's error
+  handler, which answers a failure with the handoff (`017`). The handoff goes
+  through the outbox instead, and the conversation is marked escalated (C6).
 - A previous turn that has not settled after `MODEL_ABORT_MS` plus the race
   deadline is no longer waited for, and the log line `turn wait expired` says
   so. Everything a turn runs is bounded by then. A turn stuck past that bound
@@ -114,7 +117,8 @@ with the gap between them (`002`).
    recorded order is the first message, its reply, the second message.
 3. An integration test asserts that a second turn still waiting at its
    deadline gets a silent response, and that its reply is queued after the
-   first turn's.
+   first turn's. Another fails the database under such a turn and asserts the
+   handoff is queued and the conversation marked escalated.
 4. An integration test asserts that a turn finishing inside the deadline while
    a reply to the contact is queued is answered silently and its reply is
    queued behind that one, and that a race lost in that state sends no holding

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { turns } from '../../src/db/schema.ts';
@@ -172,6 +172,29 @@ describe('a turn still waiting at its deadline (specs/037 V3)', () => {
       rows[0]!.nextAttemptAt.getTime(),
     );
     expect(seen[1]!.history).toEqual(['user: first', 'agent: reply to first']);
+  });
+});
+
+describe('a waiting turn that fails after its silent response (specs/037, C6)', () => {
+  it('queues the handoff, since no error handler can answer it any more', async () => {
+    const lanes = new TurnLanes(20_000);
+    const { runner } = recordingRunner(text => (text === 'first' ? 600 : 0));
+    const deadline = { raceDeadlineMs: 200 };
+    await handler(runner, lanes, deadline).handle(inbound('first'));
+    const second = await handler(runner, lanes, deadline).handle(inbound('second'));
+    expect(second.silent).toBe(true);
+
+    // The database fails the waiting turn once it runs: its first step after
+    // starting is to cancel the contact's pending follow-up.
+    await db.execute(sql`DROP TABLE nudges`);
+
+    const rows = await eventually(replyRows, found => found.length === 2);
+    expect(rows.map(row => (row.payload as { messages: string[] }).messages)).toEqual([
+      ['reply to first'],
+      ['Passing you to a person.'],
+    ]);
+    const conversation = await db.query.conversations.findFirst();
+    expect(conversation?.escalatedAt).not.toBeNull();
   });
 });
 

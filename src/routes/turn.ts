@@ -249,8 +249,9 @@ export class TurnHandler {
             if (ready === 'expired') expired();
             await this.run(inbound, { ...opts, late: true });
           })
-          .catch((error: unknown) => {
+          .catch(async (error: unknown) => {
             logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
+            await this.handOffLate(inbound);
           })
           .finally(leave);
         // The previous turn has started the conversation by now; its reply,
@@ -277,6 +278,30 @@ export class TurnHandler {
       return await this.run(inbound, opts);
     } finally {
       leave();
+    }
+  }
+
+  /**
+   * A turn that failed after its silent response, which no error handler can
+   * answer any more: the handoff goes through the outbox instead, as the
+   * route's error handler would have sent it (C6, specs/037).
+   */
+  private async handOffLate(inbound: InboundMessage): Promise<void> {
+    const { rules, logger } = this.deps;
+    try {
+      const conversation = await this.store.find(inbound.tenantId, inbound.subscriberId);
+      await this.queue.enqueue({
+        tenantId: inbound.tenantId,
+        subscriberId: inbound.subscriberId,
+        conversationId: conversation?.id ?? null,
+        reply: escalationReply('low_confidence', rules.messages.escalation),
+      });
+      if (conversation) {
+        await this.store.markEscalated(conversation.id);
+        await this.nudges.cancel(conversation.id, 'escalated');
+      }
+    } catch (error) {
+      logger.error({ err: String(error) }, 'waiting turn handoff not queued');
     }
   }
 
@@ -337,6 +362,8 @@ export class TurnHandler {
           reply: result.reply,
         });
       } catch (error) {
+        // A late turn's response is gone, so its reply has nowhere else to go.
+        if (opts.late) throw error;
         // Early is better than never: the reply goes out now.
         logger.error({ err: String(error) }, 'failed to queue reply behind the previous one');
         return result;
@@ -816,6 +843,9 @@ export class TurnHandler {
           });
         } catch (error) {
           logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
+          // A late turn's response was silent, so this is all the contact
+          // would get: nothing (C6).
+          if (opts.late) await this.handOffLate(inbound);
         }
       });
       opts.onBackground?.(settling);
