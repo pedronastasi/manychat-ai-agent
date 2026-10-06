@@ -149,6 +149,24 @@ describe('a second message waits for the first turn (specs/037 V2)', () => {
   });
 });
 
+describe('a turn whose contact read fails (specs/037 § Turns that enter history run one at a time)', () => {
+  it("gives its place back, so the contact's next turn does not wait for it", async () => {
+    const lanes = new TurnLanes(60_000);
+    const { runner } = recordingRunner(() => 0);
+    logger.error.mockClear();
+
+    // The read fails once: the table is out of reach for this one request.
+    await db.execute(sql`ALTER TABLE conversations RENAME TO conversations_away`);
+    await expect(handler(runner, lanes).handle(inbound('first'))).rejects.toThrow();
+    await db.execute(sql`ALTER TABLE conversations_away RENAME TO conversations`);
+
+    const next = await handler(runner, lanes).handle(inbound('second'));
+    expect(next.silent).toBeUndefined();
+    expect(next.reply.messages).toEqual(['reply to second']);
+    expect(logger.error).not.toHaveBeenCalledWith(expect.anything(), 'turn wait expired');
+  });
+});
+
 describe('a turn still waiting at its deadline (specs/037 V3)', () => {
   it('is answered silently, and its reply is queued after the first', async () => {
     const lanes = new TurnLanes(20_000);
