@@ -249,13 +249,14 @@ and merging the two would hand it some.
 
 ## Deliberately not in scope
 
-ADR-0021 reversed the first two exclusions below.
+ADR-0021 reversed all three exclusions below.
 `033-tenant-projects-not-forks.md` specifies npm publish and the release image;
 `release.yml` now carries both, keyed off `release-please`'s `release_created`
 output, and grants `id-token: write` (OIDC trusted publishing) and
 `packages: write` (GHCR) to the publish jobs alone. `package.json` drops
-`private: true` and publishes from an allowlist (`files`). The third exclusion
-remains until `035` is implemented.
+`private: true` and publishes from an allowlist (`files`).
+`035-create-scaffolds-a-tenant-project.md` adds the second package, and with it
+the monorepo manifest.
 
 **npm publish.** Specified by `033`. Each release publishes `manychat-ai-agent`
 to npm with OIDC provenance, from a clean checkout at the release tag.
@@ -277,9 +278,16 @@ package that does not exist yet.
 image of `015-test-service.md` remains separate, tagged by commit SHA and never
 by version.
 
-**Monorepo manifests.** `release-please` supports releasing many packages from
-one repository. There is one package. The manifest file exists only because v4
-of the action uses it in the single-package case too.
+**Monorepo manifests.** Specified by `035`. The manifest releases `.` and
+`packages/create/` (`create-manychat-ai-agent`) with the `linked-versions`
+plugin, so one release moves both to one version. The versioning settings sit
+at the top of `release-please-config.json`, where they apply to both packages:
+set on one alone, a breaking change could compute `1.0.0` for that package and
+the link would carry the other along. The agent keeps `v<version>` tags
+(`include-component-in-tag: false`); the scaffolder's carry its name.
+`publish-npm` publishes the scaffolder after the agent, from the same tag. Like
+the agent's first version, its first is published by hand, before its trusted
+publisher can be attached on npmjs.com.
 
 **Pre-releases and release branches.** No `next`, `beta` or `rc` channel, and no
 maintenance branches. Every release is cut from `main`. A project with no

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      # config/ is this tenant's prompt, prices and schedule, tracked because
+      # the repository is private. Made public, it fails here on the next push
+      # rather than after it has been indexed (specs/035).
+      - name: Repository is private
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ "$PRIVATE" != "true" ]; then
+            echo "::error::This repository is public, and config/ holds tenant data. Make it private."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      # The validation the server runs at startup, so a typo in config/ fails
+      # this pull request rather than the container at boot. Placeholder
+      # environment: the check parses it and connects to nothing.
+      - name: Config check
+        run: pnpm check
+        env:
+          AGENT_MODEL: mock:demo
+          PUBLIC_BASE_URL: https://ci.example.com
+          MANYCHAT_SHARED_SECRET: ci-secret-ci-secret-ci-secret-xx
+          DATABASE_URL: pglite
+
+      # The eval suite against the mock model: free and deterministic. A run
+      # against a real model costs money and stays a deliberate local step.
+      - name: Eval (mock model)
+        run: pnpm eval
+        env:
+          AGENT_MODEL: mock:demo
+          PUBLIC_BASE_URL: https://ci.example.com
+          MANYCHAT_SHARED_SECRET: ci-secret-ci-secret-ci-secret-xx
+          DATABASE_URL: pglite
+
+      - name: Tenant tests
+        run: pnpm test

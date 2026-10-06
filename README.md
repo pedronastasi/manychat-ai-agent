@@ -162,6 +162,7 @@ src/
   outbox/         deferred delivery
   routes/         auth, the turn handler with the race
 evals/            golden set + runner
+packages/create/  `npm create manychat-ai-agent`: scaffolds a tenant project
 test/             unit and integration (PGlite: real Postgres, no container)
 ```
 
@@ -353,6 +354,19 @@ pnpm simulate --subscriber 42 "can you give me a discount?"
 ```
 
 ## Deployment
+
+A deployment is a tenant project that depends on this package, never a fork of
+this repository (ADR-0021). Generate one from the fictional demo tenant:
+
+```bash
+npm create manychat-ai-agent@latest my-agent
+```
+
+It writes `config/`, an offline `.env`, an eval suite, CI, Compose and
+Renovate, depending on the agent and its image at the scaffolder's version.
+Replace `config/` with your own and keep the repository private: the generated
+CI fails when it is public
+([specs/035](specs/035-create-scaffolds-a-tenant-project.md)).
 
 Point a ManyChat **Dynamic Block** (Dev Tools, requires a Pro plan) at
 `POST /v1/channels/manychat/message` and add an `Authorization: Bearer <secret>`
