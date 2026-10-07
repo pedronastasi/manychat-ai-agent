@@ -88,6 +88,7 @@ It drops `private: true` and declares its surface explicitly.
 | `agent insights review`   | `pnpm insights:review`   | As `031`                                                             |
 | `agent insights activate` | `pnpm insights:activate` | As `031`                                                             |
 | `agent insights report`   | `pnpm insights:report`   | As `031`                                                             |
+| `agent plugin new`        | Four hand edits          | Starts a plugin from the agent's own example, as `041`               |
 
 `agent config check` runs the same validation `agent serve` runs at startup and
 then exits. A tenant's CI calls it, so a typo in a flow id fails a pull request
@@ -265,7 +266,8 @@ made here first and the contract table above records it.
   example config and asserts the result passes `agent config check`, and that a
   second run changes nothing.
 - A test asserts each CLI command in the table exists and exits non-zero on an
-  invalid `config/`.
+  invalid `config/`, except `agent plugin new`, which reads only `plugins.json`
+  and prints the config check as its next step (`041`).
 - A test asserts `release.yml` is the only workflow this repository ships with
   `packages: write`, extending `010`'s `contents: write` check. The test names
   the shipped workflows. In this repository's own CI it also checks every

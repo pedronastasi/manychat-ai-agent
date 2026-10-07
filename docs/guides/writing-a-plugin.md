@@ -38,8 +38,33 @@ A plugin tool is a staged action, like `add_tag` or `set_field`:
 
 ## 1. Create the package
 
-A plugin is an npm package. It can live in your tenant project's workspace, so
-it is versioned with your configuration:
+From your tenant project's root:
+
+```sh
+pnpm agent plugin new example-crm --write   # a tool that acts after the reply
+pnpm agent plugin new example-crm --read    # a tool that looks something up
+```
+
+It writes `plugins/agent-plugin-example-crm/` from the agent's own invented
+example, with the `apiVersion` your installed agent supports, and makes the
+three edits that load it: `plugins/*` in `pnpm-workspace.yaml`,
+`"agent-plugin-example-crm": "workspace:*"` in your `package.json`, and the
+name in `config/plugins.json`. It makes all of them or none, and it installs
+nothing. Run the two commands it prints next:
+
+```sh
+pnpm install
+pnpm agent config check
+```
+
+The tool is named after the plugin, in snake case: `example_crm` here. Rename
+it, and replace the invented backend, parameters and description, before the
+plugin does anything real. Start from the command rather than a copy of
+another deployment's plugin, which brings that deployment's endpoints and field
+names with it ([spec 041](../../specs/041-plugin-new-starts-from-the-example.md)).
+
+The package it writes is laid out like this, and you can write one by hand the
+same way:
 
 ```text
 example-tenant/
@@ -56,17 +81,13 @@ example-tenant/
 ```json
 {
   "name": "agent-plugin-example-crm",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": "./index.js",
   "peerDependencies": { "manychat-ai-agent": "*" }
 }
 ```
-
-Add `plugins/*` to `pnpm-workspace.yaml`, and the plugin to your project's
-`package.json` as `"agent-plugin-example-crm": "workspace:*"`, then run
-`pnpm install`. The agent resolves it from your project's `node_modules`.
 
 ## 2. Define the plugin
 
@@ -181,7 +202,8 @@ export default definePlugin({
 { "plugins": ["agent-plugin-example-crm"] }
 ```
 
-in `config/plugins.json`. List package names, never paths.
+in `config/plugins.json`, which `agent plugin new` has already written. List
+package names, never paths.
 
 ## 4. Check it, then restart
 

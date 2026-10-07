@@ -26,9 +26,13 @@ export const PLUGINS_FILE = 'plugins.json';
 const PluginsFile = z.object({ plugins: z.array(z.string().min(1)) }).strict();
 
 /** Names the model already knows: the six of specs/012 and the read of specs/024. */
-const BUILT_IN = new Set<string>([...ToolName.options, 'get_contact']);
+export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set<string>([
+  ...ToolName.options,
+  'get_contact',
+]);
 
-const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+/** A tool name the loader accepts: lowercase snake case, at most 64 characters. */
+export const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const PLUGIN_KEYS = new Set(['name', 'apiVersion', 'tools']);
 const TOOL_KEYS = new Set(['name', 'description', 'parameters', 'perform', 'read', 'result']);
 const ENUM_KEYS = new Set(['type', 'values', 'description', 'optional']);
@@ -72,7 +76,7 @@ function unknownKeys(value: Record<string, unknown>, allowed: ReadonlySet<string
 }
 
 /** The directory of `name` in the first `node_modules` above `from`, as Node finds a package. */
-function packageDir(name: string, from: string): string | undefined {
+export function packageDir(name: string, from: string): string | undefined {
   let dir = resolve(from);
   for (;;) {
     const candidate = join(dir, 'node_modules', name);
@@ -102,7 +106,8 @@ function exported(target: unknown): string | undefined {
   return undefined;
 }
 
-function entryOf(dir: string): string {
+/** The file a bare import of the package in `dir` loads. */
+export function entryOf(dir: string): string {
   const manifest: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
   const pkg = isObject(manifest) ? manifest : {};
   const target =
@@ -242,7 +247,9 @@ function checkTool(
     );
   }
   const where = `plugin ${plugin}, tool ${name}`;
-  if (BUILT_IN.has(name)) throw new PluginError(`${where}: takes the name of a built-in tool`);
+  if (BUILT_IN_TOOLS.has(name)) {
+    throw new PluginError(`${where}: takes the name of a built-in tool`);
+  }
   const owner = taken.get(name);
   if (owner !== undefined) throw new PluginError(`${where}: plugin ${owner} already defines it`);
   const extra = unknownKeys(value, TOOL_KEYS);
@@ -293,8 +300,9 @@ function checkTool(
 /**
  * Checks a plugin's default export. Everything that would leave the prompt
  * promising an action nothing performs fails here, at startup (C6).
+ * `agent plugin new` runs it on what it generates (specs/041).
  */
-function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
+export function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
   if (!isObject(value)) {
     throw new PluginError(`plugin ${spec}: its default export is not a plugin (use definePlugin)`);
   }

@@ -15,7 +15,10 @@ export const COMMANDS: Record<string, string> = {
   'insights review': 'Approve, edit, reject or retire playbook insights',
   'insights activate': 'Put a playbook version live once its eval passes',
   'insights report': 'Enrolment rate by playbook version',
+  'plugin new': 'Start a plugin from the agent’s example (--read or --write)',
 };
+
+const PLUGIN_NEW_USAGE = 'Usage: agent plugin new <name> --read|--write';
 
 function usage(): number {
   const lines = ['Usage: agent <command>', ''];
@@ -74,8 +77,10 @@ export async function run(argv: string[]): Promise<number | undefined> {
   const configDir = process.env.CONFIG_DIR ?? 'config';
 
   // `upgrade` exists to rewrite a config the installed version cannot parse
-  // yet, so it checks after migrating rather than before.
-  if (cmd !== 'upgrade' && !configIsValid(configDir)) return 1;
+  // yet, so it checks after migrating rather than before. `plugin new` reads
+  // no config but `plugins.json`, and ends by printing the full check
+  // (specs/041).
+  if (cmd !== 'upgrade' && cmd !== 'plugin new' && !configIsValid(configDir)) return 1;
 
   switch (cmd) {
     case 'serve': {
@@ -146,6 +151,9 @@ export async function run(argv: string[]): Promise<number | undefined> {
       return runInsights([cmd.split(' ')[1]!, ...rest]);
     }
 
+    case 'plugin new':
+      return pluginNew(rest);
+
     case 'tokens backfill': {
       process.argv = ['node', 'backfill', ...rest];
       await import('../backfill.ts');
@@ -153,6 +161,44 @@ export async function run(argv: string[]): Promise<number | undefined> {
     }
   }
   return usage();
+}
+
+/** `agent plugin new <name> --read|--write`, run from the project's root (specs/041). */
+async function pluginNew(args: string[]): Promise<number> {
+  const flags = args.filter(arg => arg.startsWith('-'));
+  const positional = args.filter(arg => !arg.startsWith('-'));
+  const kinds = flags.filter(flag => flag === '--read' || flag === '--write');
+  // Which kind of tool a plugin adds is the author's decision, never a default.
+  if (kinds.length !== 1 || flags.length !== 1 || positional.length !== 1) {
+    console.error(PLUGIN_NEW_USAGE);
+    return 2;
+  }
+  const { scaffoldPlugin, ScaffoldError } = await import('../plugins/scaffold.ts');
+  let made: Awaited<ReturnType<typeof scaffoldPlugin>>;
+  try {
+    made = await scaffoldPlugin({
+      root: process.cwd(),
+      name: positional[0]!,
+      kind: kinds[0] === '--read' ? 'read' : 'write',
+    });
+  } catch (error) {
+    if (error instanceof ScaffoldError) {
+      console.error(`plugin new: ${error.message}`);
+      return 1;
+    }
+    throw error;
+  }
+  console.log(
+    [
+      `created ${made.directory}: plugin ${made.pluginName}, ${made.kind} tool ${made.toolName}`,
+      'added it to pnpm-workspace.yaml, package.json and config/plugins.json',
+      '',
+      'Next, install it and run the check the server runs at startup:',
+      '  pnpm install',
+      '  pnpm agent config check',
+    ].join('\n'),
+  );
+  return 0;
 }
 
 /** The outbox and nudge workers without the HTTP server (specs/033). */

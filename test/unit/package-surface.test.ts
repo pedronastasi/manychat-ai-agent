@@ -41,6 +41,7 @@ describe('the packed tarball contains exactly the allowlist (specs/033 V1)', () 
     'dist/cli.js',
     'dist/config/index.js',
     'db/migrations/0000_invented.sql',
+    'src/plugins/templates/read.js.tmpl',
     'README.md',
     'LICENSE',
     'CHANGELOG.md',
@@ -227,6 +228,7 @@ describe('CLI commands exist and reject invalid config (specs/033 V4)', () => {
       'insights review',
       'insights activate',
       'insights report',
+      'plugin new',
     ]);
     expect(Object.keys(COMMANDS)).toEqual(specCommands);
   });
@@ -237,10 +239,15 @@ describe('CLI commands exist and reject invalid config (specs/033 V4)', () => {
     expect(stderr).not.toHaveBeenCalled();
   });
 
-  it.each(specCommands)('agent %s exits non-zero on an invalid config/', async command => {
-    expect(await run(['node', 'agent', ...command.split(' ')])).toBe(1);
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(`invalid config (${badConfig})`));
-  });
+  // `plugin new` reads no config/ but plugins.json, so a broken prompt does
+  // not stop it; it prints the config check as its next step (specs/041).
+  it.each(specCommands.filter(command => command !== 'plugin new'))(
+    'agent %s exits non-zero on an invalid config/',
+    async command => {
+      expect(await run(['node', 'agent', ...command.split(' ')])).toBe(1);
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining(`invalid config (${badConfig})`));
+    },
+  );
 
   it('exits 2 with usage for no command or an unknown one', async () => {
     expect(await run(['node', 'agent'])).toBe(2);

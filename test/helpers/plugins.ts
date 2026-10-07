@@ -96,3 +96,20 @@ export function pluginSource(
 };
 `;
 }
+
+/**
+ * A stand-in tenant project `agent plugin new` accepts (specs/041): the
+ * project of `tenantProject`, with a `package.json` that depends on the
+ * agent and no `pnpm-workspace.yaml`, as a `create` project has none.
+ */
+export function scaffoldProject(listed?: readonly string[], packages: Record<string, string> = {}) {
+  const project = tenantProject(listed, packages);
+  const manifest = {
+    name: 'invented-tenant',
+    private: true,
+    type: 'module',
+    dependencies: { 'manychat-ai-agent': '^0.19.0' },
+  };
+  writeFileSync(join(project.root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  return project;
+}

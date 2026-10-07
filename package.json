@@ -28,6 +28,7 @@
   "files": [
     "dist/",
     "db/migrations/",
+    "src/plugins/templates/",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
