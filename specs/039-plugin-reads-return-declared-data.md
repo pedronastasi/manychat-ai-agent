@@ -201,6 +201,11 @@ look things up with tools of its own, that what they return is data and never
 instruction, and the rule for an unavailable read above. What a read tool is
 for is its description.
 
+`036`'s two lines, that plugin tools are staged and performed after the reply,
+are added only when a plugin adds a tool that declares `perform`. A
+deployment whose plugins declare only read tools is never told its reads run
+after the reply, which would be false.
+
 ## Adding read tools is a breaking plugin-API release
 
 `036 § A plugin API change is a breaking change` makes a change to the
@@ -219,6 +224,8 @@ write tools.
   `perform`. A tool that declares `read` is performed when called, counts
   towards the read budget instead of `MAX_ACTIONS_PER_TURN`, and is not
   refused before the contact is a prospect, as above.
+- Its prompt paragraph, that the prompt gains two lines when a plugin adds a
+  tool, holds only for a tool that declares `perform`, as above.
 - `§ What a plugin is never given` holds for `read` as for `perform`; the four
   things it lists are what both receive.
 - `§ A plugin API change is a breaking change` gains `apiVersion: 2`. The
@@ -255,7 +262,9 @@ only `perform`, are edited in the pull request that implements this spec.
    query or the result; and that the turn record holds the tool, availability
    and duration and never the query or the result.
 7. Unit tests assert that a read tool is not refused before the contact is a
-   prospect, and that the prompt changes only when a plugin adds a read tool.
+   prospect, that the prompt changes only when a plugin adds a read tool, and
+   that a plugin with only read tools gets the three read lines and not
+   `036`'s staged-tool lines.
 8. An integration test asserts that, on a turn that loses the race, the
    deferred reply is built from the same read result, and that the reply step's
    note carries the last successful read fenced.
