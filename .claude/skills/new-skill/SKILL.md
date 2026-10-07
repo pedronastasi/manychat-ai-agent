@@ -16,7 +16,7 @@ path, an exact format, a Constitution clause, a command that only exists here.
 > If the skill could be pasted into an unrelated repository unchanged, it is a
 > personal skill. It belongs in `~/.claude/skills/`, not in this repo.
 
-`adr` qualifies: it hardcodes `docs/adr/`, the three-section format, the README
+`adr` qualifies: it hardcodes `docs/adr/`, the three-section format, the ADR
 index, and C1/C9. "Write good commit messages" would not.
 
 Do not create one for something done once. A skill is the third time.

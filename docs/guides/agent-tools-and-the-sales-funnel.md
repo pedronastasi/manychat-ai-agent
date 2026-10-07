@@ -174,3 +174,4 @@ The stage rules are system instructions, the same for every tenant. How the
 agent sounds while selling is the tenant's, in `config/prompt.md` and each
 flow's `description`. Setup, the rollout checklist and how to measure the
 result are in
+[config/README.md](../../config/README.md#the-sales-funnel-optional).
