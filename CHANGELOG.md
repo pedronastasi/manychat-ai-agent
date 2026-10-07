@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.18.0...v0.18.1) (2026-10-07)
+
+
+### Specs and Docs
+
+* add a getting-started guide for npm create, and point to it from the top of the README ([893e8da](https://github.com/pedronastasi/manychat-ai-agent/commit/893e8dac5a668d6e20ae2439822894a4c3aaa71d))
+* derive a top bar, collapse the long sidebar groups, and fix badge and heading styling on the site ([2faca35](https://github.com/pedronastasi/manychat-ai-agent/commit/2faca35920a98ecbe7e8d3e4ec1e5a45372068b5))
+* derive nav bar from sections, collapse long groups, add getting-started guide ([31a3fde](https://github.com/pedronastasi/manychat-ai-agent/commit/31a3fde37dcee03b7847f21523114335623bc036))
+
 ## [0.18.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.17.1...v0.18.0) (2026-10-06)
 
 
