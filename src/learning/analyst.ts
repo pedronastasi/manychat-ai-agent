@@ -158,7 +158,7 @@ export class Analyst {
     return this.modelSpec;
   }
 
-  async propose(input: AnalystInput): Promise<AnalystResult> {
+  async propose(input: AnalystInput, signal?: AbortSignal): Promise<AnalystResult> {
     let usage = { inputTokens: 0, outputTokens: 0 };
     try {
       const result = await generateText({
@@ -167,6 +167,7 @@ export class Analyst {
         system: analystInstructions(input.language),
         messages: [{ role: 'user', content: analystMessage(input) }],
         maxOutputTokens: ANALYST_MAX_OUTPUT_TOKENS,
+        ...(signal ? { abortSignal: signal } : {}),
         // Transcripts are contact text: never in a trace (C5).
         telemetry: { functionId: 'learning-analyst', recordInputs: false, recordOutputs: false },
       });

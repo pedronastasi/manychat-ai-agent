@@ -347,6 +347,24 @@ describe('each process refreshes the active version on a timer (specs/031 V10)',
   });
 });
 
+describe('a fallback reply records no playbook version (specs/031 V11)', () => {
+  it('records null when the model fails and the scripted handoff is sent', async () => {
+    // Output the reply schema refuses: the runner fails closed (C6).
+    const { model } = mockModel({ nope: true });
+    const runner = new GenerateTextRunner({
+      model,
+      modelSpec: 'mock:test',
+      config: () => withLearning,
+      maxOutputTokens: 400,
+      temperature: 0,
+      playbook: { current: () => playbook(['Ask first.'], 'version-7') },
+    });
+    const result = await runner.run({ text: 'hello', history: [] });
+    expect(result.escalatedBy).toBe('error');
+    expect(result.playbookVersion).toBeNull();
+  });
+});
+
 describe('a run is priced before it is sent (specs/031 V13)', () => {
   const transcript = (label: 'enrolled' | 'not_enrolled', index: number): Transcript => ({
     label,

@@ -649,6 +649,35 @@ describe('the insights commands and the process wiring (specs/031 V12)', () => {
     }
   });
 
+  it('a stop ends a run in flight, recorded failed, rather than waiting it out', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      await seedCohort(2, 1);
+      const reads: string[] = [];
+      // A read that answers only when it is aborted, as a hung ManyChat call would.
+      const hanging: ContactReader = {
+        readContact: (subscriberId, signal) => {
+          reads.push(subscriberId);
+          return new Promise((_resolve, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('aborted'))),
+          );
+        },
+      };
+      const stop = job(hanging, analystModel(goodAnswer).model).start(1_000);
+      await vi.advanceTimersByTimeAsync(1_000);
+      for (let tries = 0; reads.length === 0 && tries < 100; tries++) {
+        await new Promise(resolve => setImmediate(resolve));
+      }
+      await stop();
+      expect(reads).toHaveLength(1);
+      const [run] = await db.select().from(learningRuns);
+      expect(run?.status).toBe('failed');
+      expect(run?.finishedAt).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('opens and migrates the database a command names', async () => {
     const opened = await openDatabase(loadEnv());
     expect(await new LearningStore(opened).activeVersion('demo')).toBeUndefined();

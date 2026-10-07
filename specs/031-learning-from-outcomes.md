@@ -256,6 +256,10 @@ in a week is a flag on the CLI, and is recorded.
 Every run ends in exactly one recorded status: `completed`, `insufficient`,
 `skipped_budget` or `failed`, with its cohort sizes and cost. Logs carry the
 run id, counts and statuses, never transcript or proposal text (C5).
+A process that stops mid-run aborts the run's reads and analyst call and
+records it `failed`. Waiting it out could outlast the process's grace period,
+and a run killed before it records a status stays `running` with its week
+claimed.
 
 All numbers in this spec (90 and 14 days, one read per second, 20 and 50
 contacts, 20 rejected proposals, 5 proposals, 280 and 500 characters, 10

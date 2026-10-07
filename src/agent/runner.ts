@@ -418,7 +418,8 @@ export class GenerateTextRunner implements AgentRunner {
         interventions: [`model_error: ${name}`],
         modelError: name,
         escalatedBy: 'error',
-        playbookVersion,
+        // The scripted handoff, which no prompt produced (specs/031).
+        playbookVersion: null,
         latencyMs: Date.now() - started,
         model: this.opts.modelSpec,
         toolsOffered: tools !== undefined,

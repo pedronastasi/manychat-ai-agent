@@ -57,7 +57,10 @@ export class LearningJob {
     this.store = new LearningStore(opts.db);
   }
 
-  async run(now = new Date(), options: { forced?: boolean } = {}): Promise<RunOutcome> {
+  async run(
+    now = new Date(),
+    options: { forced?: boolean; signal?: AbortSignal } = {},
+  ): Promise<RunOutcome> {
     const { rules, tools = NO_TOOLS } = this.opts.config();
     const learning = rules.learning;
     const funnel = funnelField(tools);
@@ -87,6 +90,7 @@ export class LearningJob {
         this.opts.contacts,
         learning.enrolledTag,
         this.opts.pace,
+        options.signal,
       );
       const side = (label: LabelledContact['label']) =>
         labelled.filter(contact => contact.label === label);
@@ -132,7 +136,7 @@ export class LearningJob {
 
       // The run's cost is its own: it never reaches budget_counters, so no
       // run moves a live turn closer to the daily cap.
-      const result = await analyst.propose(input);
+      const result = await analyst.propose(input, options.signal);
       if (!result.output) return await finish('failed', { ...counts, costUsd: result.costUsd });
 
       const known = new Set(
@@ -154,12 +158,15 @@ export class LearningJob {
   /**
    * Checks every `LEARNING_CHECK_MS` whether this week's run is still to
    * claim, and runs it if so. The claim, not the timer, makes it weekly and
-   * on one replica. Returns a stop function that waits for a run in flight.
+   * on one replica. Returns a stop function that aborts a run in flight and
+   * waits for it to record `failed`: a run left to finish could outlast the
+   * process's grace period and stay `running`, its week claimed, for good.
    */
   start(intervalMs = LEARNING_CHECK_MS): () => Promise<void> {
+    const stopping = new AbortController();
     let inFlight: Promise<unknown> = Promise.resolve();
     const tick = () => {
-      inFlight = this.run().catch((error: unknown) => {
+      inFlight = this.run(new Date(), { signal: stopping.signal }).catch((error: unknown) => {
         this.opts.logger.error(
           { err: error instanceof Error ? error.name : 'unknown' },
           'learning check failed',
@@ -170,6 +177,7 @@ export class LearningJob {
     timer.unref();
     return async () => {
       clearInterval(timer);
+      stopping.abort();
       await inFlight;
     };
   }

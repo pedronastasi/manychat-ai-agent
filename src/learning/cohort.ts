@@ -102,21 +102,26 @@ export async function labelCohort(
   reader: ContactReader,
   enrolledTag: string,
   pace: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  signal?: AbortSignal,
 ): Promise<{ labelled: LabelledContact[]; dropped: number }> {
   const labelled: LabelledContact[] = [];
   let dropped = 0;
   for (const [index, contact] of cohort.entries()) {
     if (index > 0) await pace(READ_INTERVAL_MS);
+    // A stopping process ends the run here, not after a hundred more reads.
+    signal?.throwIfAborted();
+    const timeout = AbortSignal.timeout(READ_TIMEOUT_MS);
     try {
       const record = await reader.readContact(
         contact.subscriberId,
-        AbortSignal.timeout(READ_TIMEOUT_MS),
+        signal ? AbortSignal.any([timeout, signal]) : timeout,
       );
       labelled.push({
         ...contact,
         label: record.tags.includes(enrolledTag) ? 'enrolled' : 'not_enrolled',
       });
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
       dropped += 1;
     }
   }
