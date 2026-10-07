@@ -247,7 +247,8 @@ describe('the analyst reads cleaned, fenced transcripts (specs/031 V4)', () => {
     const { model, calls } = analystModel(goodAnswer);
     await job(new FakeTagReader(tags), model).run(NOW);
     const sent = JSON.stringify(calls[0]!.prompt);
-    expect(sent).not.toMatch(/555|lead@example\.com|https:\/\/example/);
+    // The whole number: a bare 555 can turn up in a random turn id.
+    expect(sent).not.toMatch(/555 010 0199|lead@example\.com|https:\/\/example/);
     expect(sent).toContain('<<<CONTACT_MESSAGE>>>\\nReach me on [removed]');
   });
 });
