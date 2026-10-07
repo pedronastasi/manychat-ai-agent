@@ -258,8 +258,11 @@ Every run ends in exactly one recorded status: `completed`, `insufficient`,
 run id, counts and statuses, never transcript or proposal text (C5).
 A process that stops mid-run aborts the run's reads and analyst call and
 records it `failed`. Waiting it out could outlast the process's grace period,
-and a run killed before it records a status stays `running` with its week
-claimed.
+and a run killed before it records a status stays `running`. Either way the
+row still holds the week's claim, so a stopped run forfeits that week's run.
+The stop is logged at `warn` with the run id, and `pnpm insights:run --force`
+recovers it. Releasing the claim was rejected: it needs a status the unique
+index excludes, for a run that takes about two minutes a week.
 
 All numbers in this spec (90 and 14 days, one read per second, 20 and 50
 contacts, 20 rejected proposals, 5 proposals, 280 and 500 characters, 10

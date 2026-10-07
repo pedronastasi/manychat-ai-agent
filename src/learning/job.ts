@@ -80,6 +80,14 @@ export class LearningJob {
     ): Promise<RunOutcome> => {
       await this.store.finishRun(runId, { status, ...counts });
       log({ status, ...counts }, 'learning run finished');
+      // The row is the week's claim, so a stopped run forfeits the week
+      // rather than leave it for another replica (specs/031).
+      if (status === 'failed' && options.signal?.aborted) {
+        this.opts.logger.warn(
+          { run: runId, forced },
+          'learning run stopped by shutdown; this week has no run until insights:run --force',
+        );
+      }
       return { status, runId, enrolled: counts.enrolled, notEnrolled: counts.notEnrolled };
     };
 

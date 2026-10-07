@@ -663,7 +663,8 @@ describe('the insights commands and the process wiring (specs/031 V12)', () => {
           );
         },
       };
-      const stop = job(hanging, analystModel(goodAnswer).model).start(1_000);
+      const { logger, lines } = logs();
+      const stop = job(hanging, analystModel(goodAnswer).model, { logger }).start(1_000);
       await vi.advanceTimersByTimeAsync(1_000);
       for (let tries = 0; reads.length === 0 && tries < 100; tries++) {
         await new Promise(resolve => setImmediate(resolve));
@@ -673,6 +674,10 @@ describe('the insights commands and the process wiring (specs/031 V12)', () => {
       const [run] = await db.select().from(learningRuns);
       expect(run?.status).toBe('failed');
       expect(run?.finishedAt).not.toBeNull();
+      // The row still holds the week, so the forfeit is said out loud.
+      expect(lines.map(line => line.message)).toContain(
+        'learning run stopped by shutdown; this week has no run until insights:run --force',
+      );
     } finally {
       vi.useRealTimers();
     }
