@@ -3,7 +3,7 @@ status: specified
 constitution: [C1, C6, C8, C9]
 ---
 
-# 040 — `agent plugin new` Starts a Plugin from the Agent's Own Example
+# 041 — `agent plugin new` Starts a Plugin from the Agent's Own Example
 
 Defines a CLI command that adds a new plugin to an existing tenant project: what
 it writes, where its content comes from, what it refuses, and the check it ends
