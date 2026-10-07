@@ -118,6 +118,8 @@ parameters (`036`), and validates what `read` returns against it (C3):
 
 - a key the result does not declare is dropped;
 - a `text` or `list` entry over its bound is cut to it, as a note is;
+- a `list` with more than its `maxItems` entries keeps the first `maxItems`,
+  in the order `read` returned them;
 - a declared key that fails its type, a required key that is missing, or a
   result over 2000 characters once cut makes the whole result
   `{ available: false }`. The agent never passes on part of a result it
@@ -209,6 +211,21 @@ quietly rely on an agent that would not have performed it.
 `agent config check` reports, for each loaded plugin, its read tools beside its
 write tools.
 
+## What this changes in `036`
+
+- `§ A plugin tool is a staged action` holds for a tool that declares
+  `perform`. A tool that declares `read` is performed when called, counts
+  towards the read budget instead of `MAX_ACTIONS_PER_TURN`, and is not
+  refused before the contact is a prospect, as above.
+- `§ What a plugin is never given` holds for `read` as for `perform`; the four
+  things it lists are what both receive.
+- `§ A plugin API change is a breaking change` gains `apiVersion: 2`. The
+  tool API it describes as starting at `1` is unchanged for a plugin that
+  declares no read tool.
+
+`036` and `docs/guides/writing-a-plugin.md`, which shows `apiVersion: 1` and
+only `perform`, are edited in the pull request that implements this spec.
+
 ## Verification
 
 1. A test asserts that the bare entry point exports `defineReadTool`, and that
@@ -224,7 +241,7 @@ write tools.
    to the model, that the query is cleaned before `read` sees it, and that an
    empty query makes no call and counts as a read.
 4. Unit tests assert that an undeclared key is dropped, an overlong `text` is
-   cut, a missing required key, a wrong type or an oversized result returns
+   cut, a `list` over its `maxItems` keeps its first `maxItems` entries, a missing required key, a wrong type or an oversized result returns
    `{ available: false }`, and that `text` and `list` values come back fenced
    while `enum`, `number` and `boolean` do not.
 5. Unit tests assert that `get_contact` and plugin reads share two reads a turn,
