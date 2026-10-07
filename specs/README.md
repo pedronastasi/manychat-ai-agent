@@ -48,12 +48,13 @@ test fails the suite.
 | [033 — Tenant Projects Depend on the Agent, Not Fork It](033-tenant-projects-not-forks.md)                                 | implemented | 2026-10-06  | #166 | 5     | C1, C6, C8, C9                     | [0021], [0018]                                                                         |
 | [034 — Intent Before the Sale](034-intent-before-the-sale.md)                                                              | implemented | 2026-10-05  | #167 | 6     | C1, C4, C6, C9                     | [0015]                                                                                 |
 | [035 — `create` Scaffolds a Tenant Project from the Fixture Tenant](035-create-scaffolds-a-tenant-project.md)              | implemented | 2026-10-06  | #173 | 2     | C1, C9                             | [0021]                                                                                 |
-| [036 — Plugins Extend the Agent Through the Ports, and Cannot Reach the Race](036-plugins-extend-through-the-ports.md)     | implemented | 2026-10-06  | #182 | 4     | C2, C4, C5, C6, C7                 | [0021], [0010], [0017]                                                                 |
+| [036 — Plugins Extend the Agent Through the Ports, and Cannot Reach the Race](036-plugins-extend-through-the-ports.md)     | implemented | 2026-10-06  | #182 | 4     | C2, C4, C5, C6, C7                 | [0021], [0010], [0017], [0022]                                                         |
 | [037 — One Turn at a Time per Contact](037-one-turn-at-a-time-per-contact.md)                                              | implemented | 2026-10-06  | #176 | 3     | C6, C7, C8                         | [0001], [0004]                                                                         |
 | [038 — A Plugin Channel Implements `ChannelAdapter`, and Its API Is Provisional](038-plugin-channels.md)                   | specified   | —           | —    | 1     | C3, C5, C6, C7                     | [0021], [0005]                                                                         |
 | [039 — A Plugin Read Tool Returns Declared Data, Fenced, Inside the Read Budget](039-plugin-reads-return-declared-data.md) | implemented | 2026-10-07  | #193 | 4     | C2, C3, C4, C5, C6, C7             | [0016], [0010], [0017], [0021]                                                         |
 | [040 — The README Is a Landing Page](040-readme-is-a-landing-page.md)                                                      | implemented | 2026-10-07  | #195 | 1     | —                                  | —                                                                                      |
 | [041 — `agent plugin new` Starts a Plugin from the Agent's Own Example](041-plugin-new-starts-from-the-example.md)         | implemented | 2026-10-07  | #199 | 4     | C1, C6, C8, C9                     | —                                                                                      |
+| [042 — The Sales Layer Sells Offerings, Not Courses](042-the-sales-layer-sells-offerings-not-courses.md)                   | specified   | —           | —    | —     | C1, C8, C9                         | [0015]                                                                                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
@@ -71,3 +72,4 @@ test fails the suite.
 [0019]: ../docs/adr/0019-flows-are-sent-inside-the-loop.md
 [0020]: ../docs/adr/0020-learning-is-offline-and-human-approved.md
 [0021]: ../docs/adr/0021-tenants-depend-on-a-package-not-a-fork.md
+[0022]: ../docs/adr/0022-built-in-tools-are-not-plugins.md

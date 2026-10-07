@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-10-06
 pr: 182
 constitution: [C2, C4, C5, C6, C7]
-adr: [0021, 0010, 0017]
+adr: [0021, 0010, 0017, 0022]
 ---
 
 # 036 — Plugins Extend the Agent Through the Ports, and Cannot Reach the Race
@@ -107,6 +107,16 @@ a read tool's `read` (`039`), receive exactly four things: the turn's
 subscriber ID, its validated parameters, the agent's redacting logger, which
 names the plugin on every line and removes the subscriber ID from what the
 plugin writes, and an abort signal.
+
+## Built-in tools are not plugins
+
+The tools of `012`, `024` and `025` are not loaded through `definePlugin`, and
+no first-party plugin holds them (ADR-0022). They need what the section above
+withholds: enums built from `tools.json` that reload on `SIGHUP`, turn state
+shared between tools, flows sent during the turn, the `ManyChatClient` and the
+nudge store. The rules in this spec are a plugin's bounds, not a description of
+how a built-in tool is made, and giving a plugin a power because a built-in has
+it is the change this rules out.
 
 ## A plugin that does not load stops the server
 
