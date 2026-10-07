@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { parse } from 'yaml';
+import { shouldPublish } from '../../scripts/npm-release-check.ts';
 
 /**
  * specs/010-release-workflow.md § Verification.
@@ -210,5 +212,46 @@ describe('write access is confined to the release workflow', () => {
     };
     const url = (pkg.repository?.url ?? '').replace(/^git\+/, '').replace(/\.git$/, '');
     expect(url).toBe(`https://github.com/${home}`);
+  });
+});
+
+describe('specs/010 § npm publish: a release job can be re-run', () => {
+  const pkg = { name: 'create-manychat-ai-agent', version: '0.18.0' };
+  const repo = 'example/agent';
+
+  it('publishes a version the registry does not have', () => {
+    expect(shouldPublish(pkg, { status: 200, versions: ['0.17.1'] }, repo, '.')).toBe(true);
+  });
+
+  it('skips a version already published, which npm would refuse with E403', () => {
+    expect(shouldPublish(pkg, { status: 200, versions: ['0.18.0'] }, repo, '.')).toBe(false);
+  });
+
+  it('fails a package that does not exist with the steps to publish it by hand', () => {
+    // Trusted publishing cannot create a package; npm answers a bare E404.
+    expect(() =>
+      shouldPublish(pkg, { status: 404, versions: [] }, repo, 'packages/create'),
+    ).toThrow(
+      /does not exist on npm.*npm publish --access public.*example\/agent.*re-run this job/,
+    );
+  });
+
+  it('fails any other registry answer rather than guessing', () => {
+    expect(() => shouldPublish(pkg, { status: 503, versions: [] }, repo, '.')).toThrow(/503/);
+  });
+
+  it('guards every npm publish in release.yml with the check', () => {
+    const release = parse(readFileSync(join(WORKFLOW_DIR, 'release.yml'), 'utf8')) as {
+      jobs: Record<string, { steps: { id?: string; if?: string; run?: string }[] }>;
+    };
+    const steps = release.jobs['publish-npm']!.steps;
+    const publishes = steps.filter(step => step.run?.startsWith('npm publish'));
+    expect(publishes).toHaveLength(2);
+    for (const step of publishes) {
+      const id = /^steps\.(\S+)\.outputs\.publish == 'true'$/.exec(step.if ?? '')?.[1];
+      const check = steps.find(candidate => candidate.id === id);
+      expect(check?.run).toMatch(/scripts\/npm-release-check\.ts/);
+      expect(steps.indexOf(check!)).toBeLessThan(steps.indexOf(step));
+    }
   });
 });

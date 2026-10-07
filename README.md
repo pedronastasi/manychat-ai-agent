@@ -29,6 +29,17 @@ and an embedded [PGlite](https://pglite.dev/) Postgres. In another terminal,
 
 ![pnpm simulate answering a price question from the catalog and escalating a request for a person](docs/assets/demo.svg)
 
+That clone is for trying the agent and working on it. To run one for your own
+business, generate a project of your own instead, which depends on the published
+package rather than a copy of this repository:
+
+```bash
+npm create manychat-ai-agent@latest my-agent
+```
+
+[Starting a new agent](docs/guides/getting-started.md) walks through it,
+from the offline first run to a deployment.
+
 ---
 
 ## The problem this solves
@@ -366,7 +377,8 @@ It writes `config/`, an offline `.env`, an eval suite, CI, Compose and
 Renovate, depending on the agent and its image at the scaffolder's version.
 Replace `config/` with your own and keep the repository private: the generated
 CI fails when it is public
-([specs/035](specs/035-create-scaffolds-a-tenant-project.md)).
+([specs/035](specs/035-create-scaffolds-a-tenant-project.md)). The steps are in
+[Starting a new agent](docs/guides/getting-started.md).
 
 Point a ManyChat **Dynamic Block** (Dev Tools, requires a Pro plan) at
 `POST /v1/channels/manychat/message` and add an `Authorization: Bearer <secret>`

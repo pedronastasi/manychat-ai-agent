@@ -1,0 +1,24 @@
+/*
+ * Small corrections so the repository's Markdown reads on the site as it does
+ * on GitHub (specs/014). Presentation only: nothing here adds content.
+ */
+
+/* VitePress makes every image a block, which stacks the README's badge row
+ * one per line. A linked image is a badge, so it sits inline again. */
+.vp-doc a > img {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.vp-doc p > a:has(> img) {
+  margin-right: 4px;
+}
+
+/* Spec titles carry code (`create`, `get_contact`); at heading size its
+ * monospace and background outweigh the words around it. */
+.vp-doc :is(h1, h2, h3, h4) > code {
+  font-size: 0.78em;
+  font-weight: 500;
+  padding: 2px 6px;
+  vertical-align: 0.08em;
+}
