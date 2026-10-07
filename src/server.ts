@@ -295,6 +295,7 @@ export async function buildServer(opts: BuildOptions) {
         // A plugin action goes to its plugin, the rest to ManyChat (specs/036).
         actions: plugins.performer(manychatClient, request.log),
         contacts,
+        plugins,
         media,
         lanes,
       });

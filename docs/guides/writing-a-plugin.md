@@ -6,8 +6,10 @@ a tool of your own, which the agent uses exactly as it uses its built-in ones.
 You never patch the package, so an upgrade stays a version bump.
 
 The contract this guide follows is
-[spec 036](../../specs/036-plugins-extend-through-the-ports.md). Where this
-guide and the spec disagree, the spec wins. Plugin channels, for a platform
+[spec 036](../../specs/036-plugins-extend-through-the-ports.md), and
+[spec 039](../../specs/039-plugin-reads-return-declared-data.md) for a tool
+that looks something up. Where this guide and the specs disagree, the specs
+win. Plugin channels, for a platform
 other than ManyChat, are [spec 038](../../specs/038-plugin-channels.md) and
 are not available yet.
 
@@ -115,6 +117,64 @@ In TypeScript, `defineTool` types `params` from the declaration: above,
 `params.temperature` is `'warm' | 'hot'` and `params.seats` is
 `number | undefined`.
 
+## A tool that looks something up
+
+A write tool runs after the reply, so the model never sees what it did. When
+the agent needs your data to answer (seats left, an order's status, an FAQ in
+your own system), declare a read tool instead. The model calls it while it
+writes the reply, and is shown what it returns.
+
+```js
+import { definePlugin, defineReadTool } from 'manychat-ai-agent';
+
+export default definePlugin({
+  name: 'example-schedule',
+  apiVersion: 2,
+  tools: [
+    defineReadTool({
+      name: 'class_availability',
+      description:
+        'Look up the seats left on a course when the contact asks whether there is room.',
+      parameters: {
+        course: { type: 'enum', values: ['foundation', 'advanced'] },
+        query: { type: 'query', maxLength: 120, optional: true },
+      },
+      result: {
+        seatsLeft: { type: 'number', integer: true, min: 0 },
+        summary: { type: 'text', maxLength: 300, optional: true },
+      },
+      async read({ params, signal }) {
+        const response = await fetch(`https://timetable.example.com/${params.course}`, { signal });
+        if (!response.ok) throw new Error(`timetable answered ${response.status}`);
+        return response.json();
+      },
+    }),
+  ],
+});
+```
+
+- **`read`** in place of `perform`. A tool declares one or the other, and a
+  read tool needs `apiVersion: 2`.
+- **`parameters`** are a write tool's, less the `note`. The one free text is a
+  `query`, at most 200 characters. URLs, emails, phone numbers and long
+  numbers are removed from it before `read` sees it; a name is not, so the
+  agent tells the model never to put one there.
+- **`result`** declares what `read` may return: `enum`, `number`, `boolean`,
+  `text` (up to 1000 characters) and `list` (up to 5 strings). The agent drops
+  a key you did not declare and cuts text to its bound. Anything else that does
+  not fit, or a result over 2000 characters, reaches the model as
+  `{ available: false }`. Text comes back fenced, as data the model never
+  obeys.
+- **A turn makes at most two reads**, `get_contact` included, and each has 1.5
+  seconds. A read that throws or runs longer reaches the model as
+  `{ available: false }`, and the agent answers from the catalog or hands the
+  contact to a person.
+- **Only a turn that may read the contact's history reads**: one that carries
+  their token, or any turn while `CONTACT_TOKENS_ENFORCED` is `false`. On any
+  other, the tool is not offered.
+- The turn records which tool read, whether data came back and how long it
+  took. It never stores the query or what you returned.
+
 ## 3. List it
 
 ```json
@@ -129,9 +189,10 @@ in `config/plugins.json`. List package names, never paths.
 pnpm agent config check
 ```
 
-loads every listed plugin exactly as the server does, and fails on one that is
-not installed, names an `apiVersion` this agent does not support, clashes with
-another tool or declares a parameter it refuses. The server refuses to start on
+loads every listed plugin exactly as the server does, reports each one's write
+and read tools, and fails on one that is not installed, names an `apiVersion`
+this agent does not support, clashes with another tool or declares a parameter
+it refuses. The server refuses to start on
 the same errors, rather than starting with a tool missing.
 
 Plugins load once, at boot. `kill -HUP` reloads your configuration but not your

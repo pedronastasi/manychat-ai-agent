@@ -13,6 +13,7 @@ import { cleanNote, contactResult, UNAVAILABLE } from './contact.ts';
 import type { ContactReads } from './contact.ts';
 import type { FlowSends, SendFlowAction } from './flows.ts';
 import type { Plugins } from '../plugins/plugins.ts';
+import type { PluginReads } from '../plugins/reads.ts';
 
 /**
  * Steps one to three may call tools; step four offers none, so it must
@@ -458,6 +459,11 @@ export function buildTools(
     beforeFlow?: (() => Promise<void>) | undefined;
     /** The tenant's plugin tools, staged as the built-in ones are (specs/036). */
     plugins?: Plugins | undefined;
+    /**
+     * The turn's plugin reads. Absent, no read tool is offered: as for
+     * `get_contact`, only a turn that reads history may read (specs/039).
+     */
+    pluginReads?: PluginReads | undefined;
   } = {},
 ): ToolSet | undefined {
   const tools: ToolSet = {};
@@ -861,6 +867,7 @@ export function buildTools(
   // Added last, and a built-in name was refused when the plugin loaded, so a
   // plugin can neither replace nor shadow one of the tools above.
   options.plugins?.addTools(tools, stage, closed, description => `${description}\n${STAGED}`);
+  if (options.pluginReads) options.plugins?.addReadTools(tools, options.pluginReads);
 
   return Object.keys(tools).length > 0 ? tools : undefined;
 }

@@ -11,8 +11,32 @@ import { fenceUserText } from './fence.ts';
  */
 export const READ_TIMEOUT_MS = 1500;
 
-/** Reads a turn may make. A third call makes no request. Chosen, not measured. */
+/**
+ * Reads a turn may make, `get_contact` and plugin reads together (specs/039
+ * § It shares the read budget of `024`). A third call makes no request.
+ * Chosen, not measured.
+ */
 export const MAX_READS_PER_TURN = 2;
+
+/**
+ * The reads one turn may still make. Shared by every read tool on the turn,
+ * so a plugin read and `get_contact` spend the same two (specs/039).
+ */
+export class ReadBudget {
+  private made = 0;
+
+  /** Reads taken so far this turn, a refused one not counted. */
+  get count(): number {
+    return this.made;
+  }
+
+  /** Takes one read, or answers false when the turn has none left. */
+  take(): boolean {
+    if (this.made >= MAX_READS_PER_TURN) return false;
+    this.made++;
+    return true;
+  }
+}
 
 /** What an enum field reads as when it holds anything but a configured value. */
 export const OTHER_VALUE = 'other';
@@ -96,12 +120,19 @@ export function cleanText(text: string): string {
  * 3. text over `maxLength` is cut at a word boundary.
  */
 export function cleanNote(text: string, maxLength: number): string {
-  const collapsed = cleanText(text);
-  if (collapsed.length <= maxLength) return collapsed;
-  const cut = collapsed.slice(0, maxLength + 1);
+  return cutAtWord(cleanText(text), maxLength);
+}
+
+/**
+ * Text cut to `maxLength` at a word boundary: step 3 of cleaning a note, and
+ * how a plugin read's text is bounded (specs/039).
+ */
+export function cutAtWord(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  const cut = text.slice(0, maxLength + 1);
   const boundary = cut.lastIndexOf(' ');
-  // A single word longer than the note is cut where the note ends.
-  return (boundary > 0 ? cut.slice(0, boundary) : collapsed.slice(0, maxLength)).trimEnd();
+  // A single word longer than the bound is cut where the bound ends.
+  return (boundary > 0 ? cut.slice(0, boundary) : text.slice(0, maxLength)).trimEnd();
 }
 
 export interface ReadLogger {
@@ -121,7 +152,7 @@ export class ContactReads {
   private readonly subscriberId: string;
   private readonly logger: ReadLogger;
   private readonly timeoutMs: number;
-  private made = 0;
+  private readonly budget: ReadBudget;
   private last: ContactView | undefined;
 
   constructor(opts: {
@@ -129,16 +160,19 @@ export class ContactReads {
     subscriberId: string;
     logger: ReadLogger;
     timeoutMs?: number;
+    /** The turn's reads, shared with its plugin reads (specs/039). */
+    budget?: ReadBudget;
   }) {
     this.reader = opts.reader;
     this.subscriberId = opts.subscriberId;
     this.logger = opts.logger;
     this.timeoutMs = opts.timeoutMs ?? READ_TIMEOUT_MS;
+    this.budget = opts.budget ?? new ReadBudget();
   }
 
-  /** Requests made so far this turn. */
+  /** Reads made so far this turn, plugin reads sharing the budget included. */
   get count(): number {
-    return this.made;
+    return this.budget.count;
   }
 
   /** The most recent successful read, which the reply step is shown. */
@@ -152,8 +186,7 @@ export class ContactReads {
    * and a turn that then cannot ground its answer escalates for that reason.
    */
   async read(tools: Tools, signal?: AbortSignal): Promise<ContactView | typeof UNAVAILABLE> {
-    if (this.made >= MAX_READS_PER_TURN) return UNAVAILABLE;
-    this.made++;
+    if (!this.budget.take()) return UNAVAILABLE;
     const timeout = new AbortController();
     const timer = setTimeout(
       () => timeout.abort(new Error('contact read timed out')),

@@ -3,6 +3,8 @@ import type { Env } from '../contracts/config.ts';
 import { resolveModel } from '../agent/registry.ts';
 import { GenerateTextRunner } from '../agent/runner.ts';
 import { loadPlugins } from '../plugins/loader.ts';
+import { PluginReads } from '../plugins/reads.ts';
+import type { HostLogger } from '../plugins/plugins.ts';
 import { ActionStage, describeAction } from '../agent/tools.ts';
 import { checkCase, classify, evalDir, loadCases, suiteHash } from './cases.ts';
 import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
@@ -31,6 +33,12 @@ const MARKS: Record<Status, string> = {
   failed: `${RED}FAIL${RESET}`,
   reviewed: `${YELLOW}read${RESET}`,
 };
+
+/** The subscriber a plugin read is given in a suite: no contact's. */
+const EVAL_SUBSCRIBER = 'eval';
+
+/** A plugin read's failure is the case's to show, not a log line's. */
+const SILENT: HostLogger = { info: () => {}, warn: () => {}, error: () => {} };
 
 export async function runEval(): Promise<void> {
   const env = loadEnv();
@@ -89,6 +97,11 @@ export async function runEval(): Promise<void> {
         : undefined,
       // A fixed time, so the trigger note is the same on every run.
       nudge: testCase.nudge ? { since: NUDGE_SINCE } : undefined,
+      // Read as in production, so a suite can assert an answer grounded in
+      // a plugin read, or one given without it (specs/039).
+      pluginReads: plugins.hasReadTools
+        ? new PluginReads({ subscriberId: EVAL_SUBSCRIBER, logger: SILENT })
+        : undefined,
     });
     const actions = result.toolsOffered ? stage.staged.map(describeAction) : null;
     const failures = checkCase({

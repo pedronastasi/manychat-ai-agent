@@ -300,3 +300,16 @@ export const ActionRecord = z.object({
   contactAsked: z.literal(true).optional(),
 });
 export type ActionRecord = z.infer<typeof ActionRecord>;
+
+/**
+ * One plugin read on a turn: which tool, whether the model was given data,
+ * and how long it took (specs/039 § The turn records that a read happened,
+ * never what it returned). Never the query or the result.
+ */
+export const ReadRecord = z.object({
+  plugin: z.string(),
+  tool: z.string(),
+  available: z.boolean(),
+  durationMs: z.number().int().nonnegative(),
+});
+export type ReadRecord = z.infer<typeof ReadRecord>;

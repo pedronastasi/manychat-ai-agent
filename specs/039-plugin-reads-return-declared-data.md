@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-07
 constitution: [C2, C3, C4, C5, C6, C7]
 adr: [0016, 0010, 0017, 0021]
 ---
@@ -250,7 +251,8 @@ only `perform`, are edited in the pull request that implements this spec.
    to the model, that the query is cleaned before `read` sees it, and that an
    empty query makes no call and counts as a read.
 4. Unit tests assert that an undeclared key is dropped, an overlong `text` is
-   cut, a `list` over its `maxItems` keeps its first `maxItems` entries, a missing required key, a wrong type or an oversized result returns
+   cut, a `list` over its `maxItems` keeps its first `maxItems` entries, and a
+   missing required key, a wrong type or an oversized result returns
    `{ available: false }`, and that `text` and `list` values come back fenced
    while `enum`, `number` and `boolean` do not.
 5. Unit tests assert that `get_contact` and plugin reads share two reads a turn,

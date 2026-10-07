@@ -434,6 +434,89 @@ function chooseAction(options: LanguageModelV4CallOptions, text: string): MockAc
   );
 }
 
+/**
+ * Every plugin read tool's description ends with this (src/plugins/plugins.ts),
+ * which is how the mock tells a read tool from a write (specs/039).
+ */
+const READ_TOOL_MARK = 'Returns { fields, text }';
+
+/** A question a plugin read could answer: room on a course, or when it starts. */
+const ASKS_FOR_READ = /\b(room|seats?|space|next intake|start)\b/;
+
+/**
+ * The read to call: the first offered read tool, once a turn, when the contact
+ * asks something it could answer. Its enum parameter takes the value the
+ * message names, or its first.
+ */
+function readAction(options: LanguageModelV4CallOptions, text: string): MockAction | null {
+  const lower = text.toLowerCase();
+  if (!ASKS_FOR_READ.test(lower)) return null;
+  const found = options.tools?.find(
+    tool => tool.type === 'function' && (tool.description ?? '').includes(READ_TOOL_MARK),
+  );
+  if (found?.type !== 'function') return null;
+  const called = options.prompt.some(
+    entry =>
+      entry.role === 'assistant' &&
+      typeof entry.content !== 'string' &&
+      entry.content.some(part => part.type === 'tool-call' && part.toolName === found.name),
+  );
+  if (called) return null;
+  const input: Record<string, string> = {};
+  for (const [key, property] of Object.entries(found.inputSchema.properties ?? {})) {
+    const values = (property as { enum?: unknown[] }).enum?.filter(
+      (value): value is string => typeof value === 'string',
+    );
+    if (values && values.length > 0)
+      input[key] = values.find(value => lower.includes(value)) ?? values[0]!;
+  }
+  return { toolName: found.name, input };
+}
+
+/** What the turn's plugin read returned, as the tool result the model was sent. */
+function readOutcome(options: LanguageModelV4CallOptions): Record<string, unknown> | undefined {
+  for (const entry of options.prompt) {
+    if (entry.role !== 'tool') continue;
+    for (const part of entry.content) {
+      if (part.type !== 'tool-result' || part.output.type !== 'json') continue;
+      const value = part.output.value as Record<string, unknown> | null;
+      if (value && ('fields' in value || value.available === false)) return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * What a correct agent says after a read: the data it returned, and nothing
+ * more; without it, what the catalog answers, or a handoff (specs/039 § A
+ * failed read is not an escalation, and an ungrounded answer is).
+ */
+function readReply(
+  outcome: Record<string, unknown>,
+  text: string,
+  paymentOptions: boolean,
+): string {
+  const fields = outcome.fields as Record<string, unknown> | undefined;
+  if (fields && typeof fields.seatsLeft === 'number') {
+    return reply(
+      [`There are ${fields.seatsLeft} seats left on that course.`],
+      false,
+      null,
+      0.9,
+      'Would you like me to keep one for you?',
+    );
+  }
+  if (/(schedule|when|what day|timetable)/.test(text.toLowerCase())) {
+    return respondTo(text, paymentOptions);
+  }
+  return reply(
+    ["I can't check that right now - let me pass you to someone on the team."],
+    true,
+    'out_of_scope',
+    0.85,
+  );
+}
+
 /** Step two of a tool turn: the server's note of what was staged, if any. */
 function stagedNote(options: LanguageModelV4CallOptions): string | undefined {
   for (const entry of options.prompt) {
@@ -590,7 +673,12 @@ export function createMockModel(modelId: string): LanguageModelV4 {
         !/(send_flow|course=|funnel_stage=)/.test(staged)
           ? undefined
           : staged;
-      const action = staged === undefined ? chooseAction(options, message.text) : null;
+      const read = readOutcome(options);
+      const action =
+        staged === undefined
+          ? (readAction(options, message.text) ??
+            (read === undefined ? chooseAction(options, message.text) : null))
+          : null;
       if (action !== null) {
         return {
           content: [
@@ -608,17 +696,19 @@ export function createMockModel(modelId: string): LanguageModelV4 {
       }
       const lower = message.text.toLowerCase();
       const text =
-        note !== undefined
-          ? stagedReply(note)
-          : switchTo(options, lower) !== undefined && courseLocked(options)
-            ? COURSE_LOCKED_REPLY
-            : unplacedRequest(options, lower)
-              ? WHICH_COURSE_REPLY
-              : message.text.includes(NUDGE_NOTE_OPEN)
-                ? nudgeReply(options)
-                : message.image
-                  ? IMAGE_REPLY
-                  : respondTo(message.text, hasPaymentOptions(options));
+        read !== undefined
+          ? readReply(read, message.text, hasPaymentOptions(options))
+          : note !== undefined
+            ? stagedReply(note)
+            : switchTo(options, lower) !== undefined && courseLocked(options)
+              ? COURSE_LOCKED_REPLY
+              : unplacedRequest(options, lower)
+                ? WHICH_COURSE_REPLY
+                : message.text.includes(NUDGE_NOTE_OPEN)
+                  ? nudgeReply(options)
+                  : message.image
+                    ? IMAGE_REPLY
+                    : respondTo(message.text, hasPaymentOptions(options));
       // `mock:slow` deliberately exceeds the race deadline so the deferred path
       // can be exercised without a real slow provider.
       if (modelId === 'slow') {

@@ -17,6 +17,7 @@ import {
 import { applyGuardrails, escalationReply } from './guardrails.ts';
 import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
+import type { PluginReads } from '../plugins/reads.ts';
 import type { FlowSends } from './flows.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
 import {
@@ -118,6 +119,11 @@ export interface AgentTurnInput {
    * a turn without the contact's token never reads their record (specs/024).
    */
   reads?: ContactReads | undefined;
+  /**
+   * The turn's plugin reads, sharing the budget of `reads`. Absent, no plugin
+   * read tool is offered (specs/039).
+   */
+  pluginReads?: PluginReads | undefined;
   /**
    * Sends a flow when the model calls it, so the reply follows it (specs/029).
    * Absent, flows are staged and sent after the reply, as every write is.
@@ -274,10 +280,14 @@ export class GenerateTextRunner implements AgentRunner {
     const playbook = this.opts.playbook?.current();
     if (this.cached?.config !== config || this.cached.loadedPlaybook !== playbook?.id) {
       const tools = config.tools ?? NO_TOOLS;
-      const pluginTools = this.opts.plugins?.hasTools ?? false;
-      const withTools = offersTools(tools) || pluginTools;
+      // The staged-tool lines follow write tools only: a read is not staged
+      // (specs/039 § The prompt changes only when a plugin adds a read tool).
+      const pluginTools = this.opts.plugins?.hasWriteTools ?? false;
+      const pluginReadTools = this.opts.plugins?.hasReadTools ?? false;
+      const withTools = offersTools(tools) || pluginTools || pluginReadTools;
       const prompt = buildSystemPrompt(config.persona, config.catalog, config.rules, tools, {
         pluginTools,
+        pluginReadTools,
       });
       // After the catalog and before the cache breakpoint, so a version is
       // cached with the rest of the prefix (specs/031). Without `learning`
@@ -303,6 +313,7 @@ export class GenerateTextRunner implements AgentRunner {
     stage = new ActionStage(),
     contact,
     reads,
+    pluginReads,
     flows,
     beforeFlow,
     nudge,
@@ -318,6 +329,7 @@ export class GenerateTextRunner implements AgentRunner {
           flows,
           beforeFlow,
           plugins: this.opts.plugins,
+          pluginReads,
         })
       : undefined;
     // The opening is no longer known before the loop runs: the prospect write
@@ -363,6 +375,7 @@ export class GenerateTextRunner implements AgentRunner {
                         opening && stagesProspect(stage, config.tools ?? NO_TOOLS)
                           ? opening
                           : undefined,
+                        pluginReads?.latest,
                       ),
                     },
                   ],

@@ -14,7 +14,7 @@ import {
   boolean,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { ActionRecord } from '../contracts/agent.ts';
+import type { ActionRecord, ReadRecord } from '../contracts/agent.ts';
 
 /**
  * All tables are tenant-scoped from the first migration. Retrofitting a tenant
@@ -90,6 +90,12 @@ export const turns = pgTable(
      * and none chosen. Configured ids only, so it needs no redaction.
      */
     actions: jsonb('actions').$type<ActionRecord[]>(),
+    /**
+     * Every plugin read on this turn: tool, whether data came back, how long
+     * it took (specs/039). Null when no read tool was offered. Never the query
+     * or the result, so it needs no redaction, and never shown to a later turn.
+     */
+    reads: jsonb('reads').$type<ReadRecord[]>(),
 
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),

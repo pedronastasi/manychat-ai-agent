@@ -35,7 +35,9 @@ import {
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
-import { ContactReads } from '../agent/contact.ts';
+import { ContactReads, ReadBudget } from '../agent/contact.ts';
+import { PluginReads } from '../plugins/reads.ts';
+import type { Plugins } from '../plugins/plugins.ts';
 import {
   ManyChatApiError,
   ManyChatConnectionError,
@@ -72,6 +74,8 @@ export interface TurnDeps {
   actions: ActionPerformer;
   /** Reads the contact for `get_contact` (specs/024). Without it, no read is offered. */
   contacts?: ContactReader | undefined;
+  /** The tenant's plugins: their read tools are offered on a turn that reads history (specs/039). */
+  plugins?: Plugins | undefined;
   /** Reads voice notes, images and videos (specs/020). Without it, all take the fallback. */
   media?: MediaResolver | undefined;
   /**
@@ -550,14 +554,22 @@ export class TurnHandler {
     const stage = new ActionStage();
 
     // The contact's record holds their own words in its notes, so a turn that
-    // may not read their history may not read it either (specs/024).
+    // may not read their history may not read it either (specs/024). A plugin
+    // read is given the subscriber, so it is held to the same rule, and
+    // spends the same two reads (specs/039).
+    const budget = new ReadBudget();
     const reads =
       this.deps.contacts && readsHistory
         ? new ContactReads({
             reader: this.deps.contacts,
             subscriberId: inbound.subscriberId,
             logger,
+            budget,
           })
+        : undefined;
+    const pluginReads =
+      this.deps.plugins?.hasReadTools && readsHistory
+        ? new PluginReads({ subscriberId: inbound.subscriberId, logger, budget })
         : undefined;
 
     // A flow is sent when the model calls it, so its reply follows it
@@ -638,6 +650,7 @@ export class TurnHandler {
           stage,
           contact,
           reads,
+          pluginReads,
           flows,
           beforeFlow: sendOpening,
         })
@@ -649,6 +662,7 @@ export class TurnHandler {
             stage,
             contact,
             reads,
+            pluginReads,
             flows,
             beforeFlow: sendOpening,
           })
@@ -699,6 +713,9 @@ export class TurnHandler {
             playbookVersion: result.playbookVersion,
           },
           actions,
+          // Null when no read tool was offered; never a query or a result
+          // (specs/039 § The turn records that a read happened).
+          reads: pluginReads ? [...pluginReads.records] : null,
         },
       );
       const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
@@ -999,6 +1016,7 @@ export class TurnHandler {
       stage: ActionStage;
       contact: ContactActions | undefined;
       reads: ContactReads | undefined;
+      pluginReads: PluginReads | undefined;
       flows: FlowSends | undefined;
       beforeFlow: (() => Promise<void>) | undefined;
     },
@@ -1068,6 +1086,7 @@ export class TurnHandler {
       stage: ctx.stage,
       contact: ctx.contact,
       reads: ctx.reads,
+      pluginReads: ctx.pluginReads,
       flows: ctx.flows,
       beforeFlow: ctx.beforeFlow,
       media: {
