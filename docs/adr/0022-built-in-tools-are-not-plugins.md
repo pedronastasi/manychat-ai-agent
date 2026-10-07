@@ -36,9 +36,11 @@ re-expressed through `definePlugin`.
   can reach the client, the database or another tool's turn state because a
   built-in needed to.
 - Two tool mechanisms are kept side by side. The built-in names a plugin may not
-  take are listed by hand in `src/plugins/loader.ts`, the prompt carries
-  separate lines for plugin tools, and `agent config check` reports the two
-  apart. A rule changed for one has to be checked against the other by review.
+  take come from `ToolName`, with `get_contact` added by hand in
+  `src/plugins/loader.ts`, so a new read tool must be added there too. The
+  prompt carries separate lines for plugin tools, and `agent config check`
+  reports the two apart. A rule changed for one has to be checked against the
+  other by review.
 - The plugin API is never exercised by its heaviest user, so a gap in it is
   found by a tenant, not upstream.
 - How `buildTools` is organised inside is a separate question, left to the
