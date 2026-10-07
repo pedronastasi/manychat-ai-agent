@@ -199,6 +199,13 @@ export class PluginReads {
       params[key] = cleaned;
     }
 
+    // A turn already abandoned reads nothing: an abort listener added now
+    // would never fire, and a read that ignores its signal would run unbounded.
+    if (signal?.aborted) {
+      record(false);
+      return UNAVAILABLE;
+    }
+
     const timeout = new AbortController();
     const timer = setTimeout(
       () => timeout.abort(new Error('plugin read timed out')),
@@ -218,6 +225,7 @@ export class PluginReads {
           }),
         ),
         new Promise<never>((_resolve, reject) => {
+          if (abandon.aborted) return reject(new Error('plugin read abandoned'));
           abandon.addEventListener('abort', () => reject(new Error('plugin read abandoned')), {
             once: true,
           });

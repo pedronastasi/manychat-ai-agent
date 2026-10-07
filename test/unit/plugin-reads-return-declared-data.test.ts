@@ -426,6 +426,20 @@ describe('plugin reads share the read budget of specs/024 (specs/039 V5)', () =>
     });
   });
 
+  it('gives up at once on a read that ignores a turn signal already aborted', async () => {
+    const { tool, calls } = readingTool(() => new Promise(() => {}));
+    const { reads } = turn(tool);
+    const aborted = AbortSignal.abort();
+    const entry = { plugin: 'example-schedule', tool };
+    const outcome = await Promise.race([
+      reads.read(entry, { course: 'foundation' }, aborted),
+      new Promise(resolve => setTimeout(() => resolve('still waiting'), READ_TIMEOUT_MS + 500)),
+    ]);
+    expect(outcome).toEqual({ available: false });
+    expect(calls).toHaveLength(0);
+    expect(reads.records).toEqual([expect.objectContaining({ available: false })]);
+  });
+
   it('does not count towards MAX_ACTIONS_PER_TURN', async () => {
     const stage = new ActionStage();
     const { tool } = readingTool();
