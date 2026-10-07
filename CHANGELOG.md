@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.19.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.19.0...v0.19.1) (2026-10-07)
+
+
+### Specs and Docs
+
+* keep 036's staged-tool prompt lines off read-only plugins (specs/039) ([6daba55](https://github.com/pedronastasi/manychat-ai-agent/commit/6daba552a35df951c855c4584e7fd9ebf90b60a7))
+* say a query loses identifier shapes, not names (specs/039) ([5ab18c2](https://github.com/pedronastasi/manychat-ai-agent/commit/5ab18c2ec371fe174be5f3586d91b3efe553035e))
+* settle list overflow and record what 039 changes in 036 ([a09c8cb](https://github.com/pedronastasi/manychat-ai-agent/commit/a09c8cbe661cc8690469f7976e1fe10442fb836c))
+* specify plugin read tools that return declared, fenced data (specs/039) ([cb4dd35](https://github.com/pedronastasi/manychat-ai-agent/commit/cb4dd35c18e3e39f7bbc0eb0fad93b5341eed29c))
+* specify plugin read tools that return declared, fenced data (specs/039) ([70fe5b6](https://github.com/pedronastasi/manychat-ai-agent/commit/70fe5b661092312f61654a755dbe40d1410c6ea3))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([7060477](https://github.com/pedronastasi/manychat-ai-agent/commit/70604779de848284a8e419a5d681e7386546177f))
+* **deps:** lock file maintenance ([c2e4e02](https://github.com/pedronastasi/manychat-ai-agent/commit/c2e4e0218abb2c25d173a47900cc15a5e18e9e76))
+
 ## [0.19.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.18.1...v0.19.0) (2026-10-07)
 
 
