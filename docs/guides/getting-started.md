@@ -97,7 +97,7 @@ docker compose up -d
 It enforces contact tokens whatever `.env` says, so the offline default never
 reaches a deployment. Before the first real conversation, set
 `MANYCHAT_API_TOKEN` and `PUBLIC_BASE_URL` in `.env`, then connect ManyChat as
-[Deployment](../../README.md#deployment) describes: the Dynamic Block, its
+[Connecting ManyChat](connecting-manychat.md) describes: the Dynamic Block, its
 `Authorization` header and the `ai_token` field. The header carries the
 `MANYCHAT_SHARED_SECRET` that `create` already generated at random.
 
