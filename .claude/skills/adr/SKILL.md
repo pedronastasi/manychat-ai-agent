@@ -7,12 +7,12 @@ description: Write an architecture decision record in docs/adr/ using this repos
 
 ## First decide whether it is an ADR at all
 
-| What is being written down                     | Where it belongs                |
-| ---------------------------------------------- | ------------------------------- |
-| Behaviour a test can assert                    | `specs/`                        |
-| A non-negotiable rule for the whole repo       | `specs/000-constitution.md`     |
-| Why this shape was chosen over the obvious one | `docs/adr/` — here              |
-| How to run something                           | `CONTRIBUTING.md` / `README.md` |
+| What is being written down                     | Where it belongs                   |
+| ---------------------------------------------- | ---------------------------------- |
+| Behaviour a test can assert                    | `specs/`                           |
+| A non-negotiable rule for the whole repo       | `specs/000-constitution.md`        |
+| Why this shape was chosen over the obvious one | `docs/adr/` — here                 |
+| How to run something                           | `CONTRIBUTING.md` / `docs/guides/` |
 
 An ADR earns its place when the rationale **cannot be recovered from the code**,
 usually because the code is the _absence_ of something. `0004` exists because
@@ -97,9 +97,11 @@ stopping again.
 3. **Get the date** with `date +%F`. Never guess it and never copy the date from
    a neighbouring ADR.
 4. **Write it** in the format below.
-5. **Add a row to the ADR table in `README.md`** (around line 68). The table is
-   the index; an unlisted ADR is an unread one.
-6. **Format it**: `npx prettier --write docs/adr/NNNN-*.md README.md`.
+5. **Add a row to the "Design decisions" table in
+   `docs/guides/how-it-works.md`.** The table is the index; an unlisted ADR is
+   an unread one. It does not go in `README.md`, which is a landing page
+   (specs/040).
+6. **Format it**: `npx prettier --write docs/adr/NNNN-*.md docs/guides/how-it-works.md`.
 
 ## Format — copy this exactly
 
