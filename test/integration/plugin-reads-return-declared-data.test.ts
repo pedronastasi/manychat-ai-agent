@@ -80,7 +80,16 @@ function model(delays: Record<number, number> = {}) {
       const step = calls.length;
       calls.push(options);
       const delay = delays[step];
-      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      // Abortable, as a provider call is, so MODEL_ABORT_MS can end a step.
+      if (delay) {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, delay);
+          options.abortSignal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        });
+      }
       const reads = (options.tools ?? []).length > 0;
       return {
         content: reads ? [readCall(step)] : [{ type: 'text', text: JSON.stringify(ANSWER) }],
@@ -112,7 +121,7 @@ const inbound = (text: string): InboundMessage => ({
 function handler(
   languageModel: MockLanguageModelV4,
   logger: HostLogger,
-  opts: { raceDeadlineMs?: number; tokensEnforced?: boolean } = {},
+  opts: { raceDeadlineMs?: number; modelAbortMs?: number; tokensEnforced?: boolean } = {},
 ) {
   const runner = new GenerateTextRunner({
     model: languageModel,
@@ -128,7 +137,7 @@ function handler(
     rules: tenant.rules,
     tools: tenant.tools,
     raceDeadlineMs: opts.raceDeadlineMs ?? 8000,
-    modelAbortMs: 30_000,
+    modelAbortMs: opts.modelAbortMs ?? 30_000,
     logger,
     tokenWriter: new FakeContactFields(),
     tokensEnforced: opts.tokensEnforced ?? false,
@@ -194,6 +203,22 @@ describe('a plugin read on both delivery paths (specs/039 V8)', () => {
     expect(JSON.stringify(turn.reads)).not.toContain('next foundation intake');
     // A read stages nothing.
     expect(turn.actions).toEqual([]);
+  });
+
+  it('keeps the record of its reads when the model call then fails', async () => {
+    const { logger, reads } = journal();
+    // The read runs on step one; MODEL_ABORT_MS ends the call on step two,
+    // before the deadline, so the turn is recorded as an error inline.
+    const out = await handler(model({ 1: 2000 }).model, logger, { modelAbortMs: 100 }).handle(
+      inbound('is there room on the foundation course?'),
+    );
+    expect(out.outcome).toBe('error');
+    expect(reads()).toBe(1);
+    const turn = (await agentTurn())!;
+    expect(turn.outcome).toBe('error');
+    expect(turn.reads).toEqual([
+      expect.objectContaining({ tool: 'class_availability', available: true }),
+    ]);
   });
 
   it('is not offered on an unbound turn, which may not read', async () => {

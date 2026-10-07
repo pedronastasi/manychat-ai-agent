@@ -571,6 +571,10 @@ export class TurnHandler {
       this.deps.plugins?.hasReadTools && readsHistory
         ? new PluginReads({ subscriberId: inbound.subscriberId, logger, budget })
         : undefined;
+    // Every row an agent turn writes carries its reads, an errored one too:
+    // null only when no read tool was offered (specs/039 § The turn records
+    // that a read happened, never what it returned).
+    const readRecords = () => (pluginReads ? [...pluginReads.records] : null);
 
     // A flow is sent when the model calls it, so its reply follows it
     // (specs/029). Through the nudging performer, so a payment link sent now
@@ -713,9 +717,7 @@ export class TurnHandler {
             playbookVersion: result.playbookVersion,
           },
           actions,
-          // Null when no read tool was offered; never a query or a result
-          // (specs/039 § The turn records that a read happened).
-          reads: pluginReads ? [...pluginReads.records] : null,
+          reads: readRecords(),
         },
       );
       const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
@@ -831,7 +833,7 @@ export class TurnHandler {
                 conversation.id,
                 rules.messages.acknowledgement,
                 'error',
-                { ...turn, actions },
+                { ...turn, actions, reads: readRecords() },
               );
             }
             // A silent response gave the contact nothing yet, so the holding
@@ -905,6 +907,7 @@ export class TurnHandler {
       await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'error', {
         ...turn,
         actions: discard(),
+        reads: readRecords(),
       });
       await markEscalated();
       return deliver({ reply, outcome: 'error', conversationId: conversation.id, binding });
