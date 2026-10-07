@@ -279,6 +279,12 @@ allowed actions, which must include `npm publish`. The default allows only
 was published by hand, because npm cannot attach a trusted publisher to a
 package that does not exist yet.
 
+Before each publish, `scripts/npm-release-check.ts` reads the registry. A
+version already there is skipped, so a release whose job failed half-way can
+be re-run without npm refusing the package that did go out. A package that
+does not exist fails the job with the steps to publish its first version by
+hand, in place of the bare `E404` npm answers with.
+
 **Container images.** Specified by `033`. Each release also pushes
 `ghcr.io/<owner>/manychat-ai-agent:<version>` and `:latest`. The test-service
 image of `015-test-service.md` remains separate, tagged by commit SHA and never

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.18.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.18.0...v0.18.1) (2026-10-07)
+
+
+### Specs and Docs
+
+* add a getting-started guide for npm create, and point to it from the top of the README ([893e8da](https://github.com/pedronastasi/manychat-ai-agent/commit/893e8dac5a668d6e20ae2439822894a4c3aaa71d))
+* derive a top bar, collapse the long sidebar groups, and fix badge and heading styling on the site ([2faca35](https://github.com/pedronastasi/manychat-ai-agent/commit/2faca35920a98ecbe7e8d3e4ec1e5a45372068b5))
+* derive nav bar from sections, collapse long groups, add getting-started guide ([31a3fde](https://github.com/pedronastasi/manychat-ai-agent/commit/31a3fde37dcee03b7847f21523114335623bc036))
+
+## [0.18.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.17.1...v0.18.0) (2026-10-06)
+
+
+### Features
+
+* finish plugin tools, and move plugin channels to spec 038 (spec 036) ([712c860](https://github.com/pedronastasi/manychat-ai-agent/commit/712c8603a291da1b0af3a980d30d2b0958e84d7d))
+* finish plugin tools, and move plugin channels to spec 038 (spec 036) ([1908609](https://github.com/pedronastasi/manychat-ai-agent/commit/190860916fffaea797571226647672a2a2b5751d))
+
+
+### Specs and Docs
+
+* record PR 182 in spec 036 ([2ab0918](https://github.com/pedronastasi/manychat-ai-agent/commit/2ab0918a8bd5beadcf2498ac1065e8b042a9a819))
+
 ## [0.17.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.17.0...v0.17.1) (2026-10-06)
 
 
