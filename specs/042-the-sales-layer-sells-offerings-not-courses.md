@@ -9,8 +9,9 @@ adr: [0015]
 Defines the words the framework uses for what a tenant sells and for a sale
 that completes, everywhere the framework owns them: `catalog.json`,
 `tools.json`, `rules.json`, the turn request, the system prompt's scaffolding,
-the learning job and the database. It amends `002`, `003`, `023`, `026`, `028`,
-`031` and `034`, listed at the end. It leaves out the shape of the funnel: the
+the learning job, the eval case and the database. It amends `001`, `002`,
+`003`, `009`, `023`, `026`, `028`, `029`, `031`, `032` and `034`, listed at the
+end. It leaves out the shape of the funnel: the
 six stages of `023`, their order and what moves a contact between them stay as
 they are, and only the words around them change.
 
@@ -110,7 +111,8 @@ otherwise unchanged.
 ## The offering field and the flows tied to an offering replace the course ones
 
 In `tools.json`, a field marked `"course": true` is marked `"offering": true`,
-and a flow's `"course"` key is `"offering"`. Every rule `028` and `003` state
+and a flow's `"course"` key is `"offering"`. Every rule `003`, `028` and `032`
+state
 for them carries over under the new name: at most one offering field, not the
 `funnel` or `intent` field; its `values` exactly the catalog's offering ids; a
 flow's `offering` one of them; none on the `payment_link` or `opening` flow;
@@ -159,7 +161,14 @@ this spec:
   `offering`;
 - `rules.json`: `learning.enrolledTag` to `learning.convertedTag`.
 
-The migration is idempotent: a config already in the new shape is left
+An eval case's `contact.course` and `contact.advert_course` (`009`) become
+`contact.offering` and `contact.advert_offering`. A renamed eval case field is
+breaking by the same `033` definition, and a tenant's suite lives in its
+project beside `config/`, so `agent upgrade` rewrites the `cases.jsonl` under
+`EVAL_DIR` with the same migration, and the case loader accepts only the new
+keys.
+
+The migration is idempotent: a config or suite already in the new shape is left
 byte-identical. It invents no value and touches neither `config/prompt.md` nor
 any ManyChat object. The loader accepts only the new shape; a config in the old
 one fails at boot naming the key and `agent upgrade`, rather than being read
@@ -191,20 +200,32 @@ default tenant, the bootstrap example and the README's demo.
 
 ## What this changes in other specs
 
+- `001 § Role`: the agent answers about a business's catalog of offerings, and
+  for everyone who is not a prospect, an existing customer among them, it
+  does not ask them to buy.
 - `002`: the request's optional key is `offering`, with `course` accepted as
   above.
 - `003`: `catalog.json` lists `offerings` as tabled above; `tools.json`'s
   field marker and flow key are `offering`; `rules.json`'s learning tag is
   `convertedTag`.
+- `009`: a case's `contact` carries `offering` and `advert_offering`; its
+  examples use the new keys.
 - `023`: "enrolment" in its measures and stage descriptions reads
   "conversion". The stages are unchanged.
 - `028`: course reads offering throughout; the rules are unchanged.
+- `029 § Course scoping first`: becomes offering scoping; a flow for another
+  offering is refused before any request.
 - `031`: the signal is paid conversion; the labels and the tag are renamed as
   above.
+- `032`: the `offered` stage reads "an offering and its catalog price have been
+  put to the contact"; an `opening` flow carries no `offering`.
 - `034`: the intent criteria are stated in the words of the table above, and
   an advert's course is an advert's offering.
 - `026`: the Python port uses the new names from its first line, so its module
-  mapping never carries the old ones.
+  mapping, including the state table's course row, never carries the old ones.
+
+Examples elsewhere that name a course as one tenant's data, such as `012`'s
+brochure flow and `024`'s note, are illustrations of the demo tenant and stay.
 
 ## Verification
 
@@ -217,8 +238,8 @@ default tenant, the bootstrap example and the README's demo.
 3. Config tests assert that a catalog with `courses`, a field marked
    `"course": true` and a `learning` block with `enrolledTag` each fail at
    load, naming the key and `agent upgrade`.
-4. A test runs `agent upgrade` on a config in the old shape and asserts the
-   new shape loads; runs it again and asserts no file changed; and asserts
+4. A test runs `agent upgrade` on a config and an eval suite in the old shape
+   and asserts the new shape loads; runs it again and asserts no file changed; and asserts
    `config/prompt.md` is untouched.
 5. A contract test asserts a request with `course` only, `offering` only, and
    both, stores the offering as described, `offering` winning.
