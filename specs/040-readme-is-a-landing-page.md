@@ -1,6 +1,7 @@
 ---
 status: implemented
 implemented: 2026-10-07
+pr: 195
 ---
 
 # 040 — The README Is a Landing Page
