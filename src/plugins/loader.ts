@@ -5,8 +5,9 @@ import { z } from 'zod';
 import { ConfigError } from '../config/loader.ts';
 import { MAX_NOTE_LENGTH } from '../contracts/config.ts';
 import { ToolName } from '../contracts/agent.ts';
-import { PLUGIN_API_VERSION } from './api.ts';
-import type { PluginParameter, PluginTool } from './api.ts';
+import { CHANNEL_API_VERSION, PLUGIN_API_VERSION } from './api.ts';
+import type { PluginChannel, PluginParameter, PluginTool } from './api.ts';
+import { PluginChannelAdapter } from '../channels/plugin.ts';
 import { Plugins, type LoadedTool } from './plugins.ts';
 
 /** The optional tenant file that lists the plugin packages to load (specs/036). */
@@ -18,7 +19,19 @@ const PluginsFile = z.object({ plugins: z.array(z.string().min(1)) }).strict();
 const BUILT_IN = new Set<string>([...ToolName.options, 'get_contact']);
 
 const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
-const PLUGIN_KEYS = new Set(['name', 'apiVersion', 'tools']);
+const PLUGIN_KEYS = new Set(['name', 'apiVersion', 'tools', 'channelApiVersion', 'channels']);
+const CHANNEL_KEYS = new Set([
+  'name',
+  'inbound',
+  'maxMessages',
+  'parse',
+  'render',
+  'push',
+  'writeToken',
+]);
+/** The route's `<name>`: a path segment, and never ManyChat's own. */
+const CHANNEL_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+const RESERVED_CHANNELS = new Set(['manychat']);
 const TOOL_KEYS = new Set(['name', 'description', 'parameters', 'perform']);
 const PARAMETER_KEYS: Record<PluginParameter['type'], ReadonlySet<string>> = {
   enum: new Set(['type', 'values', 'description', 'optional']),
@@ -177,11 +190,52 @@ function checkTool(plugin: string, value: unknown, taken: Map<string, string>): 
   return value as unknown as PluginTool;
 }
 
+function checkChannel(plugin: string, value: unknown, taken: Map<string, string>): PluginChannel {
+  if (!isObject(value)) throw new PluginError(`plugin ${plugin}: a channel is not an object`);
+  const name = value.name;
+  if (typeof name !== 'string' || !CHANNEL_NAME.test(name)) {
+    throw new PluginError(
+      `plugin ${plugin}: channel name ${JSON.stringify(name)} must be lowercase letters, digits and hyphens`,
+    );
+  }
+  const where = `plugin ${plugin}, channel ${name}`;
+  if (RESERVED_CHANNELS.has(name)) throw new PluginError(`${where}: the name is the agent's own`);
+  const owner = taken.get(name);
+  if (owner !== undefined) throw new PluginError(`${where}: plugin ${owner} already defines it`);
+  const extra = unknownKeys(value, CHANNEL_KEYS);
+  if (extra.length > 0) throw new PluginError(`${where}: unknown keys ${extra.join(', ')}`);
+  // A request no schema checks is read unchecked (C3).
+  if (!isObject(value.inbound) || typeof value.inbound.safeParse !== 'function') {
+    throw new PluginError(
+      `${where}: inbound must be a schema with safeParse, such as a Zod object`,
+    );
+  }
+  const { maxMessages } = value;
+  if (typeof maxMessages !== 'number' || !Number.isInteger(maxMessages) || maxMessages < 1) {
+    throw new PluginError(`${where}: maxMessages must be a whole number of at least 1`);
+  }
+  for (const method of ['parse', 'render', 'push'] as const) {
+    if (typeof value[method] !== 'function') {
+      throw new PluginError(`${where}: ${method} must be a function`);
+    }
+  }
+  if (value.writeToken !== undefined && typeof value.writeToken !== 'function') {
+    throw new PluginError(`${where}: writeToken must be a function when present`);
+  }
+  taken.set(name, plugin);
+  return value as unknown as PluginChannel;
+}
+
 /**
  * Checks a plugin's default export. Everything that would leave the prompt
  * promising an action nothing performs fails here, at startup (C6).
  */
-function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
+function checkPlugin(
+  spec: string,
+  value: unknown,
+  taken: Map<string, string>,
+  channelsTaken: Map<string, string>,
+) {
   if (!isObject(value)) {
     throw new PluginError(`plugin ${spec}: its default export is not a plugin (use definePlugin)`);
   }
@@ -195,11 +249,6 @@ function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
         `this agent supports ${PLUGIN_API_VERSION}`,
     );
   }
-  // Refused rather than ignored: a channel that silently never mounts is a
-  // contact nobody answers (specs/038).
-  if ('channels' in value) {
-    throw new PluginError(`plugin ${name}: channels are not supported yet (specs/038)`);
-  }
   const extra = unknownKeys(value, PLUGIN_KEYS);
   if (extra.length > 0) throw new PluginError(`plugin ${name}: unknown keys ${extra.join(', ')}`);
   if (value.tools !== undefined && !Array.isArray(value.tools)) {
@@ -208,7 +257,37 @@ function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
   const tools = ((value.tools as unknown[] | undefined) ?? []).map(tool =>
     checkTool(name, tool, taken),
   );
-  return { name, tools };
+  return { name, tools, channels: checkChannels(name, value, channelsTaken) };
+}
+
+/**
+ * The channel half has a version of its own, provisional while it is `0`
+ * (specs/038). It is required exactly when the plugin has channels: a channel
+ * written against another version, or a version naming no channel, is refused
+ * rather than guessed at.
+ */
+function checkChannels(
+  name: string,
+  value: Record<string, unknown>,
+  taken: Map<string, string>,
+): PluginChannel[] {
+  const hasChannels = value.channels !== undefined;
+  if (!hasChannels) {
+    if (value.channelApiVersion !== undefined) {
+      throw new PluginError(`plugin ${name}: channelApiVersion is set but it has no channels`);
+    }
+    return [];
+  }
+  if (value.channelApiVersion !== CHANNEL_API_VERSION) {
+    throw new PluginError(
+      `plugin ${name}: channelApiVersion ${JSON.stringify(value.channelApiVersion)} is not supported; ` +
+        `this agent supports ${CHANNEL_API_VERSION}, which is provisional (specs/038)`,
+    );
+  }
+  if (!Array.isArray(value.channels)) {
+    throw new PluginError(`plugin ${name}: channels must be an array`);
+  }
+  return (value.channels as unknown[]).map(channel => checkChannel(name, channel, taken));
 }
 
 /** The packages `plugins.json` lists, or none when the file is absent. */
@@ -248,8 +327,10 @@ export async function loadPlugins(
   if (packages.length === 0) return Plugins.NONE;
   const from = options.from ?? dirname(resolve(configDir));
   const taken = new Map<string, string>();
+  const channelsTaken = new Map<string, string>();
   const names = new Set<string>();
   const loaded: LoadedTool[] = [];
+  const channels: PluginChannelAdapter[] = [];
   for (const spec of packages) {
     if (spec.startsWith('.') || spec.startsWith('/') || spec.includes('\\')) {
       throw new PluginError(`plugin ${spec}: list a package name, not a path`);
@@ -266,12 +347,15 @@ export async function loadPlugins(
     } catch (error) {
       throw new PluginError(`plugin ${spec} failed to load: ${(error as Error).message}`);
     }
-    const plugin = checkPlugin(spec, module.default, taken);
+    const plugin = checkPlugin(spec, module.default, taken, channelsTaken);
     if (names.has(plugin.name)) {
       throw new PluginError(`plugin ${spec}: another plugin is already named ${plugin.name}`);
     }
     names.add(plugin.name);
     loaded.push(...plugin.tools.map(tool => ({ plugin: plugin.name, tool })));
+    channels.push(
+      ...plugin.channels.map(channel => new PluginChannelAdapter(plugin.name, channel)),
+    );
   }
-  return new Plugins(loaded, [...names]);
+  return new Plugins(loaded, [...names], channels);
 }

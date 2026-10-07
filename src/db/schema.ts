@@ -121,6 +121,12 @@ export const outbox = pgTable(
     conversationId: uuid('conversation_id').references(() => conversations.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * The adapter that delivers the row: ManyChat, or a plugin's channel
+     * (specs/038). Not the conversation's `channel`, which for ManyChat names
+     * the platform behind it.
+     */
+    channel: text('channel').notNull().default('manychat'),
     /** A deferred reply, or a contact token whose write has to be retried (specs/019). */
     kind: text('kind', { enum: ['reply', 'contact_token'] })
       .notNull()

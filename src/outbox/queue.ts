@@ -3,10 +3,15 @@ import type { Database } from '../db/client.ts';
 import { outbox } from '../db/schema.ts';
 import type { AgentReply, StagedAction } from '../contracts/agent.ts';
 
+/** The channel every row was delivered through before plugin channels (specs/038). */
+export const MANYCHAT_CHANNEL = 'manychat';
+
 interface OutboxRowBase {
   id: string;
   tenantId: string;
   subscriberId: string;
+  /** The adapter that delivers it (specs/038). */
+  channel: string;
   conversationId: string | null;
   attempts: number;
 }
@@ -43,6 +48,8 @@ export class OutboxQueue {
   async enqueue(input: {
     tenantId: string;
     subscriberId: string;
+    /** The adapter that delivers it; ManyChat when absent (specs/038). */
+    channel?: string | undefined;
     conversationId: string | null;
     reply: AgentReply;
     /** Deferred with the reply, never dropped from it (specs/012). */
@@ -63,6 +70,7 @@ export class OutboxQueue {
       .values({
         tenantId: input.tenantId,
         subscriberId: input.subscriberId,
+        channel: input.channel ?? MANYCHAT_CHANNEL,
         conversationId: input.conversationId,
         payload,
         // Never due before a reply already queued for the contact, so a later
@@ -110,6 +118,7 @@ export class OutboxQueue {
       id: string;
       tenant_id: string;
       subscriber_id: string;
+      channel: string;
       conversation_id: string | null;
       kind: OutboxRow['kind'];
       payload: OutboxRow['payload'];
@@ -145,9 +154,10 @@ export class OutboxQueue {
           FOR UPDATE SKIP LOCKED
           LIMIT ${limit}
         )
-        RETURNING id, tenant_id, subscriber_id, conversation_id, kind, payload, attempts, created_at
+        RETURNING id, tenant_id, subscriber_id, channel, conversation_id, kind, payload, attempts,
+          created_at
       )
-      SELECT id, tenant_id, subscriber_id, conversation_id, kind, payload, attempts
+      SELECT id, tenant_id, subscriber_id, channel, conversation_id, kind, payload, attempts
       FROM claimed
       ORDER BY created_at
     `);
@@ -162,6 +172,7 @@ export class OutboxQueue {
           id: row.id,
           tenantId: row.tenant_id,
           subscriberId: row.subscriber_id,
+          channel: row.channel,
           conversationId: row.conversation_id,
           kind: row.kind,
           payload: row.payload,

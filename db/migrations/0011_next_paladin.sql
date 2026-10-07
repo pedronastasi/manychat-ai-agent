@@ -1,0 +1,1 @@
+ALTER TABLE "outbox" ADD COLUMN "channel" text DEFAULT 'manychat' NOT NULL;

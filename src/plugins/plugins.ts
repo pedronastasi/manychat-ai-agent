@@ -6,6 +6,7 @@ import { cleanNote } from '../agent/contact.ts';
 import type { ActionStage } from '../agent/tools.ts';
 import { redactText } from '../observability/redact.ts';
 import type { PluginLogger, PluginParameter, PluginTool } from './api.ts';
+import type { PluginChannelAdapter } from '../channels/plugin.ts';
 
 /**
  * How long the agent waits for a plugin's `perform`. Past it the signal
@@ -14,6 +15,29 @@ import type { PluginLogger, PluginParameter, PluginTool } from './api.ts';
  * measured: the ManyChat client's own request timeout is shorter.
  */
 export const PLUGIN_PERFORM_TIMEOUT_MS = 10_000;
+
+/**
+ * Runs a plugin's code for at most `PLUGIN_PERFORM_TIMEOUT_MS`. Past it the
+ * signal aborts and the call fails, whether or not the plugin heeds it.
+ */
+export async function bounded(
+  label: string,
+  run: (signal: AbortSignal) => Promise<void> | void,
+): Promise<void> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${PLUGIN_PERFORM_TIMEOUT_MS} ms`));
+    }, PLUGIN_PERFORM_TIMEOUT_MS);
+  });
+  try {
+    await Promise.race([Promise.resolve().then(() => run(controller.signal)), timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** The parameter values a staged plugin action carries, already validated and cleaned. */
 export type PluginParams = Record<string, string | number | boolean>;
@@ -90,10 +114,17 @@ export class Plugins {
   private readonly byName: ReadonlyMap<string, LoadedTool>;
   /** The loaded plugins' names, in the order `plugins.json` lists them. */
   readonly names: readonly string[];
+  /** The channels the plugins add, each mounted beside ManyChat's (specs/038). */
+  readonly channels: readonly PluginChannelAdapter[];
 
-  constructor(tools: readonly LoadedTool[], names: readonly string[] = []) {
+  constructor(
+    tools: readonly LoadedTool[],
+    names: readonly string[] = [],
+    channels: readonly PluginChannelAdapter[] = [],
+  ) {
     this.byName = new Map(tools.map(entry => [entry.tool.name, entry]));
     this.names = names;
+    this.channels = channels;
   }
 
   get hasTools(): boolean {
@@ -174,28 +205,13 @@ export class Plugins {
     // A row queued before a restart that dropped the plugin.
     const entry = this.byName.get(name);
     if (!entry) throw new Error(`plugin tool ${name} is not loaded`);
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timedOut = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new Error(`plugin tool ${name} timed out after ${PLUGIN_PERFORM_TIMEOUT_MS} ms`));
-      }, PLUGIN_PERFORM_TIMEOUT_MS);
-    });
-    try {
-      await Promise.race([
-        Promise.resolve().then(() =>
-          entry.tool.perform({
-            subscriberId,
-            params,
-            logger: pluginLogger(logger, entry.plugin, subscriberId),
-            signal: controller.signal,
-          }),
-        ),
-        timedOut,
-      ]);
-    } finally {
-      clearTimeout(timer);
-    }
+    await bounded(`plugin tool ${name}`, signal =>
+      entry.tool.perform({
+        subscriberId,
+        params,
+        logger: pluginLogger(logger, entry.plugin, subscriberId),
+        signal,
+      }),
+    );
   }
 }

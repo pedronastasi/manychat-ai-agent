@@ -76,10 +76,13 @@ export interface IssueInput {
 export class ContactTokens {
   private readonly db: Database;
   private readonly writer: ContactTokenWriter;
+  /** The adapter whose outbox row retries a failed write (specs/038). */
+  private readonly channel: string;
 
-  constructor(db: Database, writer: ContactTokenWriter) {
+  constructor(db: Database, writer: ContactTokenWriter, channel = 'manychat') {
     this.db = db;
     this.writer = writer;
+    this.channel = channel;
   }
 
   /**
@@ -131,6 +134,7 @@ export class ContactTokens {
         .values({
           tenantId: input.tenantId,
           subscriberId: input.subscriberId,
+          channel: this.channel,
           conversationId: input.conversationId,
           kind: 'contact_token',
           payload: { generation: issued.generation },

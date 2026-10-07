@@ -61,7 +61,7 @@ needs a real-model record of — see `specs/031-learning-from-outcomes.md`.
 Ports-and-adapters (hexagonal). Key boundaries:
 
 - **AgentRunner** (`src/agent/runner.ts`) — port for LLM calls. Impl: `GenerateTextRunner`.
-- **ChannelAdapter** (`src/channels/port.ts`) — port for chat platforms. Impl: `ManyChatAdapter`.
+- **ChannelAdapter** (`src/channels/port.ts`) — port for chat platforms. Impls: `ManyChatAdapter`, and `PluginChannelAdapter` (`src/channels/plugin.ts`) around a plugin's channel, whose API is provisional (specs/038).
 - **ManyChatClient** (`src/channels/manychat/client.ts`) — port for outbound delivery. Impl: `ManyChatHttpClient`, the ONLY file that imports `manychat-sdk`; one instance per process (specs/022).
 - **ContactReader** (`src/channels/manychat/client.ts`) — port for `get_contact` (specs/024). `ManyChatHttpClient` implements it; `ContactReads` (`src/agent/contact.ts`) bounds it to two reads a turn, 1.5 s each.
 - **FlowSends** (`src/agent/flows.ts`) — sends a flow when the model calls `send_flow` on an inbound turn, so the reply follows it (specs/029, ADR-0019), and keeps when the last one finishes playing, which the reply waits for (specs/030). Every other write is staged on `ActionStage` and performed after the reply (ADR-0010).
@@ -79,7 +79,7 @@ src/
   main.ts              # Process entrypoint
   server.ts            # Fastify composition root
   agent/               # LLM interaction: runner, prompt, guardrails, registry, mock
-  channels/            # Channel adapters (ManyChat + local simulator)
+  channels/            # Channel adapters (ManyChat, plugin channels, local simulator)
   config/              # Env + tenant config loading (SIGHUP reload)
   contracts/           # Zod schemas (agent, config, manychat)
   conversation/        # Budget enforcement, conversation/turn persistence

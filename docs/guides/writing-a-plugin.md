@@ -7,9 +7,8 @@ You never patch the package, so an upgrade stays a version bump.
 
 The contract this guide follows is
 [spec 036](../../specs/036-plugins-extend-through-the-ports.md). Where this
-guide and the spec disagree, the spec wins. Plugin channels, for a platform
-other than ManyChat, are [spec 038](../../specs/038-plugin-channels.md) and
-are not available yet.
+guide and the spec disagree, the spec wins. A channel for a platform other
+than ManyChat is [Writing a plugin channel](writing-a-plugin-channel.md).
 
 Throughout, `agent-plugin-example-crm` stands for your plugin and
 `crm_log_lead` for its tool.
@@ -129,10 +128,14 @@ in `config/plugins.json`. List package names, never paths.
 pnpm agent config check
 ```
 
-loads every listed plugin exactly as the server does, and fails on one that is
-not installed, names an `apiVersion` this agent does not support, clashes with
-another tool or declares a parameter it refuses. The server refuses to start on
-the same errors, rather than starting with a tool missing.
+loads every listed plugin exactly as the server does. It fails on any plugin
+that:
+
+- is not installed;
+- names an `apiVersion` or `channelApiVersion` this agent does not support;
+- clashes with another tool or channel;
+- declares a parameter it refuses. The server refuses to start on
+  the same errors, rather than starting with a tool missing.
 
 Plugins load once, at boot. `kill -HUP` reloads your configuration but not your
 plugin's code, so a plugin change is a restart.

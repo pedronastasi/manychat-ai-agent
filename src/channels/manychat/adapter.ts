@@ -4,6 +4,7 @@ import {
   type ManyChatMessage,
 } from '../../contracts/manychat.ts';
 import type { AgentReply, InboundMessage } from '../../contracts/agent.ts';
+import { foldMessages } from '../port.ts';
 import type { ChannelAdapter, ParseContext, RenderContext } from '../port.ts';
 import type { ManyChatClient } from './client.ts';
 import { matchMediaUrl, unmatchedMediaUrlShape } from './media.ts';
@@ -23,9 +24,7 @@ export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatR
   // it: contacts got "here are the two options:" and no options, because
   // WhatsApp renders one message per Dynamic Block response. A reply that does
   // not fit is a formatting problem, not a licence to lose half of it.
-  const head = reply.messages.slice(0, caps.maxMessages - 1);
-  const tail = reply.messages.slice(caps.maxMessages - 1);
-  const texts = tail.length > 0 ? [...head, tail.join('\n\n')] : head;
+  const texts = foldMessages(reply.messages, caps.maxMessages);
 
   // A silent response says nothing while a flow plays; the callback below is
   // still registered, so the contact's next message comes back here (specs/030).

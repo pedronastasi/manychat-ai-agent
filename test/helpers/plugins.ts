@@ -5,13 +5,16 @@ import { pathToFileURL } from 'node:url';
 
 /** The invented plugin every specs/036 test loads. */
 export const EXAMPLE_PLUGIN = 'agent-plugin-example-crm';
+/** The invented channel plugin the specs/038 tests load. */
+export const EXAMPLE_CHANNEL_PLUGIN = 'agent-plugin-example-chat';
+const FIXTURES = new Set([EXAMPLE_PLUGIN, EXAMPLE_CHANNEL_PLUGIN]);
 
 /**
  * A stand-in tenant project: `config/plugins.json` listing `listed`, and a
  * `node_modules` holding the agent and each plugin in `packages`. The agent
  * entry re-exports this repository's source, so a plugin imports
  * `manychat-ai-agent` as a real one does. A package given as source is
- * written as its `index.js`; `EXAMPLE_PLUGIN` is copied from the fixture.
+ * written as its `index.js`; a fixture's name copies that fixture.
  */
 export function tenantProject(
   listed: readonly string[] | undefined,
@@ -34,8 +37,8 @@ export function tenantProject(
   );
   for (const [name, source] of Object.entries(packages)) {
     const dir = join(root, 'node_modules', name);
-    if (source === EXAMPLE_PLUGIN) {
-      cpSync(join('test/fixtures/plugins', EXAMPLE_PLUGIN), dir, { recursive: true });
+    if (FIXTURES.has(source)) {
+      cpSync(join('test/fixtures/plugins', source), dir, { recursive: true });
       continue;
     }
     mkdirSync(dir, { recursive: true });

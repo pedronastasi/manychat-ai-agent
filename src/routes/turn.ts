@@ -64,8 +64,14 @@ export interface TurnDeps {
   raceDeadlineMs: number;
   modelAbortMs: number;
   logger: TurnLogger;
-  /** Where an issued token is written for the contact (specs/019). */
-  tokenWriter: ContactTokenWriter;
+  /**
+   * Where an issued token is written for the contact (specs/019). Absent on a
+   * plugin channel that stores none: no token is issued, and every turn is
+   * unbound, so while tokens are enforced none reads history (specs/038).
+   */
+  tokenWriter?: ContactTokenWriter | undefined;
+  /** The adapter that delivers this turn's queued replies; ManyChat when absent (specs/038). */
+  channel?: string | undefined;
   /** CONTACT_TOKENS_ENFORCED: false only while tokens reach existing contacts. */
   tokensEnforced: boolean;
   /** Performs what the agent staged, once the reply has gone out (specs/012). */
@@ -194,7 +200,7 @@ export class TurnHandler {
   private readonly store: ConversationStore;
   private readonly budget: BudgetGuard;
   private readonly queue: OutboxQueue;
-  private readonly tokens: ContactTokens;
+  private readonly tokens: ContactTokens | undefined;
   private readonly nudges: NudgeStore;
 
   constructor(deps: TurnDeps) {
@@ -202,8 +208,18 @@ export class TurnHandler {
     this.store = new ConversationStore(deps.db);
     this.budget = new BudgetGuard(deps.db);
     this.queue = new OutboxQueue(deps.db);
-    this.tokens = new ContactTokens(deps.db, deps.tokenWriter);
+    this.tokens = deps.tokenWriter
+      ? new ContactTokens(deps.db, deps.tokenWriter, deps.channel)
+      : undefined;
     this.nudges = new NudgeStore(deps.db);
+  }
+
+  /**
+   * How the request binds to the contact (specs/019). A channel that stores
+   * no token can prove no contact, so its every turn is unbound (specs/038).
+   */
+  private bindingOf(known: Parameters<typeof bindingFor>[0], presented: string | null): Binding {
+    return this.tokens ? bindingFor(known, presented) : 'unbound';
   }
 
   /**
@@ -230,7 +246,7 @@ export class TurnHandler {
         slot.leave();
         throw error;
       });
-    const binding = bindingFor(known, inbound.contactToken);
+    const binding = this.bindingOf(known, inbound.contactToken);
     if (binding === 'unbound' && tokensEnforced) {
       slot.leave();
       return this.run(inbound, { deadlineAt });
@@ -305,6 +321,7 @@ export class TurnHandler {
       await this.queue.enqueue({
         tenantId: inbound.tenantId,
         subscriberId: inbound.subscriberId,
+        channel: this.deps.channel,
         conversationId: conversation?.id ?? null,
         reply: escalationReply('low_confidence', rules.messages.escalation),
       });
@@ -332,7 +349,7 @@ export class TurnHandler {
     // (specs/019). Without it the request is answered from its own message
     // alone, and neither reads nor extends the contact's history.
     const known = await this.store.find(inbound.tenantId, inbound.subscriberId);
-    const binding = bindingFor(known, inbound.contactToken);
+    const binding = this.bindingOf(known, inbound.contactToken);
     // During the rollout a request without the token is treated as it was
     // before specs/019, so nobody loses context before their token lands.
     const bound = binding !== 'unbound' || !tokensEnforced;
@@ -377,6 +394,7 @@ export class TurnHandler {
         await this.queue.enqueue({
           tenantId: inbound.tenantId,
           subscriberId: inbound.subscriberId,
+          channel: this.deps.channel,
           conversationId: conversation.id,
           reply: result.reply,
         });
@@ -428,7 +446,7 @@ export class TurnHandler {
     // A contact without a token gets one, and so does an unbound request,
     // which repairs a cleared field or a lost write. It goes only to the real
     // contact's field, so a forger gains nothing by triggering it.
-    if (binding !== 'bound') {
+    if (binding !== 'bound' && this.tokens) {
       const issued = await this.tokens.issue(
         {
           tenantId: inbound.tenantId,
@@ -746,6 +764,7 @@ export class TurnHandler {
         await this.queue.enqueue({
           tenantId: inbound.tenantId,
           subscriberId: inbound.subscriberId,
+          channel: this.deps.channel,
           conversationId: conversation.id,
           reply: result.reply,
           actions,
@@ -823,6 +842,7 @@ export class TurnHandler {
               await this.queue.enqueue({
                 tenantId: inbound.tenantId,
                 subscriberId: inbound.subscriberId,
+                channel: this.deps.channel,
                 conversationId: conversation.id,
                 reply: holding,
                 notBefore: notBefore(),
@@ -855,6 +875,7 @@ export class TurnHandler {
           await this.queue.enqueue({
             tenantId: inbound.tenantId,
             subscriberId: inbound.subscriberId,
+            channel: this.deps.channel,
             conversationId: conversation.id,
             reply: done.kind === 'decided' ? done.reply : done.result.reply,
             actions: deferred,

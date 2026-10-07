@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import type { FastifyError } from 'fastify';
+import type { FastifyError, FastifyRequest } from 'fastify';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import underPressure from '@fastify/under-pressure';
@@ -14,7 +14,7 @@ import {
 import { ManyChatInbound, ManyChatResponse } from './contracts/manychat.ts';
 import { capabilitiesFor } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
-import type { TranscriptionModel } from 'ai';
+import type { LanguageModel, TranscriptionModel } from 'ai';
 import type { Database } from './db/client.ts';
 import { acceptsImages, resolveModel, resolveTranscriptionModel } from './agent/registry.ts';
 import { GenerateTextRunner } from './agent/runner.ts';
@@ -24,10 +24,12 @@ import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { manychatClientFor } from './channels/manychat/client.ts';
 import type { ContactReader, ManyChatClient } from './channels/manychat/client.ts';
 import { ManyChatMediaFetcher } from './channels/manychat/media.ts';
-import type { ConfigStore } from './config/loader.ts';
+import type { ConfigStore, TenantConfig } from './config/loader.ts';
 import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
 import { MediaResolver } from './media/resolver.ts';
 import { TurnHandler } from './routes/turn.ts';
+import type { TurnDeps } from './routes/turn.ts';
+import type { AgentReply, InboundMessage } from './contracts/agent.ts';
 import { TurnLanes } from './conversation/turns.ts';
 import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
 import { escalationReply } from './agent/guardrails.ts';
@@ -59,6 +61,8 @@ export interface BuildOptions {
   contacts?: ContactReader;
   /** Injected by tests: the ManyChat HTTP boundary, API and media host alike. */
   manychatFetch?: typeof fetch;
+  /** Injected by tests in place of resolving AGENT_MODEL: the model boundary. */
+  model?: LanguageModel;
   /** Injected by tests in place of resolving TRANSCRIPTION_MODEL: the model boundary. */
   transcriptionModel?: TranscriptionModel;
   /** Injected by tests to stand in for a server without ffmpeg. */
@@ -67,6 +71,25 @@ export interface BuildOptions {
   plugins?: Plugins;
   /** The active playbook version (specs/031). None without a `learning` block. */
   playbook?: PlaybookSource | undefined;
+}
+
+/**
+ * The tenant's config without `tools.json`, as a plugin channel's turns read
+ * it (specs/038). The same object until a reload swaps the config, so the
+ * runner's cached prompt prefix survives.
+ */
+function withoutTools(config: () => TenantConfig): () => TenantConfig {
+  let source: TenantConfig | undefined;
+  let stripped: TenantConfig | undefined;
+  return () => {
+    const current = config();
+    if (current !== source || !stripped) {
+      source = current;
+      stripped = { ...current };
+      delete stripped.tools;
+    }
+    return stripped;
+  };
 }
 
 /**
@@ -107,20 +130,25 @@ export async function buildServer(opts: BuildOptions) {
   const adapter = new ManyChatAdapter(manychatClient);
   const plugins = opts.plugins ?? Plugins.NONE;
 
-  const runner =
+  const model = opts.runner ? undefined : (opts.model ?? resolveModel(env.AGENT_MODEL));
+  const runnerFor = (config: () => TenantConfig): AgentRunner =>
     opts.runner ??
     new GenerateTextRunner({
-      model: resolveModel(env.AGENT_MODEL),
+      model: model!,
       modelSpec: env.AGENT_MODEL,
       // The accessor, not its result: the runner re-reads it so SIGHUP reaches
       // the persona and catalog, not just the rules turn.ts reads per request.
-      config: tenant,
+      config,
       maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
       temperature: env.AGENT_TEMPERATURE,
       reasoningEffort: env.AGENT_REASONING_EFFORT,
       plugins,
       playbook: opts.playbook,
     });
+  const runner = runnerFor(tenant);
+  // A plugin channel's turns are offered no tools.json tool: flows, tags,
+  // fields, notes and nudges all act on a ManyChat contact (specs/038).
+  const channelRunner = plugins.channels.length > 0 ? runnerFor(withoutTools(tenant)) : runner;
 
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
   // the deploy, and a missing ffmpeg is found at boot rather than per video.
@@ -189,6 +217,25 @@ export async function buildServer(opts: BuildOptions) {
     courseField: tenant().tools?.fields.find(field => field.course)?.field,
   });
 
+  /** Each message route's rendering of a handoff, for the error handler. */
+  const handoffs = new Map<string, (reply: AgentReply, request: FastifyRequest) => unknown>([
+    [
+      MESSAGE_ROUTE,
+      (handoff, request) =>
+        adapter.render(handoff, {
+          capabilities,
+          ...callbackFor(bearerToken(request.headers.authorization)),
+        }),
+    ],
+    ...plugins.channels.map(
+      channel =>
+        [
+          channel.route,
+          (handoff: AgentReply) => channel.render(handoff, { capabilities }),
+        ] as const,
+    ),
+  ]);
+
   app.setErrorHandler((error: FastifyError, request, reply) => {
     // Client errors (rate limit, oversized body, validation) keep Fastify's
     // answer. Validation runs after authentication, so its detail reaches only
@@ -209,17 +256,16 @@ export async function buildServer(opts: BuildOptions) {
       );
     }
 
-    // On the message route a failure, overload included, is a handoff to a
+    // On a message route a failure, overload included, is a handoff to a
     // person, never a 500 carrying the error or a 503 the contact never sees
     // (C6, specs/017 § An error on the message route is a handoff, not a 500).
-    if (
-      request.routeOptions.url === MESSAGE_ROUTE &&
-      isAuthenticated(request, env.MANYCHAT_SHARED_SECRET)
-    ) {
+    // A plugin channel's route renders it through its own adapter (specs/038).
+    const handoffFor = handoffs.get(request.routeOptions.url ?? '');
+    if (handoffFor && isAuthenticated(request, env.MANYCHAT_SHARED_SECRET)) {
       try {
-        const handoff = adapter.render(
+        const handoff = handoffFor(
           escalationReply('low_confidence', tenant().rules.messages.escalation),
-          { capabilities, ...callbackFor(bearerToken(request.headers.authorization)) },
+          request,
         );
         // under-pressure sets it for its 503; on a 200 it means nothing.
         reply.removeHeader('retry-after');
@@ -255,17 +301,64 @@ export async function buildServer(opts: BuildOptions) {
   // (specs/037). Past this bound everything a turn runs has ended (C6).
   const lanes = new TurnLanes(env.MODEL_ABORT_MS + env.RACE_DEADLINE_MS);
 
+  /** After the response is sent, never before: the text the actions follow has to leave first. */
+  const performAfterResponse = async (request: FastifyRequest) => {
+    const perform = afterResponse.get(request);
+    afterResponse.delete(request);
+    if (perform) await perform();
+  };
+
+  /**
+   * Runs one turn through `TurnHandler`, the same for every channel: the same
+   * budget, race, per-contact order and outbox (specs/038).
+   */
+  const runTurn = async (
+    request: FastifyRequest,
+    inbound: InboundMessage,
+    channel: Pick<TurnDeps, 'runner' | 'tools' | 'tokenWriter' | 'channel' | 'contacts' | 'media'>,
+  ) => {
+    // Constructed per request: `tenant()` re-reads config, which SIGHUP can
+    // have reloaded since the last turn.
+    const handler = new TurnHandler({
+      db,
+      rules: tenant().rules,
+      raceDeadlineMs: env.RACE_DEADLINE_MS,
+      modelAbortMs: env.MODEL_ABORT_MS,
+      logger: request.log,
+      tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
+      // A plugin action goes to its plugin, the rest to ManyChat (specs/036).
+      actions: plugins.performer(manychatClient, request.log),
+      lanes,
+      ...channel,
+    });
+    const turn = await handler.handle(inbound);
+    const { reply, outcome, conversationId, binding } = turn;
+    if (turn.afterResponse) afterResponse.set(request, turn.afterResponse);
+
+    // The conversation's random ID, never anything derived from the
+    // subscriber ID (ADR-0014). `binding` gives the share of unbound turns
+    // that shows a flow has stopped sending the token (specs/019).
+    request.log.info(
+      {
+        conversation: conversationId,
+        outcome,
+        binding,
+        escalated: reply.escalate,
+        ...(turn.silent ? { silent: true } : {}),
+        ...(channel.channel ? { channel: channel.channel } : {}),
+      },
+      'turn complete',
+    );
+    return turn;
+  };
+
   app.post(
     MESSAGE_ROUTE,
     {
       onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
       // After the Dynamic Block response is sent, never before: the text the
       // actions follow has to leave first (specs/012 § Actions follow the text).
-      onResponse: async request => {
-        const perform = afterResponse.get(request);
-        afterResponse.delete(request);
-        if (perform) await perform();
-      },
+      onResponse: performAfterResponse,
       schema: {
         summary: 'ManyChat Dynamic Block webhook',
         body: ManyChatInbound,
@@ -279,44 +372,14 @@ export async function buildServer(opts: BuildOptions) {
         channel: env.CHANNEL,
         logger: request.log,
       });
-
-      // Constructed per request: `tenant()` re-reads config, which SIGHUP can
-      // have reloaded since the last turn.
-      const handler = new TurnHandler({
-        db,
+      const turn = await runTurn(request, inbound, {
         runner,
-        rules: tenant().rules,
         tools: tenant().tools,
-        raceDeadlineMs: env.RACE_DEADLINE_MS,
-        modelAbortMs: env.MODEL_ABORT_MS,
-        logger: request.log,
         tokenWriter: manychatClient,
-        tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
-        // A plugin action goes to its plugin, the rest to ManyChat (specs/036).
-        actions: plugins.performer(manychatClient, request.log),
         contacts,
         media,
-        lanes,
       });
-      const turn = await handler.handle(inbound);
-      const { reply, outcome, conversationId, binding } = turn;
-      if (turn.afterResponse) afterResponse.set(request, turn.afterResponse);
-
-      // The conversation's random ID, never anything derived from the
-      // subscriber ID (ADR-0014). `binding` gives the share of unbound turns
-      // that shows a flow has stopped sending the token (specs/019).
-      request.log.info(
-        {
-          conversation: conversationId,
-          outcome,
-          binding,
-          escalated: reply.escalate,
-          ...(turn.silent ? { silent: true } : {}),
-        },
-        'turn complete',
-      );
-
-      return adapter.render(reply, {
+      return adapter.render(turn.reply, {
         capabilities,
         silent: turn.silent,
         // Re-registered every turn so the loop stays server-side (specs/002).
@@ -324,6 +387,49 @@ export async function buildServer(opts: BuildOptions) {
       });
     },
   );
+
+  // Each plugin channel beside ManyChat's, behind the same secret, rate limit
+  // and error handling (specs/038). What only ManyChat can do is off: no
+  // tools.json tool, no contact read, no media download, and a token only
+  // when the channel stores one.
+  for (const channel of plugins.channels) {
+    if (!channel.writesTokens && env.CONTACT_TOKENS_ENFORCED) {
+      app.log.warn(
+        { channel: channel.name },
+        'plugin channel stores no contact tokens: its turns read no history',
+      );
+    }
+    app.post(
+      channel.route,
+      {
+        onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
+        onResponse: performAfterResponse,
+        schema: {
+          summary: `Plugin channel ${channel.name} (provisional, specs/038)`,
+          security: [{ sharedSecret: [] }],
+        },
+      },
+      async (request, reply) => {
+        // The channel's own schema, before anything reads the body (C3).
+        const checked = channel.check(request.body);
+        if (!checked.ok) return reply.code(400).send({ error: 'invalid_request' });
+        const inbound = channel.parse(checked.data, {
+          tenantId: env.TENANT_ID,
+          channel: channel.name,
+          logger: request.log,
+        });
+        const turn = await runTurn(request, inbound, {
+          runner: channelRunner,
+          tools: undefined,
+          tokenWriter: channel.tokenWriter,
+          channel: channel.name,
+          contacts: undefined,
+          media: undefined,
+        });
+        return channel.render(turn.reply, { capabilities, silent: turn.silent });
+      },
+    );
+  }
 
   return { app, runner };
 }

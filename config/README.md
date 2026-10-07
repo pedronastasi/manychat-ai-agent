@@ -735,4 +735,6 @@ own. `config/plugins.json` lists the packages to load:
 There is no example file, because every package listed must be installed or the
 server refuses to start. Plugins load at boot, so a change to one is a restart,
 not `kill -HUP`. How to write one: `docs/guides/writing-a-plugin.md`; the design:
-`specs/036-plugins-extend-through-the-ports.md`.
+`specs/036-plugins-extend-through-the-ports.md`. A plugin may also add a channel
+for a platform other than ManyChat, through a provisional API:
+`docs/guides/writing-a-plugin-channel.md` and `specs/038-plugin-channels.md`.

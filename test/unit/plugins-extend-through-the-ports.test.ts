@@ -223,11 +223,11 @@ describe('a plugin that does not load stops the server (specs/036 V3)', () => {
     await refused(configDir, /maxLength must be a whole number from 1 to 500/);
   });
 
-  it('a channel, which this release does not mount (specs/038)', async () => {
+  it('a channel that names no channel API version (specs/038)', async () => {
     const { configDir } = project(['invented'], {
       invented: pluginSource({ extra: 'channels: [],' }),
     });
-    await refused(configDir, /channels are not supported yet/);
+    await refused(configDir, /channelApiVersion undefined is not supported; this agent supports 0/);
   });
 
   it('an unknown key, a path in place of a package, and a malformed plugins.json', async () => {

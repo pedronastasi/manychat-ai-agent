@@ -43,3 +43,13 @@ export interface ChannelAdapter<TInbound = unknown, TOutbound = unknown> {
   /** Exposed for tests and the simulator. */
   readonly _inboundType?: TInbound;
 }
+
+/**
+ * Fits a reply into `max` messages. The overflow is joined into the last one,
+ * never dropped: a reply cut short reads as an answer with its point missing.
+ */
+export function foldMessages(messages: readonly string[], max: number): string[] {
+  const head = messages.slice(0, max - 1);
+  const tail = messages.slice(max - 1);
+  return tail.length > 0 ? [...head, tail.join('\n\n')] : head;
+}

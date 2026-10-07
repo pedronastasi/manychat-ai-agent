@@ -91,6 +91,79 @@ export interface PluginTool<S extends PluginParameters = PluginParameters> {
   perform(call: PluginCall<ParamsOf<S>>): Promise<void> | void;
 }
 
+/**
+ * The channel API this agent implements (specs/038). Provisional: it may
+ * break in any minor release until a second adapter has been built against
+ * it, which is why it has a version of its own beside `PLUGIN_API_VERSION`.
+ */
+export const CHANNEL_API_VERSION = 0;
+
+/**
+ * A request body checked before anything reads it (C3). A Zod schema is one;
+ * anything with the same `safeParse` passes.
+ */
+export interface InboundSchema<T> {
+  safeParse(value: unknown): { success: true; data: T } | { success: false; error: unknown };
+}
+
+/**
+ * What a channel reads out of a request: who wrote, and what. The tenant, the
+ * channel's name and the time are the server's, never the plugin's.
+ */
+export interface ChannelInbound {
+  /** The platform's id for the contact. The agent keeps it as `<channel>:<id>`. */
+  subscriberId: string;
+  /** What the contact typed. Empty when they sent only media. */
+  text: string;
+  contactName?: string | null;
+  locale?: string | null;
+  /**
+   * The token `writeToken` stored for the contact, as the platform sends it
+   * back (specs/019). Without it the turn is unbound.
+   */
+  contactToken?: string | null;
+  /**
+   * Media the contact sent. The agent never downloads it on a plugin channel:
+   * the contact is asked to type instead (specs/020 § mediaFallback).
+   */
+  media?: { kind: 'audio' | 'image' | 'video' | 'unsupported'; url: string };
+}
+
+/** A reply as a channel delivers it: messages already fitted to `maxMessages`. */
+export interface ChannelReply {
+  /** Empty when the response must say nothing: the reply follows from the outbox. */
+  messages: readonly string[];
+}
+
+/**
+ * A channel other than ManyChat (specs/038). The agent mounts it at
+ * `/v1/channels/<name>/message` behind the shared secret and runs each turn
+ * exactly as it runs ManyChat's: the channel translates, and decides nothing.
+ */
+export interface PluginChannel<T = unknown, R = unknown> {
+  /** Lowercase letters, digits and hyphens; the route's `<name>`. Not `manychat`. */
+  name: string;
+  /** The request body's schema: a request that fails it is refused with 400. */
+  inbound: InboundSchema<T>;
+  /** At most this many messages per response; the rest are joined into the last. */
+  maxMessages: number;
+  /** Reads the validated body. A throw is answered with the escalation message (C6). */
+  parse(body: T): ChannelInbound;
+  /** The response body the platform expects for a reply. */
+  render(reply: ChannelReply): R;
+  /**
+   * Sends a reply outside the request, for a turn that lost the race. A throw
+   * is retried by the outbox, as a failed ManyChat send is.
+   */
+  push(call: { subscriberId: string; reply: ChannelReply; signal: AbortSignal }): Promise<void>;
+  /**
+   * Stores the contact's token where the platform sends it back with each
+   * request (specs/019). Without it, while tokens are enforced, no turn on
+   * this channel reads the contact's history.
+   */
+  writeToken?(call: { subscriberId: string; token: string; signal: AbortSignal }): Promise<void>;
+}
+
 export interface Plugin {
   name: string;
   /** The plugin API it was written against: `PLUGIN_API_VERSION`. */
@@ -98,6 +171,11 @@ export interface Plugin {
   // A tool's parameter types vary by tool, so the list cannot name one.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tools?: readonly PluginTool<any>[];
+  /** The channel API its channels were written against: `CHANNEL_API_VERSION`. */
+  channelApiVersion?: number;
+  // A channel's body and response types vary by channel, likewise.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  channels?: readonly PluginChannel<any, any>[];
 }
 
 /**
@@ -111,4 +189,9 @@ export function definePlugin<const P extends Plugin>(plugin: P): P {
 /** Types a tool's `perform` from its parameters. Returns the tool unchanged. */
 export function defineTool<const S extends PluginParameters>(tool: PluginTool<S>): PluginTool<S> {
   return tool;
+}
+
+/** Types a channel's `parse` from its schema. Returns the channel unchanged. */
+export function defineChannel<T, R>(channel: PluginChannel<T, R>): PluginChannel<T, R> {
+  return channel;
 }

@@ -1,7 +1,7 @@
 import type { Database } from '../db/client.ts';
 import type { ManyChatClient } from '../channels/manychat/client.ts';
 import { ManyChatApiError, ManyChatError } from '../channels/manychat/client.ts';
-import { OutboxQueue } from './queue.ts';
+import { MANYCHAT_CHANNEL, OutboxQueue } from './queue.ts';
 import type { OutboxRow } from './queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
 import { ConversationStore } from '../conversation/store.ts';
@@ -16,6 +16,24 @@ export interface WorkerLogger {
   info: (obj: object, msg: string) => void;
   warn: (obj: object, msg: string) => void;
   error: (obj: object, msg: string) => void;
+}
+
+/** What delivers a row: the ManyChat client, or a plugin's channel (specs/038). */
+export interface ChannelSender {
+  sendText(subscriberId: string, messages: string[]): Promise<void>;
+  writeToken(subscriberId: string, token: string): Promise<void>;
+}
+
+/**
+ * A row for a channel this process has not loaded: a plugin dropped from
+ * `plugins.json` since it was queued. Never retried, since no retry finds it.
+ */
+export class ChannelUnavailableError extends Error {
+  readonly retryable = false;
+  constructor(channel: string) {
+    super(`channel ${channel} is not loaded`);
+    this.name = 'ChannelUnavailableError';
+  }
 }
 
 export interface WorkerOptions {
@@ -44,6 +62,7 @@ export class OutboxWorker {
   private readonly store: ConversationStore;
   private readonly nudges: NudgeStore;
   private readonly actions: ActionPerformer;
+  private readonly senders: ReadonlyMap<string, ChannelSender>;
   private running = false;
   /**
    * Set by the stop function. A contact's rows after the one being sent go
@@ -57,6 +76,10 @@ export class OutboxWorker {
     this.opts = opts;
     this.queue = new OutboxQueue(opts.db);
     this.tokens = new ContactTokens(opts.db, opts.client);
+    this.senders = new Map<string, ChannelSender>([
+      [MANYCHAT_CHANNEL, opts.client],
+      ...(opts.plugins?.channels ?? []).map(channel => [channel.name, channel] as const),
+    ]);
     this.store = new ConversationStore(opts.db);
     this.nudges = new NudgeStore(opts.db);
     this.actions = opts.plugins ? opts.plugins.performer(opts.client, opts.logger) : opts.client;
@@ -107,8 +130,10 @@ export class OutboxWorker {
   }
 
   private async deliver(row: OutboxRow): Promise<void> {
+    const sender = this.senders.get(row.channel);
+    if (!sender) throw new ChannelUnavailableError(row.channel);
     if (row.kind === 'reply') {
-      await this.opts.client.sendText(row.subscriberId, row.payload.messages);
+      await sender.sendText(row.subscriberId, row.payload.messages);
       return;
     }
     // The token that failed to land was never stored, so a fresh one replaces
@@ -116,7 +141,7 @@ export class OutboxWorker {
     const token = row.conversationId
       ? await this.tokens.replaceUnwritten(row.conversationId, row.payload.generation)
       : null;
-    if (token) await this.opts.client.writeToken(row.subscriberId, token);
+    if (token) await sender.writeToken(row.subscriberId, token);
   }
 
   /**
@@ -183,7 +208,10 @@ export class OutboxWorker {
       // ManyChat's own verdict when it is ManyChat's error, and a retry
       // otherwise: an unknown failure, such as the database, must not
       // discard a reply (specs/022 § Retries follow the SDK's retryable).
-      const retryable = error instanceof ManyChatError ? error.retryable : true;
+      const retryable =
+        error instanceof ManyChatError || error instanceof ChannelUnavailableError
+          ? error.retryable
+          : true;
       // A token write's error is kept to its status: ManyChat's answer to it
       // could quote the value it was sent (specs/019).
       const message =
