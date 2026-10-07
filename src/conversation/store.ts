@@ -1,7 +1,7 @@
 import { and, eq, gte, isNotNull, isNull, max, ne, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
-import type { ActionRecord, MediaKind, TurnOutcome } from '../contracts/agent.ts';
+import type { ActionRecord, MediaKind, ReadRecord, TurnOutcome } from '../contracts/agent.ts';
 import type { TokenState } from './tokens.ts';
 
 export interface ConversationRecord {
@@ -129,7 +129,13 @@ export class ConversationStore {
     conversationId: string,
     text: string,
     outcome: TurnOutcome,
-    turn: { bound: boolean; usage?: TurnUsage; actions?: ActionRecord[] | null | undefined },
+    turn: {
+      bound: boolean;
+      usage?: TurnUsage;
+      actions?: ActionRecord[] | null | undefined;
+      /** The turn's plugin reads, null when no read tool was offered (specs/039). */
+      reads?: ReadRecord[] | null | undefined;
+    },
   ): Promise<string> {
     const usage = turn.usage ?? {};
     const [row] = await this.db
@@ -148,6 +154,7 @@ export class ConversationStore {
         latencyMs: usage.latencyMs ?? null,
         playbookVersion: usage.playbookVersion ?? null,
         actions: turn.actions ?? null,
+        reads: turn.reads ?? null,
       })
       .returning({ id: turns.id });
     if (!row) throw new Error('recordAgentReply: insert returned no row');

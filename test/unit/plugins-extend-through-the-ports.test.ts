@@ -112,7 +112,8 @@ describe('the bare entry point exports definePlugin (specs/036 V1)', () => {
     const plugin = { name: 'invented', apiVersion: PLUGIN_API_VERSION, tools: [tool] };
     expect(definePlugin(plugin)).toBe(plugin);
     expect(defineTool(tool)).toBe(tool);
-    expect(PLUGIN_API_VERSION).toBe(1);
+    // Amended by specs/039: apiVersion 2 adds read tools, and 1 still loads.
+    expect(PLUGIN_API_VERSION).toBe(2);
   });
 });
 
@@ -190,8 +191,8 @@ describe('a plugin that does not load stops the server (specs/036 V3)', () => {
   });
 
   it('an apiVersion the installed agent does not support', async () => {
-    const { configDir } = project(['invented'], { invented: pluginSource({ apiVersion: 2 }) });
-    await refused(configDir, /apiVersion 2 is not supported; this agent supports 1/);
+    const { configDir } = project(['invented'], { invented: pluginSource({ apiVersion: 3 }) });
+    await refused(configDir, /apiVersion 3 is not supported; this agent supports 1 and 2/);
   });
 
   it('a tool that takes a built-in tool’s name', async () => {

@@ -90,18 +90,23 @@ the race`);
 - a plugin tool may not take a built-in tool's name, `get_contact` included,
   nor another plugin's.
 
-The prompt gains two lines only when a plugin adds a tool: that the deployment
-has tools of its own, and that they are staged like the others. What a tool is
-for is its description.
+The prompt gains two lines only when a plugin adds a tool that declares
+`perform`: that the deployment has tools of its own, and that they are staged
+like the others. What a tool is for is its description.
+
+A tool that declares `read` in place of `perform` is not a staged action. It is
+performed when called, within the read budget, and is not refused before the
+contact is a prospect: `039` specifies it, and amends this section.
 
 ## What a plugin is never given
 
 A model, a provider client or the registry (C2); the system prompt or the
 catalog (C4); the database connection; a logger other than the redacting one
-(C5); a way to skip the guardrails or extend the deadline (C7). `perform`
-receives exactly four things: the turn's subscriber ID, its validated
-parameters, the agent's redacting logger, which names the plugin on every line
-and removes the subscriber ID from what the plugin writes, and an abort signal.
+(C5); a way to skip the guardrails or extend the deadline (C7). `perform`, and
+a read tool's `read` (`039`), receive exactly four things: the turn's
+subscriber ID, its validated parameters, the agent's redacting logger, which
+names the plugin on every line and removes the subscriber ID from what the
+plugin writes, and an abort signal.
 
 ## A plugin that does not load stops the server
 
@@ -120,7 +125,9 @@ This adds a third kind to
 a change to `definePlugin`, to what a tool receives, or to the `apiVersion`
 values the agent accepts is breaking. The tool API starts at `apiVersion: 1`,
 not `0`, because it is not provisional: a plugin tool is `012`'s mechanism,
-which is already settled. The channel API of `038` is provisional, and says so
+which is already settled. `039` adds `apiVersion: 2`, which adds read tools;
+the agent accepts both, and a plugin that declares no read tool loads under
+either exactly as it did. The channel API of `038` is provisional, and says so
 itself.
 
 ## A plugin is written for one codebase

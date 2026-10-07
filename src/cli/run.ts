@@ -1,6 +1,7 @@
 import { loadEnv, loadTenantConfig, ConfigError, reservedNames } from '../config/loader.ts';
 import type { Env } from '../contracts/config.ts';
 import type { Database } from '../db/client.ts';
+import type { Plugins } from '../plugins/plugins.ts';
 
 export const COMMANDS: Record<string, string> = {
   serve: 'Start the server (applies migrations at boot)',
@@ -104,9 +105,9 @@ export async function run(argv: string[]): Promise<number | undefined> {
       // Plugins are checked as `agent serve` loads them, so a check that
       // passes is a boot that does not stop on one (specs/036).
       const { loadPlugins } = await import('../plugins/loader.ts');
-      let names: readonly string[];
+      let summary: ReturnType<Plugins['summary']>;
       try {
-        names = (await loadPlugins(configDir)).names;
+        summary = (await loadPlugins(configDir)).summary();
       } catch (error) {
         if (error instanceof ConfigError) {
           console.error(`invalid plugins (${configDir}): ${error.message}`);
@@ -114,7 +115,17 @@ export async function run(argv: string[]): Promise<number | undefined> {
         }
         throw error;
       }
-      const loaded = names.length > 0 ? `; plugins: ${names.join(', ')}` : '';
+      // Each plugin's read tools beside its write tools (specs/039).
+      const tools = (names: string[]) => (names.length > 0 ? names.join(', ') : 'none');
+      const loaded =
+        summary.length > 0
+          ? `; plugins: ${summary
+              .map(
+                entry =>
+                  `${entry.plugin} (writes: ${tools(entry.writes)}; reads: ${tools(entry.reads)})`,
+              )
+              .join(', ')}`
+          : '';
       console.log(`config check passed (${configDir}${loaded})`);
       return 0;
     }

@@ -5,8 +5,19 @@ import { z } from 'zod';
 import { ConfigError } from '../config/loader.ts';
 import { MAX_NOTE_LENGTH } from '../contracts/config.ts';
 import { ToolName } from '../contracts/agent.ts';
-import { PLUGIN_API_VERSION } from './api.ts';
-import type { PluginParameter, PluginTool } from './api.ts';
+import {
+  MAX_QUERY_LENGTH,
+  MAX_RESULT_ITEMS,
+  MAX_RESULT_TEXT_LENGTH,
+  SUPPORTED_PLUGIN_API_VERSIONS,
+} from './api.ts';
+import type {
+  PluginParameter,
+  PluginReadTool,
+  PluginTool,
+  ReadParameter,
+  ResultField,
+} from './api.ts';
 import { Plugins, type LoadedTool } from './plugins.ts';
 
 /** The optional tenant file that lists the plugin packages to load (specs/036). */
@@ -19,12 +30,30 @@ const BUILT_IN = new Set<string>([...ToolName.options, 'get_contact']);
 
 const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const PLUGIN_KEYS = new Set(['name', 'apiVersion', 'tools']);
-const TOOL_KEYS = new Set(['name', 'description', 'parameters', 'perform']);
+const TOOL_KEYS = new Set(['name', 'description', 'parameters', 'perform', 'read', 'result']);
+const ENUM_KEYS = new Set(['type', 'values', 'description', 'optional']);
+const NUMBER_KEYS = new Set(['type', 'integer', 'min', 'max', 'description', 'optional']);
+const BOOLEAN_KEYS = new Set(['type', 'description', 'optional']);
+const BOUNDED_KEYS = new Set(['type', 'maxLength', 'description', 'optional']);
 const PARAMETER_KEYS: Record<PluginParameter['type'], ReadonlySet<string>> = {
-  enum: new Set(['type', 'values', 'description', 'optional']),
-  number: new Set(['type', 'integer', 'min', 'max', 'description', 'optional']),
-  boolean: new Set(['type', 'description', 'optional']),
-  note: new Set(['type', 'maxLength', 'description', 'optional']),
+  enum: ENUM_KEYS,
+  number: NUMBER_KEYS,
+  boolean: BOOLEAN_KEYS,
+  note: BOUNDED_KEYS,
+};
+/** A read tool's parameters: a write's, less the note, plus one query (specs/039). */
+const READ_PARAMETER_KEYS: Record<ReadParameter['type'], ReadonlySet<string>> = {
+  enum: ENUM_KEYS,
+  number: NUMBER_KEYS,
+  boolean: BOOLEAN_KEYS,
+  query: BOUNDED_KEYS,
+};
+const RESULT_KEYS: Record<ResultField['type'], ReadonlySet<string>> = {
+  enum: ENUM_KEYS,
+  number: NUMBER_KEYS,
+  boolean: BOOLEAN_KEYS,
+  text: BOUNDED_KEYS,
+  list: new Set(['type', 'maxItems', 'maxLength', 'description', 'optional']),
 };
 
 /** A plugin that cannot be loaded. A `ConfigError`, so every command reports it as one. */
@@ -81,33 +110,29 @@ function entryOf(dir: string): string {
   return join(dir, target);
 }
 
-/**
- * Checks one parameter against what a built-in tool may take. A string outside
- * a note is refused, as `tools.json` refuses one (specs/012 § Free-text field
- * values are refused).
- */
-function checkParameter(where: string, key: string, parameter: unknown): void {
-  const at = `${where}, parameter "${key}"`;
-  if (!isObject(parameter)) throw new PluginError(`${at}: is not a parameter declaration`);
-  const type = parameter.type;
-  if (type === 'string' || type === 'text') {
-    throw new PluginError(
-      `${at}: free text is refused; declare it as a "note" with a maxLength (specs/012)`,
-    );
+/** A whole number from 1 to `max`, or a startup error naming the key. */
+function checkBound(at: string, key: string, value: unknown, max: number, why: string): void {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > max) {
+    throw new PluginError(`${at}: ${key} must be a whole number from 1 to ${max} (${why})`);
   }
-  if (typeof type !== 'string' || !(type in PARAMETER_KEYS)) {
-    throw new PluginError(`${at}: type must be one of enum, number, boolean, note`);
-  }
-  const extra = unknownKeys(parameter, PARAMETER_KEYS[type as PluginParameter['type']]);
+}
+
+/** The checks every declaration shares: its keys, description, optional, and enum or number bounds. */
+function checkDeclaration(
+  at: string,
+  declaration: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+): void {
+  const extra = unknownKeys(declaration, allowed);
   if (extra.length > 0) throw new PluginError(`${at}: unknown keys ${extra.join(', ')}`);
-  if (parameter.description !== undefined && typeof parameter.description !== 'string') {
+  if (declaration.description !== undefined && typeof declaration.description !== 'string') {
     throw new PluginError(`${at}: description must be a string`);
   }
-  if (parameter.optional !== undefined && typeof parameter.optional !== 'boolean') {
+  if (declaration.optional !== undefined && typeof declaration.optional !== 'boolean') {
     throw new PluginError(`${at}: optional must be a boolean`);
   }
-  if (type === 'enum') {
-    const values = parameter.values;
+  if (declaration.type === 'enum') {
+    const values = declaration.values;
     if (
       !Array.isArray(values) ||
       values.length === 0 ||
@@ -117,8 +142,8 @@ function checkParameter(where: string, key: string, parameter: unknown): void {
       throw new PluginError(`${at}: values must be distinct, non-empty strings`);
     }
   }
-  if (type === 'number') {
-    const { min, max, integer } = parameter;
+  if (declaration.type === 'number') {
+    const { min, max, integer } = declaration;
     for (const [name, bound] of [
       ['min', min],
       ['max', max],
@@ -134,22 +159,81 @@ function checkParameter(where: string, key: string, parameter: unknown): void {
       throw new PluginError(`${at}: integer must be a boolean`);
     }
   }
+}
+
+/**
+ * Checks one parameter of a write tool against what a built-in tool may take.
+ * A string outside a note is refused, as `tools.json` refuses one (specs/012
+ * § Free-text field values are refused).
+ */
+function checkParameter(where: string, key: string, parameter: unknown): void {
+  const at = `${where}, parameter "${key}"`;
+  if (!isObject(parameter)) throw new PluginError(`${at}: is not a parameter declaration`);
+  const type = parameter.type;
+  if (type === 'string' || type === 'text') {
+    throw new PluginError(
+      `${at}: free text is refused; declare it as a "note" with a maxLength (specs/012)`,
+    );
+  }
+  if (typeof type !== 'string' || !(type in PARAMETER_KEYS)) {
+    throw new PluginError(`${at}: type must be one of enum, number, boolean, note`);
+  }
+  checkDeclaration(at, parameter, PARAMETER_KEYS[type as PluginParameter['type']]);
+  if (type === 'note')
+    checkBound(at, 'maxLength', parameter.maxLength, MAX_NOTE_LENGTH, 'ADR-0017');
+}
+
+/**
+ * Checks one parameter of a read tool. Its one free text is a `query`; a note
+ * is a write's field (specs/039 § Its query is the one free text, bounded and
+ * cleaned).
+ */
+function checkReadParameter(where: string, key: string, parameter: unknown): void {
+  const at = `${where}, parameter "${key}"`;
+  if (!isObject(parameter)) throw new PluginError(`${at}: is not a parameter declaration`);
+  const type = parameter.type;
   if (type === 'note') {
-    const { maxLength } = parameter;
-    if (
-      typeof maxLength !== 'number' ||
-      !Number.isInteger(maxLength) ||
-      maxLength < 1 ||
-      maxLength > MAX_NOTE_LENGTH
-    ) {
-      throw new PluginError(
-        `${at}: maxLength must be a whole number from 1 to ${MAX_NOTE_LENGTH} (ADR-0017)`,
-      );
-    }
+    throw new PluginError(
+      `${at}: a read tool takes no note; its free text is a "query" (specs/039)`,
+    );
+  }
+  if (type === 'string' || type === 'text') {
+    throw new PluginError(
+      `${at}: free text is refused; declare it as a "query" with a maxLength (specs/039)`,
+    );
+  }
+  if (typeof type !== 'string' || !(type in READ_PARAMETER_KEYS)) {
+    throw new PluginError(`${at}: type must be one of enum, number, boolean, query`);
+  }
+  checkDeclaration(at, parameter, READ_PARAMETER_KEYS[type as ReadParameter['type']]);
+  if (type === 'query') {
+    checkBound(at, 'maxLength', parameter.maxLength, MAX_QUERY_LENGTH, 'specs/039');
   }
 }
 
-function checkTool(plugin: string, value: unknown, taken: Map<string, string>): PluginTool {
+/** Checks one field of a read tool's declared result (specs/039 § Its result is declared, validated and fenced). */
+function checkResultField(where: string, key: string, field: unknown): void {
+  const at = `${where}, result "${key}"`;
+  if (!isObject(field)) throw new PluginError(`${at}: is not a result field declaration`);
+  const type = field.type;
+  if (typeof type !== 'string' || !(type in RESULT_KEYS)) {
+    throw new PluginError(`${at}: type must be one of enum, number, boolean, text, list`);
+  }
+  checkDeclaration(at, field, RESULT_KEYS[type as ResultField['type']]);
+  if (type === 'text' || type === 'list') {
+    checkBound(at, 'maxLength', field.maxLength, MAX_RESULT_TEXT_LENGTH, 'specs/039');
+  }
+  if (type === 'list') checkBound(at, 'maxItems', field.maxItems, MAX_RESULT_ITEMS, 'specs/039');
+}
+
+type CheckedTool = PluginTool | PluginReadTool;
+
+function checkTool(
+  plugin: string,
+  apiVersion: number,
+  value: unknown,
+  taken: Map<string, string>,
+): CheckedTool {
   if (!isObject(value)) throw new PluginError(`plugin ${plugin}: a tool is not an object`);
   const name = value.name;
   if (typeof name !== 'string' || !TOOL_NAME.test(name)) {
@@ -167,14 +251,43 @@ function checkTool(plugin: string, value: unknown, taken: Map<string, string>): 
     throw new PluginError(`${where}: description must be a non-empty string`);
   }
   if (!isObject(value.parameters)) throw new PluginError(`${where}: parameters must be an object`);
-  for (const [key, parameter] of Object.entries(value.parameters)) {
-    checkParameter(where, key, parameter);
+  // A tool either writes or reads: one that did both would be performed
+  // twice, once in the step and once after the reply (specs/039).
+  const reads = 'read' in value;
+  if (reads && 'perform' in value) {
+    throw new PluginError(`${where}: declares both read and perform; a tool does one (specs/039)`);
   }
-  if (typeof value.perform !== 'function') {
-    throw new PluginError(`${where}: perform must be a function`);
+  if (!reads) {
+    if ('result' in value) {
+      throw new PluginError(`${where}: a result is declared only by a read tool (specs/039)`);
+    }
+    for (const [key, parameter] of Object.entries(value.parameters)) {
+      checkParameter(where, key, parameter);
+    }
+    if (typeof value.perform !== 'function') {
+      throw new PluginError(`${where}: perform must be a function, or read for a read tool`);
+    }
+    taken.set(name, plugin);
+    return value as unknown as PluginTool;
   }
+  if (apiVersion < 2) {
+    throw new PluginError(`${where}: a read tool needs apiVersion 2 (specs/039)`);
+  }
+  if (typeof value.read !== 'function') throw new PluginError(`${where}: read must be a function`);
+  const parameters = Object.entries(value.parameters);
+  for (const [key, parameter] of parameters) checkReadParameter(where, key, parameter);
+  const queries = parameters.filter(
+    ([, parameter]) => isObject(parameter) && parameter.type === 'query',
+  );
+  if (queries.length > 1) {
+    throw new PluginError(`${where}: declares ${queries.length} query parameters; at most one`);
+  }
+  if (!isObject(value.result) || Object.keys(value.result).length === 0) {
+    throw new PluginError(`${where}: a read tool must declare its result (specs/039)`);
+  }
+  for (const [key, field] of Object.entries(value.result)) checkResultField(where, key, field);
   taken.set(name, plugin);
-  return value as unknown as PluginTool;
+  return value as unknown as PluginReadTool;
 }
 
 /**
@@ -189,10 +302,11 @@ function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
     throw new PluginError(`plugin ${spec}: name must be a non-empty string`);
   }
   const name = value.name;
-  if (value.apiVersion !== PLUGIN_API_VERSION) {
+  const apiVersion = value.apiVersion;
+  if (typeof apiVersion !== 'number' || !SUPPORTED_PLUGIN_API_VERSIONS.includes(apiVersion)) {
     throw new PluginError(
-      `plugin ${name}: apiVersion ${JSON.stringify(value.apiVersion)} is not supported; ` +
-        `this agent supports ${PLUGIN_API_VERSION}`,
+      `plugin ${name}: apiVersion ${JSON.stringify(apiVersion)} is not supported; ` +
+        `this agent supports ${SUPPORTED_PLUGIN_API_VERSIONS.join(' and ')}`,
     );
   }
   // Refused rather than ignored: a channel that silently never mounts is a
@@ -206,7 +320,7 @@ function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
     throw new PluginError(`plugin ${name}: tools must be an array`);
   }
   const tools = ((value.tools as unknown[] | undefined) ?? []).map(tool =>
-    checkTool(name, tool, taken),
+    checkTool(name, apiVersion, tool, taken),
   );
   return { name, tools };
 }
