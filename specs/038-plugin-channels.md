@@ -110,7 +110,9 @@ retry would find it.
 `tools.json` is offered or described in the prompt, and no contact read is
 offered. Plugin tools are still offered, since they take only the subscriber.
 Media is never downloaded: the turn takes `rules.messages.mediaFallback`, as
-`020` does when nothing can read it. Refusing to start when `tools.json` has
+`020` does when nothing can read it. `031`'s playbook still applies: it holds
+selling tactics, not ManyChat actions, and its heading makes every rule above
+it win. Refusing to start when `tools.json` has
 tools was rejected, because a tenant could then not run ManyChat with tools
 and a second channel side by side.
 
