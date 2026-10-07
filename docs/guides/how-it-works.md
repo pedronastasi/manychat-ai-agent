@@ -1,40 +1,12 @@
 # How it works
 
-The design behind the agent: why it races the model against a deadline, what it
-does to fail safely, and where each decision is written down. To try it first,
-see [Running it locally](running-locally.md).
+The design behind the agent: what it does to fail safely, how the model and the
+configuration stay swappable, and where each decision is written down. To try it
+first, see [Running it locally](running-locally.md).
 
-## The problem this solves
-
-ManyChat can call an external endpoint, but **it terminates the request after 10
-seconds**. An LLM call plus database work sometimes fits in that budget and
-sometimes does not, so the obvious synchronous design drops replies under exactly
-the conditions where a customer is already waiting.
-
-This project takes the position that neither "always answer inline" nor "always
-queue" is right, and races them.
-
-```
-inbound message
-     │
-     ├─ guards: keywords, turn cap, rate limit, daily budget ── denied ──▶ escalate to human
-     │                                                                     (model never runs)
-     ▼
-  Promise.race
-     ├── model answered  (< 8s) ──▶ reply inline + re-register callback
-     │
-     └── deadline hit    (= 8s) ──▶ short ack
-                                     │
-                                     └─ model keeps running ──▶ outbox ──▶ worker ──▶ Send API
-```
-
-The losing model call is **not cancelled**. Those tokens are already paid for and
-the answer is still wanted, so it completes into a Postgres outbox and a worker
-delivers it seconds later. The reply is never dropped, only deferred.
-
-The conversation loop lives in this service rather than in ManyChat's visual flow
-builder, via Dynamic Block's `external_message_callback`. That is what keeps the
-agent portable instead of welded to one vendor's UI.
+Why it races the model against an 8-second deadline, and why the losing call
+completes into an outbox rather than being cancelled, is
+[the problem this solves](../../README.md#the-problem-this-solves) in the README.
 
 ## What makes it production-shaped
 
