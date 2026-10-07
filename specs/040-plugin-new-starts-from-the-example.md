@@ -73,6 +73,9 @@ Before writing anything, it refuses, and exits 1 naming the reason, when:
   `manychat-ai-agent`, or no `config/`;
 - `plugins/<name>/` exists;
 - `config/plugins.json` already lists the name, or is malformed;
+- the derived tool name is not one the loader accepts (lowercase snake case,
+  starting with a letter, at most 64 characters), as for a `<name>` that starts
+  with a digit or is too long once the prefix is removed;
 - the tool name is a built-in tool's, or one a listed plugin already declares.
 
 Then it writes `plugins/<name>/package.json` and `plugins/<name>/index.js`, adds
@@ -129,12 +132,15 @@ in a tenant's first `config check` after an upgrade.
 3. A test runs each refusal of `§ It makes all four edits, or none`, and a
    failure injected after the first write, and asserts the project's files are
    byte for byte what they were.
-4. A test asserts the usage error with neither flag and with both, and the
-   `agent-plugin-` prefix and snake-case tool name derived from `<name>`.
+4. A test asserts the usage error with neither flag and with both, the
+   `agent-plugin-` prefix and snake-case tool name derived from `<name>`, and
+   the refusal of a `<name>` whose tool name starts with a digit or runs past
+   64 characters.
 5. A test asserts the published package's `files` include the templates, so an
    installed agent can read them.
-6. The C9 check of `005 § Verification` covers the templates, because they are
-   under `src/`.
+6. The C9 check of `005 § Verification` (`test/integration/language.test.ts`)
+   is extended to the templates. It reads a fixed list of files, so being under
+   `src/` does not bring them into it.
 
 **What this does not catch.** Nothing stops an author copying another plugin
 instead of running the command; it makes the safe start the easy one, as `035`
