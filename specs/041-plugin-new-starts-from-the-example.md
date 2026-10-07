@@ -51,14 +51,17 @@ agent plugin new <name> --write   # a write tool (036), staged after the reply
 - **`<name>` is a package name.** It must be a valid unscoped npm name in
   lowercase kebab case, and is prefixed `agent-plugin-` unless it already starts
   with it. The plugin's `name` is the part after the prefix. Its one tool's name
-  is that part in snake case, so `agent-plugin-class-dates` declares
-  `class_dates`, and two scaffolded plugins do not start out clashing.
+  is that part in snake case, so `agent-plugin-slot-finder` declares
+  `slot_finder`, and two scaffolded plugins do not start out clashing.
 - **The content is the agent's.** The two templates, `read.js.tmpl` and
   `write.js.tmpl`, live in `src/plugins/templates/`, ship in the published
   package and are read from the installed agent, never from the project or the
   network. Every string in them is English and invented (C1, C9): a backend
   that does not exist, one declared parameter of each allowed type, and a
-  comment at each place the author's own code goes.
+  comment at each place the author's own code goes. Their words are ones no
+  vertical owns, an offering and a slot, never a course (`042 § The framework
+says "offering" and "buy", and the tenant supplies the rest`), since every
+  tenant starts from them whatever it sells.
 - **Left unedited, a template fails closed.** Its tool calls the invented
   backend at `backend.example.com` with `fetch`, so until the author replaces
   it every read reaches the model as `{ available: false }` and every write is

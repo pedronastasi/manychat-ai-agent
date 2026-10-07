@@ -80,7 +80,7 @@ export function pluginNames(name: string): PluginNames {
     packageName.length > MAX_PACKAGE_NAME
   ) {
     throw new ScaffoldError(
-      `${JSON.stringify(name)} is not a package name in lowercase kebab case, such as class-dates`,
+      `${JSON.stringify(name)} is not a package name in lowercase kebab case, such as slot-finder`,
     );
   }
   const toolName = pluginName.replaceAll('-', '_');

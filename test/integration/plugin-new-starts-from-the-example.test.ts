@@ -79,17 +79,17 @@ const json = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 describe('the generated plugins load, and their tools work (specs/041 V1)', () => {
   beforeEach(async () => {
     project = scaffoldProject();
-    await scaffoldPlugin({ root: project.root, name: 'class-dates', kind: 'read' });
-    await scaffoldPlugin({ root: project.root, name: 'call-backs', kind: 'write' });
-    install(project.root, 'agent-plugin-class-dates');
-    install(project.root, 'agent-plugin-call-backs');
+    await scaffoldPlugin({ root: project.root, name: 'slot-finder', kind: 'read' });
+    await scaffoldPlugin({ root: project.root, name: 'follow-ups', kind: 'write' });
+    install(project.root, 'agent-plugin-slot-finder');
+    install(project.root, 'agent-plugin-follow-ups');
   });
 
   it('loads both with the loader the server runs, each tool as its kind', async () => {
     const plugins = await loadPlugins(project.configDir);
     expect(plugins.summary()).toEqual([
-      { plugin: 'class-dates', writes: [], reads: ['class_dates'] },
-      { plugin: 'call-backs', writes: ['call_backs'], reads: [] },
+      { plugin: 'slot-finder', writes: [], reads: ['slot_finder'] },
+      { plugin: 'follow-ups', writes: ['follow_ups'], reads: [] },
     ]);
   });
 
@@ -100,8 +100,8 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
           default: { apiVersion: number };
         }
       ).default.apiVersion;
-    expect(await versionOf('agent-plugin-class-dates')).toBe(PLUGIN_API_VERSION);
-    expect(await versionOf('agent-plugin-call-backs')).toBe(
+    expect(await versionOf('agent-plugin-slot-finder')).toBe(PLUGIN_API_VERSION);
+    expect(await versionOf('agent-plugin-follow-ups')).toBe(
       Math.min(...SUPPORTED_PLUGIN_API_VERSIONS),
     );
   });
@@ -110,10 +110,10 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
     const backend = vi.fn((_url: URL) =>
       Promise.resolve(
         Response.json({
-          seatsLeft: 3,
-          nextStart: 'next_month',
+          slotsLeft: 3,
+          nextSlot: 'next_week',
           waitlist: false,
-          summary: 'An invented intake on weekday evenings.',
+          summary: 'An invented slot on weekday evenings.',
         }),
       ),
     );
@@ -123,11 +123,11 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
       tools,
       new PluginReads({ subscriberId: 's1', logger: quiet }),
     );
-    const result: unknown = await call(tools, 'class_dates', { course: 'foundation' });
+    const result: unknown = await call(tools, 'slot_finder', { offering: 'basic' });
     expect(result).toMatchObject({
-      fields: { seatsLeft: 3, nextStart: 'next_month', waitlist: false },
+      fields: { slotsLeft: 3, nextSlot: 'next_week', waitlist: false },
     });
-    expect(String(backend.mock.calls[0]![0])).toContain('course=foundation');
+    expect(String(backend.mock.calls[0]![0])).toContain('offering=basic');
   });
 
   it('answers unavailable while the invented backend is still in place (C6)', async () => {
@@ -137,7 +137,7 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
       tools,
       new PluginReads({ subscriberId: 's1', logger: quiet }),
     );
-    expect(await call(tools, 'class_dates', { course: 'foundation' })).toEqual(UNAVAILABLE);
+    expect(await call(tools, 'slot_finder', { offering: 'basic' })).toEqual(UNAVAILABLE);
   });
 
   it('stages the write tool, and performs it after the reply with the turn’s subscriber', async () => {
@@ -154,11 +154,11 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
       () => false,
       description => description,
     );
-    const params = { course: 'advanced', urgent: true };
-    expect(await call(tools, 'call_backs', params)).toEqual({ staged: true });
+    const params = { offering: 'premium', urgent: true };
+    expect(await call(tools, 'follow_ups', params)).toEqual({ staged: true });
     expect(backend).not.toHaveBeenCalled();
     expect(stage.staged).toEqual([
-      { tool: 'plugin', id: 'call_backs', plugin: 'call-backs', params },
+      { tool: 'plugin', id: 'follow_ups', plugin: 'follow-ups', params },
     ]);
 
     const inner = { performAction: () => Promise.resolve() };
@@ -173,11 +173,11 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
 describe('it makes the four edits (specs/041 V2)', () => {
   it('writes the package and creates pnpm-workspace.yaml and plugins.json when absent', async () => {
     project = scaffoldProject();
-    await scaffoldPlugin({ root: project.root, name: 'class-dates', kind: 'read' });
-    const dir = join(project.root, 'plugins', 'agent-plugin-class-dates');
+    await scaffoldPlugin({ root: project.root, name: 'slot-finder', kind: 'read' });
+    const dir = join(project.root, 'plugins', 'agent-plugin-slot-finder');
     expect(readdirSync(dir).sort()).toEqual(['index.js', 'package.json']);
     expect(json(join(dir, 'package.json'))).toMatchObject({
-      name: 'agent-plugin-class-dates',
+      name: 'agent-plugin-slot-finder',
       type: 'module',
       exports: './index.js',
       peerDependencies: { 'manychat-ai-agent': '*' },
@@ -187,12 +187,12 @@ describe('it makes the four edits (specs/041 V2)', () => {
     );
     expect(json(join(project.root, 'package.json'))).toMatchObject({
       dependencies: {
-        'agent-plugin-class-dates': 'workspace:*',
+        'agent-plugin-slot-finder': 'workspace:*',
         'manychat-ai-agent': '^0.19.0',
       },
     });
     expect(json(join(project.configDir, 'plugins.json'))).toEqual({
-      plugins: ['agent-plugin-class-dates'],
+      plugins: ['agent-plugin-slot-finder'],
     });
   });
 
@@ -201,13 +201,13 @@ describe('it makes the four edits (specs/041 V2)', () => {
     const workspace =
       '# invented settings\npackages:\n  - tools/*\nonlyBuiltDependencies:\n  - esbuild\n';
     writeFileSync(join(project.root, 'pnpm-workspace.yaml'), workspace);
-    await scaffoldPlugin({ root: project.root, name: 'class-dates', kind: 'read' });
-    await scaffoldPlugin({ root: project.root, name: 'call-backs', kind: 'write' });
+    await scaffoldPlugin({ root: project.root, name: 'slot-finder', kind: 'read' });
+    await scaffoldPlugin({ root: project.root, name: 'follow-ups', kind: 'write' });
     expect(readFileSync(join(project.root, 'pnpm-workspace.yaml'), 'utf8')).toBe(
       '# invented settings\npackages:\n  - plugins/*\n  - tools/*\nonlyBuiltDependencies:\n  - esbuild\n',
     );
     expect(json(join(project.configDir, 'plugins.json'))).toEqual({
-      plugins: [EXAMPLE_PLUGIN, 'agent-plugin-class-dates', 'agent-plugin-call-backs'],
+      plugins: [EXAMPLE_PLUGIN, 'agent-plugin-slot-finder', 'agent-plugin-follow-ups'],
     });
   });
 
@@ -225,25 +225,25 @@ describe('a refused or failed run leaves the project byte for byte (specs/041 V3
     [
       'no package.json',
       root => rmSync(join(root, 'package.json')),
-      'class-dates',
+      'slot-finder',
       /no package\.json/,
     ],
     [
       'a package.json that does not depend on the agent',
       root => writeFileSync(join(root, 'package.json'), '{ "name": "invented" }\n'),
-      'class-dates',
+      'slot-finder',
       /does not depend on manychat-ai-agent/,
     ],
     [
       'no config/',
       root => rmSync(join(root, 'config'), { recursive: true }),
-      'class-dates',
+      'slot-finder',
       /no config\//,
     ],
     [
       'the plugin directory exists',
-      root => mkdirSync(join(root, 'plugins', 'agent-plugin-class-dates'), { recursive: true }),
-      'class-dates',
+      root => mkdirSync(join(root, 'plugins', 'agent-plugin-slot-finder'), { recursive: true }),
+      'slot-finder',
       /already exists/,
     ],
     [
@@ -251,15 +251,15 @@ describe('a refused or failed run leaves the project byte for byte (specs/041 V3
       root =>
         writeFileSync(
           join(root, 'config', 'plugins.json'),
-          '{ "plugins": ["agent-plugin-class-dates"] }\n',
+          '{ "plugins": ["agent-plugin-slot-finder"] }\n',
         ),
-      'class-dates',
-      /already lists agent-plugin-class-dates/,
+      'slot-finder',
+      /already lists agent-plugin-slot-finder/,
     ],
     [
       'plugins.json is malformed',
       root => writeFileSync(join(root, 'config', 'plugins.json'), '{ "plugins": '),
-      'class-dates',
+      'slot-finder',
       /config\/plugins\.json/,
     ],
     ['the tool name is a built-in tool’s', () => {}, 'add-tag', /built-in tool/],
@@ -283,19 +283,19 @@ describe('a refused or failed run leaves the project byte for byte (specs/041 V3
           join(dir, 'package.json'),
           JSON.stringify({ name: 'invented-dates', type: 'module' }),
         );
-        writeFileSync(join(dir, 'index.js'), pluginSource({ name: 'class-dates' }));
+        writeFileSync(join(dir, 'index.js'), pluginSource({ name: 'slot-finder' }));
         writeFileSync(
           join(root, 'config', 'plugins.json'),
           JSON.stringify({ plugins: ['invented-dates'] }),
         );
       },
-      'class-dates',
-      /already named class-dates/,
+      'slot-finder',
+      /already named slot-finder/,
     ],
     [
       'the workspace packages are not a block list',
       root => writeFileSync(join(root, 'pnpm-workspace.yaml'), "packages: ['tools/*']\n"),
-      'class-dates',
+      'slot-finder',
       /not a block list/,
     ],
     ['the derived tool name starts with a digit', () => {}, '2-day', /loader refuses/],
@@ -321,7 +321,7 @@ describe('a refused or failed run leaves the project byte for byte (specs/041 V3
       writeFileSync(path, content);
     };
     await expect(
-      scaffoldPlugin({ root: project.root, name: 'class-dates', kind: 'write', write }),
+      scaffoldPlugin({ root: project.root, name: 'slot-finder', kind: 'write', write }),
     ).rejects.toThrow('invented disk failure');
     expect(snapshot(project.root)).toEqual(before);
     expect(existsSync(join(project.root, 'plugins'))).toBe(false);
@@ -332,17 +332,17 @@ describe('a refused or failed run leaves the project byte for byte (specs/041 V3
     rmSync(join(project.root, 'config'), { recursive: true });
     vi.spyOn(process, 'cwd').mockReturnValue(project.root);
     const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(await run(['node', 'agent', 'plugin', 'new', 'class-dates', '--read'])).toBe(1);
+    expect(await run(['node', 'agent', 'plugin', 'new', 'slot-finder', '--read'])).toBe(1);
     expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/^plugin new: .*no config\//));
   });
 });
 
 describe('the command line, and the names it derives (specs/041 V4)', () => {
   it.each([
-    ['neither flag', ['class-dates']],
-    ['both flags', ['class-dates', '--read', '--write']],
+    ['neither flag', ['slot-finder']],
+    ['both flags', ['slot-finder', '--read', '--write']],
     ['no name', ['--read']],
-    ['an unknown flag', ['class-dates', '--read', '--force']],
+    ['an unknown flag', ['slot-finder', '--read', '--force']],
   ])('prints its usage and exits 2 with %s', async (_case, args) => {
     const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(await run(['node', 'agent', 'plugin', 'new', ...args])).toBe(2);
@@ -351,12 +351,12 @@ describe('the command line, and the names it derives (specs/041 V4)', () => {
 
   it('prefixes the package name once, and derives the tool name in snake case', () => {
     const expected = {
-      packageName: 'agent-plugin-class-dates',
-      pluginName: 'class-dates',
-      toolName: 'class_dates',
+      packageName: 'agent-plugin-slot-finder',
+      pluginName: 'slot-finder',
+      toolName: 'slot_finder',
     };
-    expect(pluginNames('class-dates')).toEqual(expected);
-    expect(pluginNames('agent-plugin-class-dates')).toEqual(expected);
+    expect(pluginNames('slot-finder')).toEqual(expected);
+    expect(pluginNames('agent-plugin-slot-finder')).toEqual(expected);
   });
 
   it('refuses a name whose tool name starts with a digit or runs past 64 characters', () => {
@@ -365,7 +365,7 @@ describe('the command line, and the names it derives (specs/041 V4)', () => {
     expect(pluginNames('x'.repeat(64)).toolName).toHaveLength(64);
   });
 
-  it.each(['Class-Dates', '@invented/dates', 'class_dates', 'agent-plugin-', 'class--dates'])(
+  it.each(['Slot-Finder', '@invented/dates', 'slot_finder', 'agent-plugin-', 'slot--finder'])(
     'refuses %s, which is no package name in kebab case',
     name => {
       expect(() => pluginNames(name)).toThrow(/lowercase kebab case/);
@@ -377,15 +377,15 @@ describe('the command line, and the names it derives (specs/041 V4)', () => {
     vi.stubEnv('MANYCHAT_SHARED_SECRET', undefined);
     vi.spyOn(process, 'cwd').mockReturnValue(project.root);
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    expect(await run(['node', 'agent', 'plugin', 'new', 'class-dates', '--write'])).toBe(0);
+    expect(await run(['node', 'agent', 'plugin', 'new', 'slot-finder', '--write'])).toBe(0);
     const printed = stdout.mock.calls.map(call => String(call[0])).join('\n');
-    expect(printed).toContain('write tool class_dates');
+    expect(printed).toContain('write tool slot_finder');
     expect(printed.indexOf('pnpm install')).toBeGreaterThan(-1);
     expect(printed.indexOf('pnpm agent config check')).toBeGreaterThan(
       printed.indexOf('pnpm install'),
     );
     // It never installs: nothing new in node_modules, and no lockfile.
-    expect(existsSync(join(project.root, 'node_modules', 'agent-plugin-class-dates'))).toBe(false);
+    expect(existsSync(join(project.root, 'node_modules', 'agent-plugin-slot-finder'))).toBe(false);
     expect(existsSync(join(project.root, 'pnpm-lock.yaml'))).toBe(false);
     vi.unstubAllEnvs();
   });

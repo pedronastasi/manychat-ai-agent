@@ -17,21 +17,21 @@ export default definePlugin({
       // The only guidance the model gets: say when to call the tool, not what
       // it does inside.
       description:
-        'Look up the seats left on a course and when its next intake starts, when the contact asks whether there is room.',
+        'Look up whether an offering has room and when its next slot is, when the contact asks whether they can have it or when.',
       // One parameter of each type a read tool may take. Keep the ones your
       // backend needs, and change their names and values to yours. The query
       // is the one free text, and the agent removes identifiers from it.
       parameters: {
-        course: { type: 'enum', values: ['foundation', 'advanced'] },
-        weeks: { type: 'number', integer: true, min: 1, max: 12, optional: true },
-        evenings: { type: 'boolean', optional: true },
+        offering: { type: 'enum', values: ['basic', 'premium'] },
+        quantity: { type: 'number', integer: true, min: 1, max: 12, optional: true },
+        flexible: { type: 'boolean', optional: true },
         query: { type: 'query', maxLength: 120, optional: true },
       },
       // What the model is shown. A value outside these declarations makes the
       // whole read unavailable, so declare exactly what you return.
       result: {
-        seatsLeft: { type: 'number', integer: true, min: 0 },
-        nextStart: { type: 'enum', values: ['this_month', 'next_month', 'later'] },
+        slotsLeft: { type: 'number', integer: true, min: 0 },
+        nextSlot: { type: 'enum', values: ['this_week', 'next_week', 'later'] },
         waitlist: { type: 'boolean' },
         summary: { type: 'text', maxLength: 300, optional: true },
       },
@@ -46,8 +46,8 @@ export default definePlugin({
         const found = await response.json();
         // Return only what `result` declares.
         return {
-          seatsLeft: found.seatsLeft,
-          nextStart: found.nextStart,
+          slotsLeft: found.slotsLeft,
+          nextSlot: found.nextSlot,
           waitlist: found.waitlist,
           ...(found.summary ? { summary: found.summary } : {}),
         };

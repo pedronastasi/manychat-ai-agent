@@ -17,12 +17,12 @@ export default definePlugin({
       // The only guidance the model gets: say when to call the tool, not what
       // it does inside.
       description:
-        'Record a call-back request once the contact has named a course and asked to be called.',
+        'Record a follow-up request once the contact has named an offering and asked to be contacted.',
       // One parameter of each type a write tool may take. Keep the ones your
       // backend needs, and change their names and values to yours.
       parameters: {
-        course: { type: 'enum', values: ['foundation', 'advanced'] },
-        seats: { type: 'number', integer: true, min: 1, max: 4, optional: true },
+        offering: { type: 'enum', values: ['basic', 'premium'] },
+        quantity: { type: 'number', integer: true, min: 1, max: 4, optional: true },
         urgent: { type: 'boolean' },
         summary: { type: 'note', maxLength: 200, optional: true },
       },
@@ -30,14 +30,14 @@ export default definePlugin({
       // never retried. Pass `signal` to anything that waits.
       async perform({ subscriberId, params, logger, signal }) {
         // Your code goes here: the request your backend expects.
-        const response = await fetch(`${BACKEND_URL}/call-backs`, {
+        const response = await fetch(`${BACKEND_URL}/follow-ups`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ subscriberId, ...params }),
           signal,
         });
         if (!response.ok) throw new Error(`backend answered ${response.status}`);
-        logger.info('call-back recorded', { course: params.course });
+        logger.info('follow-up recorded', { offering: params.offering });
       },
     }),
   ],
