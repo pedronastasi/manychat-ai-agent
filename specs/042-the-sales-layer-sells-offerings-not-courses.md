@@ -140,10 +140,12 @@ breaking change, made once deployments have moved.
 In `rules.json`, `learning.enrolledTag` becomes `learning.convertedTag`, with
 the same meaning: the ManyChat tag a person sets on seeing a payment, never
 shown to the model. The learning job labels transcripts `converted` and
-`not_converted`, the analyst's instructions say so, and the proposal and
-report columns `enrolled_count` and `not_enrolled_count` are renamed
-`converted_count` and `not_converted_count` by a migration that keeps their
-values. `pnpm insights:report` reports a conversion rate.
+`not_converted`, the analyst's instructions say so, and the `enrolled_count`
+and `not_enrolled_count` columns of `learning_runs` and `insight_proposals` are
+renamed `converted_count` and `not_converted_count` by a migration that keeps
+their values. Their TypeScript names follow: `enrolledCount` and
+`notEnrolledCount` in `src/contracts/learning.ts` and `src/learning/`, and the
+`OutcomeLabel` values. `pnpm insights:report` reports a conversion rate.
 
 ## Existing tenants move with `agent upgrade`
 
@@ -179,9 +181,12 @@ It carries its own suite, `evals/repair/cases.jsonl` (`009`), run by
 fixture. Its cases ask a price, a booking time, for the payment link, and say
 they are an existing customer with a broken appliance; none mentions a course.
 
-The mock model answers a price question from the first offering in the
-system prompt's `CATALOG`, not from a sentence about the demo academy, so the
-repair suite's `must_not_invent_prices` cases hold. The demo academy stays the
+The mock model answers a price question and a schedule question from the
+first offering in the system prompt's `CATALOG`, not from a sentence about the
+demo academy: its price, then its `durationHours` and `schedule` when present
+and nothing when they are absent. So the repair suite's
+`must_not_invent_prices` cases hold, and its booking-time case gets the
+offering's schedule rather than a course's. The demo academy stays the
 default tenant, the bootstrap example and the README's demo.
 
 ## What this changes in other specs
@@ -218,7 +223,8 @@ default tenant, the bootstrap example and the README's demo.
 5. A contract test asserts a request with `course` only, `offering` only, and
    both, stores the offering as described, `offering` winning.
 6. An integration test against PGlite asserts the migration keeps every
-   stored `course` value as `offering`, and every count as its renamed column.
+   stored `course` value as `offering`, and every count in `learning_runs` and
+   `insight_proposals` as its renamed column.
 7. `eval:mock` passes on `evals/repair` against `test/fixtures/config-repair`
    in CI, beside the golden set.
 
