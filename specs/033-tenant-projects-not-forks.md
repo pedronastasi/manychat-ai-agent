@@ -266,7 +266,8 @@ made here first and the contract table above records it.
   example config and asserts the result passes `agent config check`, and that a
   second run changes nothing.
 - A test asserts each CLI command in the table exists and exits non-zero on an
-  invalid `config/`.
+  invalid `config/`, except `agent plugin new`, which reads only `plugins.json`
+  and prints the config check as its next step (`041`).
 - A test asserts `release.yml` is the only workflow this repository ships with
   `packages: write`, extending `010`'s `contents: write` check. The test names
   the shipped workflows. In this repository's own CI it also checks every
