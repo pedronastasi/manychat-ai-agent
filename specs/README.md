@@ -53,7 +53,7 @@ test fails the suite.
 | [038 — A Plugin Channel Implements `ChannelAdapter`, and Its API Is Provisional](038-plugin-channels.md)                   | specified   | —           | —    | 1     | C3, C5, C6, C7                     | [0021], [0005]                                                                         |
 | [039 — A Plugin Read Tool Returns Declared Data, Fenced, Inside the Read Budget](039-plugin-reads-return-declared-data.md) | implemented | 2026-10-07  | #193 | 4     | C2, C3, C4, C5, C6, C7             | [0016], [0010], [0017], [0021]                                                         |
 | [040 — The README Is a Landing Page](040-readme-is-a-landing-page.md)                                                      | implemented | 2026-10-07  | #195 | 1     | —                                  | —                                                                                      |
-| [041 — `agent plugin new` Starts a Plugin from the Agent's Own Example](041-plugin-new-starts-from-the-example.md)         | implemented | 2026-10-07  | —    | 4     | C1, C6, C8, C9                     | —                                                                                      |
+| [041 — `agent plugin new` Starts a Plugin from the Agent's Own Example](041-plugin-new-starts-from-the-example.md)         | implemented | 2026-10-07  | #199 | 4     | C1, C6, C8, C9                     | —                                                                                      |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
