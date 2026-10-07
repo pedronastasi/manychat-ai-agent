@@ -218,6 +218,7 @@ docker compose run --rm -v ./evals:/app/evals:ro -e EVAL_DIR=evals/my-agent \
    For each proposal it prints the tactic, the analyst's reason, how many
    conversations it says show it, and the messages it cites. Read the messages:
    the counts are the analyst's claim, and nothing checks them. Then answer:
+
    - **`a`**: approve it as written;
    - **`e`**: edit it, then approve it. Your text passes the same checks as the
      analyst's;
@@ -246,6 +247,7 @@ playbook above`. That record is what activation checks. With the
 
    A version id can be shortened to its first characters. Activation is
    refused, with the reason, when:
+
    - the version has no eval record against the current suite;
    - the only record is from the mock model;
    - a case fails with the version that does not fail with the live one;
