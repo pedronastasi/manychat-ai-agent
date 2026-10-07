@@ -51,7 +51,7 @@ test fails the suite.
 | [036 — Plugins Extend the Agent Through the Ports, and Cannot Reach the Race](036-plugins-extend-through-the-ports.md)     | implemented | 2026-10-06  | #182 | 4     | C2, C4, C5, C6, C7                 | [0021], [0010], [0017]                                                                 |
 | [037 — One Turn at a Time per Contact](037-one-turn-at-a-time-per-contact.md)                                              | implemented | 2026-10-06  | #176 | 3     | C6, C7, C8                         | [0001], [0004]                                                                         |
 | [038 — A Plugin Channel Implements `ChannelAdapter`, and Its API Is Provisional](038-plugin-channels.md)                   | specified   | —           | —    | 1     | C3, C5, C6, C7                     | [0021], [0005]                                                                         |
-| [039 — A Plugin Read Tool Returns Declared Data, Fenced, Inside the Read Budget](039-plugin-reads-return-declared-data.md) | implemented | 2026-10-07  | —    | 4     | C2, C3, C4, C5, C6, C7             | [0016], [0010], [0017], [0021]                                                         |
+| [039 — A Plugin Read Tool Returns Declared Data, Fenced, Inside the Read Budget](039-plugin-reads-return-declared-data.md) | implemented | 2026-10-07  | #193 | 4     | C2, C3, C4, C5, C6, C7             | [0016], [0010], [0017], [0021]                                                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
