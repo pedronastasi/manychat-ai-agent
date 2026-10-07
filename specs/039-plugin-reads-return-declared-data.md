@@ -75,9 +75,11 @@ parameters: {
 - At most one parameter of type `query`, with a `maxLength` of at most
   **200**, chosen, not measured: long enough for a question rephrased as a
   search, short enough that the model cannot paste the conversation into it.
-- It is cleaned by `cleanNote` before `read` is called, so the names, phone
-  numbers, emails and links of ADR-0017 never leave the agent in a query. The
-  model is told so in the tool's description, as a note's tool is.
+- It is cleaned by `cleanNote` before `read` is called, so the URL, email,
+  phone-number and long-number shapes of
+  `024 § Note text is cleaned before it is written` never leave the agent in
+  a query. A name has no shape, and is not removed: the tool's description
+  tells the model never to put one in a query, as a note's tool does.
 - A query that is empty after cleaning makes no call. The tool returns
   `{ available: false }`, and the call counts as a read.
 
@@ -265,6 +267,7 @@ only `perform`, are edited in the pull request that implements this spec.
 wrong or stale passes every check above; the agent can bound what it is shown,
 not whether it is true. The fence makes injected text data in the model's
 eyes, which is a mitigation, not a guarantee (C4). Cleaning a query removes
-the identifiers ADR-0017's patterns recognise, and misses a name it does not
-know. And, as in `036`, a `read` that ignores its signal keeps running after
-the agent has stopped waiting.
+the URL, email, phone-number and long-number shapes, and no name: keeping a
+name out of a query rests on the model following its tool's description.
+And, as in `036`, a `read` that ignores its signal keeps running after the
+agent has stopped waiting.
