@@ -168,16 +168,16 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^4.0.53
-        version: 4.0.74(zod@4.6.5)
+        version: 4.0.75(zod@4.6.5)
       '@ai-sdk/google':
         specifier: ^4.0.69
         version: 4.0.90(zod@4.6.5)
       '@ai-sdk/openai':
         specifier: ^4.0.66
-        version: 4.0.86(zod@4.6.5)
+        version: 4.0.87(zod@4.6.5)
       '@ai-sdk/provider':
-        specifier: 4.0.22
-        version: 4.0.22
+        specifier: 4.0.24
+        version: 4.0.24
       '@fastify/helmet':
         specifier: ^13.1.1
         version: 13.1.1
@@ -192,7 +192,7 @@ importers:
         version: 9.2.0
       ai:
         specifier: ^7.0.100
-        version: 7.0.130(zod@4.6.5)
+        version: 7.0.131(zod@4.6.5)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.3(@electric-sql/pglite@0.5.8)(postgres@3.4.9)
@@ -262,14 +262,14 @@ importers:
 
 packages:
 
-  '@ai-sdk/anthropic@4.0.74':
-    resolution: {integrity: sha512-q/A7hCZSsCknmC1TtyNkBgNlT12hbKOWrgyb1UdPpIAO9sZcFS0nilZFIsW/ugVKG+hd6bU1r9NL1Ru33FDwZw==}
+  '@ai-sdk/anthropic@4.0.75':
+    resolution: {integrity: sha512-4cj+Wf12DnKUAQsQFkk3W5hU3KYP8bGBjdNsji3fmLm1txrgDBQF3urpgltsik8lfUTa6nkKQYOmPrQgPXKMFw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/gateway@4.0.106':
-    resolution: {integrity: sha512-NprSdFzyVnbEp2SDWtIgsCFIUHFCehOD9S6FQkF/dLrCmnke8w4SOK3KcmUUiEbwtVzlUF8prkaELp+ohcQaQw==}
+  '@ai-sdk/gateway@4.0.107':
+    resolution: {integrity: sha512-Z/e4lbywscQ86JHi+vgIE7paPzvCSypJFIQugADWpWZXGkQ3iZ6M08rqkjDNhj3y6Gi7O3A/sSL/Ib3LoVZv6w==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -280,8 +280,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai@4.0.86':
-    resolution: {integrity: sha512-sbUHayMvjAYV6ELydYXFTr5UBX5qyYmRELqZR3tV0dieUhgUYd8dED9bwEgqZJNJU6V8GGLOlaEpL1ltbNXA/g==}
+  '@ai-sdk/openai@4.0.87':
+    resolution: {integrity: sha512-dfadBgux+npOoaPmIP3GGaHtGT6ZpYxBmBQK1TkIkjt/yuEtLxJ0Oklsrm88FTJrTW51qGfLSLeVP7bMUPeMCQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -291,10 +291,6 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@4.0.22':
-    resolution: {integrity: sha512-1Jtmn36VNMOBo9CMUQrPqsR744qtqRloEiXpWCYS8ffPlhS2CrSNmoho5lPjp3R7EnkzBsGI6p51TA7fQJQZdA==}
-    engines: {node: '>=22'}
 
   '@ai-sdk/provider@4.0.24':
     resolution: {integrity: sha512-iztFqJTdxNN0ZzqZAAnVPMhRMaL1bfQFa3GIPAffWQ0+dP2FXIkyMD8kHeEI7EpB/C6TR45cqOkrS7YZZ1sATA==}
@@ -1792,8 +1788,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ai@7.0.130:
-    resolution: {integrity: sha512-QkBkCogl46jXUg0SrSsdqQlOI2ZVMCjfnbBQS8t3gE21U/SO17oNMVFyjmcC9z20wOoYUA+2O2vsso0maoS7dw==}
+  ai@7.0.131:
+    resolution: {integrity: sha512-lOv32sfZ4T6yeFLvc9YyIBbaJH4lAhX4jYvRn6AmU7EePpL5VX3I7jgLFuX56lWaiKFi07rQ0I8+Jb2t0B0olg==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -3116,13 +3112,13 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@4.0.74(zod@4.6.5)':
+  '@ai-sdk/anthropic@4.0.75(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.24
       '@ai-sdk/provider-utils': 5.0.56(zod@4.6.5)
       zod: 4.6.5
 
-  '@ai-sdk/gateway@4.0.106(zod@4.6.5)':
+  '@ai-sdk/gateway@4.0.107(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.24
       '@ai-sdk/provider-utils': 5.0.56(zod@4.6.5)
@@ -3135,7 +3131,7 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.56(zod@4.6.5)
       zod: 4.6.5
 
-  '@ai-sdk/openai@4.0.86(zod@4.6.5)':
+  '@ai-sdk/openai@4.0.87(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.24
       '@ai-sdk/provider-utils': 5.0.56(zod@4.6.5)
@@ -3149,10 +3145,6 @@ snapshots:
       eventsource-parser: 3.1.1
       undici: 7.30.0
       zod: 4.6.5
-
-  '@ai-sdk/provider@4.0.22':
-    dependencies:
-      json-schema: 0.4.0
 
   '@ai-sdk/provider@4.0.24':
     dependencies:
@@ -4358,9 +4350,9 @@ snapshots:
 
   acorn@8.19.0: {}
 
-  ai@7.0.130(zod@4.6.5):
+  ai@7.0.131(zod@4.6.5):
     dependencies:
-      '@ai-sdk/gateway': 4.0.106(zod@4.6.5)
+      '@ai-sdk/gateway': 4.0.107(zod@4.6.5)
       '@ai-sdk/provider': 4.0.24
       '@ai-sdk/provider-utils': 5.0.56(zod@4.6.5)
       zod: 4.6.5

@@ -71,7 +71,7 @@
     "@ai-sdk/anthropic": "^4.0.53",
     "@ai-sdk/google": "^4.0.69",
     "@ai-sdk/openai": "^4.0.66",
-    "@ai-sdk/provider": "4.0.22",
+    "@ai-sdk/provider": "4.0.24",
     "@fastify/helmet": "^13.1.1",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/swagger": "^9.8.1",
