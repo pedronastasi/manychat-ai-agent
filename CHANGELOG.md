@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.20.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.19.1...v0.20.0) (2026-10-07)
+
+
+### Features
+
+* let a plugin read data the model answers from (spec 039) ([190c43a](https://github.com/pedronastasi/manychat-ai-agent/commit/190c43adec2aca7f499ed737c8c60bd93a36a274))
+
+
+### Bug Fixes
+
+* keep a turn's read record when its model call fails (spec 039) ([11b8cc2](https://github.com/pedronastasi/manychat-ai-agent/commit/11b8cc2d44d4a138239ba14542d7af2f0969acb7))
+* read nothing on a turn already abandoned (spec 039) ([0ae0151](https://github.com/pedronastasi/manychat-ai-agent/commit/0ae0151c9c7161fdd337c760f0e425c1509a18e9))
+
+
+### Specs and Docs
+
+* have spec 042's upgrade find tenant eval suites without EVAL_DIR ([660428f](https://github.com/pedronastasi/manychat-ai-agent/commit/660428f4973bd128182d23b6736f3e010bc8ee73))
+* leave learning-from-outcomes.md as it was ([06a8a58](https://github.com/pedronastasi/manychat-ai-agent/commit/06a8a5844c393469f35afa7e68f31d0390ff9f2a))
+* list every spec 042 amends, and migrate eval case keys ([0ebfe99](https://github.com/pedronastasi/manychat-ai-agent/commit/0ebfe99cace2daee9ed179c69defc8001bba00cc))
+* name the learning tables and the mock's schedule answer in spec 042 ([15ed5cf](https://github.com/pedronastasi/manychat-ai-agent/commit/15ed5cf061e9d83ced70ab9693785b0c68b45a64))
+* record PR 195 in spec 040 ([139d20d](https://github.com/pedronastasi/manychat-ai-agent/commit/139d20d0fdce45e4264f3a20d832861b7fcf5cf9))
+* record that built-in tools are not plugins (ADR-0022) ([666cd36](https://github.com/pedronastasi/manychat-ai-agent/commit/666cd3630c0d4b87b23a2ed0176af257244b7d61))
+* record that built-in tools are not plugins (ADR-0022) ([5ae8aac](https://github.com/pedronastasi/manychat-ai-agent/commit/5ae8aacc8587bb86899e4a51240cdef7b59ad144))
+* refuse an invalid derived tool name and extend the C9 check in spec 040 ([0a32aab](https://github.com/pedronastasi/manychat-ai-agent/commit/0a32aab1f8783c8d5279fb989203172afca9f48a))
+* restore the funnel's config link and point the ADR skill at the new table ([b7961ad](https://github.com/pedronastasi/manychat-ai-agent/commit/b7961adb5595d67f112ec4025b0726657538abd7))
+* say where ADR-0022's reserved built-in names come from ([478b7ef](https://github.com/pedronastasi/manychat-ai-agent/commit/478b7ef83e17e00d8c2bcbc92a9afafab416e5b0))
+* specify agent plugin new, which starts a plugin from the agent's example ([487baef](https://github.com/pedronastasi/manychat-ai-agent/commit/487baef2555313d5ad0f80db2ac50cd0b57de0c9))
+* specify agent plugin new, which starts a plugin from the agent's example ([476c23c](https://github.com/pedronastasi/manychat-ai-agent/commit/476c23cc904b1b8a21170e4ac139d42fd8df5dcc))
+* specify spec 042, the sales layer sells offerings, not courses ([83cb006](https://github.com/pedronastasi/manychat-ai-agent/commit/83cb006a41feba53f072f5ad021789266a2e40bf))
+* specify spec 042, the sales layer sells offerings, not courses ([4446a6d](https://github.com/pedronastasi/manychat-ai-agent/commit/4446a6d85a602b30619c9524465077f27b953d73))
+* specify the README as a landing page (spec 040) ([bd16a36](https://github.com/pedronastasi/manychat-ai-agent/commit/bd16a3623ddee199c72d69250cccec8120e66212))
+* split the README into a landing page and four guides ([02beda6](https://github.com/pedronastasi/manychat-ai-agent/commit/02beda65af96c0f78abf0884b311bcd60ec113e8))
+* split the README into a landing page and four guides ([b09719e](https://github.com/pedronastasi/manychat-ai-agent/commit/b09719e4f3c5726015c0283dd2244ee52d68ba28))
+
 ## [0.19.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.19.0...v0.19.1) (2026-10-07)
 
 
