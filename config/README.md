@@ -689,7 +689,8 @@ ORDER BY t.seq;
 With a `learning` block in `rules.json`, a weekly job compares the
 conversations of contacts who paid with those who did not, and an analyst model
 proposes selling tactics. Nothing it proposes reaches the agent until a person
-approves it and an eval shows no regression. The design is
+approves it and an eval shows no regression. How it works, how to set it up and
+the weekly routine are in `docs/guides/learning-from-outcomes.md`; the design is
 `specs/031-learning-from-outcomes.md` and
 `docs/adr/0020-learning-is-offline-and-human-approved.md`.
 
