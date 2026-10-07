@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.19.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.18.1...v0.19.0) (2026-10-07)
+
+
+### Features
+
+* learn selling tactics from paid outcomes, behind human approval (spec 031) ([9a35ce0](https://github.com/pedronastasi/manychat-ai-agent/commit/9a35ce0ad221974595d1dec59cd78a33b2d07bfd))
+
+
+### Bug Fixes
+
+* record no playbook version on a fallback reply, and let a stop end a learning run ([1dadf7d](https://github.com/pedronastasi/manychat-ai-agent/commit/1dadf7d235da2ce4f6e7c1b6e741306fc67fcf8e))
+* say that a stopped learning run forfeits its week, and warn when one does ([af1935e](https://github.com/pedronastasi/manychat-ai-agent/commit/af1935ec35031d3a34dd8f50ba459473d56cacba))
+* say why a learning run failed, in the server's log and in the terminal of a CLI run ([0ea3783](https://github.com/pedronastasi/manychat-ai-agent/commit/0ea37839266ff87b309eeb04c75ed2f1983b163f))
+
+
+### Specs and Docs
+
+* a guide to learning from outcomes: how it works, setting it up, and the weekly routine ([5c9d42f](https://github.com/pedronastasi/manychat-ai-agent/commit/5c9d42fd68944d5818cec54dc43d75cb42245616))
+* record PR 187 in spec 031 ([79f17c0](https://github.com/pedronastasi/manychat-ai-agent/commit/79f17c042d26ca7bb32934d00e95db4704a8c86f))
+
 ## [0.18.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.18.0...v0.18.1) (2026-10-07)
 
 
