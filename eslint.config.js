@@ -53,6 +53,8 @@ export default tseslint.config(
       'scripts/**/*.ts',
       'src/channels/manychat/simulator.ts',
       'src/backfill.ts',
+      'src/insights.ts',
+      'src/learning/commands.ts',
       'src/cli.ts',
       'src/cli/**/*.ts',
       'src/evals/**/*.ts',

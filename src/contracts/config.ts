@@ -142,6 +142,19 @@ export const MessagesSchema = z.object({
 });
 export type Messages = z.infer<typeof MessagesSchema>;
 
+/** `rules.json`'s `learning` block (specs/031 § Paid enrolment is the signal). */
+export const LearningSchema = z
+  .object({
+    /** What the analyst writes proposals in: the reviewer's language. */
+    language: z.string().min(1),
+    /** The ManyChat tag a person sets on seeing a payment. Never shown to the model. */
+    enrolledTag: z.string().min(1),
+    /** Caps one analyst call. Required: any default would guess at the tenant's spend. */
+    maxRunCostUsd: z.number().positive(),
+  })
+  .strict();
+export type Learning = z.infer<typeof LearningSchema>;
+
 export const RulesSchema = z.object({
   messages: MessagesSchema,
   confidenceThreshold: z.number().min(0).max(1).default(0.6),
@@ -174,6 +187,11 @@ export const RulesSchema = z.object({
   rateLimit: z.object({
     turnsPerSubscriberPerHour: z.number().int().positive().default(60),
   }),
+  /**
+   * Learning from outcomes (specs/031). Absent, no learning job runs, no
+   * playbook is loaded, and the prompt is what it was before that spec.
+   */
+  learning: LearningSchema.optional(),
 });
 export type Rules = z.infer<typeof RulesSchema>;
 
@@ -625,6 +643,15 @@ export const EnvSchema = z
      * takes audio. Unset sends voice notes to the media fallback.
      */
     TRANSCRIPTION_MODEL: z.preprocess(
+      emptyAsUnset,
+      z.string().regex(MODEL_SPEC, 'Expected "provider:model"').optional(),
+    ),
+
+    /**
+     * The analyst of the weekly learning job (specs/031). Off the request path,
+     * so a model apart from AGENT_MODEL. Unset, the job does not run.
+     */
+    INSIGHT_MODEL: z.preprocess(
       emptyAsUnset,
       z.string().regex(MODEL_SPEC, 'Expected "provider:model"').optional(),
     ),

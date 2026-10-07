@@ -97,6 +97,11 @@ export const turns = pgTable(
     cacheReadTokens: integer('cache_read_tokens'),
     costUsd: numeric('cost_usd', { precision: 12, scale: 6 }),
     latencyMs: integer('latency_ms'),
+    /**
+     * The playbook version the model ran with, null when none was active
+     * (specs/031). A version id, never insight text.
+     */
+    playbookVersion: text('playbook_version'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -210,4 +215,108 @@ export const rateCounters = pgTable(
     count: integer('count').notNull().default(0),
   },
   table => [primaryKey({ columns: [table.tenantId, table.subscriberId, table.windowStart] })],
+);
+
+/**
+ * One run of the learning job (specs/031). `week` is the ISO week its claim is
+ * keyed on: the replica whose insert succeeds runs, and any other skips. A
+ * forced run is recorded beside the week's, outside the claim.
+ *
+ * Counts, cost and a status: never transcript or proposal text (C5).
+ */
+export const learningRuns = pgTable(
+  'learning_runs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    week: text('week').notNull(),
+    forced: boolean('forced').notNull().default(false),
+    status: text('status', {
+      enum: ['running', 'completed', 'insufficient', 'skipped_budget', 'failed'],
+    })
+      .notNull()
+      .default('running'),
+    enrolledCount: integer('enrolled_count'),
+    notEnrolledCount: integer('not_enrolled_count'),
+    /** The analyst call's cost, never added to `budget_counters`. */
+    costUsd: numeric('cost_usd', { precision: 12, scale: 6 }),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  table => [
+    uniqueIndex('learning_runs_week_uq')
+      .on(table.tenantId, table.week)
+      .where(sql`${table.forced} = false`),
+  ],
+);
+
+/**
+ * A tactic the analyst proposed (specs/031). Text the analyst wrote, in the
+ * reviewer's language, and the turn ids it cites: never transcript text.
+ */
+export const insightProposals = pgTable(
+  'insight_proposals',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => learningRuns.id, { onDelete: 'cascade' }),
+    text: text('text').notNull(),
+    rationale: text('rationale').notNull(),
+    enrolledCount: integer('enrolled_count').notNull(),
+    notEnrolledCount: integer('not_enrolled_count').notNull(),
+    turnIds: jsonb('turn_ids').$type<string[]>().notNull(),
+    status: text('status', { enum: ['pending', 'approved', 'rejected'] })
+      .notNull()
+      .default('pending'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('insight_proposals_tenant_status_idx').on(table.tenantId, table.status)],
+);
+
+/**
+ * An immutable set of approved tactics (specs/031). Identified by the hash of
+ * its insights; at most one per tenant is active.
+ */
+export const playbookVersions = pgTable(
+  'playbook_versions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    contentHash: text('content_hash').notNull(),
+    insights: jsonb('insights').$type<string[]>().notNull(),
+    active: boolean('active').notNull().default(false),
+    /** The last activation. Set once a version has been live, so it can be rolled back to. */
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [
+    uniqueIndex('playbook_versions_content_uq').on(table.tenantId, table.contentHash),
+    uniqueIndex('playbook_versions_one_active_uq')
+      .on(table.tenantId)
+      .where(sql`${table.active} = true`),
+  ],
+);
+
+/**
+ * What `pnpm eval` returned for one playbook against one suite (specs/031).
+ * An empty `playbookHash` is the prompt with no playbook. Case ids and their
+ * asserted outcomes only.
+ */
+export const evalRecords = pgTable(
+  'eval_records',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    playbookHash: text('playbook_hash').notNull(),
+    suiteHash: text('suite_hash').notNull(),
+    model: text('model').notNull(),
+    outcomes: jsonb('outcomes').$type<Record<string, 'passed' | 'failed' | 'reviewed'>>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [
+    index('eval_records_lookup_idx').on(table.tenantId, table.playbookHash, table.suiteHash),
+  ],
 );

@@ -684,6 +684,44 @@ ORDER BY t.seq;
 - **Actions need `MANYCHAT_API_TOKEN`.** Without it every action is recorded as
   `failed`.
 
+## Learning from outcomes (optional)
+
+With a `learning` block in `rules.json`, a weekly job compares the
+conversations of contacts who paid with those who did not, and an analyst model
+proposes selling tactics. Nothing it proposes reaches the agent until a person
+approves it and an eval shows no regression. How it works, how to set it up and
+the weekly routine are in `docs/guides/learning-from-outcomes.md`; the design is
+`specs/031-learning-from-outcomes.md` and
+`docs/adr/0020-learning-is-offline-and-human-approved.md`.
+
+```json
+"learning": {
+  "language": "English",
+  "enrolledTag": "enrolled",
+  "maxRunCostUsd": 5
+}
+```
+
+- **`enrolledTag`**: the ManyChat tag your team sets on a contact once they
+  have paid. It is how the job knows who enrolled.
+- **`language`**: what the proposals are written in: yours.
+- **`maxRunCostUsd`**: the most one weekly analyst call may cost. Required.
+  It is never charged to the daily `budget`.
+
+It needs a field marked `funnel` in `tools.json`, and `INSIGHT_MODEL` in
+`.env` names the analyst. Then, each week:
+
+```bash
+pnpm insights:review                      # approve, edit, reject or retire
+PLAYBOOK_VERSION=<id> pnpm eval           # a real model, not eval:mock
+pnpm insights:activate <id>               # refused if a case newly fails
+pnpm insights:report                      # enrolment rate by version
+```
+
+The first activation is compared against the prompt with no playbook, so run
+`pnpm eval` once without `PLAYBOOK_VERSION` as well. A running server picks up
+an activation within a minute; a `learning` block added later needs a restart.
+
 ## `plugins.json`: tools of your own (optional)
 
 When `tools.json` cannot express an action, a write to your own CRM say, a

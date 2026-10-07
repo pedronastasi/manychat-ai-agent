@@ -23,6 +23,7 @@ export default defineConfig({
         'src/channels/port.ts',
         'src/db/client.ts',
         'src/db/schema.ts',
+        'src/insights.ts',
         'src/main.ts',
       ],
       reporter: ['text', 'json-summary'],

@@ -31,6 +31,8 @@ import {
 } from './tools.ts';
 import type { ContactActions } from './tools.ts';
 import type { Plugins } from '../plugins/plugins.ts';
+import { renderPlaybook } from '../learning/playbook.ts';
+import type { ActivePlaybook } from '../learning/playbook.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -72,6 +74,11 @@ export interface AgentResult {
    * note is still written (specs/024).
    */
   escalatedBy?: EscalationCause | undefined;
+  /**
+   * The playbook version the prompt was built with, null when none was
+   * active (specs/031). Recorded on the turn.
+   */
+  playbookVersion?: string | null;
 }
 
 /** What the contact sent when it was not typed, as the model receives it (specs/020). */
@@ -231,12 +238,25 @@ export interface RunnerOptions {
   recordPromptsInTraces?: boolean;
   /** The tenant's plugin tools, loaded once at boot (specs/036). */
   plugins?: Plugins | undefined;
+  /**
+   * The active playbook version, read per turn and never waited on: its
+   * source refreshes on a timer (specs/031).
+   */
+  playbook?: { current(): ActivePlaybook | undefined } | undefined;
 }
 
 export class GenerateTextRunner implements AgentRunner {
   private readonly opts: RunnerOptions;
   private cached:
-    | { config: TenantConfig; staticPrefix: string; catalogBlock: string; withTools: boolean }
+    | {
+        config: TenantConfig;
+        /** The version the source held when this was built, rendered or not. */
+        loadedPlaybook: string | undefined;
+        playbook: ActivePlaybook | undefined;
+        staticPrefix: string;
+        catalogBlock: string;
+        withTools: boolean;
+      }
     | undefined;
 
   constructor(opts: RunnerOptions) {
@@ -247,17 +267,29 @@ export class GenerateTextRunner implements AgentRunner {
    * Rebuilds only when ConfigStore swaps in a new object, so the prefix stays
    * byte-identical between reloads and remains cacheable (see prompt.ts). A
    * failed reload keeps the previous object, so it correctly rebuilds nothing.
+   * An activated playbook version rebuilds it once, not on every turn.
    */
   private current() {
     const config = this.opts.config();
-    if (this.cached?.config !== config) {
+    const playbook = this.opts.playbook?.current();
+    if (this.cached?.config !== config || this.cached.loadedPlaybook !== playbook?.id) {
       const tools = config.tools ?? NO_TOOLS;
       const pluginTools = this.opts.plugins?.hasTools ?? false;
       const withTools = offersTools(tools) || pluginTools;
+      const prompt = buildSystemPrompt(config.persona, config.catalog, config.rules, tools, {
+        pluginTools,
+      });
+      // After the catalog and before the cache breakpoint, so a version is
+      // cached with the rest of the prefix (specs/031). Without `learning`
+      // the prefix is what it was before that spec.
+      const rendered = config.rules.learning ? renderPlaybook(playbook) : undefined;
       this.cached = {
         config,
+        loadedPlaybook: playbook?.id,
+        playbook: rendered ? playbook : undefined,
         withTools,
-        ...buildSystemPrompt(config.persona, config.catalog, config.rules, tools, { pluginTools }),
+        staticPrefix: prompt.staticPrefix,
+        catalogBlock: rendered ? `${prompt.catalogBlock}\n\n${rendered}` : prompt.catalogBlock,
       };
     }
     return this.cached;
@@ -278,7 +310,8 @@ export class GenerateTextRunner implements AgentRunner {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
-    const { config, staticPrefix, catalogBlock, withTools } = this.current();
+    const { config, playbook, staticPrefix, catalogBlock, withTools } = this.current();
+    const playbookVersion = playbook?.id ?? null;
     const tools = withTools
       ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads, {
           nudgeTurn: nudge !== undefined,
@@ -385,6 +418,8 @@ export class GenerateTextRunner implements AgentRunner {
         interventions: [`model_error: ${name}`],
         modelError: name,
         escalatedBy: 'error',
+        // The scripted handoff, which no prompt produced (specs/031).
+        playbookVersion: null,
         latencyMs: Date.now() - started,
         model: this.opts.modelSpec,
         toolsOffered: tools !== undefined,
@@ -404,6 +439,7 @@ export class GenerateTextRunner implements AgentRunner {
       reply: guarded.reply,
       interventions: guarded.interventions,
       escalatedBy: guarded.escalatedBy,
+      playbookVersion,
       latencyMs: Date.now() - started,
       model: this.opts.modelSpec,
       toolsOffered: tools !== undefined,

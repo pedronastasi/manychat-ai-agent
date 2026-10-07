@@ -14,30 +14,36 @@ Runs with no API key and no database (mock model + embedded PGlite).
 
 ## Commands
 
-| Command                | Purpose                                                |
-| ---------------------- | ------------------------------------------------------ |
-| `pnpm dev`             | Local dev server (watch mode, `.env` loaded)           |
-| `pnpm build`           | TypeScript compilation                                 |
-| `pnpm typecheck`       | `tsc --noEmit`                                         |
-| `pnpm lint`            | ESLint                                                 |
-| `pnpm format`          | Prettier write                                         |
-| `pnpm format:check`    | Prettier check                                         |
-| `pnpm test`            | `vitest run`                                           |
-| `pnpm test:coverage`   | Vitest with coverage thresholds enforced               |
-| `pnpm test:watch`      | Vitest watch mode                                      |
-| `pnpm eval:mock`       | Golden-set eval with mock model (free, deterministic)  |
-| `pnpm eval`            | Golden-set eval with real model (costs money)          |
-| `pnpm simulate "msg"`  | Send a Dynamic Block request to a running local server |
-| `pnpm db:generate`     | Drizzle migration generation                           |
-| `pnpm db:migrate`      | Run Drizzle migrations                                 |
-| `pnpm tokens:backfill` | Issue contact tokens to existing contacts (`--check`)  |
-| `pnpm spec:index`      | Regenerate `specs/README.md` from spec frontmatter     |
-| `pnpm demo:record`     | Re-record the README demo against the fixture tenant   |
-| `pnpm docs:build`      | Build the docs site (specs/014); fails on dead links   |
-| `pnpm docs:dev`        | Docs site dev server                                   |
+| Command                  | Purpose                                                    |
+| ------------------------ | ---------------------------------------------------------- |
+| `pnpm dev`               | Local dev server (watch mode, `.env` loaded)               |
+| `pnpm build`             | TypeScript compilation                                     |
+| `pnpm typecheck`         | `tsc --noEmit`                                             |
+| `pnpm lint`              | ESLint                                                     |
+| `pnpm format`            | Prettier write                                             |
+| `pnpm format:check`      | Prettier check                                             |
+| `pnpm test`              | `vitest run`                                               |
+| `pnpm test:coverage`     | Vitest with coverage thresholds enforced                   |
+| `pnpm test:watch`        | Vitest watch mode                                          |
+| `pnpm eval:mock`         | Golden-set eval with mock model (free, deterministic)      |
+| `pnpm eval`              | Golden-set eval with real model (costs money)              |
+| `pnpm simulate "msg"`    | Send a Dynamic Block request to a running local server     |
+| `pnpm db:generate`       | Drizzle migration generation                               |
+| `pnpm db:migrate`        | Run Drizzle migrations                                     |
+| `pnpm tokens:backfill`   | Issue contact tokens to existing contacts (`--check`)      |
+| `pnpm insights:run`      | Run this week's learning job now (`--force` again)         |
+| `pnpm insights:review`   | Approve, edit or reject proposed playbook tactics          |
+| `pnpm insights:activate` | Put a reviewed playbook version live, behind the eval gate |
+| `pnpm insights:report`   | Enrolment rate per playbook version                        |
+| `pnpm spec:index`        | Regenerate `specs/README.md` from spec frontmatter         |
+| `pnpm demo:record`       | Re-record the README demo against the fixture tenant       |
+| `pnpm docs:build`        | Build the docs site (specs/014); fails on dead links       |
+| `pnpm docs:dev`          | Docs site dev server                                       |
 
 `EVAL_DIR` selects the eval suite (default `evals/golden`) and `CONFIG_DIR` the
-tenant it runs against — see `specs/009-tenant-eval-suites.md`.
+tenant it runs against — see `specs/009-tenant-eval-suites.md`. `PLAYBOOK_VERSION`
+runs it with a playbook version that is not live yet, which `insights:activate`
+needs a real-model record of — see `specs/031-learning-from-outcomes.md`.
 
 ## Tech stack
 
@@ -78,6 +84,7 @@ src/
   contracts/           # Zod schemas (agent, config, manychat)
   conversation/        # Budget enforcement, conversation/turn persistence
   db/                  # DB client factory, migrations, Drizzle schema
+  learning/            # Learning from outcomes: weekly job, playbook, insights CLI (specs/031)
   media/               # Inbound voice notes, images, videos: resolver, ffmpeg splitter
   nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
   observability/       # PII redaction

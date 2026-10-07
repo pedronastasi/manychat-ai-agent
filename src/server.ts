@@ -33,6 +33,7 @@ import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/
 import { escalationReply } from './agent/guardrails.ts';
 import { mediaScrubbingStream, redactText } from './observability/redact.ts';
 import { loggerOptions } from './observability/logger.ts';
+import type { PlaybookSource } from './learning/playbook.ts';
 import { Plugins } from './plugins/plugins.ts';
 
 const MESSAGE_ROUTE = '/v1/channels/manychat/message';
@@ -64,6 +65,8 @@ export interface BuildOptions {
   ffmpegPaths?: FfmpegPaths;
   /** The tenant's plugins, loaded once at boot (specs/036). None when absent. */
   plugins?: Plugins;
+  /** The active playbook version (specs/031). None without a `learning` block. */
+  playbook?: PlaybookSource | undefined;
 }
 
 /**
@@ -116,6 +119,7 @@ export async function buildServer(opts: BuildOptions) {
       temperature: env.AGENT_TEMPERATURE,
       reasoningEffort: env.AGENT_REASONING_EFFORT,
       plugins,
+      playbook: opts.playbook,
     });
 
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails

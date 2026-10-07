@@ -1,9 +1,12 @@
 import { loadEnv, loadTenantConfig } from '../config/loader.ts';
+import type { Env } from '../contracts/config.ts';
 import { resolveModel } from '../agent/registry.ts';
 import { GenerateTextRunner } from '../agent/runner.ts';
 import { loadPlugins } from '../plugins/loader.ts';
 import { ActionStage, describeAction } from '../agent/tools.ts';
-import { checkCase, classify, evalDir, loadCases } from './cases.ts';
+import { checkCase, classify, evalDir, loadCases, suiteHash } from './cases.ts';
+import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
+import type { ActivePlaybook } from '../learning/playbook.ts';
 import type { Status } from './cases.ts';
 
 interface Outcome {
@@ -40,6 +43,10 @@ export async function runEval(): Promise<void> {
   const plugins = await loadPlugins(configDir);
   const cases = loadCases(suiteDir);
 
+  // A playbook version rendered into the prompt, to be evaluated before it
+  // goes live (specs/031 § A version goes live only after a real-model eval).
+  const playbook = await playbookFor(env, tenant.rules.learning !== undefined);
+
   // Defaults to the race deadline, so a suite that sets nothing behaves as
   // before. A tenant evaluating a reasoning model raises this rather than
   // RACE_DEADLINE_MS, which the live request path depends on.
@@ -53,9 +60,13 @@ export async function runEval(): Promise<void> {
     temperature: env.AGENT_TEMPERATURE,
     reasoningEffort: env.AGENT_REASONING_EFFORT,
     plugins,
+    playbook: { current: () => playbook },
   });
 
-  console.log(`\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   cases: ${cases.length}\n`);
+  const playbookLabel = playbook ? `   playbook: ${playbook.id}` : '';
+  console.log(
+    `\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   cases: ${cases.length}${playbookLabel}\n`,
+  );
 
   const outcomes: Outcome[] = [];
   for (const testCase of cases) {
@@ -131,5 +142,50 @@ export async function runEval(): Promise<void> {
   // able to report itself green (specs/009 § Verification).
   const summary = `${count('passed')} passed   ${failed} failed   ${reviewed} to review`;
   console.log(`\n  ${summary}   p95 ${p95}ms   cost $${cost.toFixed(4)}\n`);
+  await recordEval(env, {
+    playbookHash: playbook?.contentHash ?? NO_PLAYBOOK,
+    suiteHash: suiteHash(suiteDir),
+    model: env.AGENT_MODEL,
+    outcomes: Object.fromEntries(outcomes.map(outcome => [outcome.id, outcome.status])),
+  });
   process.exit(failed === 0 ? 0 : 1);
+}
+
+/** The version `PLAYBOOK_VERSION` names, read from the database; none when it is unset. */
+async function playbookFor(env: Env, learning: boolean): Promise<ActivePlaybook | undefined> {
+  const ref = process.env.PLAYBOOK_VERSION;
+  if (!ref) return undefined;
+  if (!learning) throw new Error('PLAYBOOK_VERSION needs a "learning" block in rules.json');
+  const { openDatabase } = await import('../learning/database.ts');
+  const { LearningStore } = await import('../learning/store.ts');
+  const version = await new LearningStore(await openDatabase(env)).findVersion(env.TENANT_ID, ref);
+  if (!version) throw new Error(`PLAYBOOK_VERSION ${ref} names no playbook version`);
+  return version;
+}
+
+/**
+ * Writes the run's eval record, which `insights:activate` reads. Skipped for
+ * the mock model, whose pass says nothing about a prompt; a record that cannot
+ * be written is reported and changes no exit code.
+ */
+async function recordEval(
+  env: Env,
+  record: {
+    playbookHash: string;
+    suiteHash: string;
+    model: string;
+    outcomes: Record<string, Status>;
+  },
+): Promise<void> {
+  if (!isRealModel(record.model)) return;
+  try {
+    const { openDatabase } = await import('../learning/database.ts');
+    const { LearningStore } = await import('../learning/store.ts');
+    await new LearningStore(await openDatabase(env)).recordEval(env.TENANT_ID, record);
+    console.log(`  ${DIM}eval record written for the suite and playbook above${RESET}\n`);
+  } catch (error) {
+    console.log(
+      `  ${YELLOW}no eval record written: ${error instanceof Error ? error.message : String(error)}${RESET}\n`,
+    );
+  }
 }

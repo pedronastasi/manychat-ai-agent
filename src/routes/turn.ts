@@ -696,6 +696,7 @@ export class TurnHandler {
             cacheReadTokens: result.usage.cacheReadTokens,
             costUsd: result.usage.costUsd,
             latencyMs: result.latencyMs,
+            playbookVersion: result.playbookVersion,
           },
           actions,
         },

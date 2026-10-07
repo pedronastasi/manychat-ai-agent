@@ -5,6 +5,7 @@
  * call: the runner is a script, and importing it to test a substring check
  * would execute the suite (specs/009-tenant-eval-suites.md § Verification).
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { AgentReply } from '../contracts/agent.ts';
@@ -79,6 +80,16 @@ export type Case = z.infer<typeof Case>;
 
 export function evalDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.EVAL_DIR ?? DEFAULT_EVAL_DIR;
+}
+
+/**
+ * Identifies the suite by its cases, so an eval record says which suite it
+ * was run against and a changed suite needs a new record (specs/031).
+ */
+export function suiteHash(dir: string): string {
+  return createHash('sha256')
+    .update(readFileSync(`${dir}/cases.jsonl`))
+    .digest('hex');
 }
 
 export function loadCases(dir: string): Case[] {
