@@ -91,6 +91,7 @@ Every non-obvious choice is written down in [`docs/adr/`](../adr/):
 | [0019](../adr/0019-flows-are-sent-inside-the-loop.md)                   | On an inbound turn a flow is sent when the model calls it, so the reply follows it; other writes stage   |
 | [0020](../adr/0020-learning-is-offline-and-human-approved.md)           | Learning is offline, from paid outcomes; a tactic reaches the prompt only after approval and an eval     |
 | [0021](../adr/0021-tenants-depend-on-a-package-not-a-fork.md)           | A tenant depends on one published package and starts from a scaffolder; nobody forks to deploy           |
+| [0022](../adr/0022-built-in-tools-are-not-plugins.md)                   | Built-in tools stay in the agent; plugins get only what `036` allows, never what a built-in needs        |
 
 Behavior is specified before it is implemented, in [`specs/`](../../specs/) —
 a [constitution](../../specs/000-constitution.md) of non-negotiables, the
