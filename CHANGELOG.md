@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.21.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.20.0...v0.21.0) (2026-10-07)
+
+
+### Features
+
+* start a plugin from the agent's own example with agent plugin new (spec 041) ([6aae801](https://github.com/pedronastasi/manychat-ai-agent/commit/6aae8019080718c497f7d031b5cd3d8efe349809))
+
+
+### Bug Fixes
+
+* write the plugin templates in words no vertical owns (spec 041, 042) ([697b961](https://github.com/pedronastasi/manychat-ai-agent/commit/697b9618171e3e8fb6be23818e4833c73db1449e))
+
+
+### Specs and Docs
+
+* name agent plugin new as 033 V4's one exception (spec 041) ([516294a](https://github.com/pedronastasi/manychat-ai-agent/commit/516294a5acc98b0690a315d52d36f7da2445b56d))
+
 ## [0.20.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.19.1...v0.20.0) (2026-10-07)
 
 
