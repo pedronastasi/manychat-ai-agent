@@ -8,7 +8,10 @@ import { mermaidDiagrams, mermaidTag } from '../../.vitepress/diagrams.ts';
 
 import {
   API_PAGE,
+  COLLAPSE_AFTER,
   REPOSITORY,
+  deriveNav,
+  deriveSidebar,
   isPublished,
   markdownFiles,
   publishedPages,
@@ -174,6 +177,51 @@ describe('the sidebar is derived (specs/014 § The sidebar is derived, never han
     expect(readFileSync(join('.vitepress', 'config.ts'), 'utf8')).toMatch(
       /sidebar:\s*deriveSidebar\(root\)/,
     );
+  });
+
+  it('takes the top bar from the derivation', () => {
+    expect(readFileSync(join('.vitepress', 'config.ts'), 'utf8')).toMatch(
+      /nav:\s*deriveNav\(root\)/,
+    );
+  });
+
+  it('collapses only the groups longer than COLLAPSE_AFTER', () => {
+    for (const group of deriveSidebar(root)) {
+      const long = (group.items?.length ?? 0) > COLLAPSE_AFTER;
+      expect(group.collapsed, group.text).toBe(long ? true : undefined);
+    }
+    expect(deriveSidebar(root).find(group => group.text === 'Specs')?.collapsed).toBe(true);
+  });
+
+  it("links each section but the home page's to its first sidebar entry", () => {
+    const sidebar = deriveSidebar(root);
+    const nav = deriveNav(root);
+    const home = sidebar.find(group => group.items?.some(item => item.link === '/'));
+    // Against the sidebar, not ALLOWLIST: a section with no page yet, such as
+    // the API reference before it is generated, has neither a group nor an entry.
+    expect(nav.map(item => item.text)).toEqual(
+      sidebar.map(group => group.text).filter(text => text !== home?.text),
+    );
+    expect(nav.map(item => item.text)).toEqual(
+      expect.arrayContaining(['Guides', 'Specs', 'Decisions', 'Configuration']),
+    );
+    for (const item of nav) {
+      const group = sidebar.find(candidate => candidate.text === item.text);
+      expect(item.link).toBe(group?.items?.[0]?.link);
+    }
+  });
+
+  it('lights a section on every page in it, and on no other', () => {
+    const nav = deriveNav(root);
+    for (const group of deriveSidebar(root)) {
+      for (const page of group.items ?? []) {
+        const lit = nav.filter(item => new RegExp(item.activeMatch).test(page.link ?? ''));
+        expect(
+          lit.map(item => item.text),
+          page.link,
+        ).toEqual(nav.some(item => item.text === group.text) ? [group.text] : []);
+      }
+    }
   });
 });
 

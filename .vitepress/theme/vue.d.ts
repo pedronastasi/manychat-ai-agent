@@ -4,3 +4,6 @@ declare module '*.vue' {
   const component: DefineComponent;
   export default component;
 }
+
+/** Lets TypeScript accept a stylesheet imported for its side effect; Vite bundles it. */
+declare module '*.css';

@@ -13,6 +13,7 @@ import {
   BRANCH,
   REPOSITORY,
   REWRITES,
+  deriveNav,
   deriveSidebar,
   publishedPages,
   resolveLink,
@@ -77,8 +78,18 @@ export default defineConfig({
     },
   },
 
+  // From git, so a spec's date is when its file last changed. docs.yml checks
+  // out the full history for it.
+  lastUpdated: true,
+
   themeConfig: {
+    nav: deriveNav(root),
     sidebar: deriveSidebar(root),
+    // Specs and the configuration guide nest their rules under `###`.
+    outline: { level: [2, 3] },
+    // Links to code leave the site for GitHub (specs/014 § Links outside the
+    // site point at GitHub); the icon says so before the click.
+    externalLinkIcon: true,
     // Local search: the index ships with the site, and no search service sees
     // the content or anyone's queries.
     search: { provider: 'local' },

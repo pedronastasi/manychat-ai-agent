@@ -117,6 +117,28 @@ export interface SidebarItem {
   text: string;
   link?: string;
   items?: SidebarItem[];
+  collapsed?: boolean;
+}
+
+export interface NavItem {
+  text: string;
+  link: string;
+  activeMatch: string;
+}
+
+/**
+ * A group longer than this starts collapsed, so the short sections stay in
+ * view above the specs and decisions. VitePress opens a collapsed group when
+ * it holds the page being read.
+ */
+export const COLLAPSE_AFTER = 8;
+
+const isIndex = (page: string): boolean => posix.basename(servedAs(page)) === 'index.md';
+
+/** A section's pages in sidebar order: its index first, then filename order. */
+function orderedPages(root: string, section: Section): string[] {
+  const pages = sectionPages(root, section);
+  return [...pages.filter(isIndex), ...pages.filter(page => !isIndex(page))];
 }
 
 /**
@@ -127,17 +149,37 @@ export interface SidebarItem {
  * own link it was reachable only by clicking a heading nobody reads as one.
  */
 export function deriveSidebar(root: string): SidebarItem[] {
-  const isIndex = (page: string): boolean => posix.basename(servedAs(page)) === 'index.md';
   return ALLOWLIST.flatMap(section => {
-    const pages = sectionPages(root, section);
+    const pages = orderedPages(root, section);
     if (pages.length === 0) return [];
-    const ordered = [...pages.filter(isIndex), ...pages.filter(page => !isIndex(page))];
     return [
       {
         text: section.label,
-        items: ordered.map(page => ({ text: titleOf(root, page), link: routeOf(page) })),
+        items: pages.map(page => ({ text: titleOf(root, page), link: routeOf(page) })),
+        ...(pages.length > COLLAPSE_AFTER ? { collapsed: true } : {}),
       },
     ];
+  });
+}
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * specs/014 § The sidebar is derived, never hand-listed, applied to the top
+ * bar: one entry per allowlist section, linking to its first page and lit on
+ * any page in it. The section holding the home page has none, because the
+ * site title already links there.
+ */
+export function deriveNav(root: string): NavItem[] {
+  return ALLOWLIST.flatMap(section => {
+    const pages = orderedPages(root, section);
+    const first = pages[0];
+    if (first === undefined || routeOf(first) === '/') return [];
+    const activeMatch =
+      'directory' in section
+        ? `^/${escapeRegExp(section.directory)}/`
+        : `^(?:${pages.map(page => escapeRegExp(routeOf(page))).join('|')})$`;
+    return [{ text: section.label, link: routeOf(first), activeMatch }];
   });
 }
 

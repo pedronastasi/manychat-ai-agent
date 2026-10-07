@@ -63,6 +63,16 @@ The sidebar is computed at build time from the directory listing of each
 published directory, in filename order, labelled with each file's `#` title.
 Adding a spec or an ADR adds it to the site without touching `.vitepress/`.
 
+A group longer than eight pages, which today is the specs and the decisions,
+starts collapsed, so the short sections stay in view above them. VitePress
+opens it when it holds the page being read.
+
+The top bar comes from the same derivation: one entry per section, linking to
+the section's first sidebar entry and lit on every page in it. The section
+holding the home page has no entry, because the site title links there. A
+section's first page is its index if it has one, and otherwise its first file
+by name, so a guide that should come first is named to sort first.
+
 ## Publication is an allowlist, because the repository holds Markdown that must not be served
 
 The repository contains Markdown that was never written for a public audience
@@ -174,6 +184,9 @@ The site's own configuration is English (C9), like everything else committed.
   index.
 - A test asserts that `.vitepress/` contains no hand-written sidebar entries:
   the sidebar is the output of the derivation, not a literal.
+- A test asserts the top bar is derived too: one entry per section but the home
+  page's, each linking to its group's first entry and lit on exactly the pages
+  in that group. It also asserts only groups longer than eight start collapsed.
 - A test asserts that no OpenAPI document is tracked in git.
 
 **What this does not catch.** The allowlist controls which files are served,
