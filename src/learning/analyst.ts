@@ -138,6 +138,8 @@ export interface AnalystResult {
   /** Undefined when the output failed the schema: the run is `failed`. */
   output: AnalystOutput | undefined;
   costUsd: number;
+  /** Why there is no output: an error's name, never its message, which can quote input (C5). */
+  error?: string | undefined;
 }
 
 /**
@@ -179,6 +181,7 @@ export class Analyst {
       return {
         output: parsed.success ? parsed.data : undefined,
         costUsd: estimateCostUsd(this.modelSpec, usage),
+        ...(parsed.success ? {} : { error: 'InvalidOutput' }),
       };
     } catch (error) {
       // Output that fails the schema was still paid for.
@@ -188,7 +191,11 @@ export class Analyst {
           outputTokens: error.usage.outputTokens ?? 0,
         };
       }
-      return { output: undefined, costUsd: estimateCostUsd(this.modelSpec, usage) };
+      return {
+        output: undefined,
+        costUsd: estimateCostUsd(this.modelSpec, usage),
+        error: error instanceof Error ? error.name : 'unknown',
+      };
     }
   }
 }

@@ -6,6 +6,7 @@ import { resolveModel } from '../agent/registry.ts';
 import { openDatabase } from './database.ts';
 import { Analyst } from './analyst.ts';
 import { LearningJob } from './job.ts';
+import type { LearningLogger } from './job.ts';
 import { activate, formatReport, report, REPORT_HEADER, review } from './cli.ts';
 
 export const INSIGHT_COMMANDS: Record<string, string> = {
@@ -13,6 +14,17 @@ export const INSIGHT_COMMANDS: Record<string, string> = {
   review: 'Approve, edit, reject or retire playbook insights',
   activate: 'Put a playbook version live, once its eval shows no regression',
   report: 'Enrolment rate by playbook version',
+};
+
+/**
+ * What a run started from the CLI logs: its warnings and errors, on stderr,
+ * so the cause of a `failed` run is printed where it was started. Each line
+ * carries only ids, counts and error names (C5).
+ */
+export const cliLogger: LearningLogger = {
+  info: () => {},
+  warn: (fields: object, message: string) => console.error(`${message} ${JSON.stringify(fields)}`),
+  error: (fields: object, message: string) => console.error(`${message} ${JSON.stringify(fields)}`),
 };
 
 /**
@@ -55,7 +67,7 @@ export async function runInsights(args: readonly string[]): Promise<number> {
           model: resolveModel(env.INSIGHT_MODEL, 'INSIGHT_MODEL'),
           modelSpec: env.INSIGHT_MODEL,
         }),
-        logger: { info: () => {}, warn: () => {}, error: () => {} },
+        logger: cliLogger,
       }).run(new Date(), { forced: rest.includes('--force') });
       if (outcome.status === 'claimed') {
         console.log('This week’s run already happened. Pass --force to run another.');

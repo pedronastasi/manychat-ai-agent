@@ -17,7 +17,7 @@ import {
 } from '../../src/db/schema.ts';
 import { loadEnv, loadTenantConfig } from '../../src/config/loader.ts';
 import { run } from '../../src/cli/run.ts';
-import { runInsights } from '../../src/learning/commands.ts';
+import { cliLogger, runInsights } from '../../src/learning/commands.ts';
 import { openDatabase } from '../../src/learning/database.ts';
 import { playbookSource, startLearning } from '../../src/learning/wiring.ts';
 import type { TenantConfig } from '../../src/config/loader.ts';
@@ -265,8 +265,14 @@ describe('proposals that fail the refusals are never stored (specs/031 V5)', () 
   it('records schema-invalid output as failed, with no proposal and its cost', async () => {
     const tags = await seedCohort(40, 20);
     const { model } = analystModel(() => ({ proposals: [{ text: 'missing fields' }] }));
-    const outcome = await job(new FakeTagReader(tags), model).run(NOW);
+    const { logger, lines } = logs();
+    const outcome = await job(new FakeTagReader(tags), model, { logger }).run(NOW);
     expect(outcome.status).toBe('failed');
+    // Why, by name only: the operator sees the cause, and no answer text.
+    expect(lines).toContainEqual({
+      fields: { run: outcome.status === 'failed' ? outcome.runId : '', error: expect.any(String) },
+      message: 'learning run failed: the analyst gave no valid answer',
+    });
     expect(await db.select().from(insightProposals)).toHaveLength(0);
     const [run] = await db.select().from(learningRuns);
     expect(Number(run!.costUsd)).toBeGreaterThan(0);
@@ -605,6 +611,16 @@ describe('the insights commands and the process wiring (specs/031 V12)', () => {
     expect(await runInsights(['report'])).toBe(0);
     expect(printed.join('\n')).toContain('Before and after, not controlled');
     expect(printed.join('\n')).toContain('No settled contacts were offered');
+  });
+
+  it('prints a CLI run’s warnings and errors, and nothing else', () => {
+    cliLogger.info({ run: 'run-1' }, 'learning run started');
+    cliLogger.warn({ run: 'run-1', error: 'InvalidOutput' }, 'learning run failed');
+    cliLogger.error({ run: 'run-1', err: 'TypeError' }, 'learning run failed');
+    expect(printed).toEqual([
+      'learning run failed {"run":"run-1","error":"InvalidOutput"}',
+      'learning run failed {"run":"run-1","err":"TypeError"}',
+    ]);
   });
 
   it('the agent CLI runs the same commands', async () => {

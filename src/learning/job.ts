@@ -145,7 +145,13 @@ export class LearningJob {
       // The run's cost is its own: it never reaches budget_counters, so no
       // run moves a live turn closer to the daily cap.
       const result = await analyst.propose(input, options.signal);
-      if (!result.output) return await finish('failed', { ...counts, costUsd: result.costUsd });
+      if (!result.output) {
+        this.opts.logger.warn(
+          { run: runId, error: result.error ?? 'unknown' },
+          'learning run failed: the analyst gave no valid answer',
+        );
+        return await finish('failed', { ...counts, costUsd: result.costUsd });
+      }
 
       const known = new Set(
         [...input.enrolled, ...input.notEnrolled].flatMap(transcript => transcript.turnIds),

@@ -205,7 +205,8 @@ docker compose run --rm -v ./evals:/app/evals:ro -e EVAL_DIR=evals/my-agent \
    agent insights run
    ```
 
-   It prints the run's status and how many contacts it found on each side. If
+   It prints the run's status and how many contacts it found on each side, and
+   any warning or error on the way, such as why a `failed` run failed. If
    this week's run already happened, it says so; `--force` runs another.
 
 2. **Review the proposals:**
@@ -273,16 +274,18 @@ undone in one command.
 
 ### Each run's status
 
-| Status           | Meaning                                                                      | What to do                                                      |
-| ---------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `completed`      | The analyst ran. Its proposals, if any, wait for review.                     | `insights review`.                                              |
-| `insufficient`   | Fewer than 20 contacts on a side. No model was called.                       | Wait for more contacts, and check the payment tag is being set. |
-| `skipped_budget` | It could not fit 20 contacts a side within `maxRunCostUsd`. No call.         | Raise `maxRunCostUsd`, or choose a cheaper `INSIGHT_MODEL`.     |
-| `failed`         | The analyst's answer was invalid, the call failed, or a shutdown stopped it. | Check the log. `insights run --force` tries again this week.    |
+| Status           | Meaning                                                                      | What to do                                                          |
+| ---------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `completed`      | The analyst ran. Its proposals, if any, wait for review.                     | `insights review`.                                                  |
+| `insufficient`   | Fewer than 20 contacts on a side. No model was called.                       | Wait for more contacts, and check the payment tag is being set.     |
+| `skipped_budget` | It could not fit 20 contacts a side within `maxRunCostUsd`. No call.         | Raise `maxRunCostUsd`, or choose a cheaper `INSIGHT_MODEL`.         |
+| `failed`         | The analyst's answer was invalid, the call failed, or a shutdown stopped it. | Read the warning that names the cause, then `insights run --force`. |
 
 Runs are kept in the `learning_runs` table, with their cohort sizes and cost.
-The log carries each run's id, counts and status, and never any message or
-proposal text.
+A scheduled run's cause of failure is in the server's log, at `warn` or
+`error`; one you start with `insights run` prints it in your terminal. Either
+way a line carries only the run's id, counts, status and an error name, never
+any message or proposal text.
 
 ### Whether a version helped
 
