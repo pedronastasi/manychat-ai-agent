@@ -146,6 +146,9 @@ describe('committed source carries no Spanish copy', () => {
     'src/agent/guardrails.ts',
     'src/agent/prompt.ts',
     'src/agent/mock-provider.ts',
+    // What `agent plugin new` writes into a tenant's project (specs/041 V6).
+    'src/plugins/templates/read.js.tmpl',
+    'src/plugins/templates/write.js.tmpl',
   ])('%s carries no prose in another language', file => {
     const content = readFileSync(file, 'utf8');
     // Non-ASCII Latin letters are the cheap signal that prose in another

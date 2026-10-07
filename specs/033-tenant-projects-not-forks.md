@@ -88,6 +88,7 @@ It drops `private: true` and declares its surface explicitly.
 | `agent insights review`   | `pnpm insights:review`   | As `031`                                                             |
 | `agent insights activate` | `pnpm insights:activate` | As `031`                                                             |
 | `agent insights report`   | `pnpm insights:report`   | As `031`                                                             |
+| `agent plugin new`        | Four hand edits          | Starts a plugin from the agent's own example, as `041`               |
 
 `agent config check` runs the same validation `agent serve` runs at startup and
 then exits. A tenant's CI calls it, so a typo in a flow id fails a pull request

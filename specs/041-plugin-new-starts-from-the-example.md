@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-07
 constitution: [C1, C6, C8, C9]
 ---
 
@@ -42,20 +43,25 @@ agent plugin new <name> --read    # a read tool (039), apiVersion 2
 agent plugin new <name> --write   # a write tool (036), staged after the reply
 ```
 
-- **One of the two flags is required.** With neither or both, it prints its
-  usage and exits 2. Which kind of tool a plugin adds is the author's decision,
-  and the two differ in what the model may do with them.
+- **One of the two flags is required.** With neither or both, with no
+  `<name>` or with any other argument, it prints its usage and exits 2. Which
+  kind of tool a plugin adds is the author's decision, and the two differ in
+  what the model may do with them.
 - **`<name>` is a package name.** It must be a valid unscoped npm name in
   lowercase kebab case, and is prefixed `agent-plugin-` unless it already starts
   with it. The plugin's `name` is the part after the prefix. Its one tool's name
   is that part in snake case, so `agent-plugin-class-dates` declares
   `class_dates`, and two scaffolded plugins do not start out clashing.
-- **The content is the agent's.** The two templates live in
-  `src/plugins/templates/`, ship in the published package and are read from the
-  installed agent, never from the project or the network. Every string in them
-  is English and invented (C1, C9): a backend that does not exist, one declared
-  parameter of each allowed type, and a comment at each place the author's own
-  code goes.
+- **The content is the agent's.** The two templates, `read.js.tmpl` and
+  `write.js.tmpl`, live in `src/plugins/templates/`, ship in the published
+  package and are read from the installed agent, never from the project or the
+  network. Every string in them is English and invented (C1, C9): a backend
+  that does not exist, one declared parameter of each allowed type, and a
+  comment at each place the author's own code goes.
+- **Left unedited, a template fails closed.** Its tool calls the invented
+  backend at `backend.example.com` with `fetch`, so until the author replaces
+  it every read reaches the model as `{ available: false }` and every write is
+  logged as failed (C6). It never answers with data of its own.
 - **The API version is the installed agent's.** A read template declares
   `PLUGIN_API_VERSION`; a write template declares the lowest version in
   `SUPPORTED_PLUGIN_API_VERSIONS`, so it also loads under an agent one release
@@ -69,6 +75,7 @@ what a tenant's plugin should start from.
 
 Before writing anything, it refuses, and exits 1 naming the reason, when:
 
+- `<name>` is not an unscoped package name in lowercase kebab case;
 - the current directory is not a tenant project: no `package.json` depending on
   `manychat-ai-agent`, or no `config/`;
 - `plugins/<name>/` exists;
@@ -76,7 +83,17 @@ Before writing anything, it refuses, and exits 1 naming the reason, when:
 - the derived tool name is not one the loader accepts (lowercase snake case,
   starting with a letter, at most 64 characters), as for a `<name>` that starts
   with a digit or is too long once the prefix is removed;
-- the tool name is a built-in tool's, or one a listed plugin already declares.
+- the tool name is a built-in tool's, or one a listed plugin already declares,
+  or a listed plugin already has the plugin's `name`;
+- `pnpm-workspace.yaml` writes its `packages` other than as a block list, one
+  entry per line, which the command edits as text to keep its comments and
+  other settings.
+
+A listed plugin that does not load is not refused here: `agent config check`
+reports it. The command reads no part of `config/` but `plugins.json`, and needs
+no environment, so it is the one command besides `agent upgrade` that runs on a
+`config/` the server would refuse (`033 § The agent ships as one package whose
+surface is its CLI and its schemas`).
 
 Then it writes `plugins/<name>/package.json` and `plugins/<name>/index.js`, adds
 `plugins/*` to `pnpm-workspace.yaml` (creating the file when the project has
@@ -99,7 +116,8 @@ parts:
 1. **Now**, it loads `plugins/<name>/index.js` from its path and runs on it the
    declaration checks the loader runs at startup (`036 § A plugin that does not
 load stops the server`, `039`'s refusals). A failure here is a bug in the
-   agent: its own template does not pass its own checks.
+   agent: its own template does not pass its own checks. It is undone as a
+   failed write is, and exits 1.
 2. **After install**, it prints the two commands that remain, in order:
    `pnpm install`, then `pnpm agent config check`, which loads every listed
    plugin as the server does.
