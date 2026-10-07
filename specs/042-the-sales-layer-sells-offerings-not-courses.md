@@ -10,8 +10,8 @@ Defines the words the framework uses for what a tenant sells and for a sale
 that completes, everywhere the framework owns them: `catalog.json`,
 `tools.json`, `rules.json`, the turn request, the system prompt's scaffolding,
 the learning job, the eval case and the database. It amends `001`, `002`,
-`003`, `009`, `023`, `026`, `028`, `029`, `031`, `032` and `034`, listed at the
-end. It leaves out the shape of the funnel: the
+`003`, `009`, `023`, `026`, `028`, `029`, `031`, `032`, `033` and `034`, listed
+at the end. It leaves out the shape of the funnel: the
 six stages of `023`, their order and what moves a contact between them stay as
 they are, and only the words around them change.
 
@@ -164,9 +164,12 @@ this spec:
 An eval case's `contact.course` and `contact.advert_course` (`009`) become
 `contact.offering` and `contact.advert_offering`. A renamed eval case field is
 breaking by the same `033` definition, and a tenant's suite lives in its
-project beside `config/`, so `agent upgrade` rewrites the `cases.jsonl` under
-`EVAL_DIR` with the same migration, and the case loader accepts only the new
-keys.
+project beside `config/`, so `agent upgrade` rewrites every
+`evals/*/cases.jsonl` under the working directory, and the one under `EVAL_DIR`
+when it is set elsewhere, with the same migration. It cannot rely on `EVAL_DIR`
+alone: a project scaffolded by `035` sets it only inside its `eval` script, so
+a bare `agent upgrade` would fall back to `evals/golden`, which a tenant project
+does not have. The case loader accepts only the new keys.
 
 The migration is idempotent: a config or suite already in the new shape is left
 byte-identical. It invents no value and touches neither `config/prompt.md` nor
@@ -219,6 +222,8 @@ default tenant, the bootstrap example and the README's demo.
   above.
 - `032`: the `offered` stage reads "an offering and its catalog price have been
   put to the contact"; an `opening` flow carries no `offering`.
+- `033`: `agent upgrade` rewrites `config/` and the project's eval suites, as
+  above.
 - `034`: the intent criteria are stated in the words of the table above, and
   an advert's course is an advert's offering.
 - `026`: the Python port uses the new names from its first line, so its module
@@ -238,8 +243,9 @@ brochure flow and `024`'s note, are illustrations of the demo tenant and stay.
 3. Config tests assert that a catalog with `courses`, a field marked
    `"course": true` and a `learning` block with `enrolledTag` each fail at
    load, naming the key and `agent upgrade`.
-4. A test runs `agent upgrade` on a config and an eval suite in the old shape
-   and asserts the new shape loads; runs it again and asserts no file changed; and asserts
+4. A test runs `agent upgrade` with `EVAL_DIR` unset on a project whose config
+   and `evals/<name>/cases.jsonl` are in the old shape, and asserts both load
+   in the new shape; runs it again and asserts no file changed; and asserts
    `config/prompt.md` is untouched.
 5. A contract test asserts a request with `course` only, `offering` only, and
    both, stores the offering as described, `offering` winning.
