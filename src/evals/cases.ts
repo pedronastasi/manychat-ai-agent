@@ -37,20 +37,22 @@ export const Case = z.object({
   nudge: z.boolean().optional(),
   /**
    * What the server already knows about the contact as the turn starts: the
-   * funnel stage last performed (specs/023), the course (specs/028) and intent (specs/034).
-   * Absent, the contact is new.
+   * funnel stage last performed (specs/023), the offering (specs/028) and intent (specs/034).
+   * Absent, the contact is new. Strict, so a case still carrying the keys
+   * `agent upgrade` renames fails to load rather than losing them (specs/042).
    */
   contact: z
     .object({
       funnel_stage: z.string().optional(),
-      course: z.string().optional(),
+      offering: z.string().optional(),
       /** The contact's recorded intent; absent is unknown (specs/034). */
       intent: z.enum(['not_prospect', 'prospect']).optional(),
       /** The opening goes out on the turn that stages prospect (specs/034). */
       opening_due: z.boolean().optional(),
-      /** The course of the advert the contact arrived through (specs/034). */
-      advert_course: z.string().optional(),
+      /** The offering of the advert the contact arrived through (specs/034). */
+      advert_offering: z.string().optional(),
     })
+    .strict()
     .optional(),
   expect: z.object({
     escalate: z.boolean(),

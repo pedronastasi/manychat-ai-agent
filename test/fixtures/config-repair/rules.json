@@ -1,0 +1,16 @@
+{
+  "messages": {
+    "acknowledgement": "One moment while I check that for you.",
+    "escalation": "I'll pass you to someone on the team who can sort this out. They'll reply here shortly.",
+    "mediaFallback": "I couldn't open that. Could you type what's going on with the appliance?",
+    "closer": "Happy to help. Write here whenever you need us."
+  },
+  "escalationKeywords": ["speak to a person", "complaint", "refund"],
+  "budget": {
+    "dailyTokenCap": 1000000,
+    "dailyCostCapUsd": 5
+  },
+  "rateLimit": {
+    "turnsPerSubscriberPerHour": 60
+  }
+}

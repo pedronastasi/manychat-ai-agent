@@ -106,12 +106,12 @@ describe('opening and stage-tied flows are checked at load (specs/032 V1)', () =
   });
 
   it.each([
-    ['a course', { course: 'foundation' }],
+    ['an offering', { offering: 'foundation' }],
     ['repeatable', { repeatable: true }],
   ])('refuses an opening flow with %s', (_label, extra) => {
     const result = parse(input => Object.assign(input.flows.at(-1)!, extra));
     expect(messages(result)).toContain(
-      'the "opening" flow may not have a "course" or be "repeatable"',
+      'the "opening" flow may not have an "offering" or be "repeatable"',
     );
   });
 
@@ -250,14 +250,17 @@ describe('a funnel write to a tied stage sends its flow (specs/032 V3)', () => {
   });
 
   it('sends nothing when the tied flow belongs to another course', async () => {
-    const { performed, result } = await moveTo(at('nurturing', { course: 'advanced' }), 'offered');
+    const { performed, result } = await moveTo(
+      at('nurturing', { offering: 'advanced' }),
+      'offered',
+    );
     expect(result).toEqual({ staged: true });
     expect(performed).toHaveLength(0);
   });
 
   it('sends the tied flow for the turn’s course', async () => {
     const { performed, result } = await moveTo(
-      at('nurturing', { course: 'foundation' }),
+      at('nurturing', { offering: 'foundation' }),
       'offered',
     );
     expect(result).toEqual({ staged: true, flowSent: 'foundation_brochure' });
@@ -265,7 +268,7 @@ describe('a funnel write to a tied stage sends its flow (specs/032 V3)', () => {
   });
 
   it('sends only the stage written, never one skipped', async () => {
-    const { performed } = await moveTo(at('qualifying', { course: 'foundation' }), 'offered');
+    const { performed } = await moveTo(at('qualifying', { offering: 'foundation' }), 'offered');
     expect(performed.map(action => action.id)).toEqual(['foundation_brochure']);
   });
 
@@ -418,7 +421,7 @@ describe('the payment link waits for readiness (specs/032 V4)', () => {
       await new Promise(resolve => setTimeout(resolve, 20));
       openingSent = true;
     };
-    const built = buildTools(tools, stage, at('new', { course: 'foundation' }), undefined, {
+    const built = buildTools(tools, stage, at('new', { offering: 'foundation' }), undefined, {
       flows,
       beforeFlow,
     });

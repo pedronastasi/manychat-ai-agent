@@ -12,8 +12,8 @@ export interface ConversationRecord {
 
 /** A conversation as found before the turn, with what binding needs (specs/019). */
 export interface KnownConversation extends ConversationRecord, TokenState {
-  /** The course the conversation held before this turn (specs/028). */
-  course?: string | null;
+  /** The offering the conversation held before this turn (specs/028). */
+  offering?: string | null;
 }
 
 export interface TurnUsage {
@@ -251,20 +251,20 @@ export class ConversationStore {
         subscriberId: true,
         turnCount: true,
         escalatedAt: true,
-        course: true,
+        offering: true,
       },
     });
   }
 
   /**
-   * Records the contact's course: the one a request carried, or one this
-   * service wrote to the course field (specs/028 § The server learns the
-   * course from the inbound request).
+   * Records the contact's offering: the one a request carried, or one this
+   * service wrote to the offering field (specs/028 § The server learns the
+   * offering from the inbound request).
    */
-  async setCourse(conversationId: string, course: string) {
+  async setOffering(conversationId: string, offering: string) {
     await this.db
       .update(conversations)
-      .set({ course, updatedAt: sql`now()` })
+      .set({ offering, updatedAt: sql`now()` })
       .where(eq(conversations.id, conversationId));
   }
 
@@ -303,7 +303,7 @@ export class ConversationStore {
         escalatedAt: true,
         tokenHash: true,
         previousTokenHash: true,
-        course: true,
+        offering: true,
       },
     });
   }

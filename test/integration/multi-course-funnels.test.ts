@@ -48,7 +48,7 @@ const rules = RulesSchema.parse({
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const MINUTE_MS = 60_000;
 
-const inbound = (course?: string | null, subscriberId = 's1'): InboundMessage => ({
+const inbound = (offering?: string | null, subscriberId = 's1'): InboundMessage => ({
   tenantId: 'demo',
   subscriberId,
   text: 'tell me more',
@@ -56,7 +56,7 @@ const inbound = (course?: string | null, subscriberId = 's1'): InboundMessage =>
   contactName: null,
   locale: null,
   contactToken: contactFields.tokenOf(subscriberId),
-  course,
+  offering,
   receivedAt: new Date(),
 });
 
@@ -64,7 +64,7 @@ const inbound = (course?: string | null, subscriberId = 's1'): InboundMessage =>
  * A model that records what it was given and, when `course` is set, writes
  * the course field through the real tools.
  */
-function courseRunner(opts: { course?: string; delayMs?: number } = {}) {
+function courseRunner(opts: { offering?: string; delayMs?: number } = {}) {
   const inputs: AgentTurnInput[] = [];
   const runner: AgentRunner = {
     run: async input => {
@@ -73,9 +73,9 @@ function courseRunner(opts: { course?: string; delayMs?: number } = {}) {
       const built = buildTools(tools, stage, asProspect(input.contact), undefined, {
         nudgeTurn: input.nudge !== undefined,
       });
-      if (opts.course) {
+      if (opts.offering) {
         await built?.set_field?.execute?.(
-          { field: 'course', value: opts.course },
+          { field: 'course', value: opts.offering },
           { toolCallId: 'test', messages: [], context: {} },
         );
       }
@@ -119,22 +119,22 @@ const storedCourse = async (subscriberId = 's1') =>
     await db.query.conversations.findFirst({
       where: eq(conversations.subscriberId, subscriberId),
     })
-  )?.course;
+  )?.offering;
 
 describe('the conversation keeps the course a request carries (specs/028 V5)', () => {
   it('records the inbound course, and records a change to it', async () => {
     const { runner, inputs } = courseRunner();
     await handler(runner).handle(inbound('foundation'));
     expect(await storedCourse()).toBe('foundation');
-    expect(inputs[0]!.contact).toMatchObject({ course: 'foundation' });
-    expect(inputs[0]!.contact?.courseChangedFrom).toBeUndefined();
+    expect(inputs[0]!.contact).toMatchObject({ offering: 'foundation' });
+    expect(inputs[0]!.contact?.offeringChangedFrom).toBeUndefined();
 
     // A second course's advert, mid-sale: taken, and the change is noted.
     await handler(runner).handle(inbound('advanced'));
     expect(await storedCourse()).toBe('advanced');
     expect(inputs[1]!.contact).toMatchObject({
-      course: 'advanced',
-      courseChangedFrom: 'foundation',
+      offering: 'advanced',
+      offeringChangedFrom: 'foundation',
     });
   });
 
@@ -145,7 +145,7 @@ describe('the conversation keeps the course a request carries (specs/028 V5)', (
       await handler(runner).handle(inbound(absent));
     }
     expect(await storedCourse()).toBe('foundation');
-    expect(inputs.slice(1).map(input => input.contact?.course)).toEqual(
+    expect(inputs.slice(1).map(input => input.contact?.offering)).toEqual(
       Array(5).fill('foundation'),
     );
   });
@@ -161,8 +161,8 @@ describe('only a bound request stores its course (specs/028 V5, specs/019)', () 
     const unbound: InboundMessage = { ...inbound('advanced'), contactToken: null };
     await handler(runner).handle(unbound);
     expect(inputs[1]!.contact).toMatchObject({
-      course: 'advanced',
-      courseChangedFrom: 'foundation',
+      offering: 'advanced',
+      offeringChangedFrom: 'foundation',
     });
     expect(await storedCourse()).toBe('foundation');
   });
@@ -172,21 +172,21 @@ describe('a stored course the catalog no longer has is no course (specs/028 V5)'
   it('ignores it on a turn, and replaces it from the next request', async () => {
     const { runner, inputs } = courseRunner();
     await handler(runner).handle(inbound(null));
-    await db.update(conversations).set({ course: 'retired-course' });
+    await db.update(conversations).set({ offering: 'retired-course' });
 
     await handler(runner).handle(inbound(null));
-    expect(inputs[1]!.contact?.course).toBeUndefined();
+    expect(inputs[1]!.contact?.offering).toBeUndefined();
 
     await handler(runner).handle(inbound('advanced'));
-    expect(inputs[2]!.contact).toMatchObject({ course: 'advanced' });
-    expect(inputs[2]!.contact?.courseChangedFrom).toBeUndefined();
+    expect(inputs[2]!.contact).toMatchObject({ offering: 'advanced' });
+    expect(inputs[2]!.contact?.offeringChangedFrom).toBeUndefined();
     expect(await storedCourse()).toBe('advanced');
   });
 });
 
 describe('the conversation keeps a course this service wrote (specs/028 V5)', () => {
   it('inline: records the course once the write is performed', async () => {
-    const out = await handler(courseRunner({ course: 'advanced' }).runner).handle(inbound(null));
+    const out = await handler(courseRunner({ offering: 'advanced' }).runner).handle(inbound(null));
     expect(await storedCourse()).toBeNull();
     await out.afterResponse!();
     expect(await storedCourse()).toBe('advanced');
@@ -195,7 +195,7 @@ describe('the conversation keeps a course this service wrote (specs/028 V5)', ()
   it('inline: records nothing when ManyChat refuses the write', async () => {
     const actions = new FakeActions();
     actions.failing = true;
-    const out = await handler(courseRunner({ course: 'advanced' }).runner, actions).handle(
+    const out = await handler(courseRunner({ offering: 'advanced' }).runner, actions).handle(
       inbound('foundation'),
     );
     await out.afterResponse!();
@@ -204,7 +204,7 @@ describe('the conversation keeps a course this service wrote (specs/028 V5)', ()
 
   it('deferred: records the course once the outbox worker performs the write', async () => {
     const out = await handler(
-      courseRunner({ course: 'weekend-intensive', delayMs: 400 }).runner,
+      courseRunner({ offering: 'weekend-intensive', delayMs: 400 }).runner,
     ).handle(inbound(null));
     expect(out.outcome).toBe('deferred');
     // The reply row, not the contact token issued to this new contact.
@@ -226,7 +226,7 @@ describe('the conversation keeps a course this service wrote (specs/028 V5)', ()
   });
 
   it('lets the next request win over a course this service wrote', async () => {
-    const out = await handler(courseRunner({ course: 'advanced' }).runner).handle(inbound(null));
+    const out = await handler(courseRunner({ offering: 'advanced' }).runner).handle(inbound(null));
     await out.afterResponse!();
     expect(await storedCourse()).toBe('advanced');
 
@@ -234,7 +234,7 @@ describe('the conversation keeps a course this service wrote (specs/028 V5)', ()
     // so a different one there is newer than the row.
     const { runner, inputs } = courseRunner();
     await handler(runner).handle(inbound('foundation'));
-    expect(inputs[0]!.contact?.course).toBe('foundation');
+    expect(inputs[0]!.contact?.offering).toBe('foundation');
     expect(await storedCourse()).toBe('foundation');
   });
 });
@@ -256,7 +256,7 @@ describe('a nudge turn uses the stored course (specs/028 V5)', () => {
       text: 'when are the classes?',
       createdAt: wroteAt,
     });
-    await store.setCourse(conversation.id, stored);
+    await store.setOffering(conversation.id, stored);
     await new NudgeStore(db).schedule(conversation.id, 119, wroteAt);
 
     const { runner, inputs } = courseRunner();
@@ -272,6 +272,6 @@ describe('a nudge turn uses the stored course (specs/028 V5)', () => {
     });
     expect(await nudgeWorker.drainOnce()).toEqual(['sent']);
     expect(inputs[0]!.nudge).toBeDefined();
-    expect(inputs[0]!.contact?.course).toBe(expected);
+    expect(inputs[0]!.contact?.offering).toBe(expected);
   });
 });

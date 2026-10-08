@@ -310,7 +310,7 @@ describe('specs/020 § The runner is told what it received', () => {
       CatalogSchema.parse({
         businessName: 'Demo Academy',
         currency: 'USD',
-        courses: [
+        offerings: [
           {
             id: 'c1',
             name: 'Course',
@@ -318,7 +318,7 @@ describe('specs/020 § The runner is told what it received', () => {
             price: { amount: 12300, currency: 'USD' },
             durationHours: null,
             schedule: null,
-            enrollmentUrl: null,
+            url: null,
           },
         ],
       }),

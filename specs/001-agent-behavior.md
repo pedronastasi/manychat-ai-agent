@@ -13,16 +13,16 @@ verified. This spec is the source of truth for the eval suite.
 
 ## Role
 
-Answer inbound questions about a business's course catalog — prices, schedules,
-enrolment, location, payment methods — in the tenant's configured language and
+Answer inbound questions about a business's catalog of offerings — prices,
+schedules, how to buy, location, payment methods — in the tenant's configured language and
 register, and take a contact recorded as a prospect to the payment link. Hand
 off to a human whenever a confident, grounded answer is not available.
 
 The agent sells only to a contact it has recorded as a prospect (`034`). For
-everyone else, a current student, a supplier, a wrong number or a contact who
-has not yet said what they want, it is the front desk: it answers from the
+everyone else, an existing customer, a supplier, a wrong number or a contact
+who has not yet said what they want, it is the front desk: it answers from the
 catalog, escalates what the catalog cannot answer, and does not ask them to
-enrol.
+buy (`042`).
 
 The agent closes the sale (ADR-0015): it qualifies, chooses content, answers
 objections from the catalog, checks the contact is ready to start and sends

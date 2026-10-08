@@ -13,7 +13,7 @@ export const INSIGHT_COMMANDS: Record<string, string> = {
   run: 'Run this week’s learning job now (--force for a second run)',
   review: 'Approve, edit, reject or retire playbook insights',
   activate: 'Put a playbook version live, once its eval shows no regression',
-  report: 'Enrolment rate by playbook version',
+  report: 'Conversion rate by playbook version',
 };
 
 /**
@@ -74,8 +74,8 @@ export async function runInsights(args: readonly string[]): Promise<number> {
         return 0;
       }
       console.log(`run ${'runId' in outcome ? outcome.runId : ''}: ${outcome.status}`);
-      if ('enrolled' in outcome && outcome.enrolled !== undefined) {
-        console.log(`  enrolled ${outcome.enrolled}, not enrolled ${outcome.notEnrolled ?? 0}`);
+      if ('converted' in outcome && outcome.converted !== undefined) {
+        console.log(`  converted ${outcome.converted}, not converted ${outcome.notConverted ?? 0}`);
       }
       return outcome.status === 'failed' ? 1 : 0;
     }

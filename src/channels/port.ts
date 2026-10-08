@@ -9,8 +9,8 @@ export interface RenderContext {
   callbackTimeoutSeconds?: number | undefined;
   /** The contact field the channel fills into the callback as `ai_token` (specs/019). */
   contactTokenField?: string | undefined;
-  /** The contact field the channel fills into the callback as `course` (specs/028). */
-  courseField?: string | undefined;
+  /** The contact field the channel fills into the callback as `offering` (specs/028). */
+  offeringField?: string | undefined;
   /**
    * Renders no message, only the callback: a flow sent this turn is still
    * playing and the reply follows it from the outbox (specs/030).

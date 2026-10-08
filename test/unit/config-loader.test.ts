@@ -28,7 +28,7 @@ describe('loadTenantConfig', () => {
   it('loads a valid tenant', () => {
     const cfg = loadTenantConfig(dir);
     expect(cfg.persona.length).toBeGreaterThan(0);
-    expect(cfg.catalog.courses.length).toBeGreaterThan(0);
+    expect(cfg.catalog.offerings.length).toBeGreaterThan(0);
     expect(cfg.rules.confidenceThreshold).toBeGreaterThan(0);
   });
 
@@ -56,9 +56,9 @@ describe('loadTenantConfig', () => {
   it('rejects a catalog that violates the schema, naming the field', () => {
     writeFileSync(
       join(dir, 'catalog.json'),
-      JSON.stringify({ businessName: 'X', currency: 'ARS', courses: [] }),
+      JSON.stringify({ businessName: 'X', currency: 'ARS', offerings: [] }),
     );
-    expect(() => loadTenantConfig(dir)).toThrow(/courses/);
+    expect(() => loadTenantConfig(dir)).toThrow(/offerings/);
   });
 
   it('rejects a price that is not an integer in minor units', () => {
@@ -66,7 +66,7 @@ describe('loadTenantConfig', () => {
     const bad = {
       businessName: 'X',
       currency: 'ARS',
-      courses: [
+      offerings: [
         {
           id: 'c',
           name: 'C',
@@ -74,7 +74,7 @@ describe('loadTenantConfig', () => {
           price: { amount: 450.5, currency: 'ARS' },
           durationHours: null,
           schedule: null,
-          enrollmentUrl: null,
+          url: null,
         },
       ],
       faq: [],
@@ -144,7 +144,7 @@ describe('ConfigStore reload', () => {
 
     expect(result.ok).toBe(false);
     expect(store.get()).toBe(good);
-    expect(store.get().catalog.courses.length).toBeGreaterThan(0);
+    expect(store.get().catalog.offerings.length).toBeGreaterThan(0);
   });
 
   it('keeps serving after a file is deleted underneath it', () => {

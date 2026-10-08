@@ -44,24 +44,25 @@ requires an intent field, and a funnel write is refused with `not_prospect`
 until the contact is recorded as a prospect. Its values are the stages, in
 order:
 
-| Stage        | Meaning                                                     |
-| ------------ | ----------------------------------------------------------- |
-| `new`        | The contact has replied; nothing is known about them yet    |
-| `qualifying` | The agent is asking what it needs to choose a course        |
-| `nurturing`  | The agent knows the fit and is sending content to build it  |
-| `offered`    | A course and its catalog price have been put to the contact |
-| `prepared`   | The contact was asked what they still need to start (`032`) |
-| `link_sent`  | The payment-link flow was performed                         |
+| Stage        | Meaning                                                        |
+| ------------ | -------------------------------------------------------------- |
+| `new`        | The contact has replied; nothing is known about them yet       |
+| `qualifying` | The agent is asking what it needs to choose an offering        |
+| `nurturing`  | The agent knows the fit and is sending content to build it     |
+| `offered`    | An offering and its catalog price have been put to the contact |
+| `prepared`   | The contact was asked what they still need to start (`032`)    |
+| `link_sent`  | The payment-link flow was performed                            |
 
-`enrolled` exists in the tenant's ManyChat account but is **not** in the
-agent's enum. Only a human who has seen the payment sets it.
+A conversion, the tag of `031`'s `convertedTag`, exists in the tenant's
+ManyChat account but is **not** in the agent's enum. Only a human who has seen
+the payment sets it (`042`).
 
 The stage only moves forward. A staged write to a stage earlier than the last
 one recorded as `performed` for this contact is refused with
 `{ staged: false }`, so a confused turn cannot send a lead back to
 `qualifying` after the offer. Only one field per `tools.json` may be marked
 `funnel`, and a marked field must list its values in funnel order; both are
-checked at load. A second marked field, `course`, may exist beside it (`028`);
+checked at load. A second marked field, `offering`, may exist beside it (`028`);
 one field may not be both.
 
 `link_sent` is never staged by the model. It is written by the server when the
@@ -81,8 +82,8 @@ Each `flows[]` entry is sent at most once per contact. A flow recorded as
 from `send_flow`'s enum, so a repeat is unrepresentable rather than
 discouraged. A flow marked `"repeatable": true`
 is exempt; the payment-link flow is the expected case. A flow that belongs to
-one course is also accepted only on a turn whose course is that course, and a
-course change does not bring back a flow already sent (`028`).
+one offering is also accepted only on a turn whose offering is that offering,
+and an offering change does not bring back a flow already sent (`028`).
 
 ## Qualify before sending content
 
@@ -103,7 +104,7 @@ A contact who asks for the link before qualifying gets the link.
 ## The agent asks for the sale, and never invents a reason to buy now
 
 Once the stage is `prepared`, the agent's closing question asks for the
-enrolment, plainly. That is the change ADR-0015 makes. At `offered` it asks
+purchase, plainly. That is the change ADR-0015 makes. At `offered` it asks
 what the contact still needs to start instead (`032 § Readiness comes between
 the offer and the link`).
 
@@ -148,7 +149,7 @@ per-turn cap. If the flow fails, the stage is not written. If the tenant
 configured a conversion event for `link_sent`, it follows the write in turn
 (`027 § The event follows the stage write it records`).
 
-After `link_sent` the agent's job is answering questions about the course and
+After `link_sent` the agent's job is answering questions about the offering and
 the link. A contact who says they have paid, or sends a receipt, is escalated
 with a new reason, `payment_reported`, added to `001`'s closed set: the agent
 cannot see the payment and must not confirm it.
@@ -167,10 +168,10 @@ tenant only (C1): no real course names, prices, flow names or flow ids.
 
 ## Success is measured twice
 
-| Measure        | Definition                                                                                         | Source                        |
-| -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Link-sent rate | Contacts whose payment-link flow was `performed`, over contacts with a first turn in the same week | `turns.actions`, this service |
-| Paid enrolment | Contacts the tenant tagged `enrolled`, over the same denominator                                   | The tenant's ManyChat account |
+| Measure         | Definition                                                                                         | Source                        |
+| --------------- | -------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Link-sent rate  | Contacts whose payment-link flow was `performed`, over contacts with a first turn in the same week | `turns.actions`, this service |
+| Paid conversion | Contacts the tenant tagged with `convertedTag`, over the same denominator                          | The tenant's ManyChat account |
 
 A third figure, the bypass rate, is reported beside them: payment links
 recorded with `contactAsked` over all payment links sent (`032`).
@@ -182,9 +183,9 @@ week's prospects. The link-sent rate above is still reported, so the series
 before and after `034` stays comparable.
 
 Link-sent rate is the leading indicator: this service can compute it, daily.
-Paid enrolment is the outcome, and this service cannot see it. They are
+Paid conversion is the outcome, and this service cannot see it. They are
 reported separately and never combined. A rising link-sent rate with a flat
-enrolment rate means the agent is asking too early (ADR-0015's revisit
+conversion rate means the agent is asking too early (ADR-0015's revisit
 trigger).
 
 **Baseline: not yet measured.** Before rollout, both rates are measured from
@@ -216,4 +217,4 @@ and only a person opening the flows can check it. The never-list cases catch
 the phrasings the golden set thought of; a real model will find others, and
 reading real conversations after rollout is the actual check. And link-sent
 rate can rise because the agent got better or because it got pushier. Only
-paid enrolment tells them apart, which is why both are measured.
+paid conversion tells them apart, which is why both are measured.

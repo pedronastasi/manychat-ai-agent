@@ -31,7 +31,7 @@ import { mockModel } from '../helpers/model.ts';
 const catalog = CatalogSchema.parse({
   businessName: 'Demo Academy',
   currency: 'ARS',
-  courses: [
+  offerings: [
     {
       id: 'c1',
       name: 'Foundation Course',
@@ -39,7 +39,7 @@ const catalog = CatalogSchema.parse({
       price: { amount: 4500000, currency: 'ARS' },
       durationHours: 20,
       schedule: 'Tuesdays 18h',
-      enrollmentUrl: 'https://example.com/c1',
+      url: 'https://example.com/c1',
     },
   ],
   faq: [{ question: 'Is there a certificate?', answer: 'Yes, on completion.' }],
@@ -607,7 +607,7 @@ describe('price grounding', () => {
     const tiered = CatalogSchema.parse({
       businessName: 'Demo Academy',
       currency: 'ARS',
-      courses: [
+      offerings: [
         {
           id: 'c2',
           name: 'Advanced Course',
@@ -615,7 +615,7 @@ describe('price grounding', () => {
           price: { amount: 6200000, currency: 'ARS' },
           durationHours: 12,
           schedule: 'Thursdays 19h',
-          enrollmentUrl: 'https://example.com/c2',
+          url: 'https://example.com/c2',
         },
       ],
       faq: [{ question: 'Any discount?', answer: 'Booking online brings it to $48.500.' }],

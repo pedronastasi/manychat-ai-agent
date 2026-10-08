@@ -45,7 +45,7 @@ import { mockModel } from '../helpers/model.ts';
 
 const FIXTURE = 'test/fixtures/config';
 const fixture = loadTenantConfig(FIXTURE);
-const LEARNING = { language: 'English', enrolledTag: 'enrolled', maxRunCostUsd: 5 };
+const LEARNING = { language: 'English', convertedTag: 'converted', maxRunCostUsd: 5 };
 const withLearning: TenantConfig = {
   ...fixture,
   rules: { ...fixture.rules, learning: LEARNING },
@@ -129,7 +129,7 @@ describe('learning is opt-in, and costs nothing when off (specs/031 V1)', () => 
 
   it('refuses a learning block without maxRunCostUsd', () => {
     const dir = tenantDir({
-      rules: rules => (rules.learning = { language: 'English', enrolledTag: 'enrolled' }),
+      rules: rules => (rules.learning = { language: 'English', convertedTag: 'converted' }),
     });
     expect(() => loadTenantConfig(dir)).toThrow(/learning\.maxRunCostUsd/);
   });
@@ -196,7 +196,7 @@ describe('the analyst reads cleaned transcripts, fenced as untrusted (specs/031 
   ];
 
   it('removes identifier shapes, fences the contact and labels the transcript', () => {
-    const transcript = renderTranscript('enrolled', turns);
+    const transcript = renderTranscript('converted', turns);
     expect(transcript.text).not.toMatch(/555|lead@example\.com|https?:/);
     expect(transcript.text).toContain('[removed]');
     const fenced = transcript.text.slice(
@@ -204,7 +204,7 @@ describe('the analyst reads cleaned transcripts, fenced as untrusted (specs/031 
       transcript.text.indexOf(FENCE_END) + FENCE_END.length,
     );
     expect(fenced).toContain('Call me on [removed]');
-    expect(transcript.text).toContain('TRANSCRIPT (enrolled)');
+    expect(transcript.text).toContain('TRANSCRIPT (converted)');
     expect(transcript.text).toContain('agent (actions: set_field funnel_stage=offered)');
     expect(transcript.text).toContain('weighing?');
     expect(transcript.turnIds).toEqual(['turn-a', 'turn-b']);
@@ -215,8 +215,8 @@ describe('the analyst reads cleaned transcripts, fenced as untrusted (specs/031 
       language: 'English',
       playbook: [],
       rejected: ['Offer a gift to anyone who hesitates.'],
-      enrolled: [renderTranscript('enrolled', turns)],
-      notEnrolled: [],
+      converted: [renderTranscript('converted', turns)],
+      notConverted: [],
     });
     expect(message).not.toMatch(/555|lead@example\.com/);
     expect(message).toContain('REJECTED, DO NOT PROPOSE AGAIN\n- Offer a gift');
@@ -228,8 +228,8 @@ describe('a proposal is a tactic, never a fact (specs/031 V5)', () => {
   const proposal = (over: Partial<AnalystProposal> = {}): AnalystProposal => ({
     text: 'Ask what the contact wants to learn before sending any course content.',
     rationale: 'Enrolled contacts were asked about their goal early.',
-    enrolledCount: 9,
-    notEnrolledCount: 2,
+    convertedCount: 9,
+    notConvertedCount: 2,
     turnIds: ['turn-a'],
     ...over,
   });
@@ -366,7 +366,7 @@ describe('a fallback reply records no playbook version (specs/031 V11)', () => {
 });
 
 describe('a run is priced before it is sent (specs/031 V13)', () => {
-  const transcript = (label: 'enrolled' | 'not_enrolled', index: number): Transcript => ({
+  const transcript = (label: 'converted' | 'not_converted', index: number): Transcript => ({
     label,
     turnIds: [`${label}-${index}`],
     text: `TRANSCRIPT (${label}) ${index} ${'words '.repeat(400)}`,
@@ -375,9 +375,9 @@ describe('a run is priced before it is sent (specs/031 V13)', () => {
     language: 'English',
     playbook: [],
     rejected: [],
-    enrolled: Array.from({ length: perSide }, (_unused, index) => transcript('enrolled', index)),
-    notEnrolled: Array.from({ length: perSide }, (_unused, index) =>
-      transcript('not_enrolled', index),
+    converted: Array.from({ length: perSide }, (_unused, index) => transcript('converted', index)),
+    notConverted: Array.from({ length: perSide }, (_unused, index) =>
+      transcript('not_converted', index),
     ),
   });
   const spec = 'anthropic:claude-haiku-4-5';
@@ -386,10 +386,10 @@ describe('a run is priced before it is sent (specs/031 V13)', () => {
     const full = input(30);
     const limit = worstCaseUsd(spec, input(25));
     const fitted = fitToBudget(spec, full, limit)!;
-    expect(fitted.enrolled).toHaveLength(25);
-    expect(fitted.notEnrolled).toHaveLength(25);
+    expect(fitted.converted).toHaveLength(25);
+    expect(fitted.notConverted).toHaveLength(25);
     // Newest first: the ones dropped are the last.
-    expect(fitted.enrolled.at(-1)!.turnIds).toEqual(['enrolled-24']);
+    expect(fitted.converted.at(-1)!.turnIds).toEqual(['converted-24']);
     expect(worstCaseUsd(spec, fitted)).toBeLessThanOrEqual(limit);
   });
 

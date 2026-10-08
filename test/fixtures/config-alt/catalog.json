@@ -1,7 +1,7 @@
 {
   "businessName": "Second Tenant Culinary School",
   "currency": "EUR",
-  "courses": [
+  "offerings": [
     {
       "id": "foundation",
       "name": "Knife Skills Fundamentals",
@@ -12,7 +12,7 @@
       },
       "durationHours": 24,
       "schedule": "Tuesdays and Thursdays, 6-9pm, for 4 weeks",
-      "enrollmentUrl": "https://example.com/enrol/foundation"
+      "url": "https://example.com/enrol/foundation"
     },
     {
       "id": "advanced",
@@ -24,7 +24,7 @@
       },
       "durationHours": 32,
       "schedule": "Saturdays, 10am-4pm, for 5 weeks",
-      "enrollmentUrl": "https://example.com/enrol/advanced"
+      "url": "https://example.com/enrol/advanced"
     },
     {
       "id": "weekend-intensive",
@@ -36,7 +36,7 @@
       },
       "durationHours": 12,
       "schedule": "One weekend a month, Saturday and Sunday 10am-4pm",
-      "enrollmentUrl": "https://example.com/enrol/weekend-intensive"
+      "url": "https://example.com/enrol/weekend-intensive"
     }
   ],
   "faq": [

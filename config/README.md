@@ -33,14 +33,14 @@ here plus `kill -HUP <pid>`, with no prompt editing and no deploy.
 | ------------------------------ | ---------------------- | ------------------------------------------------------- |
 | `businessName`                 | string                 | Interpolated into `prompt.md`                           |
 | `currency`                     | string                 | ISO 4217, e.g. `USD`, `ARS`                             |
-| `courses[]`                    | array (min 1)          | At least one course is required                         |
-| `courses[].id`                 | string                 | Unique identifier                                       |
-| `courses[].name`               | string                 | Display name                                            |
-| `courses[].description`        | string                 |                                                         |
-| `courses[].price`              | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
-| `courses[].durationHours`      | number \| null         |                                                         |
-| `courses[].schedule`           | string \| null         |                                                         |
-| `courses[].enrollmentUrl`      | URL \| null            |                                                         |
+| `offerings[]`                  | array (min 1)          | What you sell; at least one is required                 |
+| `offerings[].id`               | string                 | Unique identifier                                       |
+| `offerings[].name`             | string                 | Display name                                            |
+| `offerings[].description`      | string                 |                                                         |
+| `offerings[].price`            | `{ amount, currency }` | `amount` is in minor units (cents) to avoid float drift |
+| `offerings[].durationHours`    | number \| null         | Optional                                                |
+| `offerings[].schedule`         | string \| null         | Optional                                                |
+| `offerings[].url`              | URL \| null            | Optional                                                |
 | `faq[]`                        | array                  | Optional (defaults to `[]`)                             |
 | `faq[].question`               | string                 |                                                         |
 | `faq[].answer`                 | string                 |                                                         |
@@ -49,8 +49,8 @@ here plus `kill -HUP <pid>`, with no prompt editing and no deploy.
 | `paymentOptions[].description` | string                 | How the option works, in your contacts' language        |
 
 `paymentOptions` lists the ways to pay you offer: instalments, a deposit, a
-private-class rate. The agent presents one when a contact says the course is too
-expensive or asks to pay in parts. A request it does not cover, such as a
+private-class rate. The agent presents one when a contact says the price is too
+high or asks to pay in parts. A request it does not cover, such as a
 discount, still goes to a person (`specs/023-sales-funnel.md`).
 
 ## `rules.json`: behaviour and limits
@@ -171,10 +171,10 @@ takes a contact as a parameter.
 Four keys turn on the sales funnel of `specs/023-sales-funnel.md`:
 
 - **`intent: true`** on one field marks where the agent records whether the
-  contact means to enrol (`specs/034-intent-before-the-sale.md`). Its `values`
+  contact means to buy (`specs/034-intent-before-the-sale.md`). Its `values`
   must be exactly `not_prospect`, `prospect`, in that order, and the funnel
   needs it. Until the agent records `prospect`, it sends no flow, sets no other
-  field or tag and schedules no follow-up: a current student, a supplier or a
+  field or tag and schedules no follow-up: an existing customer, a supplier or a
   wrong number gets answers from the catalog and a person for the rest, never a
   sales pitch. `prospect` is final. A contact the funnel had already moved past
   `new` before you added the field counts as a prospect.
@@ -221,14 +221,14 @@ without them, "can I pay in parts?" goes to a person as `price_negotiation`.
 
 Most of this happens in your ManyChat account, not here:
 
-1. **Measure the baseline first.** Record your enrolment rate over the four
+1. **Measure the baseline first.** Record your conversion rate over the four
    weeks before rollout, and the dates it covers. Without it, nothing can show
    the funnel changed anything.
 2. **Create the intent and funnel fields** in ManyChat with the names you put
    in `field`, plus one field per qualification question. Create them before
    deploying: a `tools.json` with a funnel field and no intent field fails to
-   load. Use a name your own flows do not already write. Create an `enrolled` tag for the
-   person who confirms payments; the agent never sets it.
+   load. Use a name your own flows do not already write. Create a tag for the
+   person who confirms payments, such as `paid`; the agent never sets it.
 3. **Make each content flow a leaf.** Open every flow listed in `flows` and
    remove any step that starts another flow.
 4. **Retire the drip.** Change the entry flow so it hands the contact to the
@@ -243,10 +243,10 @@ Most of this happens in your ManyChat account, not here:
 
 Two rates, reported separately and never combined:
 
-| Measure        | Over contacts whose first turn fell in the week…      | Where it comes from   |
-| -------------- | ----------------------------------------------------- | --------------------- |
-| Link-sent rate | …whose payment-link flow was `performed`              | `turns.actions`, here |
-| Paid enrolment | …that a person tagged `enrolled` after seeing payment | Your ManyChat account |
+| Measure         | Over contacts whose first turn fell in the week…   | Where it comes from   |
+| --------------- | -------------------------------------------------- | --------------------- |
+| Link-sent rate  | …whose payment-link flow was `performed`           | `turns.actions`, here |
+| Paid conversion | …that a person tagged as paid after seeing payment | Your ManyChat account |
 
 Link-sent rate is the one this service can compute. Replace
 `enrolment_link` with your payment-link flow's `id`:
@@ -299,43 +299,44 @@ GROUP BY f.week ORDER BY f.week;
 A prospect share that falls while the number of contacts holds steady means
 the agent is reading leads as non-leads: read those conversations.
 
-A rising link-sent rate with a flat enrolment rate means the agent is asking
-too early, or too hard. Only the enrolment rate tells a better agent from a
+A rising link-sent rate with a flat conversion rate means the agent is asking
+too early, or too hard. Only the conversion rate tells a better agent from a
 pushier one, so read real conversations after rollout as well: the golden set
 only catches the pressure phrasings someone thought to write down.
 
-### Several courses in one funnel (optional)
+### Several offerings in one funnel (optional)
 
-To sell more than one catalog course through the same funnel, record the
-contact's course in a field and tie each course's content to it
+To sell more than one catalog offering through the same funnel, record the
+contact's offering in a field and tie each offering's content to it
 (`specs/028-multi-course-funnels.md`). Two keys turn it on:
 
-- **`course: true`** on one field marks where the contact's course is kept. Its
-  `values` must be exactly the `id`s of the courses in `catalog.json`, in any
-  order, and it may not be the funnel field.
-- **`course`** on a flow names the catalog course it belongs to. The agent can
-  send that flow only once the contact is on that course. A flow without a
-  `course` (an intro, testimonials, the payment link) is available for every
-  course.
+- **`offering: true`** on one field marks where the contact's offering is kept.
+  Its `values` must be exactly the `id`s of the offerings in `catalog.json`, in
+  any order, and it may not be the funnel field.
+- **`offering`** on a flow names the catalog offering it belongs to. The agent
+  can send that flow only once the contact is on that offering. A flow without
+  an `offering` (an intro, testimonials, the payment link) is available for
+  every offering.
 
-The agent places a contact who has no course yet, by asking or once the fit is
-clear, before it sends any course content. It may move them to another course
-until the stage is `offered`. From then on the course is locked, and a contact
-who asks to switch goes to a person as `explicit_request`. A flow the contact
-already received stays sent when the course changes.
+The agent places a contact who has no offering yet, by asking or once the fit
+is clear, before it sends any offering's content. It may move them to another
+offering until the stage is `offered`. From then on the offering is locked, and
+a contact who asks to switch goes to a person as `explicit_request`. A flow the
+contact already received stays sent when the offering changes.
 
 Most of the setup is in your ManyChat account:
 
-1. **Create the course field** with the name you put in `field`.
-2. **Send it to the agent.** Add `"course": "{{course}}"` to the Dynamic
+1. **Create the offering field** with the name you put in `field`.
+2. **Send it to the agent.** Add `"offering": "{{offering}}"` to the Dynamic
    Block's request body, using your field's name inside the braces. The agent
    adds the key to its own follow-up callbacks, but the Dynamic Block your entry
-   flow calls is configured by you.
+   flow calls is configured by you. A body that still sends `"course"` keeps
+   working; `offering` wins when both are sent (`specs/042`).
 3. **Set it in each advert's entry flow,** so a lead who comes from one
-   course's advert starts on that course. Without it the agent asks.
+   offering's advert starts on that offering. Without it the agent asks.
 4. **Branch the payment flow on it.** One payment-link flow serves every
-   course. It reads the course field and sends that course's link. Nothing here
-   can see that branch, so test it by hand for every course.
+   offering. It reads the offering field and sends that offering's link.
+   Nothing here can see that branch, so test it by hand for every offering.
 
 ### Reading the contact and writing notes (optional)
 
@@ -554,11 +555,12 @@ delivery:
 
 It is also refused if more than one field is marked `funnel`, if a funnel field's
 values are not the five stages in order, or if more than one flow has
-`role: "payment_link"`. With courses, it is refused if more than one field is
-marked `course`, if one field is marked both `funnel` and `course`, if the course
-field's values are not exactly the catalog's course ids, if a flow names a course
-the catalog does not have or has a `course` with no course field, or if the
-payment-link flow has a `course`. A note without `"neverRendered": true` or with a
+`role: "payment_link"`. With offerings, it is refused if more than one field is
+marked `offering`, if one field is marked both `funnel` and `offering`, if the
+offering field's values are not exactly the catalog's offering ids, if a flow
+names an offering the catalog does not have or has an `offering` with no
+offering field, or if the
+payment-link flow has an `offering`. A note without `"neverRendered": true` or with a
 `maxLength` over 500 is refused too, and so is a `nudge` delay over 1380
 minutes, or a `humanActiveTag` that is empty or is one of your `tags[].tag`.
 
@@ -697,13 +699,13 @@ the weekly routine are in `docs/guides/learning-from-outcomes.md`; the design is
 ```json
 "learning": {
   "language": "English",
-  "enrolledTag": "enrolled",
+  "convertedTag": "paid",
   "maxRunCostUsd": 5
 }
 ```
 
-- **`enrolledTag`**: the ManyChat tag your team sets on a contact once they
-  have paid. It is how the job knows who enrolled.
+- **`convertedTag`**: the ManyChat tag your team sets on a contact once they
+  have paid. It is how the job knows who converted.
 - **`language`**: what the proposals are written in: yours.
 - **`maxRunCostUsd`**: the most one weekly analyst call may cost. Required.
   It is never charged to the daily `budget`.
@@ -715,7 +717,7 @@ It needs a field marked `funnel` in `tools.json`, and `INSIGHT_MODEL` in
 pnpm insights:review                      # approve, edit, reject or retire
 PLAYBOOK_VERSION=<id> pnpm eval           # a real model, not eval:mock
 pnpm insights:activate <id>               # refused if a case newly fails
-pnpm insights:report                      # enrolment rate by version
+pnpm insights:report                      # conversion rate by version
 ```
 
 The first activation is compared against the prompt with no playbook, so run

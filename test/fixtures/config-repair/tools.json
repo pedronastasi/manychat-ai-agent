@@ -1,0 +1,46 @@
+{
+  "flows": [
+    {
+      "id": "before_the_visit",
+      "flowNs": "content00000000000000_000101",
+      "description": "A short checklist of what to have ready before a diagnostic visit. Send when the contact asks what happens at the visit or how to prepare.",
+      "offering": "diagnostic"
+    },
+    {
+      "id": "booking_payment",
+      "flowNs": "content00000000000000_000102",
+      "description": "The booking and payment link. Send when the contact asks for the link or says they want to book.",
+      "role": "payment_link",
+      "repeatable": true
+    }
+  ],
+  "fields": [
+    {
+      "id": "funnel_stage",
+      "field": "funnel_stage",
+      "values": ["new", "qualifying", "nurturing", "offered", "prepared", "link_sent"],
+      "description": "Where the sale stands with this contact.",
+      "funnel": true
+    },
+    {
+      "id": "appliance",
+      "field": "appliance",
+      "values": ["washer", "dishwasher", "oven", "fridge"],
+      "description": "Which appliance the contact needs looked at. Ask before offering anything."
+    },
+    {
+      "id": "service",
+      "field": "service",
+      "values": ["diagnostic", "repair", "maintenance-plan"],
+      "description": "What this contact is buying. Set it as soon as they choose, or the fit is clear.",
+      "offering": true
+    },
+    {
+      "id": "intent",
+      "field": "intent",
+      "values": ["not_prospect", "prospect"],
+      "description": "Whether the contact means to buy. Record prospect once they ask about a price, a booking time or how to pay; not_prospect if they write for something else.",
+      "intent": true
+    }
+  ]
+}

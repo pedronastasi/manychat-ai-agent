@@ -187,6 +187,13 @@ invents tenant values. When the new shape needs something only the tenant can
 supply, the migration leaves it out, so `agent config check` fails and names
 the field.
 
+A renamed eval case field is breaking in the same sense, and a tenant's suites
+live in its project beside `config/`. So `agent upgrade` also rewrites every
+`evals/<name>/cases.jsonl` under the working directory, and the one under
+`EVAL_DIR` when it is set elsewhere, with the same migrations (`042`). It
+cannot rely on `EVAL_DIR` alone: a project scaffolded by `035` sets it only
+inside its `eval` script.
+
 ## An urgent fix is a `pnpm patch` and an upstream pull request, together
 
 A fork could hotfix `src/` in production within minutes, and the existing one

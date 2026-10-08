@@ -22,7 +22,7 @@ const tools = ToolsSchema.parse({
       id: 'advanced_brochure',
       flowNs: 'content00000000000000_000003',
       description: 'The advanced brochure.',
-      course: 'advanced',
+      offering: 'advanced',
     },
   ],
   tags: [{ id: 'interested', tag: 'interested', description: 'Interested.' }],
@@ -32,7 +32,7 @@ const tools = ToolsSchema.parse({
       field: 'course',
       values: ['foundation', 'advanced'],
       description: 'The course.',
-      course: true,
+      offering: true,
     },
   ],
 });
@@ -49,7 +49,7 @@ class RecordingPerformer implements ActionPerformer {
 
 const logger = { warn: () => {} };
 const options = { toolCallId: 'test', messages: [], context: {} };
-const onCourse: ContactActions = { sentFlows: new Set(), course: 'foundation' };
+const onCourse: ContactActions = { sentFlows: new Set(), offering: 'foundation' };
 
 function turn() {
   const performer = new RecordingPerformer();

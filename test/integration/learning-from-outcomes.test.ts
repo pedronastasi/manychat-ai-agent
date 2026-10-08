@@ -45,7 +45,7 @@ const DAY = 86_400_000;
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * DAY);
 
 const fixture = loadTenantConfig('test/fixtures/config');
-const LEARNING = { language: 'English', enrolledTag: 'enrolled', maxRunCostUsd: 5 };
+const LEARNING = { language: 'English', convertedTag: 'converted', maxRunCostUsd: 5 };
 const tenant: TenantConfig = { ...fixture, rules: { ...fixture.rules, learning: LEARNING } };
 
 let db: Database;
@@ -96,13 +96,13 @@ async function seedContact(
   return id;
 }
 
-/** `count` offered, settled contacts, `enrolled` of them tagged. */
-async function seedCohort(count: number, enrolled: number, prefix = 'lead') {
+/** `count` offered, settled contacts, `converted` of them tagged. */
+async function seedCohort(count: number, converted: number, prefix = 'lead') {
   const tags = new Map<string, string[]>();
   for (let index = 0; index < count; index++) {
     const subscriber = `${prefix}-${index}`;
     await seedContact(subscriber, { offeredDays: 30, lastDays: 20 + (index % 5) });
-    tags.set(subscriber, index < enrolled ? ['enrolled'] : ['interested']);
+    tags.set(subscriber, index < converted ? ['converted'] : ['interested']);
   }
   return tags;
 }
@@ -149,21 +149,21 @@ function analystModel(
 }
 
 const TACTIC = 'Ask what the contact wants to learn before sending course content.';
-const RATIONALE = 'Enrolled contacts were asked about their goal before any offer.';
+const RATIONALE = 'Converted contacts were asked about their goal before any offer.';
 const goodAnswer = (ids: string[]) => ({
   proposals: [
     {
       text: TACTIC,
       rationale: RATIONALE,
-      enrolledCount: 12,
-      notEnrolledCount: 3,
+      convertedCount: 12,
+      notConvertedCount: 3,
       turnIds: ids.slice(0, 2),
     },
     {
       text: 'Quote the price, 120, first.',
       rationale: 'Fast.',
-      enrolledCount: 1,
-      notEnrolledCount: 0,
+      convertedCount: 1,
+      notConvertedCount: 0,
       turnIds: [],
     },
   ],
@@ -205,15 +205,15 @@ describe('the cohort is contacts who were offered, given time to pay (specs/031 
     const reader = new FakeTagReader(tags);
     const outcome = await job(reader, analystModel(goodAnswer).model).run(NOW);
     expect(new Set(reader.reads)).toEqual(new Set(tags.keys()));
-    expect(outcome).toMatchObject({ status: 'insufficient', enrolled: 20, notEnrolled: 0 });
+    expect(outcome).toMatchObject({ status: 'insufficient', converted: 20, notConverted: 0 });
   });
 
-  it('drops a contact whose read fails, rather than labelling it not enrolled', async () => {
+  it('drops a contact whose read fails, rather than labelling it not converted', async () => {
     const tags = await seedCohort(41, 20);
     const reader = new FakeTagReader(tags, new Set(['lead-40']));
     const { model, calls } = analystModel(goodAnswer);
     const outcome = await job(reader, model).run(NOW);
-    expect(outcome).toMatchObject({ status: 'completed', enrolled: 20, notEnrolled: 20 });
+    expect(outcome).toMatchObject({ status: 'completed', converted: 20, notConverted: 20 });
     expect(calls).toHaveLength(1);
   });
 
@@ -221,10 +221,14 @@ describe('the cohort is contacts who were offered, given time to pay (specs/031 
     const tags = await seedCohort(39, 19);
     const { model, calls } = analystModel(goodAnswer);
     const outcome = await job(new FakeTagReader(tags), model).run(NOW);
-    expect(outcome).toMatchObject({ status: 'insufficient', enrolled: 19, notEnrolled: 20 });
+    expect(outcome).toMatchObject({ status: 'insufficient', converted: 19, notConverted: 20 });
     expect(calls).toHaveLength(0);
     const [run] = await db.select().from(learningRuns);
-    expect(run).toMatchObject({ status: 'insufficient', enrolledCount: 19, notEnrolledCount: 20 });
+    expect(run).toMatchObject({
+      status: 'insufficient',
+      convertedCount: 19,
+      notConvertedCount: 20,
+    });
   });
 
   it('does not run without INSIGHT_MODEL or a learning block', async () => {
@@ -305,22 +309,22 @@ describe('only an approved, active version reaches a prompt (specs/031 V7)', () 
         {
           text: TACTIC,
           rationale: RATIONALE,
-          enrolledCount: 9,
-          notEnrolledCount: 2,
+          convertedCount: 9,
+          notConvertedCount: 2,
           turnIds: ids.slice(0, 1),
         },
         {
           text: 'Send the brochure only after a question.',
           rationale: RATIONALE,
-          enrolledCount: 4,
-          notEnrolledCount: 1,
+          convertedCount: 4,
+          notConvertedCount: 1,
           turnIds: [],
         },
         {
           text: 'Offer the call back before the link.',
           rationale: RATIONALE,
-          enrolledCount: 3,
-          notEnrolledCount: 2,
+          convertedCount: 3,
+          notConvertedCount: 2,
           turnIds: [],
         },
       ],
@@ -374,7 +378,7 @@ describe('only an approved, active version reaches a prompt (specs/031 V7)', () 
       .values({ tenantId: TENANT, week: '2026-W41' })
       .returning();
     await store.addProposals(TENANT, run!.id, [
-      { text: TACTIC, rationale: RATIONALE, enrolledCount: 1, notEnrolledCount: 0, turnIds: [] },
+      { text: TACTIC, rationale: RATIONALE, convertedCount: 1, notConvertedCount: 0, turnIds: [] },
     ]);
     const [pending] = await store.pendingProposals(TENANT);
     await expect(store.approve(TENANT, pending!.id, 'Say it costs 99.')).rejects.toThrow(
@@ -407,15 +411,15 @@ describe('insights:review and insights:activate (specs/031 V7, V8)', () => {
         {
           text: TACTIC,
           rationale: RATIONALE,
-          enrolledCount: 9,
-          notEnrolledCount: 2,
+          convertedCount: 9,
+          notConvertedCount: 2,
           turnIds: ids.slice(0, 1),
         },
         {
           text: 'Send the brochure only after a question.',
           rationale: RATIONALE,
-          enrolledCount: 4,
-          notEnrolledCount: 1,
+          convertedCount: 4,
+          notConvertedCount: 1,
           turnIds: [],
         },
       ],
@@ -494,18 +498,18 @@ describe('every agent turn records its playbook version (specs/031 V11)', () => 
     expect(rows.map(row => row.version)).toEqual(['version-9', null]);
   });
 
-  it('reports the enrolment rate per version a contact was first offered under', async () => {
+  it('reports the conversion rate per version a contact was first offered under', async () => {
     const tags = await seedCohort(4, 1);
     await db.execute(sql`update turns set playbook_version = 'version-9' where role = 'agent'`);
     await seedContact('before-playbook', { offeredDays: 40, lastDays: 30 });
-    tags.set('before-playbook', ['enrolled']);
+    tags.set('before-playbook', ['converted']);
     const rates = await report(db, TENANT, tenant, new FakeTagReader(tags), NOW, () =>
       Promise.resolve(),
     );
     expect(rates).toEqual(
       expect.arrayContaining([
-        { version: 'version-9', contacts: 4, enrolled: 1 },
-        { version: null, contacts: 1, enrolled: 1 },
+        { version: 'version-9', contacts: 4, converted: 1 },
+        { version: null, contacts: 1, converted: 1 },
       ]),
     );
   });

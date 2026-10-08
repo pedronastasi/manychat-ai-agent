@@ -208,7 +208,7 @@ describe('a turn stages at most eight actions (specs/024 V4)', () => {
     const built = buildTools(
       tools,
       stage,
-      asProspect({ sentFlows: new Set(), course: 'foundation' }),
+      asProspect({ sentFlows: new Set(), offering: 'foundation' }),
     )!;
     const calls: [string, Record<string, string>][] = [
       ['send_flow', { flow: 'foundation_brochure' }],

@@ -245,9 +245,9 @@ export function openingFlow(config: Tools) {
   return config.flows.find(flow => flow.role === 'opening');
 }
 
-/** The field the contact's course is kept in, if the tenant marked one (specs/028). */
-export function courseField(config: Tools) {
-  return config.fields.find(field => field.course);
+/** The field the contact's offering is kept in, if the tenant marked one (specs/028). */
+export function offeringField(config: Tools) {
+  return config.fields.find(field => field.offering);
 }
 
 /** The field the contact's intent is kept in, if the tenant marked one (specs/034). */
@@ -269,17 +269,18 @@ export function stagesProspect(stage: ActionStage, config: Tools): boolean {
 }
 
 /**
- * The course a request presented, if it is one: a value of the course field.
- * Empty, unrendered (`{{course}}`) or unknown is no course at all, never a
- * guess (specs/028 § The server learns the course from the inbound request).
+ * The offering a request presented, if it is one: a value of the offering
+ * field. Empty, unrendered (`{{offering}}`) or unknown is no offering at all,
+ * never a guess (specs/028 § The server learns the offering from the inbound
+ * request).
  */
-export function knownCourse(raw: string | null | undefined, config: Tools): string | undefined {
+export function knownOffering(raw: string | null | undefined, config: Tools): string | undefined {
   const value = raw?.trim();
-  return value && courseField(config)?.values.includes(value) ? value : undefined;
+  return value && offeringField(config)?.values.includes(value) ? value : undefined;
 }
 
-/** The first stage from which the course is locked (specs/028). */
-const COURSE_LOCKED_FROM = 'offered';
+/** The first stage from which the offering is locked (specs/028). */
+const OFFERING_LOCKED_FROM = 'offered';
 
 /** A stage's place in the sale; -1 for anything that is not a stage. */
 const stageIndex = (value: string | undefined) =>
@@ -313,12 +314,12 @@ export interface ContactActions {
   /** The funnel stage last recorded as performed for the contact, if any. */
   funnelStage?: string | undefined;
   /**
-   * The contact's course as the turn starts: the request's, or else the one
-   * the conversation keeps (specs/028). Not read from the actions.
+   * The contact's offering as the turn starts: the request's, or else the
+   * one the conversation keeps (specs/028). Not read from the actions.
    */
-  course?: string | undefined;
-  /** The course the conversation held before the request changed it, if it did. */
-  courseChangedFrom?: string | undefined;
+  offering?: string | undefined;
+  /** The offering the conversation held before the request changed it, if it did. */
+  offeringChangedFrom?: string | undefined;
   /**
    * The contact's intent as the server knows it: the last performed write,
    * or `prospect` by the rollout rule. Absent is unknown (specs/034).
@@ -336,11 +337,11 @@ export interface ContactActions {
    */
   openingDue?: boolean | undefined;
   /**
-   * The course a bound request stored and the agent did not write: the
+   * The offering a bound request stored and the agent did not write: the
    * contact arrived through its advert (specs/034 § What counts as prospect
    * intent).
    */
-  advertCourse?: string | undefined;
+  advertOffering?: string | undefined;
 }
 
 export const NO_CONTACT_ACTIONS: ContactActions = { sentFlows: new Set() };
@@ -403,14 +404,14 @@ const catalogOf = (
   entries: {
     id: string;
     description: string;
-    course?: string | undefined;
+    offering?: string | undefined;
     onStage?: string | undefined;
   }[],
 ) =>
   entries
     .map(entry => {
       const notes = [
-        entry.course === undefined ? null : `course ${entry.course}`,
+        entry.offering === undefined ? null : `offering ${entry.offering}`,
         entry.onStage === undefined ? null : `sent by the system when you record ${entry.onStage}`,
       ].filter(Boolean);
       return `- ${entry.id}${notes.length > 0 ? ` (${notes.join('; ')})` : ''}: ${entry.description}`;
@@ -512,19 +513,20 @@ export function buildTools(
   }
 
   /**
-   * The turn's course: one staged on the course field earlier in this turn,
-   * or else the contact's (specs/028 § A flow belongs to one course or to all).
+   * The turn's offering: one staged on the offering field earlier in this
+   * turn, or else the contact's (specs/028 § A flow belongs to one offering or
+   * to all).
    */
-  const course = courseField(config);
-  const turnCourse = () => {
+  const offering = offeringField(config);
+  const turnOffering = () => {
     const staged = stage.staged.findLast(
       (action): action is Extract<StagedAction, { tool: 'set_field' }> =>
-        action.tool === 'set_field' && action.course === true,
+        action.tool === 'set_field' && action.offering === true,
     );
-    return staged?.value ?? contact.course;
+    return staged?.value ?? contact.offering;
   };
-  const fits = (flow: { course?: string | undefined }, current: string | undefined) =>
-    flow.course === undefined || flow.course === current;
+  const fits = (flow: { offering?: string | undefined }, current: string | undefined) =>
+    flow.offering === undefined || flow.offering === current;
 
   /**
    * The earliest stage a write may name: the last one performed for this
@@ -564,7 +566,7 @@ export function buildTools(
 
   // A flow already sent to this contact is not offered again, so a repeat is
   // unrepresentable rather than discouraged (specs/023 § Every content flow
-  // is a leaf, sent once). A course change does not bring one back (specs/028).
+  // is a leaf, sent once). An offering change does not bring one back (specs/028).
   // The opening flow is the server's to send, never the model's (specs/032).
   const unsent = config.flows.filter(
     flow => flow.role !== 'opening' && (flow.repeatable || !contact.sentFlows.has(flow.id)),
@@ -572,18 +574,18 @@ export function buildTools(
   if (unsent.length > 0) {
     const flows = new Map(unsent.map(flow => [flow.id, flow]));
     // The enum holds every unsent flow, so one the agent makes available by
-    // setting the course this turn can still be named; the description lists
+    // setting the offering this turn can still be named; the description lists
     // only those it can accept now.
-    const available = unsent.filter(flow => fits(flow, turnCourse()));
-    // With a course known, an empty list means its content was all sent: told
-    // to set the course, the model could switch it just to have something to
+    const available = unsent.filter(flow => fits(flow, turnOffering()));
+    // With an offering known, an empty list means its content was all sent:
+    // told to set the offering, the model could switch it just to have something to
     // send, or try a write the lock refuses.
     const listing =
       available.length > 0
         ? catalogOf(available)
-        : turnCourse() === undefined
-          ? 'None yet: record the contact’s course with set_field first.'
-          : 'None: everything for this contact’s course has been sent.';
+        : turnOffering() === undefined
+          ? 'None yet: record the contact’s offering with set_field first.'
+          : 'None: everything for this contact’s offering has been sent.';
     const sends = options.flows;
     // The payment link waits for readiness unless the contact asked to pay
     // (specs/032 § The payment link waits for readiness).
@@ -599,8 +601,8 @@ export function buildTools(
         if (closed()) return sends ? { sent: false, reason: 'not_prospect' } : NOT_PROSPECT;
         const { flow } = input;
         const entry = flows.get(flow)!;
-        // Another course's content is refused, whatever the model names.
-        if (!fits(entry, turnCourse())) return sends ? { sent: false } : { staged: false };
+        // Another offering's content is refused, whatever the model names.
+        if (!fits(entry, turnOffering())) return sends ? { sent: false } : { staged: false };
         // Recorded only when it opened the gate, so the bypass rate counts
         // bypasses, not every claim the model makes (specs/032).
         const asked =
@@ -642,7 +644,7 @@ export function buildTools(
         };
         if (!sends) return { staged: stage.stage(action) };
         // The opening goes first on the prospect turn (specs/034). A payment
-        // link is counted at link_sent before the await, so a funnel or course
+        // link is counted at link_sent before the await, so a funnel or offering
         // write made beside it is refused rather than landing after it (specs/029).
         const link = entry.role === 'payment_link' && funnel !== undefined;
         if (link) linkStarting += 1;
@@ -702,13 +704,13 @@ export function buildTools(
     /**
      * The flow tied to a stage the model just moved the contact to, sent as a
      * flow the model calls is (specs/032 § A stage move can carry a flow):
-     * once per contact, only for the turn's course, and only for the stage
+     * once per contact, only for the turn's offering, and only for the stage
      * written, never one skipped.
      */
     const overCap = (id: string) => ({ flowDropped: id, reason: 'over the per-turn limit' });
     const sendTied = async (value: string) => {
       const tied = config.flows.find(flow => flow.onStage === value);
-      if (!tied || !fits(tied, turnCourse())) return {};
+      if (!tied || !fits(tied, turnOffering())) return {};
       if (!tied.repeatable && contact.sentFlows.has(tied.id)) return {};
       if (stage.sent.some(sent => sent.action.tool === 'send_flow' && sent.action.id === tied.id)) {
         return {};
@@ -771,7 +773,7 @@ export function buildTools(
         // agent moves).
         const floor = stageFloor();
         if (field === funnel?.id && stageIndex(value) < floor) return { staged: false };
-        if (field !== course?.id) {
+        if (field !== offering?.id) {
           // The server's measurement of the write, never the model's choice
           // (specs/027 § An event is a measurement).
           const event = field === funnel?.id ? eventFor(config, contact, value) : undefined;
@@ -785,21 +787,21 @@ export function buildTools(
           const moved = field === funnel?.id && staged && stageIndex(value) > floor;
           return moved ? { staged, ...(await sendTied(value)) } : { staged };
         }
-        // Once a course and its price have been put to the contact, a person
-        // decides a switch (specs/028 § The course may change until the offer).
-        if (stageFloor() >= stageIndex(COURSE_LOCKED_FROM)) return { staged: false };
-        const before = turnCourse();
+        // Once an offering and its price have been put to the contact, a person
+        // decides a switch (specs/028 § The offering may change until the offer).
+        if (stageFloor() >= stageIndex(OFFERING_LOCKED_FROM)) return { staged: false };
+        const before = turnOffering();
         const staged = stage.stage({
           tool: 'set_field',
           id: field,
           field: fields.get(field)!.field,
           value,
-          course: true,
+          offering: true,
         });
         if (!staged) return { staged };
         // Available in the same turn, and said so, since the send_flow
-        // description was written before the course was known.
-        const opened = unsent.filter(flow => flow.course === value && !fits(flow, before));
+        // description was written before the offering was known.
+        const opened = unsent.filter(flow => flow.offering === value && !fits(flow, before));
         return {
           staged,
           flowsAvailable: opened.map(flow => ({ flow: flow.id, description: flow.description })),

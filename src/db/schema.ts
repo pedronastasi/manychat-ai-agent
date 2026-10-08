@@ -43,11 +43,12 @@ export const conversations = pgTable(
     /** Counts issues, so a retried write can tell whether a newer token superseded it. */
     tokenGeneration: integer('token_generation').notNull().default(0),
     /**
-     * The course this contact is buying, a catalog course id: the latest a
-     * request carried, or a write to the course field this service performed
-     * (specs/028). A nudge turn, which has no request, reads it from here.
+     * The offering this contact is buying, a catalog offering id: the latest
+     * a request carried, or a write to the offering field this service
+     * performed (specs/028). A nudge turn, which has no request, reads it
+     * from here.
      */
-    course: text('course'),
+    offering: text('offering'),
     /**
      * When the opening flow was claimed for this contact: set once, by the one
      * turn that sends it, so concurrent first messages send it once (specs/032).
@@ -242,8 +243,8 @@ export const learningRuns = pgTable(
     })
       .notNull()
       .default('running'),
-    enrolledCount: integer('enrolled_count'),
-    notEnrolledCount: integer('not_enrolled_count'),
+    convertedCount: integer('converted_count'),
+    notConvertedCount: integer('not_converted_count'),
     /** The analyst call's cost, never added to `budget_counters`. */
     costUsd: numeric('cost_usd', { precision: 12, scale: 6 }),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
@@ -270,8 +271,8 @@ export const insightProposals = pgTable(
       .references(() => learningRuns.id, { onDelete: 'cascade' }),
     text: text('text').notNull(),
     rationale: text('rationale').notNull(),
-    enrolledCount: integer('enrolled_count').notNull(),
-    notEnrolledCount: integer('not_enrolled_count').notNull(),
+    convertedCount: integer('converted_count').notNull(),
+    notConvertedCount: integer('not_converted_count').notNull(),
     turnIds: jsonb('turn_ids').$type<string[]>().notNull(),
     status: text('status', { enum: ['pending', 'approved', 'rejected'] })
       .notNull()

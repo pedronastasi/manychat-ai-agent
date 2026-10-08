@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-08
+pr: 205
 constitution: [C1, C8, C9]
 adr: [0015]
 ---
@@ -120,7 +122,10 @@ the offering locked from `offered` on. One offering per contact at a time
 stays the rule.
 
 `conversations.course` is renamed `conversations.offering` by a migration that
-keeps every stored value.
+keeps every stored value. A staged `set_field` on the offering field carries
+`offering: true` in place of `course: true`; an outbox row staged before the
+release and performed after it records no offering on the conversation, and
+the next request carries it from ManyChat.
 
 ## The request carries `offering`, and still accepts `course`
 

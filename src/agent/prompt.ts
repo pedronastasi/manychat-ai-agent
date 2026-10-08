@@ -5,7 +5,7 @@ import { MAX_MESSAGES_PER_REPLY } from '../contracts/agent.ts';
 import type { ActionRecord, StagedAction } from '../contracts/agent.ts';
 import {
   MAX_ACTIONS_PER_TURN,
-  courseField,
+  offeringField,
   describeAction,
   funnelField,
   intentField,
@@ -28,17 +28,19 @@ function formatMoney(amount: number, currency: string): string {
 }
 
 function renderCatalog(catalog: Catalog): string {
-  const courses = catalog.courses
-    .map(course => {
+  const offerings = catalog.offerings
+    .map(offering => {
       const parts = [
-        `- id: ${course.id}`,
-        `  name: ${course.name}`,
-        `  price: ${formatMoney(course.price.amount, course.price.currency)}`,
+        `- id: ${offering.id}`,
+        `  name: ${offering.name}`,
+        `  price: ${formatMoney(offering.price.amount, offering.price.currency)}`,
       ];
-      if (course.description) parts.push(`  description: ${course.description}`);
-      if (course.durationHours != null) parts.push(`  duration_hours: ${course.durationHours}`);
-      if (course.schedule) parts.push(`  schedule: ${course.schedule}`);
-      if (course.enrollmentUrl) parts.push(`  enrolment_url: ${course.enrollmentUrl}`);
+      if (offering.description) parts.push(`  description: ${offering.description}`);
+      if (offering.durationHours != null) {
+        parts.push(`  duration_hours: ${offering.durationHours}`);
+      }
+      if (offering.schedule) parts.push(`  schedule: ${offering.schedule}`);
+      if (offering.url) parts.push(`  url: ${offering.url}`);
       return parts.join('\n');
     })
     .join('\n');
@@ -55,7 +57,7 @@ function renderCatalog(catalog: Catalog): string {
 
   return [
     `CATALOG (${catalog.businessName})`,
-    courses,
+    offerings,
     faq && `\nFREQUENTLY ASKED\n${faq}`,
     paymentOptions && `\nPAYMENT OPTIONS\n${paymentOptions}`,
   ]
@@ -148,7 +150,7 @@ export function buildSystemPrompt(
     ...(options.pluginReadTools ? PLUGIN_READ_LINES : []),
     ...intentSection(tools),
     ...salesSection(tools),
-    ...coursesSection(tools),
+    ...offeringsSection(tools),
     ...(tools.nudge ? FOLLOW_UP_SECTION : []),
   ].join('\n');
 
@@ -232,9 +234,11 @@ export function nudgeNotice(since: Date): string {
 export { NUDGE_NOTE_OPEN };
 
 /**
- * How the model learns whether the contact means to enrol, and what it does
+ * How the model learns whether the contact means to buy, and what it does
  * until it knows (specs/034). Only present when the tenant marks an intent
- * field. System instructions in English, the same for every tenant (C9).
+ * field. System instructions in English, the same for every tenant (C9), in
+ * words no vertical owns (specs/042): what is sold, and what it is called,
+ * the CATALOG and the persona say.
  */
 function intentSection(tools: Tools): string[] {
   const intent = intentField(tools);
@@ -243,28 +247,28 @@ function intentSection(tools: Tools): string[] {
   return [
     '',
     'INTENT',
-    'Not everyone who writes means to enrol: students, former students, suppliers and',
-    `job seekers write to this number too. The field ${intent.id} records which this contact is:`,
-    '- prospect: they mean to enrol, or are weighing it',
-    '- not_prospect: they wrote for something other than enrolling',
+    'Not everyone who writes means to buy: existing customers, suppliers and job seekers',
+    `write to this number too. The field ${intent.id} records which this contact is:`,
+    '- prospect: they mean to buy, or are weighing it',
+    '- not_prospect: they wrote for something other than buying',
     'With nothing recorded, their intent is unknown. The INTENT note beside the message says',
     'which this contact is.',
     'Record prospect with set_field when the contact:',
-    "- asks about enrolling, or about a course's price, dates, modalities, duration or requirements;",
-    '- says they want to learn what a course teaches, or asks which course suits them;',
+    "- asks about buying, or about an offering's price, dates, options, duration or requirements;",
+    '- says they want what an offering provides, or asks which offering suits them;',
     '- asks for the payment link or how to pay;',
-    "- arrived through a course's advert, which the INTENT note says.",
-    'Record not_prospect when they say they are already enrolled or a former student, offer a',
-    'product or service, ask for work, or wrote to the wrong number.',
+    "- arrived through an offering's advert, which the INTENT note says.",
+    'Record not_prospect when they say they are an existing customer writing about what they',
+    'already bought, offer a product or service, ask for work, or wrote to the wrong number.',
     'Otherwise record nothing. A bare greeting is unknown: greet them, ask how you can help,',
     'and offer nothing for sale. Unknown intent is not low confidence: ask.',
-    'prospect is final. not_prospect is not: a contact who later asks to enrol is a prospect',
+    'prospect is final. not_prospect is not: a contact who later asks to buy is a prospect',
     'from that turn, so record it then.',
     `Until the contact is a prospect, every tool except set_field on ${intent.id}, get_contact and`,
     'write_note refuses with not_prospect. Record prospect first, in the same turn, to use them.',
     'A contact who is not a prospect gets the front desk: answer from the CATALOG and escalate',
     'what it cannot answer, as the rules above say. Do not sell to them: the closing question',
-    'offers further help, never the enrolment.',
+    'offers further help, never the purchase.',
     ...(opening
       ? [
           'When set_field answers your prospect write with openingQueued, the system sends that',
@@ -292,9 +296,9 @@ function salesSection(tools: Tools): string[] {
     'Once the contact is a prospect, you take them from there to the payment link.',
     `The field ${funnel.id} records where the sale is. Its stages, in order:`,
     '- new: the contact has replied; nothing is known about them yet',
-    '- qualifying: you are asking what you need to choose a course',
+    '- qualifying: you are asking what you need to choose an offering',
     '- nurturing: you know the fit and are sending content to build it',
-    '- offered: a course and its catalog price have been put to the contact',
+    '- offered: an offering and its catalog price have been put to the contact',
     '- prepared: you asked what the contact still needs to start, and they answered',
     '- link_sent: the payment link was sent. The system records this; you never set it.',
     'Record each stage with set_field when the conversation reaches it. The stage only',
@@ -314,42 +318,42 @@ function salesSection(tools: Tools): string[] {
     'out when you record that stage; set_field says so with flowSent, so do not repeat it.',
     'flowDropped means it did not go out, over the per-turn limit: send it yourself on a',
     'later turn if it still fits.',
-    'The relationship comes before the sale: the opening, then the course, its options and',
+    'The relationship comes before the sale: the opening, then the offering, its options and',
     'price, then what the contact still needs to start, and only then the payment.',
     'Once the stage is offered, the closing question asks what the contact still needs to',
-    'start, not for the enrolment. Answer it from the CATALOG, and record prepared once they',
+    'start, not for the purchase. Answer it from the CATALOG, and record prepared once they',
     'have answered, whatever the answer. From prepared, the closing question offers to send',
-    'the payment methods: it asks for the enrolment, plainly.',
+    'the payment methods: it asks for the purchase, plainly.',
     'Objections: "it is too expensive" or "can I pay in parts?" is answered with the',
     'PAYMENT OPTIONS, if there are any. "I don\'t have time" or "I\'m not sure I can" is',
     'answered with the content flow that addresses it, if it has not been sent.',
-    'After link_sent, answer questions about the course and the link.',
+    'After link_sent, answer questions about the offering and the link.',
   ];
 }
 
 /**
- * How the model places a contact on a course and when it may move them
- * (specs/028). Only present when the tenant marks a course field.
+ * How the model places a contact on an offering and when it may move them
+ * (specs/028). Only present when the tenant marks an offering field.
  */
-function coursesSection(tools: Tools): string[] {
-  const course = courseField(tools);
-  if (!course) return [];
+function offeringsSection(tools: Tools): string[] {
+  const offering = offeringField(tools);
+  if (!offering) return [];
   return [
     '',
-    'COURSES',
-    `The field ${course.id} records the course this contact is buying, one of: ${course.values.join(', ')}.`,
-    'Record it with set_field as soon as the contact chooses a course or the fit is clear.',
-    'A flow listed with a course is accepted only once that is the contact’s course; setting',
-    'the course earlier in the same turn is enough. With no course recorded, ask which',
-    'course before sending course content: one question, not a list of every course.',
+    'OFFERINGS',
+    `The field ${offering.id} records the offering this contact is buying, one of: ${offering.values.join(', ')}.`,
+    'Record it with set_field as soon as the contact chooses an offering or the fit is clear.',
+    'A flow listed with an offering is accepted only once that is the contact’s offering;',
+    'setting the offering earlier in the same turn is enough. With no offering recorded, ask',
+    'which one before sending its content: one question, not a list of every offering.',
     ...(funnelField(tools)
       ? [
-          'The course may change until the stage is offered. From offered on it is locked: a',
-          'contact who asks to switch course is escalated with "explicit_request".',
+          'The offering may change until the stage is offered. From offered on it is locked: a',
+          'contact who asks to switch offering is escalated with "explicit_request".',
         ]
       : []),
-    'A COURSE note saying the course changed means the contact came back through another',
-    'course’s advert: confirm which course they want before continuing.',
+    'An OFFERING note saying the offering changed means the contact came back through another',
+    'offering’s advert: confirm which one they want before continuing.',
   ];
 }
 
@@ -365,30 +369,30 @@ export function openingNotice(flow: { id: string; description: string }): string
 /**
  * The contact's intent as the server knows it (specs/034). Per contact, so it
  * travels with the turn's message like the funnel note, outside the fence. An
- * advert's course is the server's fact, never the contact's claim (C4).
+ * advert's offering is the server's fact, never the contact's claim (C4).
  */
-export function intentNotice(intent: string | undefined, advertCourse?: string): string {
+export function intentNotice(intent: string | undefined, advertOffering?: string): string {
   if (intent === 'prospect') return 'INTENT: This contact is a prospect.';
   const advert =
-    advertCourse === undefined
+    advertOffering === undefined
       ? ''
-      : ` They arrived through the advert for course ${advertCourse}: record prospect.`;
+      : ` They arrived through the advert for offering ${advertOffering}: record prospect.`;
   if (intent === 'not_prospect') {
-    return `INTENT: This contact wrote for something other than enrolling (not_prospect). Record prospect if they now mean to enrol.${advert}`;
+    return `INTENT: This contact wrote for something other than buying (not_prospect). Record prospect if they now mean to buy.${advert}`;
   }
-  return `INTENT: Nothing recorded shows yet whether this contact means to enrol.${advert}`;
+  return `INTENT: Nothing recorded shows yet whether this contact means to buy.${advert}`;
 }
 
 /**
- * The contact's course as the turn starts (specs/028). Per contact, so it
+ * The contact's offering as the turn starts (specs/028). Per contact, so it
  * travels with the turn's message like the funnel note, outside the fence.
  */
-export function courseNotice(course: string | undefined, changedFrom?: string): string {
-  if (course === undefined) return 'COURSE: No course is recorded for this contact yet.';
+export function offeringNotice(offering: string | undefined, changedFrom?: string): string {
+  if (offering === undefined) return 'OFFERING: No offering is recorded for this contact yet.';
   if (changedFrom !== undefined) {
-    return `COURSE: This contact's course changed from ${changedFrom} to ${course} since you last saw it. Confirm which course they want before continuing.`;
+    return `OFFERING: This contact's offering changed from ${changedFrom} to ${offering} since you last saw it. Confirm which offering they want before continuing.`;
   }
-  return `COURSE: This contact's course is ${course}.`;
+  return `OFFERING: This contact's offering is ${offering}.`;
 }
 
 /**

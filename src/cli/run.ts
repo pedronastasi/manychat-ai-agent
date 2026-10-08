@@ -9,12 +9,12 @@ export const COMMANDS: Record<string, string> = {
   eval: 'Run the eval suite at EVAL_DIR against CONFIG_DIR',
   simulate: 'Send a Dynamic Block request to a running server',
   'config check': 'Validate config/ and environment, then exit',
-  upgrade: 'Migrate config/ to the installed version',
+  upgrade: 'Migrate config/ and eval suites to the installed version',
   'tokens backfill': 'Issue contact tokens to existing contacts',
   'insights run': 'Run this week’s learning job now (specs/031)',
   'insights review': 'Approve, edit, reject or retire playbook insights',
   'insights activate': 'Put a playbook version live once its eval passes',
-  'insights report': 'Enrolment rate by playbook version',
+  'insights report': 'Conversion rate by playbook version',
   'plugin new': 'Start a plugin from the agent’s example (--read or --write)',
 };
 
@@ -137,7 +137,11 @@ export async function run(argv: string[]): Promise<number | undefined> {
 
     case 'upgrade': {
       const { runMigrations: runConfigMigrations } = await import('../migrations/index.ts');
-      const { applied, unchanged } = runConfigMigrations(configDir);
+      // The project's eval suites too: a renamed case key is as breaking as a
+      // renamed config key (specs/042).
+      const { applied, unchanged } = runConfigMigrations(configDir, {
+        evalDir: process.env.EVAL_DIR,
+      });
       console.log(unchanged ? 'config is up to date' : `applied migrations: ${applied.join(', ')}`);
       // A migration never invents tenant values; what it leaves out fails here.
       return configIsValid(configDir) ? 0 : 1;

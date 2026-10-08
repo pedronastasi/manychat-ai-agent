@@ -46,8 +46,8 @@ says so, and that the reply must not repeat what the flow contains.
 - **The cap counts it.** A sent flow counts against the eight actions of
   `012 § The loop is bounded`. One over the cap is not sent and returns
   `{ sent: false }` with the reason.
-- **Course scoping first.** A flow for another course is refused before any
-  request, as `028` has it.
+- **Offering scoping first.** A flow for another offering is refused before
+  any request, as `028` has it.
 
 Every other write (tags, fields, notes, nudges) stays staged and is performed
 after the reply, as `012` describes (ADR-0019).
@@ -69,7 +69,7 @@ it wrote is the floor: a funnel write to an earlier stage is refused, as one
 below the contact's last performed stage already is. The model's calls in one
 step run together, so a link still in flight already counts at `link_sent`: a
 funnel write made beside it is refused rather than landing after it, and so is
-a course change (`028`).
+an offering change (`028`).
 
 ### Nudge turns keep flows staged
 
@@ -133,8 +133,8 @@ reply waits for it, so a flow may keep its delays.
   flow counts against the cap and is recorded with its outcome in its place.
 - `027 § The event follows the stage write it records`: the payment link's
   chain goes out with the flow, during the turn.
-- `028 § A flow belongs to one course or to all` and `§ The course may change
-until the offer`: a refused flow returns `{ sent: false }`, and the lock
+- `028 § A flow belongs to one offering or to all` and `§ The offering may
+change until the offer`: a refused flow returns `{ sent: false }`, and the lock
   counts a payment link sent or in flight at `link_sent`.
 - `026`: the Python port mirrors this exception.
 
@@ -142,7 +142,7 @@ until the offer`: a refused flow returns `{ sent: false }`, and the lock
 
 1. A unit test asserts that with a flow sender, `send_flow` sends during the
    call and returns `{ sent }`, sends a flow once per turn, counts it against
-   the cap, refuses another course's flow without a request, and that without
+   the cap, refuses another offering's flow without a request, and that without
    one it stages as before.
 2. A unit test asserts the turn's record keeps a sent flow's outcome in call
    order and does not mark it `discarded` on an escalation.

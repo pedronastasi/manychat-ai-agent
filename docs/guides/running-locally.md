@@ -111,8 +111,8 @@ object. The agent's reply is in `.content.messages[].text`:
   "version": "v2",
   "content": {
     "messages": [
-      { "type": "text", "text": "The Foundation Course is $450.00." },
-      { "type": "text", "text": "It runs 24 hours total. Want the enrolment link?" }
+      { "type": "text", "text": "The Foundation Course is 450.00 USD." },
+      { "type": "text", "text": "It takes 24 hours." }
     ],
     "external_message_callback": {
       "url": "https://agent.example.com/v1/channels/manychat/message",

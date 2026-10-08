@@ -93,14 +93,14 @@ export interface LabelledContact extends CohortContact {
 }
 
 /**
- * Reads each contact's tags and labels them by `enrolledTag`. A read that
- * fails drops the contact: never labelled `not_enrolled` by default. Reads are
+ * Reads each contact's tags and labels them by `convertedTag`. A read that
+ * fails drops the contact: never labelled `not_converted` by default. Reads are
  * paced at one per `READ_INTERVAL_MS`.
  */
 export async function labelCohort(
   cohort: readonly CohortContact[],
   reader: ContactReader,
-  enrolledTag: string,
+  convertedTag: string,
   pace: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
   signal?: AbortSignal,
 ): Promise<{ labelled: LabelledContact[]; dropped: number }> {
@@ -118,7 +118,7 @@ export async function labelCohort(
       );
       labelled.push({
         ...contact,
-        label: record.tags.includes(enrolledTag) ? 'enrolled' : 'not_enrolled',
+        label: record.tags.includes(convertedTag) ? 'converted' : 'not_converted',
       });
     } catch (error) {
       if (signal?.aborted) throw error;

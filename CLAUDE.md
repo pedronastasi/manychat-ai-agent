@@ -34,7 +34,7 @@ Runs with no API key and no database (mock model + embedded PGlite).
 | `pnpm insights:run`      | Run this week's learning job now (`--force` again)         |
 | `pnpm insights:review`   | Approve, edit or reject proposed playbook tactics          |
 | `pnpm insights:activate` | Put a reviewed playbook version live, behind the eval gate |
-| `pnpm insights:report`   | Enrolment rate per playbook version                        |
+| `pnpm insights:report`   | Conversion rate per playbook version                       |
 | `pnpm spec:index`        | Regenerate `specs/README.md` from spec frontmatter         |
 | `pnpm demo:record`       | Re-record the README demo against the fixture tenant       |
 | `pnpm docs:build`        | Build the docs site (specs/014); fails on dead links       |

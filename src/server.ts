@@ -185,8 +185,8 @@ export async function buildServer(opts: BuildOptions) {
     callbackSecret: presentedSecret,
     // ManyChat fills the contact's token in, so a callback binds like an entry.
     contactTokenField: env.MANYCHAT_TOKEN_FIELD,
-    // And their course, read per request so a reload reaches it (specs/028).
-    courseField: tenant().tools?.fields.find(field => field.course)?.field,
+    // And their offering, read per request so a reload reaches it (specs/028).
+    offeringField: tenant().tools?.fields.find(field => field.offering)?.field,
   });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
