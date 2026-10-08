@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.22.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.21.0...v0.22.0) (2026-10-08)
+
+
+### Features
+
+* name what is sold an offering and a completed sale a conversion (spec 042) ([7dbb3e1](https://github.com/pedronastasi/manychat-ai-agent/commit/7dbb3e1856a8f91fd933b15aab0e616eefe4276e))
+* name what is sold an offering and a completed sale a conversion (spec 042) ([a611d83](https://github.com/pedronastasi/manychat-ai-agent/commit/a611d83a52d079043a2cf221162ce554fd480965))
+
+
+### Bug Fixes
+
+* **deps:** update patch dependencies ([5359b3e](https://github.com/pedronastasi/manychat-ai-agent/commit/5359b3e8db80024f7c835a49b0bb4f339fd1e7ca))
+* **deps:** update patch dependencies ([9fc0cd3](https://github.com/pedronastasi/manychat-ai-agent/commit/9fc0cd3ab8438a7afa3e36b3354277bd5d260cbc))
+
+
+### Specs and Docs
+
+* call insights:report a conversion rate in CLAUDE.md (spec 042) ([5708b48](https://github.com/pedronastasi/manychat-ai-agent/commit/5708b487c5b4dde549aae4044bb0598c73b71068))
+* record PR 205 in spec 042 ([bdb177d](https://github.com/pedronastasi/manychat-ai-agent/commit/bdb177d4aa7f75b63f32162ef4773f3caae90cb2))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([a9e3814](https://github.com/pedronastasi/manychat-ai-agent/commit/a9e3814a9ca7b6395b6e627a57863df6600e4ba7))
+* **deps:** lock file maintenance ([640edf9](https://github.com/pedronastasi/manychat-ai-agent/commit/640edf9c4d9a71185f01ca6dc8c02d957c4eab79))
+* **deps:** update pnpm to v12.10.1 ([989773d](https://github.com/pedronastasi/manychat-ai-agent/commit/989773dde745f098c0782764030a480aa69d16ed))
+* **deps:** update pnpm to v12.10.1 ([4d7c744](https://github.com/pedronastasi/manychat-ai-agent/commit/4d7c7444c42ff3d0042d665b44959dc422101728))
+
 ## [0.21.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.20.0...v0.21.0) (2026-10-07)
 
 
