@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.22.0...v0.23.0) (2026-10-08)
+
+
+### Features
+
+* mount plugin channels beside ManyChat's route (spec 038) ([366c646](https://github.com/pedronastasi/manychat-ai-agent/commit/366c646a7223d959603b0f6f5159725d368bf33c))
+* mount plugin channels beside ManyChat's route (spec 038) ([e53d5ed](https://github.com/pedronastasi/manychat-ai-agent/commit/e53d5ed9ea667246d4788faa087226049350ab96))
+
+
+### Specs and Docs
+
+* record PR 206 in spec 038 ([f61a13e](https://github.com/pedronastasi/manychat-ai-agent/commit/f61a13ea2448920db388d842da52bfb7a655a698))
+
 ## [0.22.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.21.0...v0.22.0) (2026-10-08)
 
 
