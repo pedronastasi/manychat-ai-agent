@@ -26,9 +26,15 @@ export const ManyChatInbound = z
      */
     ai_token: z.string().max(256).nullish(),
     /**
-     * The contact's course, which ManyChat fills in from their course field
-     * (specs/028). Any string: an empty, unrendered or unknown value is
-     * treated as no course by the turn, never refused with a 400.
+     * The contact's offering, which ManyChat fills in from their offering
+     * field (specs/028). Any string: an empty, unrendered or unknown value is
+     * treated as no offering by the turn, never refused with a 400.
+     */
+    offering: z.string().max(256).nullish(),
+    /**
+     * The name `offering` had before specs/042, read only when `offering` is
+     * absent. The External Request body lives in the tenant's ManyChat
+     * account, where `agent upgrade` cannot rewrite it.
      */
     course: z.string().max(256).nullish(),
   })

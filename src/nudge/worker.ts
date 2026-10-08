@@ -3,7 +3,7 @@ import type { AgentResult, AgentRunner } from '../agent/runner.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import type { ContactReader } from '../channels/manychat/client.ts';
 import { LINK_SENT, MAX_NUDGE_MINUTES, NO_TOOLS } from '../contracts/config.ts';
-import { ActionStage, contactActionsFrom, knownCourse } from '../agent/tools.ts';
+import { ActionStage, contactActionsFrom, knownOffering } from '../agent/tools.ts';
 import { BudgetGuard, checkTurnCap } from '../conversation/budget.ts';
 import { ConversationStore } from '../conversation/store.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
@@ -108,9 +108,9 @@ export class NudgeWorker {
     const historySince = new Date(now.getTime() - rules.historyDays * DAY_MS);
     const contact = {
       ...contactActionsFrom(await this.store.actionHistory(conversation.id), tools, historySince),
-      // No request to carry one, so the course the conversation keeps, if the
-      // catalog still has it (specs/028).
-      course: knownCourse(conversation.course, tools),
+      // No request to carry one, so the offering the conversation keeps, if
+      // the catalog still has it (specs/028).
+      offering: knownOffering(conversation.offering, tools),
     };
     if (contact.funnelStage === LINK_SENT) return cancel('link_sent');
 

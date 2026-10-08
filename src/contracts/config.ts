@@ -71,16 +71,18 @@ export const Money = z.object({
 });
 export type Money = z.infer<typeof Money>;
 
-export const CourseSchema = z.object({
+export const OfferingSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string(),
   price: Money,
-  durationHours: z.number().positive().nullable(),
-  schedule: z.string().nullable(),
-  enrollmentUrl: z.string().url().nullable(),
+  // Optional: a product has neither, and a required null is a course-shaped
+  // hole every other tenant would have to fill (specs/042).
+  durationHours: z.number().positive().nullable().default(null),
+  schedule: z.string().nullable().default(null),
+  url: z.string().url().nullable().default(null),
 });
-export type Course = z.infer<typeof CourseSchema>;
+export type Offering = z.infer<typeof OfferingSchema>;
 
 /**
  * A way to pay the tenant has published: instalments, a deposit, a
@@ -96,7 +98,7 @@ export type PaymentOption = z.infer<typeof PaymentOptionSchema>;
 export const CatalogSchema = z.object({
   businessName: z.string().min(1),
   currency: z.string().length(3),
-  courses: z.array(CourseSchema).min(1),
+  offerings: z.array(OfferingSchema).min(1),
   faq: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
   paymentOptions: z
     .array(PaymentOptionSchema)
@@ -142,13 +144,13 @@ export const MessagesSchema = z.object({
 });
 export type Messages = z.infer<typeof MessagesSchema>;
 
-/** `rules.json`'s `learning` block (specs/031 § Paid enrolment is the signal). */
+/** `rules.json`'s `learning` block (specs/031 § Paid conversion is the signal). */
 export const LearningSchema = z
   .object({
     /** What the analyst writes proposals in: the reviewer's language. */
     language: z.string().min(1),
     /** The ManyChat tag a person sets on seeing a payment. Never shown to the model. */
-    enrolledTag: z.string().min(1),
+    convertedTag: z.string().min(1),
     /** Caps one analyst call. Required: any default would guess at the tenant's spend. */
     maxRunCostUsd: z.number().positive(),
   })
@@ -212,7 +214,7 @@ const uniqueIds = (entries: { id: string }[]) =>
 
 /**
  * The stages of a sale, in order (specs/023 § The funnel is a field the agent
- * moves). `enrolled` is not one: only a person who has seen the payment sets
+ * moves). A conversion is not one: only a person who has seen the payment sets
  * it, in the tenant's ManyChat account.
  */
 export const FUNNEL_STAGES = [
@@ -234,7 +236,7 @@ export const PREPARED = 'prepared';
 export const LINK_SENT = 'link_sent';
 
 /**
- * Whether the contact means to enrol, in the order intent may move
+ * Whether the contact means to buy, in the order intent may move
  * (specs/034 § Intent is a field the model records). No value is unknown.
  */
 export const INTENT_VALUES = ['not_prospect', 'prospect'] as const;
@@ -369,10 +371,10 @@ export const ToolsSchema = z
             )
             .optional(),
           /**
-           * The catalog course this flow belongs to; absent, it serves every
-           * course (specs/028 § A flow belongs to one course or to all).
+           * The catalog offering this flow belongs to; absent, it serves every
+           * offering (specs/028 § A flow belongs to one offering or to all).
            */
-          course: z.string().min(1).optional(),
+          offering: z.string().min(1).optional(),
           /**
            * How long the flow takes to play in ManyChat, Smart Delays included:
            * the reply that follows it waits this long after it is sent
@@ -387,11 +389,11 @@ export const ToolsSchema = z
         flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
         'only one flow may have role "payment_link"',
       )
-      // One payment flow serves every course and branches on the course field
-      // inside ManyChat (specs/028 § One payment flow serves every course).
+      // One payment flow serves every offering and branches on the offering
+      // field inside ManyChat (specs/028 § One payment flow serves every offering).
       .refine(
-        flows => !flows.some(flow => flow.role === 'payment_link' && flow.course !== undefined),
-        'the "payment_link" flow may not have a "course"',
+        flows => !flows.some(flow => flow.role === 'payment_link' && flow.offering !== undefined),
+        'the "payment_link" flow may not have an "offering"',
       )
       // Sent once, to every contact, before anything is known of them
       // (specs/032 § The opening flow is the server's, not the model's).
@@ -402,9 +404,9 @@ export const ToolsSchema = z
       .refine(
         flows =>
           !flows.some(
-            flow => flow.role === 'opening' && (flow.course !== undefined || flow.repeatable),
+            flow => flow.role === 'opening' && (flow.offering !== undefined || flow.repeatable),
           ),
-        'the "opening" flow may not have a "course" or be "repeatable"',
+        'the "opening" flow may not have an "offering" or be "repeatable"',
       )
       .refine(
         flows => !flows.some(flow => flow.role !== undefined && flow.onStage !== undefined),
@@ -421,11 +423,11 @@ export const ToolsSchema = z
           /** The field the agent's position in the sale is kept in (specs/023). */
           funnel: z.boolean().optional(),
           /**
-           * The field the contact's course is kept in. Its values must be the
-           * catalog's course ids, checked when the catalog is loaded beside it
-           * (specs/028).
+           * The field the contact's offering is kept in. Its values must be
+           * the catalog's offering ids, checked when the catalog is loaded
+           * beside it (specs/028).
            */
-          course: z.boolean().optional(),
+          offering: z.boolean().optional(),
           /**
            * The field the contact's intent is kept in: until it is `prospect`
            * every sales tool refuses (specs/034).
@@ -440,8 +442,8 @@ export const ToolsSchema = z
         'only one field may be marked "intent"',
       )
       .refine(
-        fields => !fields.some(field => field.intent && (field.funnel || field.course)),
-        'a field may not be marked both "intent" and "funnel" or "course"',
+        fields => !fields.some(field => field.intent && (field.funnel || field.offering)),
+        'a field may not be marked both "intent" and "funnel" or "offering"',
       )
       // The values are the system's, as the funnel's stages are (specs/034).
       .refine(
@@ -461,12 +463,12 @@ export const ToolsSchema = z
         'only one field may be marked "funnel"',
       )
       .refine(
-        fields => fields.filter(field => field.course).length <= 1,
-        'only one field may be marked "course"',
+        fields => fields.filter(field => field.offering).length <= 1,
+        'only one field may be marked "offering"',
       )
       .refine(
-        fields => !fields.some(field => field.funnel && field.course),
-        'a field may not be marked both "funnel" and "course"',
+        fields => !fields.some(field => field.funnel && field.offering),
+        'a field may not be marked both "funnel" and "offering"',
       )
       // Forward-only is decided by position in this list, so a list out of
       // order would let the agent move a lead backwards.

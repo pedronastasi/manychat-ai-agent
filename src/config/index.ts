@@ -1,9 +1,9 @@
 export {
   CatalogSchema,
-  CourseSchema,
   EnvSchema,
   MessagesSchema,
   NudgeSchema,
+  OfferingSchema,
   PaymentOptionSchema,
   RulesSchema,
   ToolsSchema,
@@ -11,10 +11,10 @@ export {
 
 export type {
   Catalog,
-  Course,
   Env,
   Messages,
   Nudge,
+  Offering,
   PaymentOption,
   Rules,
   Tools,

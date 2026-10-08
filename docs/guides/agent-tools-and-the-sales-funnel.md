@@ -134,14 +134,14 @@ stateDiagram-v2
     [*] --> new: first reply
     new --> qualifying: agent asks what it needs
     qualifying --> nurturing: fit known, content sent
-    nurturing --> offered: course and catalog price put
+    nurturing --> offered: offering and catalog price put
     offered --> link_sent: payment-link flow performed
     new --> link_sent: contact asks for the link
     qualifying --> link_sent
     nurturing --> link_sent
-    link_sent --> enrolled: a person confirms payment
+    link_sent --> converted: a person confirms payment
     note right of link_sent: Written by the server, never by the model
-    note right of enrolled: Set in ManyChat by a person, not by this service
+    note right of converted: Set in ManyChat by a person, not by this service
 ```
 
 - **The stage only moves forward.** A write to an earlier stage than the last
@@ -162,7 +162,7 @@ stateDiagram-v2
   content flow that addresses it. A discount request that no payment option
   answers still escalates as `price_negotiation`.
 - **It asks for the sale, and never invents a reason to buy now.** Once the
-  stage is `offered`, the closing question asks for the enrolment plainly. No
+  stage is `offered`, the closing question asks for the purchase plainly. No
   invented scarcity or deadline, no promised job outcome, no price absent from
   the catalog: a deposit or instalment figure is allowed only because it is in
   `paymentOptions`.

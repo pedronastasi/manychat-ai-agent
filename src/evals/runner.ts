@@ -89,10 +89,10 @@ export async function runEval(): Promise<void> {
         ? {
             sentFlows: new Set(),
             funnelStage: testCase.contact.funnel_stage,
-            course: testCase.contact.course,
+            offering: testCase.contact.offering,
             intent: testCase.contact.intent,
             openingDue: testCase.contact.opening_due,
-            advertCourse: testCase.contact.advert_course,
+            advertOffering: testCase.contact.advert_offering,
           }
         : undefined,
       // A fixed time, so the trigger note is the same on every run.

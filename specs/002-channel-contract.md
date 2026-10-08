@@ -237,10 +237,13 @@ What this does not cover:
 ManyChat sends the fields configured in the Dynamic Block UI. We require at
 minimum a stable subscriber identifier and the message text. The body also
 carries `"ai_token": "{{ai_token}}"`, the contact's token, without which a
-request reads none of the contact's history (specs/019). A tenant with a course
-field adds `"course": "{{course}}"`, rendered from that field (specs/028): it is
-optional, and an empty, unrendered or unknown value is treated as no course
-rather than refused. The reply's callback asks ManyChat for both. Inbound schemas are
+request reads none of the contact's history (specs/019). A tenant with an
+offering field adds `"offering": "{{offering}}"`, rendered from that field
+(specs/028): it is optional, at most 256 characters, and an empty, unrendered or
+unknown value is treated as no offering rather than refused. A request that
+carries `course`, the key's name before specs/042, and no `offering` is read as
+if `course` were `offering`; with both, `offering` wins. The reply's callback
+asks ManyChat for the token and `offering`. Inbound schemas are
 `.strict()`: unknown keys are rejected rather than silently ignored, so a
 ManyChat-side change surfaces as a 400 instead of as degraded behavior.
 

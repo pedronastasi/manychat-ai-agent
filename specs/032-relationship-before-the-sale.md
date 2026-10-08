@@ -36,19 +36,19 @@ It is wrong here for three reasons.
 - **The link arrives before the contact knows what starting takes.** A lead
   who pays and then learns what else they need to begin is a refund request
   or a no-show. `023 § Success is measured twice` already names the symptom:
-  link-sent rate rising while paid enrolment stays flat means the agent asks
+  link-sent rate rising while paid conversion stays flat means the agent asks
   too early.
 
 So **the server guarantees the steps a relationship needs, opening, proof
 and a readiness check, and the model decides only how to word them.** The
-order is: the opening, then the course content, modalities and price, then
+order is: the opening, then the offering's content, options and price, then
 what the contact still needs to start, then the offer to send the payment
 methods.
 
 ## The opening flow is the server's, not the model's
 
 A `flows[]` entry may carry `"role": "opening"`. At most one may, it carries
-no `course` (`028`), and it may not also be the `payment_link` flow, nor
+no `offering` (`028`), and it may not also be the `payment_link` flow, nor
 `repeatable`; each is a load failure.
 
 > **Amended by `034`.** The opening is no longer sent on the first model turn
@@ -139,8 +139,8 @@ contact receives it before the reply, and the reply waits for it (`030`).
   contact is not sent again (`023 § Every content flow is a leaf, sent once`).
   The model may still send it earlier, when the contact asks; then the stage
   move sends nothing.
-- **The course still decides.** A tied flow with a `course` is sent only when
-  it is the turn's course (`028`). Otherwise the move sends nothing.
+- **The offering still decides.** A tied flow with an `offering` is sent only
+  when it is the turn's offering (`028`). Otherwise the move sends nothing.
 - **Only the stage written.** A write that skips a stage does not send the
   skipped stage's flow, so a lead who jumps from `qualifying` to `offered`
   does not receive two flows at once.
@@ -165,12 +165,12 @@ The funnel gains a stage, `prepared`, between `offered` and `link_sent`:
 
 | Stage       | Meaning                                                                |
 | ----------- | ---------------------------------------------------------------------- |
-| `offered`   | A course and its catalog price have been put to the contact            |
+| `offered`   | An offering and its catalog price have been put to the contact         |
 | `prepared`  | The contact has been asked what they still need to start, and answered |
 | `link_sent` | The payment-link flow was performed                                    |
 
 At `offered`, the closing question asks what the contact still needs to
-start, not for the enrolment. What that is belongs to the tenant, in
+start, not for the purchase. What that is belongs to the tenant, in
 `config/prompt.md`: the demo tenant asks whether the contact already has the
 starter kit. The answer comes from the catalog (`001 § Grounding rule`); a
 contact who needs something the catalog does not cover is escalated as
@@ -179,7 +179,7 @@ answered, whatever the answer, and only then does its closing question offer
 to send the payment methods.
 
 The stages are the system's, not the tenant's (`023`), so every deployment's
-funnel field gains `prepared`, in order. `028`'s course lock is unchanged: it
+funnel field gains `prepared`, in order. `028`'s offering lock is unchanged: it
 starts at `offered`, which `prepared` follows.
 
 ## The payment link waits for readiness, unless the contact asked to pay
@@ -209,7 +209,7 @@ contact asked whenever it wants to close shows up as a bypass rate near one.
 
 - `023 § The funnel is a field the agent moves`: the stage table gains
   `prepared` between `offered` and `link_sent`.
-- `023 § The agent asks for the sale`: the plain ask for the enrolment moves
+- `023 § The agent asks for the sale`: the plain ask for the purchase moves
   from `offered` to `prepared`; at `offered` the closing question is the
   readiness question.
 - `023 § The sale ends at the payment-link flow`: the flow is refused before
@@ -233,7 +233,7 @@ the file fails at load.
 
 ## Verification
 
-1. Config tests assert two `opening` flows, an `opening` flow with a `course`,
+1. Config tests assert two `opening` flows, an `opening` flow with an `offering`,
    one that is also `payment_link` or `repeatable`, two flows on one
    `onStage`, an `onStage` of `new` or `link_sent` or outside the funnel
    values, and a funnel field without `prepared`, each fail at load.
@@ -249,7 +249,7 @@ the file fails at load.
    absent from `send_flow`'s enum.
 3. A unit test asserts a funnel write to a tied stage sends the tied flow
    once, names it in the result as `flowSent`, sends nothing when the flow
-   was already performed, belongs to another course or the write skipped its
+   was already performed, belongs to another offering or the write skipped its
    stage, and stages it on a nudge turn.
 4. A unit test asserts the payment-link flow is refused with `not_prepared`
    before `prepared`, accepted after `prepared` performed or staged earlier in
@@ -267,7 +267,7 @@ the file fails at load.
 What this misses: `contactAsked` is the model's word, and only the bypass rate
 and a person reading conversations catch a model that overclaims it. Whether
 the readiness question builds trust or only delays the sale is a judgement no
-assertion makes; paid enrolment against the `023` baseline is the measure. A
+assertion makes; paid conversion against the `023` baseline is the measure. A
 contact who heard the opening in the tenant's entry flow hears it again, by
 design. A stage flow sent on a turn that then escalates has still gone out,
 as every flow has since `029`. And the golden set never sees the opening

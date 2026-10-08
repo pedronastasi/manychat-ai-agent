@@ -91,11 +91,11 @@ describe('the intent field is checked at load (specs/034 V1)', () => {
     expect(messages(input)).toContain('only one field may be marked "intent"');
   });
 
-  it.each(['funnel', 'course'])('refuses a field marked both intent and %s', flag => {
+  it.each(['funnel', 'offering'])('refuses a field marked both intent and %s', flag => {
     const input = raw();
     intentOf(input)[flag] = true;
     expect(messages(input)).toContain(
-      'a field may not be marked both "intent" and "funnel" or "course"',
+      'a field may not be marked both "intent" and "funnel" or "offering"',
     );
   });
 
@@ -286,7 +286,7 @@ describe('the INTENT notice follows the last performed write (specs/034 V3)', ()
     expect(intentNotice('not_prospect')).toContain('(not_prospect)');
     expect(intentNotice(undefined)).toContain('Nothing recorded shows yet');
     expect(intentNotice(undefined, 'advanced')).toContain(
-      'They arrived through the advert for course advanced: record prospect.',
+      'They arrived through the advert for offering advanced: record prospect.',
     );
   });
 
@@ -307,8 +307,10 @@ describe('the INTENT notice follows the last performed write (specs/034 V3)', ()
   it('states the criteria and the front desk in the system instructions', () => {
     const { staticPrefix } = buildSystemPrompt(tenant.persona, tenant.catalog, tenant.rules, tools);
     expect(staticPrefix).toContain('INTENT');
-    expect(staticPrefix).toContain('Record not_prospect when they say they are already enrolled');
-    expect(staticPrefix).toContain('never the enrolment');
+    expect(staticPrefix).toContain(
+      'Record not_prospect when they say they are an existing customer',
+    );
+    expect(staticPrefix).toContain('never the purchase');
     expect(staticPrefix).toContain('Once the contact is a prospect, you take them');
     // Rule 8 continues the conversation, not the sale (specs/034 § A non-prospect).
     expect(staticPrefix).toContain('continue the conversation with high confidence');

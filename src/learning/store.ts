@@ -29,8 +29,8 @@ export interface PendingProposal {
   id: string;
   text: string;
   rationale: string;
-  enrolledCount: number;
-  notEnrolledCount: number;
+  convertedCount: number;
+  notConvertedCount: number;
   turnIds: string[];
 }
 
@@ -95,8 +95,8 @@ export class LearningStore implements PlaybookReader {
     runId: string,
     result: {
       status: RunStatus;
-      enrolled?: number;
-      notEnrolled?: number;
+      converted?: number;
+      notConverted?: number;
       costUsd?: number;
     },
   ): Promise<void> {
@@ -104,8 +104,8 @@ export class LearningStore implements PlaybookReader {
       .update(learningRuns)
       .set({
         status: result.status,
-        enrolledCount: result.enrolled ?? null,
-        notEnrolledCount: result.notEnrolled ?? null,
+        convertedCount: result.converted ?? null,
+        notConvertedCount: result.notConverted ?? null,
         costUsd: result.costUsd !== undefined ? result.costUsd.toFixed(6) : null,
         finishedAt: new Date(),
       })
@@ -127,8 +127,8 @@ export class LearningStore implements PlaybookReader {
         runId,
         text: proposal.text,
         rationale: proposal.rationale,
-        enrolledCount: proposal.enrolledCount,
-        notEnrolledCount: proposal.notEnrolledCount,
+        convertedCount: proposal.convertedCount,
+        notConvertedCount: proposal.notConvertedCount,
         turnIds: proposal.turnIds,
       })),
     );
@@ -140,8 +140,8 @@ export class LearningStore implements PlaybookReader {
         id: insightProposals.id,
         text: insightProposals.text,
         rationale: insightProposals.rationale,
-        enrolledCount: insightProposals.enrolledCount,
-        notEnrolledCount: insightProposals.notEnrolledCount,
+        convertedCount: insightProposals.convertedCount,
+        notConvertedCount: insightProposals.notConvertedCount,
         turnIds: insightProposals.turnIds,
       })
       .from(insightProposals)

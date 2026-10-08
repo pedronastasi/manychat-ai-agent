@@ -72,7 +72,7 @@ const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 const inbound = (
   text: string,
-  opts: { subscriberId?: string; course?: string; unbound?: boolean } = {},
+  opts: { subscriberId?: string; offering?: string; unbound?: boolean } = {},
 ): InboundMessage => {
   const subscriberId = opts.subscriberId ?? 's1';
   return {
@@ -84,7 +84,7 @@ const inbound = (
     locale: null,
     contactToken: opts.unbound ? null : contactFields.tokenOf(subscriberId),
     receivedAt: new Date(),
-    ...(opts.course ? { course: opts.course } : {}),
+    ...(opts.offering ? { offering: opts.offering } : {}),
   };
 };
 
@@ -325,25 +325,25 @@ describe('the opening goes out on the prospect turn (specs/034 V4)', () => {
 describe('an advert’s course reaches the model only from a bound request (specs/034 V5)', () => {
   it('passes a course a bound request stored as the advert’s', async () => {
     const seen = newSeen();
-    await turn(runner([], {}, seen), inbound('hi', { course: 'advanced' }));
-    expect(seen.contacts[0]?.advertCourse).toBe('advanced');
+    await turn(runner([], {}, seen), inbound('hi', { offering: 'advanced' }));
+    expect(seen.contacts[0]?.advertOffering).toBe('advanced');
   });
 
   it('keeps it on a later turn that carries no course', async () => {
-    await turn(runner([]), inbound('hi', { course: 'advanced' }));
+    await turn(runner([]), inbound('hi', { offering: 'advanced' }));
     const seen = newSeen();
     await turn(runner([], {}, seen), inbound('hello?'));
-    expect(seen.contacts[0]?.advertCourse).toBe('advanced');
+    expect(seen.contacts[0]?.advertOffering).toBe('advanced');
   });
 
   it('passes none for a course on an unbound request, which is not stored', async () => {
     await turn(runner([]), inbound('hi'));
     const seen = newSeen();
-    await turn(runner([], {}, seen), inbound('hi again', { course: 'advanced', unbound: true }));
+    await turn(runner([], {}, seen), inbound('hi again', { offering: 'advanced', unbound: true }));
 
     // It still narrows the turn's flows (specs/028); it is not the contact's advert.
-    expect(seen.contacts[0]?.course).toBe('advanced');
-    expect(seen.contacts[0]?.advertCourse).toBeUndefined();
+    expect(seen.contacts[0]?.offering).toBe('advanced');
+    expect(seen.contacts[0]?.advertOffering).toBeUndefined();
   });
 
   it('passes none for a course the agent wrote', async () => {
@@ -353,7 +353,7 @@ describe('an advert’s course reaches the model only from a bound request (spec
     );
     const seen = newSeen();
     await turn(runner([], {}, seen), inbound('ok'));
-    expect(seen.contacts[0]?.course).toBe('foundation');
-    expect(seen.contacts[0]?.advertCourse).toBeUndefined();
+    expect(seen.contacts[0]?.offering).toBe('foundation');
+    expect(seen.contacts[0]?.advertOffering).toBeUndefined();
   });
 });

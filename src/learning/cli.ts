@@ -48,7 +48,7 @@ export async function review(
     io.print(`  ${proposal.text}`);
     io.print(`  why: ${proposal.rationale}`);
     io.print(
-      `  seen in ${proposal.enrolledCount} enrolled and ${proposal.notEnrolledCount} not enrolled ` +
+      `  seen in ${proposal.convertedCount} converted and ${proposal.notConvertedCount} not converted ` +
         'transcripts, by the analyst’s count: check the turns below',
     );
     const cited = proposal.turnIds.length
@@ -143,12 +143,12 @@ export async function activate(
 export interface VersionRate {
   version: string | null;
   contacts: number;
-  enrolled: number;
+  converted: number;
 }
 
 /**
  * `insights:report` (specs/031 § Every turn records the playbook version it
- * ran with): per version, the enrolment rate of contacts whose first `offered`
+ * ran with): per version, the conversion rate of contacts whose first `offered`
  * write was performed on a turn that ran with it, read with the cohort's
  * settle period and tag read.
  */
@@ -164,7 +164,7 @@ export async function report(
   const learning = config.rules.learning;
   if (!funnel || !learning) return [];
   const cohort = await findCohort(db, tenantId, funnel.id, now);
-  const { labelled } = await labelCohort(cohort, contacts, learning.enrolledTag, pace);
+  const { labelled } = await labelCohort(cohort, contacts, learning.convertedTag, pace);
   if (labelled.length === 0) return [];
 
   const rows = await db
@@ -191,9 +191,9 @@ export async function report(
   const rates = new Map<string | null, VersionRate>();
   for (const contact of labelled) {
     const version = firstOffered.get(contact.conversationId) ?? null;
-    const rate = rates.get(version) ?? { version, contacts: 0, enrolled: 0 };
+    const rate = rates.get(version) ?? { version, contacts: 0, converted: 0 };
     rate.contacts += 1;
-    if (contact.label === 'enrolled') rate.enrolled += 1;
+    if (contact.label === 'converted') rate.converted += 1;
     rates.set(version, rate);
   }
   return [...rates.values()];
@@ -201,17 +201,17 @@ export async function report(
 
 /** The header the report opens with, so nobody reads it as a controlled test. */
 export const REPORT_HEADER = [
-  'Enrolment rate by the playbook version a contact was first offered under.',
+  'Conversion rate by the playbook version a contact was first offered under.',
   'Before and after, not controlled: a version is credited with whatever else changed',
   'in the same weeks (an advert, a season, a price). Read beside the link-sent and',
-  'enrolment rates of specs/023, never combined with them.',
+  'conversion rates of specs/023, never combined with them.',
 ].join('\n');
 
 export function formatReport(rates: readonly VersionRate[]): string[] {
   if (rates.length === 0) return ['No settled contacts were offered in the past 90 days.'];
   return rates.map(rate => {
-    const percent = rate.contacts === 0 ? 0 : (100 * rate.enrolled) / rate.contacts;
+    const percent = rate.contacts === 0 ? 0 : (100 * rate.converted) / rate.contacts;
     const label = rate.version ? `version ${short(rate.version)}` : 'no playbook';
-    return `  ${label.padEnd(20)} ${rate.enrolled}/${rate.contacts} enrolled (${percent.toFixed(1)}%)`;
+    return `  ${label.padEnd(20)} ${rate.converted}/${rate.contacts} converted (${percent.toFixed(1)}%)`;
   });
 }

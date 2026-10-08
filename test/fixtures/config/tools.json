@@ -4,7 +4,7 @@
       "id": "foundation_brochure",
       "flowNs": "content00000000000000_000001",
       "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it.",
-      "course": "foundation"
+      "offering": "foundation"
     },
     {
       "id": "student_results",
@@ -27,13 +27,13 @@
       "id": "advanced_brochure",
       "flowNs": "content00000000000000_000005",
       "description": "PDF brochure for the Advanced Course. Send when the contact asks for details, a syllabus or something to read about it.",
-      "course": "advanced"
+      "offering": "advanced"
     },
     {
       "id": "intensive_brochure",
       "flowNs": "content00000000000000_000006",
       "description": "PDF brochure for the Weekend Intensive. Send when the contact asks for details, a syllabus or something to read about it.",
-      "course": "weekend-intensive"
+      "offering": "weekend-intensive"
     }
   ],
   "tags": [
@@ -68,7 +68,7 @@
       "field": "course",
       "values": ["foundation", "advanced", "weekend-intensive"],
       "description": "The course this contact is buying. Set it as soon as the contact chooses one, or the fit is clear.",
-      "course": true
+      "offering": true
     },
     {
       "id": "intent",

@@ -187,7 +187,7 @@ describe("specs/019 § Each contact's token lives in ManyChat, never in a respon
       subscriber_id: '{{contact.id}}',
       ai_token: '{{ai_token}}',
       // The fixture tenant marks a course field (specs/028).
-      course: '{{course}}',
+      offering: '{{course}}',
     });
     await app.close();
   });

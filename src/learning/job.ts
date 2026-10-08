@@ -38,8 +38,8 @@ export type RunOutcome =
   | {
       status: RunStatus;
       runId: string;
-      enrolled?: number | undefined;
-      notEnrolled?: number | undefined;
+      converted?: number | undefined;
+      notConverted?: number | undefined;
     };
 
 /**
@@ -76,7 +76,7 @@ export class LearningJob {
 
     const finish = async (
       status: RunStatus,
-      counts: { enrolled?: number; notEnrolled?: number; costUsd?: number } = {},
+      counts: { converted?: number; notConverted?: number; costUsd?: number } = {},
     ): Promise<RunOutcome> => {
       await this.store.finishRun(runId, { status, ...counts });
       log({ status, ...counts }, 'learning run finished');
@@ -88,7 +88,7 @@ export class LearningJob {
           'learning run stopped by shutdown; this week has no run until insights:run --force',
         );
       }
-      return { status, runId, enrolled: counts.enrolled, notEnrolled: counts.notEnrolled };
+      return { status, runId, converted: counts.converted, notConverted: counts.notConverted };
     };
 
     try {
@@ -96,27 +96,27 @@ export class LearningJob {
       const { labelled, dropped } = await labelCohort(
         cohort,
         this.opts.contacts,
-        learning.enrolledTag,
+        learning.convertedTag,
         this.opts.pace,
         options.signal,
       );
       const side = (label: LabelledContact['label']) =>
         labelled.filter(contact => contact.label === label);
-      const enrolledContacts = side('enrolled');
-      const notEnrolledContacts = side('not_enrolled');
+      const convertedContacts = side('converted');
+      const notConvertedContacts = side('not_converted');
       const counts = {
-        enrolled: enrolledContacts.length,
-        notEnrolled: notEnrolledContacts.length,
+        converted: convertedContacts.length,
+        notConverted: notConvertedContacts.length,
       };
       if (dropped > 0) log({ dropped }, 'learning run dropped contacts whose read failed');
-      if (counts.enrolled < MIN_PER_SIDE || counts.notEnrolled < MIN_PER_SIDE) {
+      if (counts.converted < MIN_PER_SIDE || counts.notConverted < MIN_PER_SIDE) {
         return await finish('insufficient', counts);
       }
 
       // Newest first, as findCohort orders them.
       const chosen = [
-        ...enrolledContacts.slice(0, MAX_PER_SIDE),
-        ...notEnrolledContacts.slice(0, MAX_PER_SIDE),
+        ...convertedContacts.slice(0, MAX_PER_SIDE),
+        ...notConvertedContacts.slice(0, MAX_PER_SIDE),
       ];
       const turns = await transcriptTurns(
         this.opts.db,
@@ -135,8 +135,8 @@ export class LearningJob {
           language: learning.language,
           playbook: active?.insights ?? [],
           rejected: await this.store.rejectedTexts(this.opts.tenantId),
-          enrolled: transcriptsOf(enrolledContacts),
-          notEnrolled: transcriptsOf(notEnrolledContacts),
+          converted: transcriptsOf(convertedContacts),
+          notConverted: transcriptsOf(notConvertedContacts),
         },
         learning.maxRunCostUsd,
       );
@@ -154,7 +154,7 @@ export class LearningJob {
       }
 
       const known = new Set(
-        [...input.enrolled, ...input.notEnrolled].flatMap(transcript => transcript.turnIds),
+        [...input.converted, ...input.notConverted].flatMap(transcript => transcript.turnIds),
       );
       const { accepted, refused, dropped: over } = acceptProposals(result.output.proposals, known);
       await this.store.addProposals(this.opts.tenantId, runId, accepted);

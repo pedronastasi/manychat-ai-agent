@@ -10,11 +10,11 @@ const rules = RulesSchema.parse({
   rateLimit: {},
 });
 
-const catalogWith = (course: Record<string, unknown>) =>
+const catalogWith = (offering: Record<string, unknown>) =>
   CatalogSchema.parse({
     businessName: 'Demo Academy',
     currency: 'ARS',
-    courses: [
+    offerings: [
       {
         id: 'c1',
         name: 'Course',
@@ -22,8 +22,8 @@ const catalogWith = (course: Record<string, unknown>) =>
         price: { amount: 4500000, currency: 'ARS' },
         durationHours: null,
         schedule: null,
-        enrollmentUrl: null,
-        ...course,
+        url: null,
+        ...offering,
       },
     ],
     faq: [],
@@ -37,7 +37,7 @@ describe('catalogue rendering', () => {
         description: 'Starting from zero',
         durationHours: 24,
         schedule: 'Tuesdays 6pm',
-        enrollmentUrl: 'https://example.com/x',
+        url: 'https://example.com/x',
       }),
       rules,
     );
@@ -45,7 +45,7 @@ describe('catalogue rendering', () => {
     expect(catalogBlock).toContain('description: Starting from zero');
     expect(catalogBlock).toContain('duration_hours: 24');
     expect(catalogBlock).toContain('schedule: Tuesdays 6pm');
-    expect(catalogBlock).toContain('enrolment_url: https://example.com/x');
+    expect(catalogBlock).toContain('url: https://example.com/x');
   });
 
   it('omits optional fields rather than rendering empty labels', () => {
@@ -78,7 +78,7 @@ describe('catalogue rendering', () => {
     const withFaq = CatalogSchema.parse({
       businessName: 'D',
       currency: 'ARS',
-      courses: catalogWith({}).courses,
+      offerings: catalogWith({}).offerings,
       faq: [{ question: 'Certificate?', answer: 'Yes.' }],
     });
     expect(buildSystemPrompt('P.', withFaq, rules).catalogBlock).toContain('FREQUENTLY ASKED');

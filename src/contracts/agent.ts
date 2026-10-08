@@ -125,10 +125,10 @@ export const InboundMessage = z.object({
   /** Set when `text` was a media pointer rather than something the contact typed. */
   media: InboundMedia.optional(),
   /**
-   * What the request presented as the contact's course, unchecked: the turn
-   * keeps it only if it is one of the course field's values (specs/028).
+   * What the request presented as the contact's offering, unchecked: the turn
+   * keeps it only if it is one of the offering field's values (specs/028).
    */
-  course: z.string().nullish(),
+  offering: z.string().nullish(),
   receivedAt: z.date(),
 });
 export type InboundMessage = z.infer<typeof InboundMessage>;
@@ -204,10 +204,10 @@ const SetFieldAction = z.object({
   field: z.string(),
   value: z.string(),
   /**
-   * Set when the field is the course field, so whoever performs the write
-   * can record the contact's course without reading `tools.json` (specs/028).
+   * Set when the field is the offering field, so whoever performs the write
+   * can record the contact's offering without reading `tools.json` (specs/028).
    */
-  course: z.literal(true).optional(),
+  offering: z.literal(true).optional(),
   /**
    * Performed by the server once this write is, and only if it is: the event
    * configured for the stage it advances to. Not counted against the

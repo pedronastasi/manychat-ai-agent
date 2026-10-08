@@ -62,7 +62,7 @@ const rules = RulesSchema.parse({
 const catalog = CatalogSchema.parse({
   businessName: 'Demo Academy',
   currency: 'USD',
-  courses: [
+  offerings: [
     {
       id: 'c1',
       name: 'Starter Course',
@@ -70,7 +70,7 @@ const catalog = CatalogSchema.parse({
       price: { amount: 31700, currency: 'USD' },
       durationHours: 12,
       schedule: 'Mondays 7pm',
-      enrollmentUrl: null,
+      url: null,
     },
   ],
 });

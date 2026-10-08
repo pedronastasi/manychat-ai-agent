@@ -6,7 +6,7 @@ import type { MediaImage } from '../media/port.ts';
 import {
   actionsNote,
   buildSystemPrompt,
-  courseNotice,
+  offeringNotice,
   fenceUserText,
   funnelNotice,
   mediaNotice,
@@ -23,7 +23,7 @@ import { estimateCostUsd, supportsTemperature } from './registry.ts';
 import {
   ActionStage,
   buildTools,
-  courseField,
+  offeringField,
   funnelField,
   intentField,
   MAX_STEPS,
@@ -161,8 +161,8 @@ function historyMessage(turn: HistoryTurn): ModelMessage {
  * The turn's own message. A media turn adds a note saying what the model
  * received, and the images as bytes: never a URL, which some providers would
  * fetch themselves and all would keep in their logs. A tenant with a funnel
- * adds a note of the contact's stage (specs/023), and one with a course field
- * a note of their course (specs/028).
+ * adds a note of the contact's stage (specs/023), and one with an offering
+ * field a note of their offering (specs/028).
  */
 function currentMessage(
   text: string,
@@ -200,7 +200,7 @@ function currentMessage(
 
 /**
  * A nudge turn's message: the server's trigger note, after the funnel and
- * course notes if there are any. All of it is the system's, so none of it is
+ * offering notes if there are any. All of it is the system's, so none of it is
  * fenced (C4).
  */
 function nudgeMessage(since: Date, contactNotices: string[]): ModelMessage {
@@ -337,11 +337,11 @@ export class GenerateTextRunner implements AgentRunner {
     const opening = contact?.openingDue ? openingFlow(config.tools ?? NO_TOOLS) : undefined;
     const contactNotices = [
       ...(intentField(config.tools ?? NO_TOOLS)
-        ? [intentNotice(contact?.intent, contact?.advertCourse)]
+        ? [intentNotice(contact?.intent, contact?.advertOffering)]
         : []),
       ...(funnelField(config.tools ?? NO_TOOLS) ? [funnelNotice(contact?.funnelStage)] : []),
-      ...(courseField(config.tools ?? NO_TOOLS)
-        ? [courseNotice(contact?.course, contact?.courseChangedFrom)]
+      ...(offeringField(config.tools ?? NO_TOOLS)
+        ? [offeringNotice(contact?.offering, contact?.offeringChangedFrom)]
         : []),
     ];
 

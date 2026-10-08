@@ -111,11 +111,13 @@ A case may also set `nudge: true` (`025`). It then runs as a follow-up turn: the
 system's trigger note follows `history`, and `text` is ignored, because no
 contact wrote anything.
 
-A case may also set `contact`, with `funnel_stage` (`023`) and `course` (`028`):
-what the server already knows about the contact as the turn starts. The model
-reads them as the funnel and course notes a live turn carries. Some cases are
-only meaningful with it: the same request to switch course is accepted before
-`offered` and escalated after it. Absent, the contact is new.
+A case may also set `contact`, with `funnel_stage` (`023`), `offering` (`028`),
+`intent`, `opening_due` and `advert_offering` (`034`): what the server already
+knows about the contact as the turn starts. The model reads them as the notes a
+live turn carries. Some cases are only meaningful with it: the same request to
+switch offering is accepted before `offered` and escalated after it. Absent, the
+contact is new. The keys before `042`, `course` and `advert_course`, fail to
+load; `agent upgrade` rewrites them in every suite of the project.
 
 ## Two substring assertions replace four bespoke ones
 

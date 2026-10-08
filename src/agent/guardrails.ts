@@ -307,24 +307,24 @@ const digits = (value: string) => value.replace(/[.,]/g, '');
  *
  * Grounding reads the catalog's prose as well as `price.amount`. A tenant whose
  * offering has tiers — a web-only discount, a deposit, a balance — documents
- * those figures in an FAQ answer or a course description, because `price` holds
- * one number per course and cannot express them. Grounding against `price` alone
+ * those figures in an FAQ answer or an offering's description, because `price`
+ * holds one number per offering and cannot express them. Grounding against `price` alone
  * flagged every correct mention of such a figure, which is the failure mode that
  * gets the whole assertion switched off.
  */
 export function findUngroundedPrices(messages: string[], catalog: Catalog): string[] {
   const allowed = new Set<string>();
 
-  for (const course of catalog.courses) {
-    const major = course.price.amount / 100;
+  for (const offering of catalog.offerings) {
+    const major = offering.price.amount / 100;
     allowed.add(digits(String(major)));
-    allowed.add(digits(String(course.price.amount)));
+    allowed.add(digits(String(offering.price.amount)));
     allowed.add(digits(major.toLocaleString('es-AR')));
     allowed.add(digits(major.toLocaleString('en-US')));
   }
 
   const prose = [
-    ...catalog.courses.map(course => course.description),
+    ...catalog.offerings.map(offering => offering.description),
     ...catalog.faq.map(entry => entry.answer),
     // A deposit or an instalment the tenant published is a catalog price
     // (specs/023 § Verification item 6).

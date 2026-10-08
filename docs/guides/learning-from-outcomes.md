@@ -31,11 +31,11 @@ this guide and the spec disagree, the spec wins.
      90 days;
    - and they have not written for at least 14 days, so the outcome has had
      time to happen.
-2. **It labels each contact** `enrolled` or `not_enrolled` by reading their
-   ManyChat tags: `enrolled` when they carry the tag your team sets on a
+2. **It labels each contact** `converted` or `not_converted` by reading their
+   ManyChat tags: `converted` when they carry the tag your team sets on a
    payment. The reads are paced at one per second, so they never take capacity
    from live conversations. A contact whose read fails is left out, never
-   counted as not enrolled.
+   counted as not converted.
 3. **It needs enough of both.** With fewer than 20 contacts on either side, the
    run stops there and calls no model. Otherwise the 50 most recent of each side
    go to the analyst.
@@ -123,9 +123,9 @@ says so at `warn`. Run `insights run --force` to make up for it.
   `"funnel": true` in `config/tools.json`, which the agent moves to `offered`.
   See "The sales funnel" in the [configuration guide](../../config/README.md).
 - **A tag your team sets on a payment.** Pick a ManyChat tag, for example
-  `enrolled`, and make sure someone, or an automation, adds it to every contact
+  `paid`, and make sure someone, or an automation, adds it to every contact
   who pays. The run can only learn from what that tag says. A contact who paid
-  but was never tagged counts as not enrolled.
+  but was never tagged counts as not converted.
 - **A model for the analyst**, with its API key. A capable model is worth it
   here: it runs once a week, and its output is read by a person.
 - **A real model for the eval.** The mock model ignores the prompt, so its
@@ -141,14 +141,14 @@ says so at `warn`. Run `insights run --force` to make up for it.
    ```json
    "learning": {
      "language": "English",
-     "enrolledTag": "enrolled",
+     "convertedTag": "paid",
      "maxRunCostUsd": 5
    }
    ```
 
    | Setting         | What it is                                                                                        |
    | --------------- | ------------------------------------------------------------------------------------------------- |
-   | `enrolledTag`   | The ManyChat tag that marks a paying contact. The model never sees it.                            |
+   | `convertedTag`  | The ManyChat tag that marks a paying contact. The model never sees it.                            |
    | `language`      | The language proposals are written in: yours, as the reviewer.                                    |
    | `maxRunCostUsd` | The most one weekly analyst call may cost, in US dollars. Required: there is no sensible default. |
 
@@ -317,7 +317,7 @@ restart.
 | `agent insights review`            | Approves, edits, rejects or retires tactics.                  |
 | `PLAYBOOK_VERSION=<id> agent eval` | Evaluates a version and records the result for activation.    |
 | `agent insights activate <id>`     | Puts a version live, once its eval shows no new failure.      |
-| `agent insights report`            | Enrolment rate by the version a contact was offered under.    |
+| `agent insights report`            | Conversion rate by the version a contact was offered under.   |
 
 Inside this repository, the same commands are `pnpm insights:run`,
 `pnpm insights:review`, `pnpm insights:activate` and `pnpm insights:report`.
@@ -342,7 +342,7 @@ change if a run shows a need.
 
 ## What it cannot tell you
 
-- **Whether a tactic causes enrolment.** A tactic seen more often among payers
+- **Whether a tactic causes a sale.** A tactic seen more often among payers
   may be a sign of someone who had already decided, not a reason they did.
 - **Whether the analyst's counts are right.** Check the cited messages.
 - **Whether a tactic is safe beyond your eval cases.** The eval catches only

@@ -145,16 +145,16 @@ describe('agent upgrade migrations are idempotent (specs/033 V3)', () => {
     try {
       cpSync('test/fixtures/config', tmp, { recursive: true });
 
-      const first = runMigrations(tmp);
+      const first = runMigrations(tmp, { root: tmp });
       const snapshotAfterFirst = readConfig(tmp);
 
-      const second = runMigrations(tmp);
+      const second = runMigrations(tmp, { root: tmp });
       const snapshotAfterSecond = readConfig(tmp);
 
       expect(snapshotAfterSecond).toEqual(snapshotAfterFirst);
       expect(second.unchanged).toBe(true);
 
-      // With no migrations yet, both runs should be no-ops.
+      // The fixture is already in the installed shape, so both runs are no-ops.
       expect(first.unchanged).toBe(true);
     } finally {
       rmSync(tmp, { recursive: true, force: true });

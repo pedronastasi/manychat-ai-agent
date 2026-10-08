@@ -16,7 +16,7 @@ config files, never a new branch (Constitution C1).
 ```
 config/
   prompt.md        persona, tone, rules      (gitignored)
-  catalog.json     courses, prices, schedule (gitignored)
+  catalog.json     offerings, prices, schedule (gitignored)
   rules.json       thresholds, escalation    (gitignored)
   tools.json       optional agent actions    (gitignored)
   plugins.json     optional plugin packages  (gitignored, 036)
@@ -30,9 +30,11 @@ customer-facing error hours later.
 
 ## `catalog.json`
 
-Courses with id, name, description, price (amount + currency), duration,
-schedule, and an optional enrolment URL. Prices are integers in minor units
-(cents) to avoid float drift, with an explicit currency code.
+`offerings`, at least one, each with id, name, description and price (amount +
+currency), and optionally `durationHours`, `schedule` and `url`, absent meaning
+`null` (`042`). Prices are integers in minor units (cents) to avoid float
+drift, with an explicit currency code. A catalog that still says `courses` or
+`enrollmentUrl` fails at load naming the key and `agent upgrade`.
 
 `paymentOptions` is optional: one entry per way to pay the tenant offers
 (instalments, a deposit, a private-class rate), each an `id`, unique, and a
@@ -57,7 +59,7 @@ JSON edit and a restart — no prompt editing, no deploy.
 - `rate_limit` — per-subscriber turns per window
 - `historyDays` — how far back the model's history reaches, default 30
 - `idleResetHours` — hours of silence after which the turn cap resets, default 24 (`018`)
-- `learning` — optional: `language`, `enrolledTag` and `maxRunCostUsd`, all required
+- `learning` — optional: `language`, `convertedTag` and `maxRunCostUsd`, all required
   within it; turns on learning from outcomes and needs a `funnel` field (`031`)
 
 ## `tools.json`
@@ -66,14 +68,14 @@ Optional. The flows, tags and field values the agent may act with (`012`). Absen
 the agent is offered no tools and behaves as it did before `012`.
 
 - `flows[]` — `id`, `flowNs`, `description`, optional `repeatable` and
-  `role`, `"payment_link"` (`023`) or `"opening"` (`032`), optional `course`,
-  a catalog course id (`028`), optional `settleSeconds`, an integer from 0 to
+  `role`, `"payment_link"` (`023`) or `"opening"` (`032`), optional `offering`,
+  a catalog offering id (`028`), optional `settleSeconds`, an integer from 0 to
   30: how long the flow plays, which a reply sent after it waits for (`030`),
   optional `onStage`, a funnel stage other than `new` and `link_sent` at which
   the server sends the flow (`032`)
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
-  optional `funnel` (`023`), `course` (`028`) and `intent` (`034`)
+  optional `funnel` (`023`), `offering` (`028`) and `intent` (`034`)
 - `readable` — `tags[]` and `fields[]` in the shapes above, which `get_contact`
   returns but no tool writes (`024`)
 - `notes[]` — `id`, `field`, `maxLength` (at most 500), `neverRendered` (must be
@@ -97,23 +99,25 @@ A tag id is unique across `tags` and `readable.tags`, and a field id across
 At most one flow may have `role: "payment_link"`, and at most one field may be
 marked `funnel`. A `funnel` field's `values` must be the stages of `023` in
 order: `new`, `qualifying`, `nurturing`, `offered`, `prepared`, `link_sent`.
-At most one flow may have `role: "opening"`, and it carries no `course` and is
+At most one flow may have `role: "opening"`, and it carries no `offering` and is
 not `repeatable`. At most one flow may be tied to each `onStage`, never the
 `opening` or `payment_link` flow, and only when a field is marked `funnel`
 (`032`).
 `events` need a `funnel` field, at most one entry per `stage`, and a `flowNs`
 no `flows[]` entry or other event uses (`027`).
 
-At most one field may be marked `intent`, not the `funnel` or `course` field,
+At most one field may be marked `intent`, not the `funnel` or `offering` field,
 and its `values` must be exactly `not_prospect`, `prospect`, in that order. A
 `funnel` field and an `opening` flow each require an `intent` field (`034`).
 
-At most one field may be marked `course`, and not the `funnel` field. Its
-`values` must be exactly the `catalog.json` course ids, in any order. A flow's
-`course` must be one of those ids, and a flow may carry one only when a field is
-marked `course`; the `payment_link` flow carries none (`028`). These are checked
-against `catalog.json` when both load, so a catalog edit that drops a course
-fails the reload until `tools.json` drops it too.
+At most one field may be marked `offering`, and not the `funnel` field. Its
+`values` must be exactly the `catalog.json` offering ids, in any order. A flow's
+`offering` must be one of those ids, and a flow may carry one only when a field
+is marked `offering`; the `payment_link` flow carries none (`028`). These are
+checked against `catalog.json` when both load, so a catalog edit that drops an
+offering fails the reload until `tools.json` drops it too. A field or flow that
+still carries `course`, or a `learning` block with `enrolledTag`, fails at load
+naming the key and `agent upgrade` (`042`).
 
 Loading also refuses a flow or event whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, a
 field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`, and a

@@ -35,12 +35,12 @@ So **the agent never writes to the playbook.** No tool is offered for it, on
 any turn. Lessons come from finished conversations whose outcome is known, and
 reach the prompt only through a person.
 
-## Paid enrolment is the signal, because link-sent rate can be bought
+## Paid conversion is the signal, because link-sent rate can be bought
 
 `023 § Success is measured twice` warns that link-sent rate rises when the
 agent gets pushier as readily as when it gets better. A job that learned from
 link-sent would learn to ask early and often. The job learns from paid
-enrolment only.
+conversion only, `042`'s word for a sale a person has confirmed.
 
 `rules.json` gains an optional `learning` block:
 
@@ -48,13 +48,13 @@ enrolment only.
 {
   "learning": {
     "language": "English",
-    "enrolledTag": "enrolled",
+    "convertedTag": "paid",
     "maxRunCostUsd": 5,
   },
 }
 ```
 
-- `enrolledTag` is the ManyChat tag name a person sets when they see a
+- `convertedTag` (`enrolledTag` before `042`) is the ManyChat tag name a person sets when they see a
   payment (`023`). It stays server-side; the model never sees it.
 - `language` is what the analyst writes proposals in: the reviewer's language,
   normally that of `config/prompt.md`. Proposals live in Postgres, outside the
@@ -77,9 +77,9 @@ A contact is in a run's cohort when:
 2. their latest bound turn (`019`) is at least **14 days** old.
 
 The job then reads each cohort contact's tags through `ContactReader` and
-labels them `enrolled` if they carry `enrolledTag`, `not_enrolled` otherwise.
-A read that fails drops the contact from the run; it is never labelled
-`not_enrolled` by default. Reads are paced at **one per second**, below the
+labels them `converted` if they carry `convertedTag`, `not_converted`
+otherwise. A read that fails drops the contact from the run; it is never
+labelled `not_converted` by default. Reads are paced at **one per second**, below the
 limiter's burst, so the job never takes capacity from live turns.
 
 With fewer than **20** contacts on either side, the run makes no analyst call
@@ -129,13 +129,13 @@ rule`), and a playbook that carries one is a second catalog nobody priced.
 
 Each run creates at most **5** proposals. Each holds:
 
-| Field              | Constraint                                                 |
-| ------------------ | ---------------------------------------------------------- |
-| `text`             | The tactic, in `learning.language`, at most 280 chars      |
-| `rationale`        | Why the analyst believes it, at most 500 chars             |
-| `enrolledCount`    | Enrolled transcripts that show it, per the analyst         |
-| `notEnrolledCount` | Not-enrolled transcripts that show it, per the analyst     |
-| `turnIds`          | Turn ids it cites, each one present in the analyst's input |
+| Field               | Constraint                                                 |
+| ------------------- | ---------------------------------------------------------- |
+| `text`              | The tactic, in `learning.language`, at most 280 chars      |
+| `rationale`         | Why the analyst believes it, at most 500 chars             |
+| `convertedCount`    | Converted transcripts that show it, per the analyst        |
+| `notConvertedCount` | Not-converted transcripts that show it, per the analyst    |
+| `turnIds`           | Turn ids it cites, each one present in the analyst's input |
 
 A proposal is refused, and never stored, when its `text` or `rationale`
 contains a digit, a currency symbol or any shape the cleaning removes, or
@@ -231,7 +231,7 @@ that fails starts with no playbook and logs at `warn`.
 model wrote, null when none was active. A scripted or fallback reply, which no
 prompt produced, records null. It holds a version id, not insight text.
 
-`pnpm insights:report` reports, per version, the enrolment rate of contacts
+`pnpm insights:report` reports, per version, the conversion rate of contacts
 whose first `offered` write was performed on a turn that ran with that
 version, read with the same 14-day settle and the same tag read as the
 cohort. It is read beside `023`'s two rates and never combined with them; no command
@@ -318,7 +318,7 @@ date here.
 
 What this misses: the refusals catch digits and currency symbols, not an
 invented promise written in words, and only the reviewer catches that. The
-analyst's counts are its own claim. A pattern found more often among enrolled
+analyst's counts are its own claim. A pattern found more often among converted
 contacts may be a symptom of having already decided to buy rather than a
 cause of it, and nothing here tells the two apart. The eval gate catches only
 regressions the golden set has a case for. Twenty contacts a side is a floor

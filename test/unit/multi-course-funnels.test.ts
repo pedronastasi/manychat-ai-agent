@@ -6,12 +6,12 @@ import {
   ActionStage,
   buildTools,
   contactActionsFrom,
-  courseField,
-  knownCourse,
+  offeringField,
+  knownOffering,
 } from '../../src/agent/tools.ts';
 import type { ContactActions } from '../../src/agent/tools.ts';
-import { buildSystemPrompt, courseNotice } from '../../src/agent/prompt.ts';
-import { performedCourse } from '../../src/conversation/actions.ts';
+import { buildSystemPrompt, offeringNotice } from '../../src/agent/prompt.ts';
+import { performedOffering } from '../../src/conversation/actions.ts';
 import { capabilitiesFor, FUNNEL_STAGES } from '../../src/contracts/config.ts';
 import type { Tools } from '../../src/contracts/config.ts';
 import type { ActionRecord, StagedAction } from '../../src/contracts/agent.ts';
@@ -30,9 +30,9 @@ const FIXTURE = 'test/fixtures/config';
 const tenant = loadTenantConfig(FIXTURE);
 const tools: Tools = tenant.tools!;
 
-const on = (course: string | undefined, extra: Partial<ContactActions> = {}): ContactActions => ({
+const on = (offering: string | undefined, extra: Partial<ContactActions> = {}): ContactActions => ({
   sentFlows: new Set(),
-  course,
+  offering,
   ...extra,
 });
 
@@ -63,7 +63,7 @@ describe('course config is checked at load (specs/028 V1)', () => {
     fields: (Record<string, unknown> & { id: string; values: string[] })[];
   };
   const fixtureTools = JSON.parse(readFileSync(join(FIXTURE, 'tools.json'), 'utf8')) as RawTools;
-  const courseIndex = fixtureTools.fields.findIndex(field => field.course === true);
+  const courseIndex = fixtureTools.fields.findIndex(field => field.offering === true);
 
   /** Loads the fixture tenant with its tools.json edited by `edit`. */
   function loadWith(edit: (raw: RawTools) => void) {
@@ -79,8 +79,8 @@ describe('course config is checked at load (specs/028 V1)', () => {
   }
 
   it('loads the demo tenant, whose course field lists the catalog ids', () => {
-    expect(courseField(tools)?.values.sort()).toEqual(
-      tenant.catalog.courses.map(course => course.id).sort(),
+    expect(offeringField(tools)?.values.sort()).toEqual(
+      tenant.catalog.offerings.map(course => course.id).sort(),
     );
   });
 
@@ -96,7 +96,7 @@ describe('course config is checked at load (specs/028 V1)', () => {
       raw.fields.push({ ...raw.fields[courseIndex]!, id: 'second_course', field: 'second_course' });
     });
     expect(load).toThrow(ConfigError);
-    expect(load).toThrow(/only one field may be marked "course"/);
+    expect(load).toThrow(/only one field may be marked "offering"/);
   });
 
   it('refuses a course field whose values differ from the catalog course ids', () => {
@@ -108,39 +108,39 @@ describe('course config is checked at load (specs/028 V1)', () => {
         raw.fields[courseIndex]!.values = values;
       });
       expect(load).toThrow(ConfigError);
-      expect(load).toThrow(/must list exactly the catalog course ids/);
+      expect(load).toThrow(/must list exactly the catalog offering ids/);
     }
   });
 
   it('refuses a flow whose course is not a catalog id', () => {
     const load = loadWith(raw => {
-      raw.flows[0]!.course = 'evening';
+      raw.flows[0]!.offering = 'evening';
     });
     expect(load).toThrow(ConfigError);
-    expect(load).toThrow(/flow 'foundation_brochure' names course 'evening'/);
+    expect(load).toThrow(/flow 'foundation_brochure' names offering 'evening'/);
   });
 
   it('refuses one field marked both funnel and course', () => {
     const load = loadWith(raw => {
-      raw.fields[0]!.course = true;
+      raw.fields[0]!.offering = true;
       raw.fields.splice(courseIndex, 1);
     });
     expect(load).toThrow(ConfigError);
-    expect(load).toThrow(/may not be marked both "funnel" and "course"/);
+    expect(load).toThrow(/may not be marked both "funnel" and "offering"/);
   });
 
   it('refuses a flow with a course when no field is marked course', () => {
     const load = loadWith(raw => {
       raw.fields.splice(courseIndex, 1);
     });
-    expect(load).toThrow(/has a course, but no field is marked "course"/);
+    expect(load).toThrow(/has an offering, but no field is marked "offering"/);
   });
 
-  it('refuses a payment-link flow with a course: one payment flow serves every course', () => {
+  it('refuses a payment-link flow with an offering: one payment flow serves every offering', () => {
     const load = loadWith(raw => {
-      raw.flows[3]!.course = 'foundation';
+      raw.flows[3]!.offering = 'foundation';
     });
-    expect(load).toThrow(/the "payment_link" flow may not have a "course"/);
+    expect(load).toThrow(/the "payment_link" flow may not have an "offering"/);
   });
 });
 
@@ -203,7 +203,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
   it('describes only the flows it can accept now, each with its course', () => {
     const description = buildTools(tools, new ActionStage(), asProspect(on('advanced')))!.send_flow!
       .description!;
-    expect(description).toContain('- advanced_brochure (course advanced):');
+    expect(description).toContain('- advanced_brochure (offering advanced):');
     expect(description).toContain('- student_results:');
     expect(description).not.toContain('foundation_brochure');
     expect(description).not.toContain('intensive_brochure');
@@ -211,7 +211,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
 
   it('says why nothing can be sent: no course yet, or the course’s content all sent', () => {
     // Only course flows left unsent: every shared flow was sent already.
-    const shared = tools.flows.filter(flow => flow.course === undefined).map(flow => flow.id);
+    const shared = tools.flows.filter(flow => flow.offering === undefined).map(flow => flow.id);
     const onlyCourseFlows: Tools = {
       ...tools,
       flows: tools.flows.map(flow => (flow.role ? { ...flow, repeatable: false } : flow)),
@@ -221,19 +221,19 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
     const unplaced = buildTools(
       onlyCourseFlows,
       new ActionStage(),
-      asProspect({ ...sent, course: undefined }),
+      asProspect({ ...sent, offering: undefined }),
     );
-    expect(unplaced!.send_flow!.description).toContain('record the contact’s course');
+    expect(unplaced!.send_flow!.description).toContain('record the contact’s offering');
 
     const placed = buildTools(
       onlyCourseFlows,
       new ActionStage(),
       asProspect({
         ...sent,
-        course: 'foundation',
+        offering: 'foundation',
       }),
     );
-    expect(placed!.send_flow!.description).toContain('everything for this contact’s course');
+    expect(placed!.send_flow!.description).toContain('everything for this contact’s offering');
     expect(placed!.send_flow!.description).not.toContain('set_field');
   });
 
@@ -243,7 +243,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
     await call(built, 'set_field', { field: 'course', value: 'foundation' });
     await call(built, 'set_field', { field: 'prior_experience', value: 'none' });
     expect(stage.staged).toEqual([
-      { tool: 'set_field', id: 'course', field: 'course', value: 'foundation', course: true },
+      { tool: 'set_field', id: 'course', field: 'course', value: 'foundation', offering: true },
       { tool: 'set_field', id: 'prior_experience', field: 'prior_experience', value: 'none' },
     ]);
   });
@@ -295,8 +295,8 @@ describe('the course is locked from the offer (specs/028 V3)', () => {
 
   it('tells the model to escalate a switch after the offer as explicit_request', () => {
     const { staticPrefix } = buildSystemPrompt(tenant.persona, tenant.catalog, tenant.rules, tools);
-    expect(staticPrefix).toContain('COURSES');
-    expect(staticPrefix).toMatch(/locked: a\s+contact who asks to switch course is escalated/);
+    expect(staticPrefix).toContain('OFFERINGS');
+    expect(staticPrefix).toMatch(/locked: a\s+contact who asks to switch offering is escalated/);
     expect(staticPrefix).toContain('"explicit_request"');
   });
 });
@@ -311,21 +311,21 @@ describe('the inbound course is a catalog id or absent (specs/028 V4)', () => {
     writeToken: async () => {},
     performAction: async () => {},
   });
-  const parse = (course: unknown) =>
+  const parse = (offering: unknown) =>
     adapter.parse(
-      { subscriber_id: '1', text: 'hi', ...(course === undefined ? {} : { course }) },
+      { subscriber_id: '1', text: 'hi', ...(offering === undefined ? {} : { offering }) },
       { tenantId: 'demo', channel: 'whatsapp' },
     );
 
   it('accepts the key in the strict inbound schema', () => {
-    expect(ManyChatInbound.safeParse({ subscriber_id: '1', text: 'hi', course: 'x' }).success).toBe(
-      true,
-    );
+    expect(
+      ManyChatInbound.safeParse({ subscriber_id: '1', text: 'hi', offering: 'x' }).success,
+    ).toBe(true);
   });
 
   it('keeps a catalog id', () => {
-    expect(knownCourse(parse('advanced').course, tools)).toBe('advanced');
-    expect(knownCourse(parse(' weekend-intensive ').course, tools)).toBe('weekend-intensive');
+    expect(knownOffering(parse('advanced').offering, tools)).toBe('advanced');
+    expect(knownOffering(parse(' weekend-intensive ').offering, tools)).toBe('weekend-intensive');
   });
 
   it.each([
@@ -335,12 +335,12 @@ describe('the inbound course is a catalog id or absent (specs/028 V4)', () => {
     ['null', null],
     ['missing', undefined],
   ])('treats an %s value as absent, never as a course', (_label, value) => {
-    expect(knownCourse(parse(value).course, tools)).toBeUndefined();
+    expect(knownOffering(parse(value).offering, tools)).toBeUndefined();
   });
 
   it('knows no course on a tenant without a course field', () => {
-    const plain: Tools = { ...tools, fields: tools.fields.filter(field => !field.course) };
-    expect(knownCourse('advanced', plain)).toBeUndefined();
+    const plain: Tools = { ...tools, fields: tools.fields.filter(field => !field.offering) };
+    expect(knownOffering('advanced', plain)).toBeUndefined();
   });
 
   it('asks ManyChat to fill the course into the callback, from the course field', () => {
@@ -355,11 +355,11 @@ describe('the inbound course is a catalog id or absent (specs/028 V4)', () => {
       {
         capabilities: capabilitiesFor('whatsapp'),
         callbackUrl: 'https://example.com/message',
-        courseField: 'course',
+        offeringField: 'course',
       },
     );
     expect(rendered.content.external_message_callback?.payload).toMatchObject({
-      course: '{{course}}',
+      offering: '{{course}}',
     });
   });
 });
@@ -384,7 +384,7 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
       new Date(0),
     );
     const stage = new ActionStage();
-    const built = buildTools(tools, stage, asProspect({ ...contact, course: 'advanced' }));
+    const built = buildTools(tools, stage, asProspect({ ...contact, offering: 'advanced' }));
     const description = built!.send_flow!.description!;
 
     expect(description).not.toContain('student_results');
@@ -397,7 +397,7 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
     const back = buildTools(
       tools,
       new ActionStage(),
-      asProspect({ ...contact, course: 'foundation' }),
+      asProspect({ ...contact, offering: 'foundation' }),
     );
     expect(back!.send_flow!.description).not.toContain('foundation_brochure');
   });
@@ -409,10 +409,12 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
 
 describe('the course note and the performed course (specs/028)', () => {
   it('notes the course, its absence, and a change the request made', () => {
-    expect(courseNotice(undefined)).toBe('COURSE: No course is recorded for this contact yet.');
-    expect(courseNotice('advanced')).toBe("COURSE: This contact's course is advanced.");
-    expect(courseNotice('advanced', 'foundation')).toMatch(
-      /changed from foundation to advanced.*Confirm which course they want/,
+    expect(offeringNotice(undefined)).toBe(
+      'OFFERING: No offering is recorded for this contact yet.',
+    );
+    expect(offeringNotice('advanced')).toBe("OFFERING: This contact's offering is advanced.");
+    expect(offeringNotice('advanced', 'foundation')).toMatch(
+      /changed from foundation to advanced.*Confirm which offering they want/,
     );
   });
 
@@ -422,18 +424,18 @@ describe('the course note and the performed course (specs/028)', () => {
       id: 'course',
       field: 'course',
       value,
-      course: true,
+      offering: true,
     });
     const other: StagedAction = { tool: 'set_field', id: 'x', field: 'x', value: 'y' };
     const record = (status: ActionRecord['status']): ActionRecord[] => [
       { tool: 'set_field', id: 'course', status },
     ];
     expect(
-      performedCourse(
+      performedOffering(
         [write('foundation'), other, write('advanced')],
         [record('performed'), record('performed'), record('failed')],
       ),
     ).toBe('foundation');
-    expect(performedCourse([other], [record('performed')])).toBeUndefined();
+    expect(performedOffering([other], [record('performed')])).toBeUndefined();
   });
 });

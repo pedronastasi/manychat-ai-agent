@@ -80,18 +80,18 @@ export async function performActions(
 }
 
 /**
- * The course the turn's performed actions wrote, if any: the last write to
- * the course field that ManyChat accepted (specs/028). `outcomes` is what
+ * The offering the turn's performed actions wrote, if any: the last write to
+ * the offering field that ManyChat accepted (specs/028). `outcomes` is what
  * `performActions` returned for `actions`.
  */
-export function performedCourse(
+export function performedOffering(
   actions: readonly StagedAction[],
   outcomes: readonly ActionRecord[][],
 ): string | undefined {
-  let course: string | undefined;
+  let offering: string | undefined;
   actions.forEach((action, index) => {
-    if (action.tool !== 'set_field' || !action.course) return;
-    if (outcomes[index]?.[0]?.status === 'performed') course = action.value;
+    if (action.tool !== 'set_field' || !action.offering) return;
+    if (outcomes[index]?.[0]?.status === 'performed') offering = action.value;
   });
-  return course;
+  return offering;
 }

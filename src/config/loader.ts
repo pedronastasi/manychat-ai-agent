@@ -94,32 +94,78 @@ function noteCollisions(tools: Tools, reserved: ReservedNames): string[] {
 }
 
 /**
- * A course the agent cannot quote a price for must not be one it can record
- * or send content for, so the course field and every flow's `course` name
- * catalog ids only (specs/028, C6).
+ * An offering the agent cannot quote a price for must not be one it can
+ * record or send content for, so the offering field and every flow's
+ * `offering` name catalog ids only (specs/028, C6).
  */
-function courseMismatches(tools: Tools, catalog: Catalog): string[] {
-  const ids = catalog.courses.map(course => course.id);
-  const field = tools.fields.find(entry => entry.course);
+function offeringMismatches(tools: Tools, catalog: Catalog): string[] {
+  const ids = catalog.offerings.map(offering => offering.id);
+  const field = tools.fields.find(entry => entry.offering);
   const sameSet =
     field !== undefined &&
     field.values.length === ids.length &&
     ids.every(id => field.values.includes(id));
   return [
     ...(field && !sameSet
-      ? [`field '${field.id}' must list exactly the catalog course ids: ${ids.join(', ')}`]
+      ? [`field '${field.id}' must list exactly the catalog offering ids: ${ids.join(', ')}`]
       : []),
     ...tools.flows
-      .filter(flow => flow.course !== undefined && !ids.includes(flow.course))
-      .map(flow => `flow '${flow.id}' names course '${flow.course}', which is not in the catalog`),
-    // Without a course field no turn ever has a course, so the flow could
-    // never be sent.
+      .filter(flow => flow.offering !== undefined && !ids.includes(flow.offering))
+      .map(
+        flow => `flow '${flow.id}' names offering '${flow.offering}', which is not in the catalog`,
+      ),
+    // Without an offering field no turn ever has an offering, so the flow
+    // could never be sent.
     ...(field
       ? []
       : tools.flows
-          .filter(flow => flow.course !== undefined)
-          .map(flow => `flow '${flow.id}' has a course, but no field is marked "course"`)),
+          .filter(flow => flow.offering !== undefined)
+          .map(flow => `flow '${flow.id}' has an offering, but no field is marked "offering"`)),
   ];
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const entriesOf = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value) ? value.filter(isRecord) : [];
+
+/**
+ * Keys a config written before specs/042 carries. Each is refused by name
+ * rather than read through an alias, so the code keeps one shape and the
+ * tenant learns the command that rewrites theirs (specs/042 § Existing
+ * tenants move with `agent upgrade`).
+ */
+function legacyKeys(file: string, raw: unknown): string[] {
+  if (!isRecord(raw)) return [];
+  if (file === 'catalog.json') {
+    return [
+      ...('courses' in raw ? ['courses'] : []),
+      ...(entriesOf(raw.offerings ?? raw.courses).some(entry => 'enrollmentUrl' in entry)
+        ? ['enrollmentUrl']
+        : []),
+    ];
+  }
+  if (file === 'tools.json') {
+    return [
+      ...entriesOf(raw.fields)
+        .filter(entry => 'course' in entry)
+        .map(entry => `fields[${String(entry.id)}].course`),
+      ...entriesOf(raw.flows)
+        .filter(entry => 'course' in entry)
+        .map(entry => `flows[${String(entry.id)}].course`),
+    ];
+  }
+  return isRecord(raw.learning) && 'enrolledTag' in raw.learning ? ['learning.enrolledTag'] : [];
+}
+
+function refuseLegacy(file: string, raw: unknown): void {
+  const keys = legacyKeys(file, raw);
+  if (keys.length === 0) return;
+  throw new ConfigError(
+    `Invalid ${file}: it is in the shape of an earlier version (${keys.join(', ')}). ` +
+      'Run `agent upgrade` to rewrite it.',
+  );
 }
 
 /**
@@ -130,7 +176,9 @@ function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tool
   const path = join(dir, 'tools.json');
   if (!existsSync(path)) return NO_TOOLS;
 
-  const tools = ToolsSchema.safeParse(readJson(path, 'tools'));
+  const raw = readJson(path, 'tools');
+  refuseLegacy('tools.json', raw);
+  const tools = ToolsSchema.safeParse(raw);
   if (!tools.success) {
     throw new ConfigError(
       `Invalid tools.json:\n` +
@@ -160,10 +208,10 @@ function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tool
     );
   }
 
-  const mismatches = courseMismatches(tools.data, catalog);
+  const mismatches = offeringMismatches(tools.data, catalog);
   if (mismatches.length > 0) {
     throw new ConfigError(
-      `Invalid tools.json: its courses do not match catalog.json:\n` +
+      `Invalid tools.json: its offerings do not match catalog.json:\n` +
         mismatches.map(mismatch => `  ${mismatch}`).join('\n'),
     );
   }
@@ -176,7 +224,9 @@ export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): 
     throw new ConfigError(`Missing persona at ${personaPath}. Copy prompt.md.example.`);
   }
 
-  const catalog = CatalogSchema.safeParse(readJson(join(dir, 'catalog.json'), 'catalog'));
+  const rawCatalog = readJson(join(dir, 'catalog.json'), 'catalog');
+  refuseLegacy('catalog.json', rawCatalog);
+  const catalog = CatalogSchema.safeParse(rawCatalog);
   if (!catalog.success) {
     throw new ConfigError(
       `Invalid catalog.json:\n` +
@@ -184,7 +234,9 @@ export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): 
     );
   }
 
-  const rules = RulesSchema.safeParse(readJson(join(dir, 'rules.json'), 'rules'));
+  const rawRules = readJson(join(dir, 'rules.json'), 'rules');
+  refuseLegacy('rules.json', rawRules);
+  const rules = RulesSchema.safeParse(rawRules);
   if (!rules.success) {
     throw new ConfigError(
       `Invalid rules.json:\n` +

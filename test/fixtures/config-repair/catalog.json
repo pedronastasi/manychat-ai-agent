@@ -1,0 +1,43 @@
+{
+  "businessName": "Demo Appliance Repair",
+  "currency": "USD",
+  "offerings": [
+    {
+      "id": "diagnostic",
+      "name": "Diagnostic Visit",
+      "description": "A technician visits, finds the fault and quotes the repair. Credited against a repair booked the same day.",
+      "price": { "amount": 7300, "currency": "USD" },
+      "durationHours": 1.5,
+      "schedule": "Weekdays between 8am and 6pm, booked at least a day ahead"
+    },
+    {
+      "id": "repair",
+      "name": "Standard Repair",
+      "description": "Labour for one repair after a diagnostic visit, parts quoted separately.",
+      "price": { "amount": 15900, "currency": "USD" }
+    },
+    {
+      "id": "maintenance-plan",
+      "name": "Yearly Maintenance Plan",
+      "description": "Two check-ups a year for up to three appliances.",
+      "price": { "amount": 21100, "currency": "USD" },
+      "url": "https://example.com/plans/maintenance"
+    }
+  ],
+  "faq": [
+    {
+      "question": "Which brands do you work on?",
+      "answer": "Most household brands of washing machine, dishwasher, oven and fridge."
+    },
+    {
+      "question": "Is there a warranty on repairs?",
+      "answer": "Labour on a repair is covered for 90 days."
+    }
+  ],
+  "paymentOptions": [
+    {
+      "id": "plan-monthly",
+      "description": "The maintenance plan can be paid monthly instead of yearly, at the same total."
+    }
+  ]
+}

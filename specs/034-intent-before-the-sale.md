@@ -8,7 +8,7 @@ adr: [0015]
 
 # 034 — Intent Before the Sale
 
-Defines how the agent learns whether a contact means to enrol before it sells
+Defines how the agent learns whether a contact means to buy before it sells
 to them, what the server withholds until it knows, and what a contact who is
 not a prospect gets instead. It amends `001`, `003`, `012`, `023`, `025`, `026`
 and `032`, listed
@@ -52,11 +52,11 @@ A `set_field` enum field in `tools.json` may carry `"intent": true`. Its
 values are exactly `not_prospect` and `prospect`, in that order. A contact
 with no value recorded is _unknown_.
 
-| Intent         | Meaning                                                       |
-| -------------- | ------------------------------------------------------------- |
-| unknown        | Nothing the contact said yet shows whether they mean to enrol |
-| `not_prospect` | The contact wrote for something other than enrolling          |
-| `prospect`     | The contact means to enrol, or is weighing it                 |
+| Intent         | Meaning                                                     |
+| -------------- | ----------------------------------------------------------- |
+| unknown        | Nothing the contact said yet shows whether they mean to buy |
+| `not_prospect` | The contact wrote for something other than buying           |
+| `prospect`     | The contact means to buy, or is weighing it                 |
 
 Intent moves one way: unknown to `not_prospect` to `prospect`, and unknown to
 `prospect`. `prospect` is final. A staged write that would leave it, or move
@@ -67,12 +67,12 @@ The server knows a contact's intent from its own records: the last
 `performed` write to the intent field in `turns.actions`, or a write staged
 earlier in the same turn. It never reads intent from the inbound request or
 from the contact's ManyChat fields. What the channel sends can inform the
-model's judgement, as an advert's course does below, but only the model's own
+model's judgement, as an advert's offering does below, but only the model's own
 write opens the sale (C4). Each turn the model is told the result in an
 `INTENT:` notice, beside `FUNNEL:` and outside the fence.
 
 At most one field may carry `intent`, a field may not be both `intent` and
-`funnel` or `course` (`028`), and a funnel field requires an intent field:
+`funnel` or `offering` (`028`), and a funnel field requires an intent field:
 each is a load failure. A deployment that sells cannot run without the gate.
 So does an `opening` flow (`032`): it goes out on the turn that records
 `prospect`, so without an intent field it never would, and a tenant would lose
@@ -84,22 +84,23 @@ are.
 
 The system instructions tell the model to record `prospect` when the contact:
 
-- asks about enrolling, or about a course's price, dates, modalities, duration
+- asks about buying, or about an offering's price, dates, options, duration
   or requirements;
-- says they want to learn what a course teaches, or asks which course suits
+- says they want what an offering provides, or asks which offering suits
   them;
 - asks for the payment link or how to pay;
-- arrived through a course's advert: the conversation has a stored course
-  (`028`) that the agent did not write.
+- arrived through an offering's advert: the conversation has a stored
+  offering (`028`) that the agent did not write.
 
-Only a stored course counts. `028` stores a course only from a request bound
-to the contact's token (`019`), while an unbound request's course narrows the
-turn's flows without being stored. So a course key on a forged request is
+Only a stored offering counts. `028` stores an offering only from a request
+bound to the contact's token (`019`), while an unbound request's offering narrows the
+turn's flows without being stored. So an offering key on a forged request is
 never stored, and cannot be the reason the model records `prospect`.
 
-And `not_prospect` when the contact says they are already enrolled, are a
-former student, offer a product or service, ask for work, or wrote to the
-wrong number.
+And `not_prospect` when the contact says they are an existing customer writing
+about what they already bought, offer a product or service, ask for work, or
+wrote to the wrong number. These criteria are stated in words no vertical owns
+(`042`); what a tenant's customers typically ask belongs in `config/prompt.md`.
 
 Anything else is left unknown. A bare "hi" is unknown: the reply greets the
 contact and asks how it can help, in the tenant's voice, and pitches nothing.
@@ -197,7 +198,7 @@ student asking whether Thursday's class is moved is escalated as
 `out_of_scope` if the catalog does not say; that is the front desk working.
 
 The reply does not sell. The closing question offers further help, never the
-enrolment, and the SALES instructions apply only from `prospect` on. Rule 8
+purchase, and the SALES instructions apply only from `prospect` on. Rule 8
 of the system instructions (`src/agent/prompt.ts`, "Read short replies in
 context") tells the model to "continue the sales flow"; it becomes "continue
 the conversation".
@@ -256,7 +257,7 @@ file fails at load.
 
 1. Config tests assert that a funnel field without an intent field, an intent
    field whose values are not exactly `not_prospect` and `prospect`, two
-   intent fields, a field that is both `intent` and `funnel` or `course`, and
+   intent fields, a field that is both `intent` and `funnel` or `offering`, and
    an `opening` flow without an intent field each fail at load.
 2. A unit test asserts that, before `prospect`, `send_flow`, `add_tag`,
    `remove_tag`, `schedule_nudge` and `set_field` on any field but intent
@@ -275,8 +276,8 @@ file fails at load.
    that it is not sent on an unknown or `not_prospect` turn, on an escalated
    prospect turn with no flow or on any turn after one, to a prospect by the
    rollout rule, or a second time.
-5. An integration test asserts that a course stored from a bound request
-   reaches the model as an advert's course, and a course on an unbound
+5. An integration test asserts that an offering stored from a bound request
+   reaches the model as an advert's offering, and an offering on an unbound
    request, or one the agent wrote, does not. It runs the turn handler, which
    is where the binding is known.
 6. Golden eval cases, demo tenant. The suite runs the model without the turn
@@ -297,5 +298,5 @@ cover the phrasings they thought of. And a non-prospect who says, to be sent
 something, that they want to enrol becomes a prospect: that is the gate
 working as written, not a breach, since everything the sale can send is
 already the tenant's to send. The advert criterion trusts the token binding
-of `019`: a contact whose advert course was set on an unbound request is
+of `019`: a contact whose advert offering was set on an unbound request is
 judged on their words alone, and a "hi" from them stays unknown.

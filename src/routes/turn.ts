@@ -27,8 +27,8 @@ import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
 import {
   ActionStage,
   contactActionsFrom,
-  courseField,
-  knownCourse,
+  offeringField,
+  knownOffering,
   openingFlow,
   stagesProspect,
 } from '../agent/tools.ts';
@@ -43,7 +43,7 @@ import {
   ManyChatConnectionError,
   ManyChatResponseError,
 } from '../channels/manychat/client.ts';
-import { performActions, performedCourse } from '../conversation/actions.ts';
+import { performActions, performedOffering } from '../conversation/actions.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 import { FlowSends } from '../agent/flows.ts';
@@ -152,17 +152,18 @@ export interface TurnResult {
  * stays within what C5 and 019 allow).
  */
 /**
- * The course the contact arrived through, as the model is told it: one stored
- * from a bound request that the agent never wrote (specs/034 § What counts as
- * prospect intent). An unbound request's course is never stored (specs/028),
+ * The offering the contact arrived through, as the model is told it: one
+ * stored from a bound request that the agent never wrote (specs/034 § What
+ * counts as prospect intent). An unbound request's offering is never stored
+ * (specs/028),
  * so it is never one, and a forged request cannot make a contact a prospect.
  */
-function advertCourseOf(
+function advertOfferingOf(
   stored: string | undefined,
   turns: readonly { actions: readonly ActionRecord[] | null }[],
   tools: Tools,
-): { advertCourse?: string } {
-  const field = courseField(tools);
+): { advertOffering?: string } {
+  const field = offeringField(tools);
   if (stored === undefined || field === undefined) return {};
   const written = turns.some(turn =>
     (turn.actions ?? []).some(
@@ -173,7 +174,7 @@ function advertCourseOf(
         action.status === 'performed',
     ),
   );
-  return written ? {} : { advertCourse: stored };
+  return written ? {} : { advertOffering: stored };
 }
 
 function describeWriteError(error: unknown) {
@@ -395,24 +396,26 @@ export class TurnHandler {
       return { ...result, silent: true };
     };
 
-    // The request's course is ManyChat's value now, which already holds every
+    // The request's offering is ManyChat's value now, which already holds every
     // write this service performed, so it wins over the one kept here
     // (specs/028). It narrows this turn's flows bound or not, but only a
     // bound request may store it: an unbound one must not change the
     // contact's own state (specs/019). The kept one is checked too, since a
-    // reload may have dropped its course from the catalog.
+    // reload may have dropped its offering from the catalog.
     const tools = this.deps.tools ?? NO_TOOLS;
-    const keptCourse = knownCourse(known?.course, tools);
-    const requestCourse = knownCourse(inbound.course, tools);
-    if (bound && requestCourse !== undefined && requestCourse !== keptCourse) {
-      await this.store.setCourse(conversation.id, requestCourse);
+    const keptOffering = knownOffering(known?.offering, tools);
+    const requestOffering = knownOffering(inbound.offering, tools);
+    if (bound && requestOffering !== undefined && requestOffering !== keptOffering) {
+      await this.store.setOffering(conversation.id, requestOffering);
     }
-    const course = {
-      course: requestCourse ?? keptCourse,
-      // The stage is not reset: the model confirms the course instead.
-      courseChangedFrom:
-        requestCourse !== undefined && keptCourse !== undefined && requestCourse !== keptCourse
-          ? keptCourse
+    const offering = {
+      offering: requestOffering ?? keptOffering,
+      // The stage is not reset: the model confirms the offering instead.
+      offeringChangedFrom:
+        requestOffering !== undefined &&
+        keptOffering !== undefined &&
+        requestOffering !== keptOffering
+          ? keptOffering
           : undefined,
     };
     // The contact wrote, so the follow-up waiting for their silence is moot
@@ -539,10 +542,10 @@ export class TurnHandler {
       actionHistory && recorded
         ? {
             ...recorded,
-            ...course,
+            ...offering,
             openingDue,
-            ...advertCourseOf(
-              bound ? (requestCourse ?? keptCourse) : keptCourse,
+            ...advertOfferingOf(
+              bound ? (requestOffering ?? keptOffering) : keptOffering,
               actionHistory,
               tools,
             ),
@@ -997,8 +1000,8 @@ export class TurnHandler {
       const performer = new NudgingPerformer(this.deps.actions, this.nudges, conversationId);
       const outcomes = await performActions(performer, subscriberId, staged, logger);
       await this.store.resolveStaged(turnId, outcomes);
-      const course = performedCourse(staged, outcomes);
-      if (course !== undefined) await this.store.setCourse(conversationId, course);
+      const offering = performedOffering(staged, outcomes);
+      if (offering !== undefined) await this.store.setOffering(conversationId, offering);
     } catch (error) {
       logger.error({ err: String(error) }, 'inline actions not recorded');
     }
