@@ -2,7 +2,7 @@
  * The plugin API: what a tenant project's plugin package exports, imported
  * from the bare `manychat-ai-agent` entry point (specs/036).
  *
- * A plugin adds tools. A write tool is staged when the model calls it and
+ * A plugin adds tools, and channels (specs/038). A write tool is staged when the model calls it and
  * performed after the reply, exactly as the built-in tools of specs/012 are.
  * A read tool is performed when called, as `get_contact` is, and the model is
  * shown only the result it declares (specs/039). Neither gets more power than
@@ -204,13 +204,92 @@ export interface PluginReadTool<
   read(call: PluginCall<ParamsOf<S>>): Promise<ResultOf<R>> | ResultOf<R>;
 }
 
+/**
+ * The newest channel API this agent implements (specs/038). Provisional: it
+ * may break in any minor release until a second adapter has been built
+ * against it, which is why it is `0` and versioned apart from the tool API.
+ */
+export const CHANNEL_API_VERSION = 0;
+
+/** Every channel `apiVersion` this agent mounts. A channel naming another is refused at startup. */
+export const SUPPORTED_CHANNEL_API_VERSIONS: readonly number[] = [0];
+
+/**
+ * The schema a channel validates its inbound request with (C3): a Zod
+ * schema, or anything with the same `safeParse`.
+ */
+export interface InboundSchema<T> {
+  safeParse(raw: unknown): { success: true; data: T } | { success: false; error: unknown };
+}
+
+/**
+ * What a channel's `parse` translates its request into. The agent fills in the
+ * rest: the tenant, the channel, and that the request carries no contact token
+ * and no offering (specs/038 § The adapter translates, and decides nothing).
+ */
+export interface ChannelMessage {
+  /** The contact's ID on the platform. The agent prefixes it with the channel's name. */
+  subscriberId: string;
+  text: string;
+  contactName?: string | null | undefined;
+  locale?: string | null | undefined;
+}
+
+/** What a channel renders or pushes: the reply's messages, and whether it hands off to a person. */
+export interface ChannelReply {
+  /**
+   * Empty when rendered for a response that says nothing yet: the contact's
+   * previous reply is still queued, and this one follows through `push`
+   * (specs/037).
+   */
+  messages: readonly string[];
+  escalate: boolean;
+}
+
+/** Everything `push` is given: the contact's platform ID, the reply, the logger and a signal. */
+export interface ChannelPush {
+  /** The ID `parse` returned, without the channel's prefix. */
+  subscriberId: string;
+  reply: ChannelReply;
+  logger: PluginLogger;
+  signal: AbortSignal;
+}
+
+/**
+ * A channel other than ManyChat (specs/038): the `ChannelAdapter` port, as a
+ * plugin implements it. Mounted at `/v1/channels/<name>/message` behind the
+ * same auth, budget, race, order and outbox as ManyChat's route.
+ *
+ * Provisional: see `CHANNEL_API_VERSION`.
+ */
+export interface PluginChannel<TInbound = unknown, TOutbound = unknown> {
+  /** Lowercase, digits and dashes; the route's path segment. Not `manychat`. */
+  name: string;
+  /** The channel API it was written against: `0`, provisional. */
+  apiVersion: number;
+  /** Validates the request before anything reads it; one that fails is refused with a 400. */
+  inbound: InboundSchema<TInbound>;
+  /** Translates the validated request. Throwing hands the contact to a person. */
+  parse(request: TInbound): ChannelMessage;
+  /** Renders the reply as the platform's response body. */
+  render(reply: ChannelReply): TOutbound;
+  /**
+   * Delivers a reply outside the request, for a lost race. Throwing retries
+   * it, as the outbox retries ManyChat; past 10 seconds it counts as failed.
+   */
+  push(call: ChannelPush): Promise<void> | void;
+}
+
 export interface Plugin {
   name: string;
-  /** The plugin API it was written against; a read tool needs `2`. */
+  /** The plugin API its tools were written against; a read tool needs `2`. */
   apiVersion: number;
   // A tool's parameter types vary by tool, so the list cannot name one.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tools?: readonly (PluginTool<any> | PluginReadTool<any, any>)[];
+  /** Channels, each with its own provisional `apiVersion` (specs/038). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  channels?: readonly PluginChannel<any, any>[];
 }
 
 /**
@@ -224,6 +303,13 @@ export function definePlugin<const P extends Plugin>(plugin: P): P {
 /** Types a tool's `perform` from its parameters. Returns the tool unchanged. */
 export function defineTool<const S extends PluginParameters>(tool: PluginTool<S>): PluginTool<S> {
   return tool;
+}
+
+/** Types a channel's `parse` from its inbound schema. Returns the channel unchanged. */
+export function defineChannel<TInbound, TOutbound>(
+  channel: PluginChannel<TInbound, TOutbound>,
+): PluginChannel<TInbound, TOutbound> {
+  return channel;
 }
 
 /** Types a read tool's `read` from its parameters and result. Returns the tool unchanged. */

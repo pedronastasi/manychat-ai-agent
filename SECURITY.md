@@ -70,6 +70,9 @@ What a holder of the secret can still do, without a contact's token
 - cause a token to be reissued at most once an hour per contact, costing a
   contact whose message is in flight at that moment its history for that one
   message.
+- on a plugin channel ([specs/038](specs/038-plugin-channels.md)), which
+  carries no token, read and extend any of that channel's contacts' history:
+  there the secret is the only proof.
 
 Rotation is the only remedy for a leak.
 

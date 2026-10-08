@@ -88,8 +88,8 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
   it('loads both with the loader the server runs, each tool as its kind', async () => {
     const plugins = await loadPlugins(project.configDir);
     expect(plugins.summary()).toEqual([
-      { plugin: 'slot-finder', writes: [], reads: ['slot_finder'] },
-      { plugin: 'follow-ups', writes: ['follow_ups'], reads: [] },
+      { plugin: 'slot-finder', writes: [], reads: ['slot_finder'], channels: [] },
+      { plugin: 'follow-ups', writes: ['follow_ups'], reads: [], channels: [] },
     ]);
   });
 

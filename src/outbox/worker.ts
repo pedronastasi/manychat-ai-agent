@@ -11,6 +11,18 @@ import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
 import type { Plugins } from '../plugins/plugins.ts';
+import { channelAdapters, type PluginChannelAdapter } from '../channels/plugin/adapter.ts';
+
+/**
+ * A reply queued for a channel no plugin adds any more, because the process
+ * restarted without it. Never retried and never sent to ManyChat (specs/038).
+ */
+export class ChannelNotLoadedError extends Error {
+  constructor(channel: string) {
+    super(`channel ${channel} is not loaded`);
+    this.name = 'ChannelNotLoadedError';
+  }
+}
 
 export interface WorkerLogger {
   info: (obj: object, msg: string) => void;
@@ -44,6 +56,8 @@ export class OutboxWorker {
   private readonly store: ConversationStore;
   private readonly nudges: NudgeStore;
   private readonly actions: ActionPerformer;
+  /** The plugins' channels, which deliver their own replies (specs/038). */
+  private readonly channels: ReadonlyMap<string, PluginChannelAdapter>;
   private running = false;
   /**
    * Set by the stop function. A contact's rows after the one being sent go
@@ -60,6 +74,7 @@ export class OutboxWorker {
     this.store = new ConversationStore(opts.db);
     this.nudges = new NudgeStore(opts.db);
     this.actions = opts.plugins ? opts.plugins.performer(opts.client, opts.logger) : opts.client;
+    this.channels = opts.plugins ? channelAdapters(opts.plugins, opts.logger) : new Map();
   }
 
   /**
@@ -108,7 +123,16 @@ export class OutboxWorker {
 
   private async deliver(row: OutboxRow): Promise<void> {
     if (row.kind === 'reply') {
-      await this.opts.client.sendText(row.subscriberId, row.payload.messages);
+      const { channel, messages, escalate } = row.payload;
+      if (channel === undefined) {
+        await this.opts.client.sendText(row.subscriberId, messages);
+        return;
+      }
+      // A plugin channel's reply goes out through its own adapter, never
+      // through ManyChat (specs/038).
+      const adapter = this.channels.get(channel);
+      if (!adapter) throw new ChannelNotLoadedError(channel);
+      await adapter.deliver(row.subscriberId, { messages, escalate: escalate === true });
       return;
     }
     // The token that failed to land was never stored, so a fresh one replaces
@@ -183,7 +207,11 @@ export class OutboxWorker {
       // ManyChat's own verdict when it is ManyChat's error, and a retry
       // otherwise: an unknown failure, such as the database, must not
       // discard a reply (specs/022 § Retries follow the SDK's retryable).
-      const retryable = error instanceof ManyChatError ? error.retryable : true;
+      const retryable =
+        error instanceof ManyChatError
+          ? error.retryable
+          : // A channel that is gone will not come back by retrying (specs/038).
+            !(error instanceof ChannelNotLoadedError);
       // A token write's error is kept to its status: ManyChat's answer to it
       // could quote the value it was sent (specs/019).
       const message =

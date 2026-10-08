@@ -9,9 +9,9 @@ The contract this guide follows is
 [spec 036](../../specs/036-plugins-extend-through-the-ports.md), and
 [spec 039](../../specs/039-plugin-reads-return-declared-data.md) for a tool
 that looks something up. Where this guide and the specs disagree, the specs
-win. Plugin channels, for a platform
-other than ManyChat, are [spec 038](../../specs/038-plugin-channels.md) and
-are not available yet.
+win. A channel, for a platform other than ManyChat, is
+[spec 038](../../specs/038-plugin-channels.md), and its API is provisional:
+see [A channel for another platform](#a-channel-for-another-platform).
 
 Throughout, `agent-plugin-example-crm` stands for your plugin and
 `crm_log_lead` for its tool.
@@ -196,6 +196,69 @@ export default definePlugin({
 - The turn records which tool read, whether data came back and how long it
   took. It never stores the query or what you returned.
 
+## A channel for another platform
+
+> **Provisional.** The channel API may break in any minor release until a
+> second adapter has been built against it. Pin the agent's exact version
+> while you rely on one.
+
+A plugin can also answer contacts who write somewhere other than ManyChat. A
+channel translates the platform's request into a turn and the agent's reply
+into the platform's response. The race, the order of a contact's turns, the
+outbox and the guardrails are the agent's, exactly as for ManyChat.
+
+```js
+import { z } from 'zod';
+import { defineChannel, definePlugin } from 'manychat-ai-agent';
+
+export default definePlugin({
+  name: 'example-widget',
+  apiVersion: 2,
+  channels: [
+    defineChannel({
+      name: 'example-widget',
+      apiVersion: 0,
+      inbound: z.object({ visitor: z.string().min(1), says: z.string().max(2000) }).strict(),
+      parse: request => ({ subscriberId: request.visitor, text: request.says }),
+      render: reply => ({ say: reply.messages, handoff: reply.escalate }),
+      async push({ subscriberId, reply, signal }) {
+        const response = await fetch(`https://widget.example.com/send/${subscriberId}`, {
+          method: 'POST',
+          body: JSON.stringify({ say: reply.messages }),
+          signal,
+        });
+        if (!response.ok) throw new Error(`widget answered ${response.status}`);
+      },
+    }),
+  ],
+});
+```
+
+- **It is mounted at `/v1/channels/<name>/message`**, behind the same shared
+  secret as the ManyChat route. The name is lowercase letters, digits and
+  dashes, and not `manychat`.
+- **`apiVersion: 0` on the channel** is the channel API's own version. The
+  plugin's `apiVersion` stays its tool API's, `1` or `2`, even when it adds
+  only channels.
+- **`inbound`** is a Zod schema. A request that fails it gets a 400 and never
+  reaches the model.
+- **`parse`** returns the contact's ID on your platform, their text, and
+  optionally `contactName` and `locale`. The agent prefixes the ID with the
+  channel's name, so your contacts never share a conversation with a ManyChat
+  contact whose ID is the same.
+- **`render`** turns the reply into your response body. Its `messages` are empty
+  when the contact's previous reply is still on its way. This one follows
+  through `push`.
+- **`push`** delivers a reply the model finished after the deadline. It gets the
+  ID `parse` returned, the reply, a logger and a signal. Throwing retries it
+  with the outbox's backoff, and past 10 seconds it counts as failed.
+- **There is no contact token.** The shared secret is the only proof of who is
+  writing, so every turn reads the contact's history. Keep the secret on your
+  platform's server, never in a browser.
+- **`tools.json`'s tools are not offered** on a channel's turns: flows, tags,
+  fields, `get_contact` and nudges all act on a ManyChat contact. Your plugin
+  tools are, and `perform` gets the prefixed ID.
+
 ## 3. List it
 
 ```json
@@ -243,3 +306,6 @@ A change to the plugin API is a breaking release of the agent
 ([spec 033](../../specs/033-tenant-projects-not-forks.md)), so it never
 arrives in a patch. If an upgrade moves `apiVersion`, `agent config check`
 says so before you deploy.
+
+The channel API is the one exception: it is provisional, and a minor release
+may change it ([spec 038](../../specs/038-plugin-channels.md)).

@@ -133,6 +133,20 @@ export const InboundMessage = z.object({
 });
 export type InboundMessage = z.infer<typeof InboundMessage>;
 
+/**
+ * What a plugin channel's `parse` returns, checked before the turn reads it
+ * (specs/038, C3). The bounds are ManyChat's inbound ones.
+ */
+export const ChannelMessage = z
+  .object({
+    subscriberId: z.string().min(1).max(256),
+    text: z.string().max(4096),
+    contactName: z.string().max(256).nullish(),
+    locale: z.string().max(64).nullish(),
+  })
+  .strict();
+export type ChannelMessage = z.infer<typeof ChannelMessage>;
+
 /** Why a turn ended the way it did — recorded per turn for observability. */
 export const TurnOutcome = z.enum([
   'answered_inline', // model won the race

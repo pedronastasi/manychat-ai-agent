@@ -120,14 +120,16 @@ export async function run(argv: string[]): Promise<number | undefined> {
         }
         throw error;
       }
-      // Each plugin's read tools beside its write tools (specs/039).
+      // Each plugin's read tools beside its write tools (specs/039), and its channels.
       const tools = (names: string[]) => (names.length > 0 ? names.join(', ') : 'none');
       const loaded =
         summary.length > 0
           ? `; plugins: ${summary
               .map(
                 entry =>
-                  `${entry.plugin} (writes: ${tools(entry.writes)}; reads: ${tools(entry.reads)})`,
+                  `${entry.plugin} (writes: ${tools(entry.writes)}; reads: ${tools(entry.reads)}` +
+                  // Only a plugin that adds one says so (specs/038).
+                  (entry.channels.length > 0 ? `; channels: ${entry.channels.join(', ')})` : ')'),
               )
               .join(', ')}`
           : '';

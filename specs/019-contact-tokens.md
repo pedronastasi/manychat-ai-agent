@@ -128,6 +128,8 @@ extend or reset that contact's history. They can still:
 - cause a token to be reissued at most once an hour per contact, costing a
   contact whose message is in flight at that moment its history for that one
   message.
+- on a plugin channel (`038`), which carries no token, read and extend any of
+  that channel's contacts' history: there the secret is the only proof.
 
 Rotation is the only remedy for a leak. `SECURITY.md` carries this list.
 
