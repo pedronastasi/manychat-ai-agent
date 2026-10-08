@@ -12,8 +12,9 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { ManyChatInbound, ManyChatResponse } from './contracts/manychat.ts';
-import { capabilitiesFor } from './contracts/config.ts';
+import { capabilitiesFor, NO_TOOLS } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
+import type { AgentReply, InboundMessage } from './contracts/agent.ts';
 import type { TranscriptionModel } from 'ai';
 import type { Database } from './db/client.ts';
 import { acceptsImages, resolveModel, resolveTranscriptionModel } from './agent/registry.ts';
@@ -22,12 +23,14 @@ import type { AgentRunner } from './agent/runner.ts';
 import { SdkTranscriber } from './agent/transcriber.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { manychatClientFor } from './channels/manychat/client.ts';
-import type { ContactReader, ManyChatClient } from './channels/manychat/client.ts';
+import type { ActionPerformer, ContactReader, ManyChatClient } from './channels/manychat/client.ts';
+import { channelAdapters } from './channels/plugin/adapter.ts';
+import type { ContactTokenWriter } from './conversation/tokens.ts';
 import { ManyChatMediaFetcher } from './channels/manychat/media.ts';
 import type { ConfigStore } from './config/loader.ts';
 import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
 import { MediaResolver } from './media/resolver.ts';
-import { TurnHandler } from './routes/turn.ts';
+import { TurnHandler, type TurnDeps, type TurnLogger } from './routes/turn.ts';
 import { TurnLanes } from './conversation/turns.ts';
 import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
 import { escalationReply } from './agent/guardrails.ts';
@@ -37,6 +40,23 @@ import type { PlaybookSource } from './learning/playbook.ts';
 import { Plugins } from './plugins/plugins.ts';
 
 const MESSAGE_ROUTE = '/v1/channels/manychat/message';
+
+/**
+ * A plugin channel's turns issue no token, so nothing is ever written
+ * (specs/038). Refusing, should that change unnoticed.
+ */
+const NO_TOKEN_WRITER: ContactTokenWriter = {
+  writeToken: () => Promise.reject(new Error('a plugin channel writes no contact token')),
+};
+
+/**
+ * What a plugin channel's turn performs a built-in action through. None is
+ * offered there, so none is staged; one that were would fail, never reach
+ * ManyChat for a contact who is not on it (specs/038, C6).
+ */
+const MANYCHAT_UNAVAILABLE: ActionPerformer = {
+  performAction: () => Promise.reject(new Error('a plugin channel performs no ManyChat action')),
+};
 
 export interface BuildOptions {
   env: Env;
@@ -189,6 +209,20 @@ export async function buildServer(opts: BuildOptions) {
     offeringField: tenant().tools?.fields.find(field => field.offering)?.field,
   });
 
+  // The plugins' channels, each mounted beside ManyChat's route (specs/038).
+  const channels = channelAdapters(plugins, app.log);
+
+  /** How each message route renders a handoff, by route. */
+  const handoffs = new Map<string, (reply: AgentReply, secret: string | undefined) => unknown>([
+    [
+      MESSAGE_ROUTE,
+      (handoff, secret) => adapter.render(handoff, { capabilities, ...callbackFor(secret) }),
+    ],
+    ...[...channels.values()].map(
+      channel => [channel.route, (handoff: AgentReply) => channel.render(handoff)] as const,
+    ),
+  ]);
+
   app.setErrorHandler((error: FastifyError, request, reply) => {
     // Client errors (rate limit, oversized body, validation) keep Fastify's
     // answer. Validation runs after authentication, so its detail reaches only
@@ -209,17 +243,18 @@ export async function buildServer(opts: BuildOptions) {
       );
     }
 
-    // On the message route a failure, overload included, is a handoff to a
+    // On a message route a failure, overload included, is a handoff to a
     // person, never a 500 carrying the error or a 503 the contact never sees
     // (C6, specs/017 § An error on the message route is a handoff, not a 500).
-    if (
-      request.routeOptions.url === MESSAGE_ROUTE &&
-      isAuthenticated(request, env.MANYCHAT_SHARED_SECRET)
-    ) {
+    // A plugin channel's route hands off the same way, through its own
+    // renderer (specs/038).
+    const route = request.routeOptions.url;
+    const render = route === undefined ? undefined : handoffs.get(route);
+    if (render && isAuthenticated(request, env.MANYCHAT_SHARED_SECRET)) {
       try {
-        const handoff = adapter.render(
+        const handoff = render(
           escalationReply('low_confidence', tenant().rules.messages.escalation),
-          { capabilities, ...callbackFor(bearerToken(request.headers.authorization)) },
+          bearerToken(request.headers.authorization),
         );
         // under-pressure sets it for its 503; on a 200 it means nothing.
         reply.removeHeader('retry-after');
@@ -255,17 +290,63 @@ export async function buildServer(opts: BuildOptions) {
   // (specs/037). Past this bound everything a turn runs has ended (C6).
   const lanes = new TurnLanes(env.MODEL_ABORT_MS + env.RACE_DEADLINE_MS);
 
+  // After the response is sent, never before: the text the actions follow
+  // has to leave first (specs/012 § Actions follow the text).
+  const performAfterResponse = async (request: object) => {
+    const perform = afterResponse.get(request);
+    afterResponse.delete(request);
+    if (perform) await perform();
+  };
+
+  /** One turn, on any message route; what differs between channels is `deps`. */
+  const runTurn = async (
+    request: { log: TurnLogger },
+    inbound: InboundMessage,
+    deps: Pick<
+      TurnDeps,
+      'tokenWriter' | 'tokensEnforced' | 'actions' | 'contacts' | 'tools' | 'channel'
+    >,
+  ) => {
+    // Constructed per request: `tenant()` re-reads config, which SIGHUP can
+    // have reloaded since the last turn.
+    const handler = new TurnHandler({
+      db,
+      runner,
+      rules: tenant().rules,
+      raceDeadlineMs: env.RACE_DEADLINE_MS,
+      modelAbortMs: env.MODEL_ABORT_MS,
+      logger: request.log,
+      plugins,
+      media,
+      lanes,
+      ...deps,
+    });
+    const turn = await handler.handle(inbound);
+    const { reply, outcome, conversationId, binding } = turn;
+    if (turn.afterResponse) afterResponse.set(request, turn.afterResponse);
+
+    // The conversation's random ID, never anything derived from the
+    // subscriber ID (ADR-0014). `binding` gives the share of unbound turns
+    // that shows a flow has stopped sending the token (specs/019).
+    request.log.info(
+      {
+        conversation: conversationId,
+        outcome,
+        binding,
+        escalated: reply.escalate,
+        ...(deps.channel ? { channel: deps.channel } : {}),
+        ...(turn.silent ? { silent: true } : {}),
+      },
+      'turn complete',
+    );
+    return turn;
+  };
+
   app.post(
     MESSAGE_ROUTE,
     {
       onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
-      // After the Dynamic Block response is sent, never before: the text the
-      // actions follow has to leave first (specs/012 § Actions follow the text).
-      onResponse: async request => {
-        const perform = afterResponse.get(request);
-        afterResponse.delete(request);
-        if (perform) await perform();
-      },
+      onResponse: performAfterResponse,
       schema: {
         summary: 'ManyChat Dynamic Block webhook',
         body: ManyChatInbound,
@@ -279,45 +360,15 @@ export async function buildServer(opts: BuildOptions) {
         channel: env.CHANNEL,
         logger: request.log,
       });
-
-      // Constructed per request: `tenant()` re-reads config, which SIGHUP can
-      // have reloaded since the last turn.
-      const handler = new TurnHandler({
-        db,
-        runner,
-        rules: tenant().rules,
-        tools: tenant().tools,
-        raceDeadlineMs: env.RACE_DEADLINE_MS,
-        modelAbortMs: env.MODEL_ABORT_MS,
-        logger: request.log,
+      const turn = await runTurn(request, inbound, {
         tokenWriter: manychatClient,
         tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
         // A plugin action goes to its plugin, the rest to ManyChat (specs/036).
         actions: plugins.performer(manychatClient, request.log),
         contacts,
-        plugins,
-        media,
-        lanes,
+        tools: tenant().tools,
       });
-      const turn = await handler.handle(inbound);
-      const { reply, outcome, conversationId, binding } = turn;
-      if (turn.afterResponse) afterResponse.set(request, turn.afterResponse);
-
-      // The conversation's random ID, never anything derived from the
-      // subscriber ID (ADR-0014). `binding` gives the share of unbound turns
-      // that shows a flow has stopped sending the token (specs/019).
-      request.log.info(
-        {
-          conversation: conversationId,
-          outcome,
-          binding,
-          escalated: reply.escalate,
-          ...(turn.silent ? { silent: true } : {}),
-        },
-        'turn complete',
-      );
-
-      return adapter.render(reply, {
+      return adapter.render(turn.reply, {
         capabilities,
         silent: turn.silent,
         // Re-registered every turn so the loop stays server-side (specs/002).
@@ -325,6 +376,48 @@ export async function buildServer(opts: BuildOptions) {
       });
     },
   );
+
+  // Each plugin channel runs exactly as ManyChat's route does: the same auth,
+  // rate limit, budget, race, order and outbox. What it is not given is
+  // ManyChat: no contact token, no `tools.json` tool, no contact read
+  // (specs/038).
+  for (const channel of channels.values()) {
+    app.post(
+      channel.route,
+      {
+        onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
+        // Its own schema, before anything reads the body (C3). Its detail is
+        // not returned: the plugin's schema is the plugin's.
+        preValidation: async (request, reply) => {
+          if (!channel.accepts(request.body)) {
+            await reply.code(400).send({ error: 'invalid request' });
+          }
+        },
+        onResponse: performAfterResponse,
+        schema: {
+          summary: `Plugin channel ${channel.name} (provisional, specs/038)`,
+          security: [{ sharedSecret: [] }],
+        },
+      },
+      async request => {
+        const inbound = channel.parse(request.body, {
+          tenantId: env.TENANT_ID,
+          channel: channel.name,
+        });
+        const turn = await runTurn(request, inbound, {
+          tokenWriter: NO_TOKEN_WRITER,
+          tokensEnforced: false,
+          actions: plugins.performer(MANYCHAT_UNAVAILABLE, request.log),
+          contacts: undefined,
+          tools: NO_TOOLS,
+          channel: channel.name,
+        });
+        // A silent response carries no message: the reply follows from the
+        // outbox (specs/030, specs/037).
+        return channel.render(turn.silent ? { ...turn.reply, messages: [] } : turn.reply);
+      },
+    );
+  }
 
   return { app, runner };
 }

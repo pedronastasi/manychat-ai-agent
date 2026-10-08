@@ -150,8 +150,8 @@ describe('the bare entry point exports defineReadTool (specs/039 V1)', () => {
     });
     const loaded = await loadPlugins(configDir);
     expect(loaded.summary()).toEqual([
-      { plugin: 'example-crm', writes: ['crm_log_lead'], reads: [] },
-      { plugin: 'example-schedule', writes: [], reads: ['class_availability'] },
+      { plugin: 'example-crm', writes: ['crm_log_lead'], reads: [], channels: [] },
+      { plugin: 'example-schedule', writes: [], reads: ['class_availability'], channels: [] },
     ]);
     expect(loaded.hasWriteTools).toBe(true);
     expect(loaded.hasReadTools).toBe(true);

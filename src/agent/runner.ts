@@ -1,7 +1,7 @@
 import { generateText, isStepCount, Output, type LanguageModel, type ModelMessage } from 'ai';
 import { AgentReplyForModel, type ActionRecord, type AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
-import { NO_TOOLS, offersTools } from '../contracts/config.ts';
+import { NO_TOOLS, offersTools, type Tools } from '../contracts/config.ts';
 import type { MediaImage } from '../media/port.ts';
 import {
   actionsNote,
@@ -136,6 +136,12 @@ export interface AgentTurnInput {
    * follow up on silence since this time (specs/025). `text` is then unused.
    */
   nudge?: { since: Date } | undefined;
+  /**
+   * False on a plugin channel's turn: `tools.json`'s tools write to ManyChat,
+   * so neither they nor their prompt lines are offered there. Plugin tools
+   * still are (specs/038).
+   */
+  builtInTools?: boolean | undefined;
 }
 
 /**
@@ -253,17 +259,21 @@ export interface RunnerOptions {
 
 export class GenerateTextRunner implements AgentRunner {
   private readonly opts: RunnerOptions;
-  private cached:
-    | {
-        config: TenantConfig;
-        /** The version the source held when this was built, rendered or not. */
-        loadedPlaybook: string | undefined;
-        playbook: ActivePlaybook | undefined;
-        staticPrefix: string;
-        catalogBlock: string;
-        withTools: boolean;
-      }
-    | undefined;
+  /** One per kind of turn: with `tools.json`'s tools, and without them (specs/038). */
+  private readonly cached = new Map<
+    boolean,
+    {
+      config: TenantConfig;
+      /** The version the source held when this was built, rendered or not. */
+      loadedPlaybook: string | undefined;
+      playbook: ActivePlaybook | undefined;
+      staticPrefix: string;
+      catalogBlock: string;
+      withTools: boolean;
+      /** The tools the turn is offered: `tools.json`'s, or none. */
+      tools: Tools;
+    }
+  >();
 
   constructor(opts: RunnerOptions) {
     this.opts = opts;
@@ -275,34 +285,36 @@ export class GenerateTextRunner implements AgentRunner {
    * failed reload keeps the previous object, so it correctly rebuilds nothing.
    * An activated playbook version rebuilds it once, not on every turn.
    */
-  private current() {
+  private current(builtInTools: boolean) {
     const config = this.opts.config();
     const playbook = this.opts.playbook?.current();
-    if (this.cached?.config !== config || this.cached.loadedPlaybook !== playbook?.id) {
-      const tools = config.tools ?? NO_TOOLS;
-      // The staged-tool lines follow write tools only: a read is not staged
-      // (specs/039 § The prompt changes only when a plugin adds a read tool).
-      const pluginTools = this.opts.plugins?.hasWriteTools ?? false;
-      const pluginReadTools = this.opts.plugins?.hasReadTools ?? false;
-      const withTools = offersTools(tools) || pluginTools || pluginReadTools;
-      const prompt = buildSystemPrompt(config.persona, config.catalog, config.rules, tools, {
-        pluginTools,
-        pluginReadTools,
-      });
-      // After the catalog and before the cache breakpoint, so a version is
-      // cached with the rest of the prefix (specs/031). Without `learning`
-      // the prefix is what it was before that spec.
-      const rendered = config.rules.learning ? renderPlaybook(playbook) : undefined;
-      this.cached = {
-        config,
-        loadedPlaybook: playbook?.id,
-        playbook: rendered ? playbook : undefined,
-        withTools,
-        staticPrefix: prompt.staticPrefix,
-        catalogBlock: rendered ? `${prompt.catalogBlock}\n\n${rendered}` : prompt.catalogBlock,
-      };
-    }
-    return this.cached;
+    const cached = this.cached.get(builtInTools);
+    if (cached?.config === config && cached.loadedPlaybook === playbook?.id) return cached;
+    const tools = builtInTools ? (config.tools ?? NO_TOOLS) : NO_TOOLS;
+    // The staged-tool lines follow write tools only: a read is not staged
+    // (specs/039 § The prompt changes only when a plugin adds a read tool).
+    const pluginTools = this.opts.plugins?.hasWriteTools ?? false;
+    const pluginReadTools = this.opts.plugins?.hasReadTools ?? false;
+    const withTools = offersTools(tools) || pluginTools || pluginReadTools;
+    const prompt = buildSystemPrompt(config.persona, config.catalog, config.rules, tools, {
+      pluginTools,
+      pluginReadTools,
+    });
+    // After the catalog and before the cache breakpoint, so a version is
+    // cached with the rest of the prefix (specs/031). Without `learning`
+    // the prefix is what it was before that spec.
+    const rendered = config.rules.learning ? renderPlaybook(playbook) : undefined;
+    const built = {
+      config,
+      loadedPlaybook: playbook?.id,
+      playbook: rendered ? playbook : undefined,
+      withTools,
+      tools,
+      staticPrefix: prompt.staticPrefix,
+      catalogBlock: rendered ? `${prompt.catalogBlock}\n\n${rendered}` : prompt.catalogBlock,
+    };
+    this.cached.set(builtInTools, built);
+    return built;
   }
 
   async run({
@@ -317,14 +329,22 @@ export class GenerateTextRunner implements AgentRunner {
     flows,
     beforeFlow,
     nudge,
+    builtInTools = true,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
     // reply built from one config and guarded by another.
-    const { config, playbook, staticPrefix, catalogBlock, withTools } = this.current();
+    const {
+      config,
+      playbook,
+      staticPrefix,
+      catalogBlock,
+      withTools,
+      tools: tenantTools,
+    } = this.current(builtInTools);
     const playbookVersion = playbook?.id ?? null;
     const tools = withTools
-      ? buildTools(config.tools ?? NO_TOOLS, stage, contact, reads, {
+      ? buildTools(tenantTools, stage, contact, reads, {
           nudgeTurn: nudge !== undefined,
           flows,
           beforeFlow,
@@ -334,13 +354,11 @@ export class GenerateTextRunner implements AgentRunner {
       : undefined;
     // The opening is no longer known before the loop runs: the prospect write
     // that queues it says so, and the reply step is told below (specs/034).
-    const opening = contact?.openingDue ? openingFlow(config.tools ?? NO_TOOLS) : undefined;
+    const opening = contact?.openingDue ? openingFlow(tenantTools) : undefined;
     const contactNotices = [
-      ...(intentField(config.tools ?? NO_TOOLS)
-        ? [intentNotice(contact?.intent, contact?.advertOffering)]
-        : []),
-      ...(funnelField(config.tools ?? NO_TOOLS) ? [funnelNotice(contact?.funnelStage)] : []),
-      ...(offeringField(config.tools ?? NO_TOOLS)
+      ...(intentField(tenantTools) ? [intentNotice(contact?.intent, contact?.advertOffering)] : []),
+      ...(funnelField(tenantTools) ? [funnelNotice(contact?.funnelStage)] : []),
+      ...(offeringField(tenantTools)
         ? [offeringNotice(contact?.offering, contact?.offeringChangedFrom)]
         : []),
     ];
@@ -372,9 +390,7 @@ export class GenerateTextRunner implements AgentRunner {
                       content: stagedNotice(
                         stage,
                         reads?.latest,
-                        opening && stagesProspect(stage, config.tools ?? NO_TOOLS)
-                          ? opening
-                          : undefined,
+                        opening && stagesProspect(stage, tenantTools) ? opening : undefined,
                         pluginReads?.latest,
                       ),
                     },

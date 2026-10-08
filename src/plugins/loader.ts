@@ -7,18 +7,20 @@ import { MAX_NOTE_LENGTH } from '../contracts/config.ts';
 import { ToolName } from '../contracts/agent.ts';
 import {
   MAX_QUERY_LENGTH,
+  SUPPORTED_CHANNEL_API_VERSIONS,
   MAX_RESULT_ITEMS,
   MAX_RESULT_TEXT_LENGTH,
   SUPPORTED_PLUGIN_API_VERSIONS,
 } from './api.ts';
 import type {
+  PluginChannel,
   PluginParameter,
   PluginReadTool,
   PluginTool,
   ReadParameter,
   ResultField,
 } from './api.ts';
-import { Plugins, type LoadedTool } from './plugins.ts';
+import { Plugins, type LoadedChannel, type LoadedTool } from './plugins.ts';
 
 /** The optional tenant file that lists the plugin packages to load (specs/036). */
 export const PLUGINS_FILE = 'plugins.json';
@@ -33,7 +35,12 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set<string>([
 
 /** A tool name the loader accepts: lowercase snake case, at most 64 characters. */
 export const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
-const PLUGIN_KEYS = new Set(['name', 'apiVersion', 'tools']);
+/** A channel name the loader accepts: the path segment of its route (specs/038). */
+export const CHANNEL_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+/** Channels the agent mounts itself. */
+export const BUILT_IN_CHANNELS: ReadonlySet<string> = new Set(['manychat']);
+const PLUGIN_KEYS = new Set(['name', 'apiVersion', 'tools', 'channels']);
+const CHANNEL_KEYS = new Set(['name', 'apiVersion', 'inbound', 'parse', 'render', 'push']);
 const TOOL_KEYS = new Set(['name', 'description', 'parameters', 'perform', 'read', 'result']);
 const ENUM_KEYS = new Set(['type', 'values', 'description', 'optional']);
 const NUMBER_KEYS = new Set(['type', 'integer', 'min', 'max', 'description', 'optional']);
@@ -298,11 +305,55 @@ function checkTool(
 }
 
 /**
+ * Checks one channel (specs/038). Its `apiVersion` is its own, provisional,
+ * and apart from the plugin's tool API.
+ */
+function checkChannel(plugin: string, value: unknown, taken: Map<string, string>): PluginChannel {
+  if (!isObject(value)) throw new PluginError(`plugin ${plugin}: a channel is not an object`);
+  const name = value.name;
+  if (typeof name !== 'string' || !CHANNEL_NAME.test(name)) {
+    throw new PluginError(
+      `plugin ${plugin}: channel name ${JSON.stringify(name)} must be lowercase letters, digits and dashes`,
+    );
+  }
+  const where = `plugin ${plugin}, channel ${name}`;
+  if (BUILT_IN_CHANNELS.has(name))
+    throw new PluginError(`${where}: takes a built-in channel's name`);
+  const owner = taken.get(name);
+  if (owner !== undefined) throw new PluginError(`${where}: plugin ${owner} already defines it`);
+  const extra = unknownKeys(value, CHANNEL_KEYS);
+  if (extra.length > 0) throw new PluginError(`${where}: unknown keys ${extra.join(', ')}`);
+  const apiVersion = value.apiVersion;
+  if (typeof apiVersion !== 'number' || !SUPPORTED_CHANNEL_API_VERSIONS.includes(apiVersion)) {
+    throw new PluginError(
+      `${where}: apiVersion ${JSON.stringify(apiVersion)} is not supported; ` +
+        `this agent supports channel API ${SUPPORTED_CHANNEL_API_VERSIONS.join(' and ')} (specs/038)`,
+    );
+  }
+  // The schema the request is validated with before anything reads it (C3).
+  const inbound = value.inbound;
+  if (!isObject(inbound) || typeof inbound.safeParse !== 'function') {
+    throw new PluginError(`${where}: inbound must be a Zod schema`);
+  }
+  for (const key of ['parse', 'render', 'push'] as const) {
+    if (typeof value[key] !== 'function')
+      throw new PluginError(`${where}: ${key} must be a function`);
+  }
+  taken.set(name, plugin);
+  return value as unknown as PluginChannel;
+}
+
+/**
  * Checks a plugin's default export. Everything that would leave the prompt
  * promising an action nothing performs fails here, at startup (C6).
  * `agent plugin new` runs it on what it generates (specs/041).
  */
-export function checkPlugin(spec: string, value: unknown, taken: Map<string, string>) {
+export function checkPlugin(
+  spec: string,
+  value: unknown,
+  taken: Map<string, string>,
+  channelsTaken: Map<string, string> = new Map(),
+) {
   if (!isObject(value)) {
     throw new PluginError(`plugin ${spec}: its default export is not a plugin (use definePlugin)`);
   }
@@ -317,20 +368,21 @@ export function checkPlugin(spec: string, value: unknown, taken: Map<string, str
         `this agent supports ${SUPPORTED_PLUGIN_API_VERSIONS.join(' and ')}`,
     );
   }
-  // Refused rather than ignored: a channel that silently never mounts is a
-  // contact nobody answers (specs/038).
-  if ('channels' in value) {
-    throw new PluginError(`plugin ${name}: channels are not supported yet (specs/038)`);
-  }
   const extra = unknownKeys(value, PLUGIN_KEYS);
   if (extra.length > 0) throw new PluginError(`plugin ${name}: unknown keys ${extra.join(', ')}`);
   if (value.tools !== undefined && !Array.isArray(value.tools)) {
     throw new PluginError(`plugin ${name}: tools must be an array`);
   }
+  if (value.channels !== undefined && !Array.isArray(value.channels)) {
+    throw new PluginError(`plugin ${name}: channels must be an array`);
+  }
   const tools = ((value.tools as unknown[] | undefined) ?? []).map(tool =>
     checkTool(name, apiVersion, tool, taken),
   );
-  return { name, tools };
+  const channels = ((value.channels as unknown[] | undefined) ?? []).map(channel =>
+    checkChannel(name, channel, channelsTaken),
+  );
+  return { name, tools, channels };
 }
 
 /** The packages `plugins.json` lists, or none when the file is absent. */
@@ -370,8 +422,10 @@ export async function loadPlugins(
   if (packages.length === 0) return Plugins.NONE;
   const from = options.from ?? dirname(resolve(configDir));
   const taken = new Map<string, string>();
+  const channelsTaken = new Map<string, string>();
   const names = new Set<string>();
   const loaded: LoadedTool[] = [];
+  const channels: LoadedChannel[] = [];
   for (const spec of packages) {
     if (spec.startsWith('.') || spec.startsWith('/') || spec.includes('\\')) {
       throw new PluginError(`plugin ${spec}: list a package name, not a path`);
@@ -388,12 +442,13 @@ export async function loadPlugins(
     } catch (error) {
       throw new PluginError(`plugin ${spec} failed to load: ${(error as Error).message}`);
     }
-    const plugin = checkPlugin(spec, module.default, taken);
+    const plugin = checkPlugin(spec, module.default, taken, channelsTaken);
     if (names.has(plugin.name)) {
       throw new PluginError(`plugin ${spec}: another plugin is already named ${plugin.name}`);
     }
     names.add(plugin.name);
     loaded.push(...plugin.tools.map(tool => ({ plugin: plugin.name, tool })));
+    channels.push(...plugin.channels.map(channel => ({ plugin: plugin.name, channel })));
   }
-  return new Plugins(loaded, [...names]);
+  return new Plugins(loaded, [...names], channels);
 }

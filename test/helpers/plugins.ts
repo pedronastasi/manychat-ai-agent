@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,8 +9,11 @@ export const EXAMPLE_PLUGIN = 'agent-plugin-example-crm';
 /** The invented read plugin the specs/039 tests load. */
 export const EXAMPLE_READ_PLUGIN = 'agent-plugin-example-schedule';
 
+/** The invented channel plugin the specs/038 tests load. */
+export const EXAMPLE_CHANNEL_PLUGIN = 'agent-plugin-example-widget';
+
 /** The fixtures copied rather than written: a package given as its own name. */
-const FIXTURES = new Set([EXAMPLE_PLUGIN, EXAMPLE_READ_PLUGIN]);
+const FIXTURES = new Set([EXAMPLE_PLUGIN, EXAMPLE_READ_PLUGIN, EXAMPLE_CHANNEL_PLUGIN]);
 
 /**
  * A stand-in tenant project: `config/plugins.json` listing `listed`, and a
@@ -38,6 +41,8 @@ export function tenantProject(
     join(agent, 'index.js'),
     `export * from ${JSON.stringify(pathToFileURL(resolve('src/index.ts')).href)};\n`,
   );
+  // A channel's schema is the plugin's own Zod (specs/038), installed beside it.
+  symlinkSync(resolve('node_modules/zod'), join(root, 'node_modules', 'zod'), 'dir');
   for (const [name, source] of Object.entries(packages)) {
     const dir = join(root, 'node_modules', name);
     if (FIXTURES.has(source)) {
@@ -112,4 +117,45 @@ export function scaffoldProject(listed?: readonly string[], packages: Record<str
   };
   writeFileSync(join(project.root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return project;
+}
+
+/**
+ * A channel plugin package's source (specs/038): one channel with the given
+ * fields as source. Its schema is a hand-written `safeParse`, which the
+ * loader accepts as it accepts a Zod schema.
+ */
+export function channelPluginSource(
+  channel: {
+    name?: string;
+    apiVersion?: unknown;
+    extra?: string;
+    inbound?: string;
+    parse?: string;
+    render?: string;
+    push?: string;
+  } = {},
+  plugin: { name?: string } = {},
+): string {
+  return `export default {
+  name: ${JSON.stringify(plugin.name ?? 'invented-channel')},
+  apiVersion: 1,
+  channels: [{
+    name: ${JSON.stringify(channel.name ?? 'invented')},
+    apiVersion: ${JSON.stringify(channel.apiVersion === undefined ? 0 : channel.apiVersion)},
+    inbound: ${
+      channel.inbound ??
+      `{
+      safeParse: raw =>
+        raw && typeof raw.id === 'string' && typeof raw.text === 'string'
+          ? { success: true, data: raw }
+          : { success: false, error: new Error('invalid') },
+    }`
+    },
+    parse: ${channel.parse ?? 'request => ({ subscriberId: request.id, text: request.text })'},
+    render: ${channel.render ?? 'reply => ({ out: reply.messages })'},
+    push: ${channel.push ?? '() => {}'},
+    ${channel.extra ?? ''}
+  }],
+};
+`;
 }

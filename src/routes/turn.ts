@@ -83,6 +83,13 @@ export interface TurnDeps {
    * request; without it, turns run side by side.
    */
   lanes?: TurnLanes | undefined;
+  /**
+   * The plugin channel the turn arrived on (specs/038); ManyChat when absent.
+   * Its contacts are bound by the channel's own auth and carry no token, its
+   * turns are offered no `tools.json` tool, and its queued replies go out
+   * through its adapter.
+   */
+  channel?: string | undefined;
 }
 
 /** How a turn runs once its contact's order lets it (specs/037). */
@@ -211,6 +218,19 @@ export class TurnHandler {
     this.nudges = new NudgeStore(deps.db);
   }
 
+  /** Queues a reply for the turn's channel: ManyChat, or a plugin's (specs/038). */
+  private enqueue(input: Parameters<OutboxQueue['enqueue']>[0]): Promise<string> {
+    return this.queue.enqueue({ ...input, channel: this.deps.channel });
+  }
+
+  /**
+   * A plugin channel's contact is bound by the channel's own auth: it has no
+   * token to present, and none is issued (specs/038).
+   */
+  private bindingOf(known: Parameters<typeof bindingFor>[0], inbound: InboundMessage): Binding {
+    return this.deps.channel !== undefined ? 'bound' : bindingFor(known, inbound.contactToken);
+  }
+
   /**
    * Runs the turn once the contact's previous one has settled (specs/037 §
    * Turns that enter history run one at a time). A turn still waiting at its
@@ -235,7 +255,7 @@ export class TurnHandler {
         slot.leave();
         throw error;
       });
-    const binding = bindingFor(known, inbound.contactToken);
+    const binding = this.bindingOf(known, inbound);
     if (binding === 'unbound' && tokensEnforced) {
       slot.leave();
       return this.run(inbound, { deadlineAt });
@@ -307,7 +327,7 @@ export class TurnHandler {
     let conversation;
     try {
       conversation = await this.store.find(inbound.tenantId, inbound.subscriberId);
-      await this.queue.enqueue({
+      await this.enqueue({
         tenantId: inbound.tenantId,
         subscriberId: inbound.subscriberId,
         conversationId: conversation?.id ?? null,
@@ -337,7 +357,7 @@ export class TurnHandler {
     // (specs/019). Without it the request is answered from its own message
     // alone, and neither reads nor extends the contact's history.
     const known = await this.store.find(inbound.tenantId, inbound.subscriberId);
-    const binding = bindingFor(known, inbound.contactToken);
+    const binding = this.bindingOf(known, inbound);
     // During the rollout a request without the token is treated as it was
     // before specs/019, so nobody loses context before their token lands.
     const bound = binding !== 'unbound' || !tokensEnforced;
@@ -379,7 +399,7 @@ export class TurnHandler {
     const answer = async (result: TurnResult): Promise<TurnResult> => {
       if (!(await mustQueue())) return result;
       try {
-        await this.queue.enqueue({
+        await this.enqueue({
           tenantId: inbound.tenantId,
           subscriberId: inbound.subscriberId,
           conversationId: conversation.id,
@@ -672,6 +692,7 @@ export class TurnHandler {
             pluginReads,
             flows,
             beforeFlow: sendOpening,
+            builtInTools: this.deps.channel === undefined,
           })
           .then(result => ({ kind: 'model' as const, result }));
     // Inside the race, as a flow the model calls is (specs/029): a send that
@@ -765,7 +786,7 @@ export class TurnHandler {
         return result;
       }
       try {
-        await this.queue.enqueue({
+        await this.enqueue({
           tenantId: inbound.tenantId,
           subscriberId: inbound.subscriberId,
           conversationId: conversation.id,
@@ -842,7 +863,7 @@ export class TurnHandler {
             // A silent response gave the contact nothing yet, so the holding
             // line it held back goes out now, after the flow (specs/030).
             if (silent) {
-              await this.queue.enqueue({
+              await this.enqueue({
                 tenantId: inbound.tenantId,
                 subscriberId: inbound.subscriberId,
                 conversationId: conversation.id,
@@ -874,7 +895,7 @@ export class TurnHandler {
               );
             }
           }
-          await this.queue.enqueue({
+          await this.enqueue({
             tenantId: inbound.tenantId,
             subscriberId: inbound.subscriberId,
             conversationId: conversation.id,
@@ -1095,6 +1116,7 @@ export class TurnHandler {
       pluginReads: ctx.pluginReads,
       flows: ctx.flows,
       beforeFlow: ctx.beforeFlow,
+      builtInTools: this.deps.channel === undefined,
       media: {
         // `unsupported` never resolves; it always takes the fallback above.
         kind: media.kind as 'audio' | 'image' | 'video',

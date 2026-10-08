@@ -19,6 +19,10 @@ export interface ReplyPayload {
   messages: string[];
   actions?: StagedAction[];
   turnId?: string;
+  /** The plugin channel that delivers it, through its adapter's `push`; ManyChat when absent (specs/038). */
+  channel?: string;
+  /** Set on a handoff queued for a plugin channel, which is told so (specs/038). */
+  escalate?: true;
 }
 
 /**
@@ -49,8 +53,14 @@ export class OutboxQueue {
     actions?: { staged: readonly StagedAction[]; turnId: string } | undefined;
     /** Held until then: a flow sent this turn is still playing (specs/030). */
     notBefore?: Date | undefined;
+    /** A plugin channel's name; ManyChat when absent (specs/038). */
+    channel?: string | undefined;
   }): Promise<string> {
     const payload: ReplyPayload = { messages: input.reply.messages };
+    if (input.channel !== undefined) {
+      payload.channel = input.channel;
+      if (input.reply.escalate) payload.escalate = true;
+    }
     if (input.actions && input.actions.staged.length > 0) {
       payload.actions = [...input.actions.staged];
       payload.turnId = input.actions.turnId;

@@ -5,7 +5,13 @@ import type { ActionPerformer } from '../channels/manychat/client.ts';
 import { cleanNote } from '../agent/contact.ts';
 import type { ActionStage } from '../agent/tools.ts';
 import { redactText } from '../observability/redact.ts';
-import type { PluginLogger, PluginParameter, PluginReadTool, PluginTool } from './api.ts';
+import type {
+  PluginChannel,
+  PluginLogger,
+  PluginParameter,
+  PluginReadTool,
+  PluginTool,
+} from './api.ts';
 import { readParameterSchema, type LoadedReadTool, type PluginReads } from './reads.ts';
 
 /**
@@ -31,6 +37,12 @@ export interface LoadedTool {
   plugin: string;
   /** A write tool, which declares `perform`, or a read tool, which declares `read` (specs/039). */
   tool: PluginTool | PluginReadTool;
+}
+
+export interface LoadedChannel {
+  /** The plugin that declared it. */
+  plugin: string;
+  channel: PluginChannel;
 }
 
 const isReadTool = (tool: PluginTool | PluginReadTool): tool is PluginReadTool => 'read' in tool;
@@ -103,8 +115,14 @@ export class Plugins {
   private readonly readsByName: ReadonlyMap<string, LoadedReadTool>;
   /** The loaded plugins' names, in the order `plugins.json` lists them. */
   readonly names: readonly string[];
+  /** The channels the plugins add, each mounted beside ManyChat's (specs/038). */
+  readonly channels: readonly LoadedChannel[];
 
-  constructor(tools: readonly LoadedTool[], names: readonly string[] = []) {
+  constructor(
+    tools: readonly LoadedTool[],
+    names: readonly string[] = [],
+    channels: readonly LoadedChannel[] = [],
+  ) {
     const writes = new Map<string, { plugin: string; tool: PluginTool }>();
     const reads = new Map<string, LoadedReadTool>();
     for (const { plugin, tool } of tools) {
@@ -114,6 +132,7 @@ export class Plugins {
     this.byName = writes;
     this.readsByName = reads;
     this.names = names;
+    this.channels = channels;
   }
 
   /** Whether any plugin adds a tool, of either kind. */
@@ -131,9 +150,12 @@ export class Plugins {
     return this.readsByName.size > 0;
   }
 
-  /** Each loaded plugin's tools by kind, as `agent config check` reports them. */
-  summary(): { plugin: string; writes: string[]; reads: string[] }[] {
+  /** Each loaded plugin's tools by kind and its channels, as `agent config check` reports them. */
+  summary(): { plugin: string; writes: string[]; reads: string[]; channels: string[] }[] {
     return this.names.map(plugin => ({
+      channels: this.channels
+        .filter(entry => entry.plugin === plugin)
+        .map(entry => entry.channel.name),
       plugin,
       writes: [...this.byName.values()]
         .filter(entry => entry.plugin === plugin)

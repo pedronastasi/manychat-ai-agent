@@ -122,8 +122,8 @@ it is the change this rules out.
 
 A package that is not installed or does not import, an `apiVersion` the
 installed agent does not support, a tool name that clashes, a parameter that
-fails the checks above, an unknown key, or a `channels` key, which `038` has
-not yet given a meaning, is a startup error. `agent config check` loads the
+fails the checks above, an unknown key, or a channel that fails `038`'s checks
+is a startup error. `agent config check` loads the
 plugins as `agent serve` does and reports the same error. Starting with a tool
 silently missing would leave the prompt promising an action nothing performs
 (C6).
@@ -157,7 +157,7 @@ and the Python service defines its own `definePlugin` against the same rules.
 3. Unit tests assert that each of the following stops startup: a missing
    package, an unsupported `apiVersion`, a built-in tool's name, a name another
    plugin defines, a free-text string parameter, a note longer than 500, a
-   `channels` key, an unknown key, a path in place of a package name, a
+   channel that fails `038`'s checks, an unknown key, a path in place of a package name, a
    malformed `plugins.json`, and a default export that is not a plugin.
 4. Unit tests assert that a plugin tool is offered beside the built-in tools,
    that a call stages it without performing it, that its parameters are
