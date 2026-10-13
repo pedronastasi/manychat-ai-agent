@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.1...v0.23.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **agent:** honor tenant conversation policies and Luna reasoning ([6d16fa0](https://github.com/pedronastasi/manychat-ai-agent/commit/6d16fa078c908ec3c3a96be4ad1019d7cef42589))
+
 ## [0.23.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.0...v0.23.1) (2026-10-13)
 
 
