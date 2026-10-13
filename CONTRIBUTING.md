@@ -72,6 +72,10 @@ exists, and which describe code that does not. It is generated - run
   specifies scripted conversations with evolving state, two independent runs,
   executed branch witnesses, and a calibrated whole-conversation judge. It is
   not implemented yet; existing single-turn evals remain the available runner.
+- [`specs/044-tenant-prompt-section-overrides.md`](specs/044-tenant-prompt-section-overrides.md)
+  specifies optional tenant replacements for individual system prompt sections,
+  keeping mandatory framework instructions and runtime constraints. It is not
+  implemented yet.
 - [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
   request must say. The first heading is always `## Why` - the diff already says
   what changed.

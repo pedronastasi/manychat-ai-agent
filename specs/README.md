@@ -56,6 +56,7 @@ test fails the suite.
 | [041 — `agent plugin new` Starts a Plugin from the Agent's Own Example](041-plugin-new-starts-from-the-example.md)         | implemented | 2026-10-07  | #199 | 4     | C1, C6, C8, C9                     | —                                                                                      |
 | [042 — The Sales Layer Sells Offerings, Not Courses](042-the-sales-layer-sells-offerings-not-courses.md)                   | implemented | 2026-10-08  | #205 | 2     | C1, C8, C9                         | [0015]                                                                                 |
 | [043 — Complete Conversation Evals](043-complete-conversation-evals.md)                                                    | specified   | —           | —    | —     | C1, C2, C3, C4, C5, C6, C8, C9     | [0011]                                                                                 |
+| [044 — Tenants Override Individual System Prompt Sections](044-tenant-prompt-section-overrides.md)                         | specified   | —           | —    | —     | C1, C3, C4, C6, C8, C9             | —                                                                                      |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
