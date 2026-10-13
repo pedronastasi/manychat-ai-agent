@@ -29,6 +29,7 @@ const catalogWith = (offering: Record<string, unknown>) =>
     faq: [],
   });
 
+// specs/001-agent-behavior.md § Tenant conversation policy.
 describe('tenant conversation policy', () => {
   it('keeps explicit tenant exceptions ahead of conversational defaults without overriding grounding or security', () => {
     const persona =
