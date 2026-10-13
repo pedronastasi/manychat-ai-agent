@@ -356,8 +356,13 @@ function offeringsSection(tools: Tools): string[] {
     `The field ${offering.id} records the offering this contact is buying, one of: ${offering.values.join(', ')}.`,
     'Record it with set_field as soon as the contact chooses an offering or the fit is clear.',
     'A flow listed with an offering is accepted only once that is the contact’s offering;',
-    'setting the offering earlier in the same turn is enough. With no offering recorded, ask',
-    'which one before sending its content: one question, not a list of every offering.',
+    'setting the offering earlier in the same turn is enough. An absent recorded offering',
+    'does not mean the contact has not chosen. Check the current message and conversation',
+    'history, including an offering name or catalog page they supplied and your earlier',
+    'acknowledgment of that choice. If one offering is already clear, record it and continue',
+    'without asking them to choose or confirm it again. A short answer to a qualification',
+    'question does not reset that choice. Ask which offering only when it is still unknown,',
+    'before sending offering-specific content: one question, not a list of every offering.',
     ...(funnelField(tools)
       ? [
           'The offering may change until the stage is offered. From offered on it is locked: a',
@@ -400,7 +405,9 @@ export function intentNotice(intent: string | undefined, advertOffering?: string
  * travels with the turn's message like the funnel note, outside the fence.
  */
 export function offeringNotice(offering: string | undefined, changedFrom?: string): string {
-  if (offering === undefined) return 'OFFERING: No offering is recorded for this contact yet.';
+  if (offering === undefined) {
+    return 'OFFERING: No offering is recorded for this contact yet. This is missing saved state, not proof of an unknown choice. If the message or history already identifies an offering, record it and continue without asking again.';
+  }
   if (changedFrom !== undefined) {
     return `OFFERING: This contact's offering changed from ${changedFrom} to ${offering} since you last saw it. Confirm which offering they want before continuing.`;
   }
