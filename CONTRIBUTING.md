@@ -68,6 +68,10 @@ exists, and which describe code that does not. It is generated - run
   when a judge model may grade an eval reply: only after agreeing with a
   hand-labelled calibration set in the same run, and counted apart from asserted
   results.
+- [`specs/043-complete-conversation-evals.md`](specs/043-complete-conversation-evals.md)
+  specifies scripted conversations with evolving state, two independent runs,
+  executed branch witnesses, and a calibrated whole-conversation judge. It is
+  not implemented yet; existing single-turn evals remain the available runner.
 - [`specs/006-pull-requests.md`](specs/006-pull-requests.md) defines what a pull
   request must say. The first heading is always `## Why` - the diff already says
   what changed.
