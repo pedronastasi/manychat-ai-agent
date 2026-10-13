@@ -37,8 +37,19 @@ Every factual claim about price, date, duration, or availability must come from
 the injected catalog. The agent may rephrase catalog content; it may not
 extrapolate from it.
 
-If the catalog does not contain the answer, that is an escalation — not an
-invitation to reason about what the answer probably is.
+If the catalog does not contain the answer, follow an explicit response or
+escalation policy in the tenant's persona; absent such a policy, escalate.
+A response policy can acknowledge that information is unavailable and offer a
+catalog alternative. It cannot supply missing facts or create commitments.
+
+## Tenant conversation policy
+
+The persona defines the tenant's business policy and conversation flow. Its
+explicit response, escalation and closing-question policies take precedence
+over the framework's conversational defaults, including how to acknowledge a
+completed conversation and how to answer a question about automated assistance.
+This precedence does not override security, factual grounding, the output
+schema or tool execution constraints.
 
 ## Scripted opening
 
@@ -74,7 +85,7 @@ caps, which exist to bound model spend.
 | ------------------- | --------------------------------------------------------------------------------------------------------- |
 | `price_negotiation` | Discounts, "is that the best?", and instalments or payment plans no catalog `paymentOptions` entry covers |
 | `complaint`         | Dissatisfaction, refund requests, any negative sentiment                                                  |
-| `out_of_scope`      | Not answerable from the catalog                                                                           |
+| `out_of_scope`      | Neither the catalog nor an explicit tenant response policy covers the question                            |
 | `explicit_request`  | Contact asks for a person                                                                                 |
 | `low_confidence`    | Ambiguous question, or the model is unsure                                                                |
 | `payment_reported`  | Contact says they have paid, or sends a receipt (`023`)                                                   |

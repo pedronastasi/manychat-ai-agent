@@ -642,7 +642,13 @@ describe('registry', () => {
     expect(estimateCostUsd('openai:something-new', { inputTokens: 1_000_000 })).toBe(5);
   });
   it('knows which models reject temperature', () => {
-    for (const spec of ['openai:gpt-5-mini', 'openai:gpt-5', 'openai:o1', 'openai:o3-mini']) {
+    for (const spec of [
+      'openai:gpt-5-mini',
+      'openai:gpt-5',
+      'openai:gpt-6-luna',
+      'openai:o1',
+      'openai:o3-mini',
+    ]) {
       expect(supportsTemperature(spec)).toBe(false);
     }
     for (const spec of [

@@ -48,8 +48,8 @@ export function pricingFor(modelId: string): ModelPricing {
   return PRICING[modelId] ?? FALLBACK_PRICING;
 }
 
-/** OpenAI's reasoning families: the o-series and gpt-5. */
-const REASONING_MODEL = /^openai:(o\d|gpt-5)/;
+/** OpenAI's reasoning families: the o-series and GPT-5/GPT-6. */
+const REASONING_MODEL = /^openai:(o\d|gpt-[56])/;
 
 /**
  * Whether a model accepts `temperature` at all.
