@@ -74,6 +74,15 @@ The offering is set from either side:
   chooses or the fit is clear. Qualifying for an offering is `023 § Qualify before
 sending content`; this field is where its answer goes.
 
+An absent recorded offering is missing saved state, not evidence that the contact
+has not chosen. Before asking which offering they want, the model checks the
+current message and conversation history, including a catalog page or name the
+contact supplied and the agent's acknowledgment of that choice. If one offering
+is clear, it records that choice and continues without asking for it again. A
+short answer to a qualification question preserves the previously requested
+offering. Only an unknown choice calls for an offering question; the flow gate
+and the lock after `offered` are unchanged.
+
 ### The server learns the offering from the inbound request
 
 Filtering flows needs the offering before the model runs, and `get_contact` runs
@@ -193,6 +202,13 @@ These are edited in the pull request that implements this spec.
    syllabus and is asked which offering first; a lead on one offering asks about
    another before the offer and the offering is switched; the same after the
    offer escalates as `explicit_request`.
+8. The system prompt and absent-offering notice distinguish missing saved state
+   from an unknown choice. Real-model cases in `evals/offering-continuity` use
+   the invented demo tenant to check qualification answers after a requested
+   offering and after only its acknowledgment remains in history. Run with
+   `CONFIG_DIR=test/fixtures/config EVAL_DIR=evals/offering-continuity pnpm eval`.
+   These semantic cases are separate from the offline golden suite: the keyword
+   mock does not interpret qualification answers in conversation history.
 
 What this misses: the payment flow's branching on the offering field is inside
 ManyChat, and a branch that sends the wrong link passes every check here. The
