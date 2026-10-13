@@ -176,8 +176,8 @@ importers:
         specifier: ^4.0.66
         version: 4.0.92(zod@4.6.7)
       '@ai-sdk/provider':
-        specifier: 4.0.26
-        version: 4.0.26
+        specifier: 4.0.27
+        version: 4.0.27
       '@fastify/helmet':
         specifier: ^13.1.1
         version: 13.1.2
@@ -225,8 +225,8 @@ importers:
         specifier: ^24.0.0
         version: 24.19.2
       '@vitest/coverage-v8':
-        specifier: 5.0.3
-        version: 5.0.3(vitest@5.0.4)
+        specifier: 5.0.4
+        version: 5.0.4(vitest@5.0.4)
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.11
@@ -250,7 +250,7 @@ importers:
         version: 1.6.4(@algolia/client-search@5.60.0)(@types/node@24.19.2)(lightningcss@1.33.0)(postcss@8.5.30)(search-insights@2.17.3)(typescript@6.0.3)
       vitest:
         specifier: ^5.0.0
-        version: 5.0.4(@types/node@24.19.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.4(@types/node@24.19.2)(@vitest/coverage-v8@5.0.4)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
       vue:
         specifier: ^3.5.43
         version: 3.5.43(typescript@6.0.3)
@@ -291,10 +291,6 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@4.0.26':
-    resolution: {integrity: sha512-BZ443uBEq6HuMA+Z4b7Hpm65GpZSo7pWqnYqpf/7tAO3C48JbtvAhOE2JnODFj+jodsZzfRHkAyQb64xuD2tZQ==}
-    engines: {node: '>=22'}
 
   '@ai-sdk/provider@4.0.27':
     resolution: {integrity: sha512-TtWwm6SxFiPomlMIbTQa+yhJte+w4/oCsW+wJrJzMC3MqHpAY9e5dJF1Y4HxyKt3W2Csac0KiI76Ckio11TFYw==}
@@ -1662,11 +1658,11 @@ packages:
       vite: ^5.0.0 || ^6.0.0
       vue: ^3.2.25
 
-  '@vitest/coverage-v8@5.0.3':
-    resolution: {integrity: sha512-+klsyz7BvT1vCU28Zkfzms1Ia78XD0V41U3FUtRaa3S+vOr/EXvK1O6BvVD7l1RzEjm6SONR2aybOvDDf9u0mQ==}
+  '@vitest/coverage-v8@5.0.4':
+    resolution: {integrity: sha512-P5YcQY8Y6RmoE9xRXI38rT8pssbcubEzqtYTM2XQoxOXMDn04nRaTI1SM8qCl9/NfW3ag9GlzdSXu7IwO5Ft8A==}
     peerDependencies:
-      '@vitest/browser': 5.0.3
-      vitest: 5.0.3
+      '@vitest/browser': 5.0.4
+      vitest: 5.0.4
     peerDependenciesMeta:
       '@vitest/browser':
         optional: true
@@ -2623,10 +2619,6 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  obug@2.2.1:
-    resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
-    engines: {node: '>=12.20.0'}
-
   obug@3.0.0:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
@@ -3153,10 +3145,6 @@ snapshots:
       eventsource-parser: 3.1.1
       undici: 7.30.0
       zod: 4.6.7
-
-  '@ai-sdk/provider@4.0.26':
-    dependencies:
-      json-schema: 0.4.0
 
   '@ai-sdk/provider@4.0.27':
     dependencies:
@@ -4226,17 +4214,17 @@ snapshots:
       vite: 5.4.21(@types/node@24.19.2)(lightningcss@1.33.0)
       vue: 3.5.43(typescript@6.0.3)
 
-  '@vitest/coverage-v8@5.0.3(vitest@5.0.4)':
+  '@vitest/coverage-v8@5.0.4(vitest@5.0.4)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/istanbul-lib-coverage': 1.0.2
       '@vitest/istanbul-lib-report': 1.0.2
       ast-v8-to-istanbul: 1.0.7
       magicast: 0.5.5
-      obug: 2.2.1
+      obug: 3.0.0
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.4(@types/node@24.19.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.4(@types/node@24.19.2)(@vitest/coverage-v8@5.0.4)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/istanbul-lib-coverage@1.0.2': {}
 
@@ -5251,8 +5239,6 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  obug@2.2.1: {}
-
   obug@3.0.0: {}
 
   on-exit-leak-free@2.1.2: {}
@@ -5667,7 +5653,7 @@ snapshots:
       - typescript
       - universal-cookie
 
-  vitest@5.0.4(@types/node@24.19.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)):
+  vitest@5.0.4(@types/node@24.19.2)(@vitest/coverage-v8@5.0.4)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/mocker': 5.0.4(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -5685,7 +5671,7 @@ snapshots:
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@types/node': 24.19.2
-      '@vitest/coverage-v8': 5.0.3(vitest@5.0.4)
+      '@vitest/coverage-v8': 5.0.4(vitest@5.0.4)
     transitivePeerDependencies:
       - msw
 
