@@ -409,13 +409,25 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
 
 describe('the course note and the performed course (specs/028)', () => {
   it('notes the course, its absence, and a change the request made', () => {
-    expect(offeringNotice(undefined)).toBe(
-      'OFFERING: No offering is recorded for this contact yet.',
+    expect(offeringNotice(undefined)).toContain(
+      'No offering is recorded for this contact yet. This is missing saved state, not proof of an unknown choice.',
+    );
+    expect(offeringNotice(undefined)).toContain(
+      'If the message or history already identifies an offering, record it and continue without asking again.',
     );
     expect(offeringNotice('advanced')).toBe("OFFERING: This contact's offering is advanced.");
     expect(offeringNotice('advanced', 'foundation')).toMatch(
       /changed from foundation to advanced.*Confirm which offering they want/,
     );
+  });
+
+  it('resolves an unsaved choice from history before asking the contact again (specs/028 § The offering is set from either side)', () => {
+    const { staticPrefix } = buildSystemPrompt(tenant.persona, tenant.catalog, tenant.rules, tools);
+    expect(staticPrefix).toContain('Check the current message and conversation');
+    expect(staticPrefix).toContain('without asking them to choose or confirm it again.');
+    expect(staticPrefix).toContain('A short answer to a qualification');
+    expect(staticPrefix).toContain('Ask which offering only when it is still unknown,');
+    expect(staticPrefix).not.toContain('With no offering recorded, ask');
   });
 
   it('reads the last course write ManyChat accepted', () => {
