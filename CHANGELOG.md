@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.23.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.0...v0.23.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* continue an offering already selected in conversation ([e9d8353](https://github.com/pedronastasi/manychat-ai-agent/commit/e9d8353ce2c1dc134810f9632c09447a46970faf))
+* continue an offering already selected in conversation ([d9b6aa4](https://github.com/pedronastasi/manychat-ai-agent/commit/d9b6aa4e5f9812538efcdda44e624bede5ef180f))
+* **deps:** update patch dependencies ([#208](https://github.com/pedronastasi/manychat-ai-agent/issues/208)) ([d9ba610](https://github.com/pedronastasi/manychat-ai-agent/commit/d9ba6101326ba47f231a58de295e488c4189fc9a))
+
+
+### Specs and Docs
+
+* specify complete conversation evals ([d8a0a48](https://github.com/pedronastasi/manychat-ai-agent/commit/d8a0a48fe3a8971424dc53ed83ce7de29204bc09))
+* specify complete conversation evals ([81c4f83](https://github.com/pedronastasi/manychat-ai-agent/commit/81c4f83d6ea728ee85d41d19b8e07e3ac3a105f7))
+
 ## [0.23.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.22.0...v0.23.0) (2026-10-08)
 
 
