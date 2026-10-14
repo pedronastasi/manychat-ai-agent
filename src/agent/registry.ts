@@ -25,14 +25,16 @@ export interface ModelPricing {
 
 /**
  * Prices drift, and a stale table would silently mis-cap spend. Treated as a
- * best-effort estimate: `PRICING_OVERRIDES` lets an operator correct a value
- * without a release, and an unknown model falls back to a deliberately
- * pessimistic estimate so the cap errs toward stopping early.
+ * best-effort estimate: an unknown model falls back to a deliberately
+ * pessimistic estimate so the cap errs toward stopping early. That fallback
+ * prices a cheap model at many times its list price, so a model in regular use
+ * belongs in this table.
  */
 const PRICING: Record<string, ModelPricing> = {
   'anthropic:claude-haiku-4-5': { inputPerMTok: 1, outputPerMTok: 5, cacheReadPerMTok: 0.1 },
   'anthropic:claude-sonnet-5': { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.2 },
   'anthropic:claude-opus-5': { inputPerMTok: 5, outputPerMTok: 25, cacheReadPerMTok: 0.5 },
+  'openai:gpt-6-luna': { inputPerMTok: 0.1, outputPerMTok: 0.5, cacheReadPerMTok: 0.01 },
 };
 
 const FALLBACK_PRICING: ModelPricing = {
