@@ -1,6 +1,7 @@
 ---
 status: implemented
 implemented: 2026-10-14
+pr: 223
 constitution: [C1, C3, C4, C6, C8, C9]
 ---
 
