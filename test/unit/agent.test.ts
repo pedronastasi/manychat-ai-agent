@@ -651,6 +651,16 @@ describe('registry', () => {
       }),
     ).toBeCloseTo(0.2 * 0.1 + 0.8 * 0.01 + 0.1 * 0.5, 10);
   });
+  it('lists the common chat models of each hosted provider', () => {
+    for (const spec of [
+      'anthropic:claude-haiku-5-5',
+      'anthropic:claude-sonnet-5-5',
+      'openai:gpt-5-mini',
+      'google:gemini-3.5-flash-lite',
+    ]) {
+      expect(pricingFor(spec).inputPerMTok).toBeLessThan(5);
+    }
+  });
   it('knows which models reject temperature', () => {
     for (const spec of [
       'openai:gpt-5-mini',
