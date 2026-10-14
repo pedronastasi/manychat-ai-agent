@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.4](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.3...v0.23.4) (2026-10-14)
+
+
+### Dependencies
+
+* **deps:** update patch dependencies ([ebdedc0](https://github.com/pedronastasi/manychat-ai-agent/commit/ebdedc0c53a4f097465a364ac1b3422fc4a84a07))
+
 ## [0.23.3](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.2...v0.23.3) (2026-10-14)
 
 
