@@ -220,8 +220,9 @@ const OPERATING_DEFAULT = [
 /** Factual grounding and fail-closed uncertainty: framework-owned (C6). */
 const GROUNDING = [
   'GROUNDING',
-  'Ground factual answers in the CATALOG, and in what a tool you were given read',
-  'successfully. Never guess a fact neither of them holds.',
+  // The CATALOG only: a contact read can echo the contact's own input
+  // (specs/024), and plugin reads carry their own line (specs/039).
+  'Ground factual answers in the CATALOG. Never guess a fact it does not hold.',
   'Never invent prices, dates, schedules, discounts or policies.',
   'When unsure: escalate with "low_confidence". Escalating is correct; guessing is not.',
   'A contact who says they have paid, or sends a receipt: escalate with "payment_reported".',
