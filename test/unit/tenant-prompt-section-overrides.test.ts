@@ -506,3 +506,33 @@ describe('the overrides suite is graded against the effective policy (specs/044 
     expect(skill).toMatch(/a reply that breaks one of those is `fail`/);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* The committed example                                                       */
+/* -------------------------------------------------------------------------- */
+
+describe('config/prompt-overrides.json.example (specs/044 § Only the named conversational sections are replaceable)', () => {
+  it('loads beside the demo tenant and replaces what it names', () => {
+    const dir = mkdtempSync(join(scratch, 'example-'));
+    for (const file of ['prompt.md', 'catalog.json', 'rules.json', 'prompt-overrides.json']) {
+      copyFileSync(join('config', `${file}.example`), join(dir, file));
+    }
+    const config = loadTenantConfig(dir);
+    const keys = Object.keys(config.promptOverrides ?? {});
+    expect(keys.length).toBeGreaterThan(0);
+
+    const prompt = buildSystemPrompt(config.persona, config.catalog, config.rules, NO_TOOLS, {
+      overrides: config.promptOverrides,
+    }).staticPrefix;
+    for (const key of keys as PromptSection[]) {
+      expect(bodyOf(prompt, key)).toBe(config.promptOverrides![key]);
+    }
+  });
+
+  it('is opt-in: neither bootstrap nor the scaffolder copies it', () => {
+    // Both copy only EXAMPLE_CONFIG, the list in this file.
+    const list = readFileSync('packages/create/demo-tenant.mjs', 'utf8');
+    expect(list).toContain("['config/rules.json.example', 'config/rules.json']");
+    expect(list).not.toContain('prompt-overrides');
+  });
+});

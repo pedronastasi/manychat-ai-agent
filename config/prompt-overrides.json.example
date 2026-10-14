@@ -1,0 +1,4 @@
+{
+  "closing": "Ask one next-step question while the contact is still deciding: which course fits, or whether they want the dates. After a farewell or a thank-you that ends the conversation, send null.",
+  "format": "Write one or two short messages, the way someone on the team types in chat. No markdown, no lists, no capitals for emphasis. Reply in the language the contact writes in."
+}

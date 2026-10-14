@@ -699,6 +699,16 @@ replacement reaches the model; the default it displaces is gone.
 }
 ```
 
+`pnpm bootstrap` does not create this file, because overrides are opt-in.
+`config/prompt-overrides.json.example` replaces two sections for the demo
+tenant. To start from it:
+
+```bash
+cp config/prompt-overrides.json.example config/prompt-overrides.json
+```
+
+Then edit the file and restart, or send `kill -HUP <pid>`.
+
 | Key         | Replaces                                       | In the prompt when              |
 | ----------- | ---------------------------------------------- | ------------------------------- |
 | `operating` | Response and escalation policy                 | Always                          |
