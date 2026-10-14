@@ -1,0 +1,59 @@
+{
+  "businessName": "Demo Academy",
+  "currency": "USD",
+  "offerings": [
+    {
+      "id": "foundation",
+      "name": "Foundation Course",
+      "description": "Start from zero. No previous experience required.",
+      "price": { "amount": 45000, "currency": "USD" },
+      "durationHours": 24,
+      "schedule": "Tuesdays and Thursdays, 6-9pm, for 4 weeks",
+      "url": "https://example.com/enrol/foundation"
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced Course",
+      "description": "For anyone who finished the foundation course or has equivalent experience.",
+      "price": { "amount": 68000, "currency": "USD" },
+      "durationHours": 32,
+      "schedule": "Saturdays, 10am-4pm, for 5 weeks",
+      "url": "https://example.com/enrol/advanced"
+    },
+    {
+      "id": "weekend-intensive",
+      "name": "Weekend Intensive",
+      "description": "The foundation course condensed into two full days.",
+      "price": { "amount": 32000, "currency": "USD" },
+      "durationHours": 12,
+      "schedule": "One weekend a month, Saturday and Sunday 10am-4pm",
+      "url": "https://example.com/enrol/weekend-intensive"
+    }
+  ],
+  "faq": [
+    {
+      "question": "Do you give a certificate?",
+      "answer": "Yes, you receive a certificate of attendance when you finish."
+    },
+    {
+      "question": "Are materials included?",
+      "answer": "The practice kit is included with every course."
+    },
+    { "question": "Where are you located?", "answer": "Classes are in person at the main campus." },
+    { "question": "Do you run online classes?", "answer": "All courses are in person for now." },
+    {
+      "question": "Do you guarantee I will get a job?",
+      "answer": "We don't guarantee job placement. The certificate is recognised by local salons."
+    }
+  ],
+  "paymentOptions": [
+    {
+      "id": "instalments",
+      "description": "Any course can be paid in three equal monthly instalments, with no surcharge."
+    },
+    {
+      "id": "deposit",
+      "description": "A $120 deposit holds a place; the rest is due before the first class."
+    }
+  ]
+}

@@ -19,6 +19,7 @@ config/
   catalog.json     offerings, prices, schedule (gitignored)
   rules.json       thresholds, escalation    (gitignored)
   tools.json       optional agent actions    (gitignored)
+  prompt-overrides.json  optional section replacements (gitignored, 044)
   plugins.json     optional plugin packages  (gitignored, 036)
   *.example        committed scaffolds for the fictional demo tenant
 .env               credentials and model selection (gitignored)
@@ -126,6 +127,15 @@ Firing the reply flow or writing either field as an action would resend a stale
 reply, overwrite one in flight, or replace the contact's token, and a note that
 shares a field would overwrite what that field holds with free text. Like any other invalid
 config, this fails the boot, and a reload that introduces it is refused.
+
+## `prompt-overrides.json`
+
+Optional. Replaces the body of a named conversational section of the system
+prompt — `operating`, `format`, `closing`, `actions`, `intent`, `sales`,
+`offerings` or `followUps` — with the tenant's own text. Unknown keys, blank or
+non-string values and malformed JSON fail the boot and are refused on reload.
+Security, grounding, the output schema and each section's rules stay the
+framework's. The contract is `044-tenant-prompt-section-overrides.md`.
 
 ## `.env`
 

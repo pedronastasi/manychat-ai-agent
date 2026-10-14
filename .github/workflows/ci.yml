@@ -62,6 +62,18 @@ jobs:
           CONFIG_DIR: test/fixtures/config-repair
           EVAL_DIR: evals/repair
 
+      # A tenant that replaces every conversational section, so the suite
+      # runs against the prompt its overrides assemble (specs/044).
+      - name: Eval (mock, prompt overrides tenant)
+        run: pnpm eval:mock
+        env:
+          AGENT_MODEL: mock:demo
+          PUBLIC_BASE_URL: https://ci.example.com
+          MANYCHAT_SHARED_SECRET: ci-secret-ci-secret-ci-secret-xx
+          DATABASE_URL: pglite
+          CONFIG_DIR: test/fixtures/config-overrides
+          EVAL_DIR: evals/prompt-overrides
+
       - name: Build
         run: pnpm build
 

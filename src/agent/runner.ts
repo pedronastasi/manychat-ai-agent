@@ -299,6 +299,8 @@ export class GenerateTextRunner implements AgentRunner {
     const prompt = buildSystemPrompt(config.persona, config.catalog, config.rules, tools, {
       pluginTools,
       pluginReadTools,
+      // The same resolved snapshot for live, follow-up and eval turns (specs/044).
+      overrides: config.promptOverrides,
     });
     // After the catalog and before the cache breakpoint, so a version is
     // cached with the rest of the prefix (specs/031). Without `learning`

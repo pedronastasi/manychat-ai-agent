@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-14
 constitution: [C1, C3, C4, C6, C8, C9]
 ---
 
@@ -7,8 +8,7 @@ constitution: [C1, C3, C4, C6, C8, C9]
 
 Defines optional tenant-owned replacements for the conversational sections of
 the system prompt, their precedence, validation and reload behaviour. It leaves
-out implementation, deployment, changing runtime guardrails and replacing the
-entire prompt. This contract is specified, not available in the agent yet.
+out deployment, changing runtime guardrails and replacing the entire prompt.
 
 ## A tenant replaces a section instead of arguing with its default
 
@@ -58,6 +58,13 @@ Section headings and ordering belong to the framework. Values replace bodies,
 not headings. The ordering of keys in the JSON file has no effect on prompt
 assembly. `config/prompt.md` remains the persona; these overrides do not replace
 that file or create an alternative persona source.
+
+The prompt carries the persona, then `PRECEDENCE`, then `OPERATING RULES`,
+`GROUNDING`, `SECURITY`, `FORMAT`, `OUTPUT` and `CLOSING QUESTION`, then each
+active capability section. A capability section's body is followed by its own
+framework-owned block: `ACTION RULES`, `INTENT RULES`, `SALES RULES`,
+`OFFERING RULES` or `FOLLOW-UP RULES`. `PRECEDENCE` names the sections the
+tenant replaced, so the persona-versus-override order is stated in the prompt.
 
 ## Mandatory instructions are separated before defaults are replaced
 

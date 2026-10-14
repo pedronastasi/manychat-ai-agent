@@ -5,6 +5,8 @@ export {
   NudgeSchema,
   OfferingSchema,
   PaymentOptionSchema,
+  PROMPT_SECTIONS,
+  PromptOverridesSchema,
   RulesSchema,
   ToolsSchema,
 } from '../contracts/config.ts';
@@ -16,6 +18,8 @@ export type {
   Nudge,
   Offering,
   PaymentOption,
+  PromptOverrides,
+  PromptSection,
   Rules,
   Tools,
 } from '../contracts/config.ts';
