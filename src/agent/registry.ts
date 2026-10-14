@@ -25,14 +25,33 @@ export interface ModelPricing {
 
 /**
  * Prices drift, and a stale table would silently mis-cap spend. Treated as a
- * best-effort estimate: `PRICING_OVERRIDES` lets an operator correct a value
- * without a release, and an unknown model falls back to a deliberately
- * pessimistic estimate so the cap errs toward stopping early.
+ * best-effort estimate: an unknown model falls back to a deliberately
+ * pessimistic estimate so the cap errs toward stopping early. That fallback
+ * prices a cheap model at many times its list price, so a model in regular use
+ * belongs in this table.
  */
 const PRICING: Record<string, ModelPricing> = {
-  'anthropic:claude-haiku-4-5': { inputPerMTok: 1, outputPerMTok: 5, cacheReadPerMTok: 0.1 },
+  // Standard list prices as of October 2026. Where a model has a long-prompt
+  // tier, this is the short-prompt price: a prompt past that threshold (100k
+  // tokens on Haiku 5.5, 272k on GPT-6) is under-counted.
+  'anthropic:claude-haiku-5-5': { inputPerMTok: 0.1, outputPerMTok: 0.5, cacheReadPerMTok: 0.01 },
+  'anthropic:claude-sonnet-5-5': { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.1 },
+  'anthropic:claude-opus-5-5': { inputPerMTok: 4, outputPerMTok: 20, cacheReadPerMTok: 0.2 },
   'anthropic:claude-sonnet-5': { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.2 },
   'anthropic:claude-opus-5': { inputPerMTok: 5, outputPerMTok: 25, cacheReadPerMTok: 0.5 },
+  'anthropic:claude-sonnet-4-6': { inputPerMTok: 3, outputPerMTok: 15, cacheReadPerMTok: 0.3 },
+  'anthropic:claude-sonnet-4-5': { inputPerMTok: 3, outputPerMTok: 15, cacheReadPerMTok: 0.3 },
+  'anthropic:claude-haiku-4-5': { inputPerMTok: 1, outputPerMTok: 5, cacheReadPerMTok: 0.1 },
+  'openai:gpt-6-sol': { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.2 },
+  'openai:gpt-6-luna': { inputPerMTok: 0.1, outputPerMTok: 0.5, cacheReadPerMTok: 0.01 },
+  'openai:gpt-5': { inputPerMTok: 1.25, outputPerMTok: 10, cacheReadPerMTok: 0.125 },
+  'openai:gpt-5-mini': { inputPerMTok: 0.25, outputPerMTok: 2, cacheReadPerMTok: 0.025 },
+  'openai:gpt-5-nano': { inputPerMTok: 0.05, outputPerMTok: 0.4, cacheReadPerMTok: 0.005 },
+  // Introductory pricing halves this until 2027; the table holds the standard
+  // price, so the cap errs toward stopping early meanwhile. Cache reads at 10%
+  // of input, Google's ratio on its other Flash models.
+  'google:gemini-3.8-flash': { inputPerMTok: 1.5, outputPerMTok: 7.5, cacheReadPerMTok: 0.15 },
+  'google:gemini-3.5-flash-lite': { inputPerMTok: 0.3, outputPerMTok: 2.5, cacheReadPerMTok: 0.03 },
 };
 
 const FALLBACK_PRICING: ModelPricing = {
