@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import {
   CatalogSchema,
   EnvSchema,
+  NO_PROMPT_OVERRIDES,
   NO_TOOLS,
+  PromptOverridesSchema,
   RulesSchema,
   ToolsSchema,
 } from '../contracts/config.ts';
-import type { Catalog, Env, Rules, Tools } from '../contracts/config.ts';
+import type { Catalog, Env, PromptOverrides, Rules, Tools } from '../contracts/config.ts';
 
 export interface TenantConfig {
   persona: string;
@@ -15,6 +17,8 @@ export interface TenantConfig {
   rules: Rules;
   /** What the agent may act with (specs/012). Empty or absent: no tools are offered. */
   tools?: Tools;
+  /** Replacement bodies for the prompt's conversational sections (specs/044). Absent: defaults. */
+  promptOverrides?: PromptOverrides;
 }
 
 /**
@@ -218,6 +222,44 @@ function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tool
   return tools.data;
 }
 
+/**
+ * `prompt-overrides.json` is optional: without it every section keeps its
+ * default (specs/044). A file that is present must load, so an unreadable or
+ * malformed one fails rather than falling back. Messages name the file and the
+ * key, never the text: a parse error quotes the input, so its cause is dropped (C5).
+ */
+function loadPromptOverrides(dir: string): PromptOverrides {
+  const path = join(dir, 'prompt-overrides.json');
+  if (!existsSync(path)) return NO_PROMPT_OVERRIDES;
+
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (cause) {
+    const code = (cause as NodeJS.ErrnoException).code ?? 'unknown error';
+    throw new ConfigError(`prompt-overrides.json at ${path} could not be read (${code}).`);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new ConfigError(`prompt-overrides.json at ${path} is not valid JSON.`);
+  }
+  const overrides = PromptOverridesSchema.safeParse(raw);
+  if (!overrides.success) {
+    throw new ConfigError(
+      `Invalid prompt-overrides.json:\n` +
+        overrides.error.issues
+          .map(issue => {
+            const keys = 'keys' in issue ? issue.keys.join(', ') : '';
+            return `  ${issue.path.join('.') || keys || '(root)'}: ${issue.message}`;
+          })
+          .join('\n'),
+    );
+  }
+  return overrides.data;
+}
+
 export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): TenantConfig {
   const personaPath = join(dir, 'prompt.md');
   if (!existsSync(personaPath)) {
@@ -253,11 +295,14 @@ export function loadTenantConfig(dir = 'config', reserved: ReservedNames = {}): 
     );
   }
 
+  const promptOverrides = loadPromptOverrides(dir);
+
   return {
     persona: readFileSync(personaPath, 'utf8'),
     catalog: catalog.data,
     rules: rules.data,
     tools,
+    promptOverrides,
   };
 }
 

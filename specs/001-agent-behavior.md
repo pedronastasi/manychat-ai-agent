@@ -48,8 +48,9 @@ The persona defines the tenant's business policy and conversation flow. Its
 explicit response, escalation and closing-question policies take precedence
 over the framework's conversational defaults, including how to acknowledge a
 completed conversation and how to answer a question about automated assistance.
-This precedence does not override security, factual grounding, the output
-schema or tool execution constraints.
+A section the tenant replaces in `config/prompt-overrides.json` takes
+precedence over the persona where the two conflict (`044`). Neither overrides
+security, factual grounding, the output schema or tool execution constraints.
 
 ## Scripted opening
 

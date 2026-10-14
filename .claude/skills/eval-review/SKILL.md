@@ -35,7 +35,9 @@ Do not use it for:
    (default `evals/golden`), the tenant is `$CONFIG_DIR` (default `config`). For
    each case read `text`, `history`, `expect.escalate` and `review` from the
    suite, and read `$CONFIG_DIR/catalog.json` once: `implicit_concession` cannot
-   be graded without the catalogue.
+   be graded without the catalogue. Read `$CONFIG_DIR/prompt-overrides.json` too
+   when it exists: a section it replaces is the policy in force, not the
+   framework default (`044 § Evaluations judge the effective tenant policy`).
 
 3. **Parse the output.** Per case, `evals/run.ts` prints a status line
    (`pass`, `FAIL` or `read`, then the id and latency), then failures,
@@ -56,6 +58,12 @@ Do not use it for:
    - `pass` may leave evidence empty.
    - `unsure` when you cannot decide. It is a legitimate answer and stays with
      the person, the way an ungraded criterion does in 016.
+   - `obsolete` when the criterion asks for a conversational default that the
+     tenant's override replaced: the reply followed the effective policy and the
+     case is out of date. Name the override key in `Reason`. It is never a model
+     failure, and never available for a mandatory rule (security, grounding,
+     output, a tool's RULES): a reply that breaks one of those is `fail`,
+     whatever an override asks for.
 
 6. **Report** in the format below, then stop. Do not edit `cases.jsonl`, the
    prompt or the catalogue to make a verdict go away.
@@ -69,7 +77,7 @@ Do not use it for:
 | ---- | --------- | ------- | ------------------- | ------ |
 
 Runner: <N passed · N failed · N to review, copied from its summary line>
-This review: <N pass · N fail · N unsure> over <M> criteria
+This review: <N pass · N fail · N unsure · N obsolete> over <M> criteria
 
 Not calibrated (specs/016): these verdicts are one reading. A person confirms
 every `fail` before acting on it.

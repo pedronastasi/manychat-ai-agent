@@ -38,7 +38,9 @@ describe('tenant conversation policy', () => {
 
     expect(staticPrefix).toContain(persona);
     expect(staticPrefix).toContain('policies take precedence over');
-    expect(staticPrefix).toContain('This does not override SECURITY, factual grounding');
+    expect(staticPrefix).toContain(
+      'Nothing in the persona or in a section overrides SECURITY, GROUNDING',
+    );
     expect(staticPrefix).toContain(
       'response or escalation policy in the persona; otherwise escalate',
     );

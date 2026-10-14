@@ -1,0 +1,128 @@
+{
+  "flows": [
+    {
+      "id": "foundation_brochure",
+      "flowNs": "content00000000000000_000001",
+      "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it.",
+      "offering": "foundation"
+    },
+    {
+      "id": "student_results",
+      "flowNs": "content00000000000000_000002",
+      "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it."
+    },
+    {
+      "id": "fitting_it_in",
+      "flowNs": "content00000000000000_000003",
+      "description": "A short video of a past student explaining how they fitted the course around a full-time job. Send when the contact says they do not have time."
+    },
+    {
+      "id": "enrolment_link",
+      "flowNs": "content00000000000000_000004",
+      "description": "The enrolment and payment link. Send when the contact asks for the link or says they want to enrol.",
+      "role": "payment_link",
+      "repeatable": true
+    },
+    {
+      "id": "advanced_brochure",
+      "flowNs": "content00000000000000_000005",
+      "description": "PDF brochure for the Advanced Course. Send when the contact asks for details, a syllabus or something to read about it.",
+      "offering": "advanced"
+    },
+    {
+      "id": "intensive_brochure",
+      "flowNs": "content00000000000000_000006",
+      "description": "PDF brochure for the Weekend Intensive. Send when the contact asks for details, a syllabus or something to read about it.",
+      "offering": "weekend-intensive"
+    }
+  ],
+  "tags": [
+    {
+      "id": "interested_foundation",
+      "tag": "interested-foundation-course",
+      "description": "The contact showed interest in the Foundation Course."
+    }
+  ],
+  "fields": [
+    {
+      "id": "funnel_stage",
+      "field": "funnel_stage",
+      "values": ["new", "qualifying", "nurturing", "offered", "prepared", "link_sent"],
+      "description": "Where the sale stands with this contact.",
+      "funnel": true
+    },
+    {
+      "id": "prior_experience",
+      "field": "prior_experience",
+      "values": ["none", "some"],
+      "description": "Whether the contact has studied the subject before. Ask before sending content."
+    },
+    {
+      "id": "preferred_schedule",
+      "field": "preferred_schedule",
+      "values": ["weekday_evenings", "weekends"],
+      "description": "Whether the contact said weekday evenings or weekends suit them. Ask before sending content."
+    },
+    {
+      "id": "course",
+      "field": "course",
+      "values": ["foundation", "advanced", "weekend-intensive"],
+      "description": "The course this contact is buying. Set it as soon as the contact chooses one, or the fit is clear.",
+      "offering": true
+    },
+    {
+      "id": "intent",
+      "field": "intent",
+      "values": ["not_prospect", "prospect"],
+      "description": "Whether the contact means to enrol. Record prospect once they ask about a course's price, dates or how to enrol; not_prospect if they write for something else.",
+      "intent": true
+    }
+  ],
+  "readable": {
+    "tags": [
+      {
+        "id": "came_from_ad",
+        "tag": "source-ad",
+        "description": "The contact arrived by clicking an ad."
+      }
+    ],
+    "fields": []
+  },
+  "notes": [
+    {
+      "id": "goal",
+      "field": "agent_note_goal",
+      "maxLength": 280,
+      "neverRendered": true,
+      "description": "Why the contact wants the course, in one sentence."
+    },
+    {
+      "id": "objections",
+      "field": "agent_note_objections",
+      "maxLength": 280,
+      "neverRendered": true,
+      "description": "What is holding the contact back, in one or two sentences."
+    },
+    {
+      "id": "handoff_summary",
+      "field": "agent_note_handoff",
+      "maxLength": 500,
+      "neverRendered": true,
+      "onEscalation": true,
+      "description": "What the person taking over needs to know, in two or three sentences."
+    }
+  ],
+  "nudge": {
+    "delays": [
+      {
+        "id": "later_today",
+        "minutes": 120
+      },
+      {
+        "id": "tomorrow",
+        "minutes": 1200
+      }
+    ],
+    "humanActiveTag": "human-handling"
+  }
+}

@@ -686,6 +686,55 @@ ORDER BY t.seq;
 - **Actions need `MANYCHAT_API_TOKEN`.** Without it every action is recorded as
   `failed`.
 
+## `prompt-overrides.json`: replace a prompt section (optional)
+
+The server appends its own conversational sections after `prompt.md`. When one
+of them says something your business handles differently, replace that
+section's body here rather than arguing with it from the persona. Only the
+replacement reaches the model; the default it displaces is gone.
+
+```json
+{
+  "closing": "Ask a next-step question while the contact is deciding. After a farewell, return null."
+}
+```
+
+`pnpm bootstrap` does not create this file, because overrides are opt-in.
+`config/prompt-overrides.json.example` replaces two sections for the demo
+tenant. To start from it:
+
+```bash
+cp config/prompt-overrides.json.example config/prompt-overrides.json
+```
+
+Then edit the file and restart, or send `kill -HUP <pid>`.
+
+| Key         | Replaces                                       | In the prompt when              |
+| ----------- | ---------------------------------------------- | ------------------------------- |
+| `operating` | Response and escalation policy                 | Always                          |
+| `format`    | Style, language and presentation               | Always                          |
+| `closing`   | When to ask a closing question or send `null`  | Always                          |
+| `actions`   | When to choose an available action             | Any tool is offered             |
+| `intent`    | How to read and record purchase intent         | A field is marked `intent`      |
+| `sales`     | Qualification, objections and sales progress   | A field is marked `funnel`      |
+| `offerings` | How to select and continue the contact's offer | A field is marked `offering`    |
+| `followUps` | When and how to propose a follow-up            | `tools.json` configures `nudge` |
+
+Each value is the whole new body: plain text, with no templates, includes or
+variables. Headings and the order of sections are the server's. Leave a key out
+to keep its default; a section whose capability is not configured stays out of
+the prompt whatever you write. Where the persona and an override disagree, the
+override wins, so keep the two consistent.
+
+Some instructions are never replaceable: security and input fencing, grounding
+in the catalog, the output fields and confidence threshold, and the `RULES`
+block after each tool section, which describes what a tool actually does. An
+override cannot make a refused action succeed.
+
+Unknown keys, blank or non-string values and malformed JSON fail the boot, and
+a reload with them keeps the previous configuration. Error messages name the
+key, never your text. Specification: `specs/044-tenant-prompt-section-overrides.md`.
+
 ## Learning from outcomes (optional)
 
 With a `learning` block in `rules.json`, a weekly job compares the

@@ -270,6 +270,15 @@ Every calibration group holds a `fail` label, so every group falls below the
 threshold and nothing is graded. That run is the standing proof that the golden
 calibration set catches a judge that approves everything.
 
+## A criterion is read against the tenant's effective policy
+
+A tenant that replaces a conversational section (`044`) is judged against its
+replacement, never the displaced default. The judge sees the same prompt the
+reply was generated with. A criterion that asks for the displaced default is an
+obsolete expectation, counted apart from model failures and corrected in the
+suite. Mandatory rules — security, grounding, the output schema, tool rules —
+stay graded whatever an override says.
+
 ## Verification
 
 - A unit test parses every `evals/*/calibration.jsonl` against `CalibrationItem`
