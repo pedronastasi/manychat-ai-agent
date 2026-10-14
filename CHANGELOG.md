@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.23.3](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.2...v0.23.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** update patch dependencies ([8790819](https://github.com/pedronastasi/manychat-ai-agent/commit/87908192e30abafdf11f02a49692048f1177a10b))
+* **deps:** update patch dependencies ([e19e412](https://github.com/pedronastasi/manychat-ai-agent/commit/e19e41258dc91d7187a1cf476f992de10311f7f0))
+* price openai:gpt-6-luna at its list price for the budget cap ([76d5f9a](https://github.com/pedronastasi/manychat-ai-agent/commit/76d5f9aca411f528198edfd4cccc1934c6df2a1b))
+* price the common chat models of each hosted provider ([f6fd2c7](https://github.com/pedronastasi/manychat-ai-agent/commit/f6fd2c7d740d0f90d354449d2b935394f677641c))
+* price the common chat models so the budget cap tracks real spend ([0c3a3ea](https://github.com/pedronastasi/manychat-ai-agent/commit/0c3a3ead45102b8e5f6879ced90fd4d3b76f717e))
+
+
+### Specs and Docs
+
+* specify tenant overrides for system prompt sections ([4cc2f6e](https://github.com/pedronastasi/manychat-ai-agent/commit/4cc2f6eb26d714cba26afa68374ba50c9156ba09))
+* specify tenant overrides for system prompt sections ([6ca8001](https://github.com/pedronastasi/manychat-ai-agent/commit/6ca800150bfbad24c7af76788bbf738b543728f8))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([1190025](https://github.com/pedronastasi/manychat-ai-agent/commit/11900256fc78d9244eabc521f5433cc35a981da0))
+* **deps:** lock file maintenance ([cc15348](https://github.com/pedronastasi/manychat-ai-agent/commit/cc15348e34a23fddf8832dddc71229664b32a2e1))
+* **deps:** update dependency mermaid to v12.2.0 ([c01cf91](https://github.com/pedronastasi/manychat-ai-agent/commit/c01cf9140f919f36d3df125c7a0a27fbb0001b50))
+* **deps:** update dependency mermaid to v12.2.0 ([5b3d363](https://github.com/pedronastasi/manychat-ai-agent/commit/5b3d363a8a804309caa284dcfd1f10b6c27b6a77))
+* **deps:** update pnpm to v12.11.2 ([8f565b5](https://github.com/pedronastasi/manychat-ai-agent/commit/8f565b59fbf949ae0de3f2ed81c659d607ea967a))
+* **deps:** update pnpm to v12.11.2 ([73dee04](https://github.com/pedronastasi/manychat-ai-agent/commit/73dee04d192aed76279fe17e2f31775bcab8096f))
+
 ## [0.23.2](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.1...v0.23.2) (2026-10-13)
 
 
