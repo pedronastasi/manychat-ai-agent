@@ -251,7 +251,11 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
         };
       },
     };
-    const out = await handler(runner).handle(inbound('send me the link'));
+    // Three late ManyChat answers plus the turn's own writes can pass the default
+    // 200 ms deadline on a loaded runner; this test is about order, not the race.
+    const out = await handler(runner, { raceDeadlineMs: 5000, modelAbortMs: 10_000 }).handle(
+      inbound('send me the link'),
+    );
     await out.afterResponse?.();
 
     expect(outcomes).toEqual([{ sent: true }, { staged: false }]);
