@@ -12,8 +12,9 @@ import { RulesSchema } from '../../src/contracts/config.ts';
 import type { Tools } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
-import { FakeContactFields } from '../helpers/manychat.ts';
-import type { MediaResolver } from '../../src/media/resolver.ts';
+import { FakeContactFields, fakeMediaHost, mediaUrl } from '../helpers/manychat.ts';
+import { MediaResolver } from '../../src/media/resolver.ts';
+import { ManyChatMediaFetcher } from '../../src/channels/manychat/media.ts';
 import { asProspect } from '../helpers/intent.ts';
 
 /**
@@ -262,19 +263,39 @@ describe('a reply the contact wrote past, with foldBursts (specs/045 V4)', () =>
   });
 });
 
-/** An image read as ready, with no transcript: the model sees it only on its own turn. */
-const imageReader = {
-  resolve: () => Promise.resolve({ status: 'ready', transcript: null, images: [], costUsd: 0 }),
-} as unknown as MediaResolver;
+/**
+ * The real resolver over ManyChat's media host, faked at the HTTP boundary
+ * (specs/004): an image is read as one image for the model, on its own turn.
+ */
+function imageReader() {
+  const host = fakeMediaHost();
+  host.files.set(mediaUrl('jpeg'), {
+    body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]),
+    contentType: 'image/jpeg',
+  });
+  return new MediaResolver({
+    fetcher: new ManyChatMediaFetcher(host.fetch),
+    transcriber: null,
+    splitter: null,
+    acceptsImages: true,
+  });
+}
 
 describe('a media reply the contact wrote past, with foldBursts (specs/045 V4)', () => {
   it('is still sent: the turn behind reads only its marker', async () => {
     const lanes = new TurnLanes(20_000);
-    const { runner } = recordingRunner(text => (text === '' ? 300 : 0));
-    const opts = { foldBursts: true, media: imageReader };
+    const recording = recordingRunner(text => (text === '' ? 300 : 0));
+    const images: number[] = [];
+    const runner: AgentRunner = {
+      run: input => {
+        if (input.media) images.push(input.media.images.length);
+        return recording.runner.run(input);
+      },
+    };
+    const opts = { foldBursts: true, media: imageReader() };
     const pending: Promise<TurnResult>[] = [];
     for (const message of [
-      { ...inbound(''), media: { kind: 'image' as const, url: 'https://media.example.com/a.jpg' } },
+      { ...inbound(''), media: { kind: 'image' as const, url: mediaUrl('jpeg') } },
       inbound('how much'),
       inbound('is this one?'),
     ]) {
@@ -282,6 +303,7 @@ describe('a media reply the contact wrote past, with foldBursts (specs/045 V4)',
       await sleep(20);
     }
     const results = await Promise.all(pending);
+    expect(images).toEqual([1]);
     expect(results[0]!.outcome).toBe('answered_inline');
     expect(results[0]!.silent).toBeUndefined();
   });
