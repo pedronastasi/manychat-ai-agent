@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.24.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.4...v0.24.0) (2026-10-15)
+
+
+### Features
+
+* answer a burst of bubbles with one reply ([5511716](https://github.com/pedronastasi/manychat-ai-agent/commit/5511716e078142a0689af7c6c88fc3262d668c3a))
+* answer a burst of bubbles with one reply ([91034b8](https://github.com/pedronastasi/manychat-ai-agent/commit/91034b8860909f78614c5b41938cee60d6c683c3))
+* let a tenant keep the offering open after the offer ([eb1633d](https://github.com/pedronastasi/manychat-ai-agent/commit/eb1633d5cfd34ca6b899ce57319c208fa2c4115a))
+* let a tenant keep the offering open after the offer ([6b01e48](https://github.com/pedronastasi/manychat-ai-agent/commit/6b01e48e137c82d20cfa79e3edf41584204cf642))
+* let a tenant replace individual system prompt sections (spec 044) ([d68aee2](https://github.com/pedronastasi/manychat-ai-agent/commit/d68aee2e24821563c5fdce6438e3c17740fbf6df))
+
+
+### Bug Fixes
+
+* claim a place only on a turn that reads the contact's history ([6daa135](https://github.com/pedronastasi/manychat-ai-agent/commit/6daa1353184e6a3cbeafa9fac2292234f0b982ac))
+* fold only a turn that reads the contact's history ([1200e0a](https://github.com/pedronastasi/manychat-ai-agent/commit/1200e0a6bd52b134d667e34449adc0308bed9b91))
+* never supersede a reply to media ([1e87d5b](https://github.com/pedronastasi/manychat-ai-agent/commit/1e87d5bcd2522dc48fab3bcb4712edb385d18da6))
+
+
+### Specs and Docs
+
+* record PR 227 in spec 045 ([412d831](https://github.com/pedronastasi/manychat-ai-agent/commit/412d831f74fa69816ce8d0512283fde72b9c6530))
+
+
+### Dependencies
+
+* **deps:** update dependency @fastify/helmet to v13.2.0 ([8683809](https://github.com/pedronastasi/manychat-ai-agent/commit/8683809f100a4897602a4eda36bb500fd1584672))
+* **deps:** update dependency @fastify/helmet to v13.2.0 ([74ea5e6](https://github.com/pedronastasi/manychat-ai-agent/commit/74ea5e66f6658baa509e0845df0f7ca60c4ec876))
+
 ## [0.23.4](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.3...v0.23.4) (2026-10-14)
 
 
