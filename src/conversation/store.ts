@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, isNull, max, ne, or, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, max, notInArray, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
 import type { ActionRecord, MediaKind, ReadRecord, TurnOutcome } from '../contracts/agent.ts';
@@ -232,7 +232,8 @@ export class ConversationStore {
         eq(turns.conversationId, conversationId),
         gte(turns.createdAt, since),
         eq(turns.bound, true),
-        or(isNull(turns.outcome), ne(turns.outcome, 'nudge_skipped')),
+        // Neither was sent: the contact never read them (specs/025, specs/045).
+        or(isNull(turns.outcome), notInArray(turns.outcome, ['nudge_skipped', 'superseded'])),
       ),
       orderBy: (table, { desc }) => [desc(table.seq)],
       limit,

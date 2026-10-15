@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, max } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNotNull, isNull, max, ne, or } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { conversations, turns } from '../db/schema.ts';
 import type { ActionRecord } from '../contracts/agent.ts';
@@ -159,6 +159,8 @@ export async function transcriptTurns(
         inArray(turns.conversationId, [...conversationIds]),
         eq(turns.bound, true),
         gte(turns.createdAt, since),
+        // A superseded reply was never sent: the contact did not read it (specs/045).
+        or(isNull(turns.outcome), ne(turns.outcome, 'superseded')),
       ),
     )
     .orderBy(asc(turns.seq));

@@ -100,6 +100,11 @@ interface RunOptions {
   late?: boolean;
   /** Called with the work a lost race leaves running, which the turn settles in. */
   onBackground?: (work: Promise<void>) => void;
+  /**
+   * Whether the contact has written again since this turn started, and a
+   * later turn of theirs will answer them (specs/045).
+   */
+  followed?: () => boolean;
 }
 
 /**
@@ -260,6 +265,10 @@ export class TurnHandler {
       slot.leave();
       return this.run(inbound, { deadlineAt });
     }
+    // This turn will answer whatever the contact wrote before it, so a turn
+    // ahead of it may leave its message to this one (specs/045). The opening
+    // sentinel's scripted reply answers nothing the contact wrote.
+    if (inbound.media || !matchOpeningTrigger(inbound.text, this.deps.rules)) slot.claim();
     // The next turn goes in once this one has settled: its reply recorded, and
     // queued when the race was lost.
     let background: Promise<void> = Promise.resolve();
@@ -268,6 +277,7 @@ export class TurnHandler {
       onBackground: work => {
         background = work;
       },
+      followed: slot.followed,
     };
     const leave = () => void background.then(slot.leave, slot.leave);
     const expired = () => logger.error({ conversation: known?.id }, 'turn wait expired');
@@ -283,7 +293,8 @@ export class TurnHandler {
         void slot.ready
           .then(async ready => {
             if (ready === 'expired') expired();
-            await this.run(inbound, { ...opts, late: true });
+            if (slot.followed() && this.foldable(inbound)) await this.fold(inbound, binding);
+            else await this.run(inbound, { ...opts, late: true });
           })
           .catch(async (error: unknown) => {
             logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
@@ -311,10 +322,65 @@ export class TurnHandler {
       if (waited === 'expired') expired();
     }
     try {
+      // The contact wrote again while this message waited: the later turn
+      // answers both, so this one only records it (specs/045).
+      if (slot.waited && slot.followed() && this.foldable(inbound)) {
+        return await this.fold(inbound, binding);
+      }
       return await this.run(inbound, opts);
     } finally {
       leave();
     }
+  }
+
+  /**
+   * Whether a message can be left to the contact's next turn to answer
+   * (specs/045 § A waiting message is folded into the next one). The next
+   * turn reads it from history, so it must be text the model can read there,
+   * and nothing a check of its own words would have answered differently.
+   */
+  private foldable(inbound: InboundMessage): boolean {
+    const { rules } = this.deps;
+    return (
+      !inbound.media &&
+      !matchOpeningTrigger(inbound.text, rules) &&
+      checkKeywords(inbound.text, rules).allowed
+    );
+  }
+
+  /**
+   * Records a message the contact's next turn answers, and nothing else: no
+   * model call, no reply, and a silent response (specs/045).
+   */
+  private async fold(inbound: InboundMessage, binding: Binding): Promise<TurnResult> {
+    const conversation = await this.store.startTurn(
+      {
+        tenantId: inbound.tenantId,
+        subscriberId: inbound.subscriberId,
+        channel: inbound.channel,
+        idleResetHours: this.deps.rules.idleResetHours,
+      },
+      new Date(),
+    );
+    await this.nudges.cancel(conversation.id, 'contact_replied');
+    await this.store.recordUserMessage(conversation.id, inbound.text, { bound: true });
+    withConversation(this.deps.logger, conversation.id).info(
+      { outcome: 'folded' },
+      'message folded into the next turn',
+    );
+    return {
+      reply: {
+        messages: [],
+        escalate: false,
+        escalation_reason: null,
+        confidence: 1,
+        closing_question: null,
+      },
+      outcome: 'folded',
+      conversationId: conversation.id,
+      binding,
+      silent: true,
+    };
   }
 
   /**
@@ -722,9 +788,11 @@ export class TurnHandler {
       const actions =
         !result.toolsOffered && stage.sent.length === 0
           ? null
-          : result.reply.escalate
-            ? (discard(performable(result)) ?? [])
-            : stage.records('staged');
+          : outcome === 'superseded'
+            ? (discard() ?? [])
+            : result.reply.escalate
+              ? (discard(performable(result)) ?? [])
+              : stage.records('staged');
       const turnId = await this.store.recordAgentReply(
         conversation.id,
         result.reply.messages.join('\n'),
@@ -749,6 +817,19 @@ export class TurnHandler {
       if (result.reply.escalate) await markEscalated();
       return turnId;
     };
+
+    /**
+     * Whether the model's reply is dropped because the contact kept writing
+     * while it ran, and their next turn answers everything they wrote
+     * (specs/045 § A reply the contact wrote past is superseded). Never one
+     * that sent a flow, which has reached them, or that escalates.
+     */
+    const superseded = (result: AgentResult) =>
+      rules.foldBursts &&
+      opts.followed?.() === true &&
+      stage.sent.length === 0 &&
+      !result.reply.escalate &&
+      !result.modelError;
 
     /**
      * Records a reply decided without the model. Its own outcome is kept even
@@ -877,6 +958,10 @@ export class TurnHandler {
           let deferred: { staged: readonly StagedAction[]; turnId: string } | undefined;
           if (done.kind === 'decided') {
             await conclude(done);
+          } else if (superseded(done.result)) {
+            await settle(done.result, 'superseded');
+            logger.info({ outcome: 'superseded', deferred: true }, 'reply superseded');
+            return;
           } else {
             const turnId = await settle(done.result, 'deferred');
             // Deferred with the reply, never dropped from it: the worker
@@ -946,6 +1031,18 @@ export class TurnHandler {
         conversationId: conversation.id,
         binding,
       });
+    }
+
+    if (superseded(done.result)) {
+      await settle(done.result, 'superseded');
+      logger.info({ outcome: 'superseded' }, 'reply superseded');
+      return {
+        reply: done.result.reply,
+        outcome: 'superseded',
+        conversationId: conversation.id,
+        binding,
+        silent: true,
+      };
     }
 
     // A failed call and a deliberate escalation both carry `escalate: true` and
