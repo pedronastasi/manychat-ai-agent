@@ -207,6 +207,30 @@ describe('bubbles that are never folded (specs/046 V3)', () => {
     ]);
   });
 
+  it('a first turn the token has since caught up with is not folded (specs/019)', async () => {
+    // Bubble 2 reads no token yet and waits. Bubble 3 comes once the token is
+    // written, and presents it. By the time bubble 2 runs, the contact has a
+    // token it did not present, so it is unbound and stays out of history.
+    const lanes = new TurnLanes(20_000);
+    const { runner, seen } = recordingRunner(text => (text === 'hi' ? 300 : 0));
+    const opts = { tokensEnforced: true };
+    const first = handler(runner, lanes, opts).handle(inbound('hi'));
+    const second = handler(runner, lanes, opts).handle(inbound('I wanted to ask'));
+    for (let tries = 0; tries < 100 && !contactFields.tokenOf('s1'); tries++) await sleep(5);
+    const third = handler(runner, lanes, opts).handle({
+      ...inbound('about the evening course'),
+      contactToken: contactFields.tokenOf('s1'),
+    });
+    const results = await Promise.all([first, second, third]);
+
+    expect(results[1].outcome).not.toBe('folded');
+    const asked = await db.query.turns.findFirst({
+      where: (row, { eq }) => eq(row.text, 'I wanted to ask'),
+    });
+    expect(asked?.bound).toBe(false);
+    expect(seen[2]!.history).not.toContain('user: I wanted to ask');
+  });
+
   it('a media message runs its own turn', async () => {
     const lanes = new TurnLanes(20_000);
     const { runner } = recordingRunner(text => (text === 'hi' ? 300 : 0));

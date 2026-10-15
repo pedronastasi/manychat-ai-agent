@@ -297,8 +297,9 @@ export class TurnHandler {
         void slot.ready
           .then(async ready => {
             if (ready === 'expired') expired();
-            if (slot.followed() && this.foldable(inbound)) await this.fold(inbound, binding);
-            else await this.run(inbound, { ...opts, late: true });
+            if (readsHistory && slot.followed() && this.foldable(inbound)) {
+              await this.fold(inbound, binding);
+            } else await this.run(inbound, { ...opts, late: true });
           })
           .catch(async (error: unknown) => {
             logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
@@ -327,8 +328,10 @@ export class TurnHandler {
     }
     try {
       // The contact wrote again while this message waited: the later turn
-      // answers both, so this one only records it (specs/046).
-      if (slot.waited && slot.followed() && this.foldable(inbound)) {
+      // answers both, so this one only records it (specs/046). Only a turn
+      // that reads history folds: any other runs, and is bound by the token
+      // state it finds then (specs/019).
+      if (readsHistory && slot.waited && slot.followed() && this.foldable(inbound)) {
         return await this.fold(inbound, binding);
       }
       return await this.run(inbound, opts);

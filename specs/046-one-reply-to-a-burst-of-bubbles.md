@@ -42,6 +42,9 @@ reads every folded message from history and answers them together.
   model would have: text, never media, whose words alone the turn behind
   would not have answered differently. A media message, the opening sentinel,
   and a message carrying an escalation keyword run their own turn.
+- Only a turn that reads the contact's history folds. Any other runs its own
+  turn, which reads the token state again once its wait is over, so a message
+  that turns out unbound stays out of history (`019`).
 - A folded turn cancels a pending nudge (`025`), as any message does, and
   counts toward the turn cap (`018`). It costs no model call, and so is not
   counted against the rate limit or the budget.
@@ -95,7 +98,8 @@ own, as before.
    history holds them all, in order.
 3. An integration test asserts that a media message, the opening sentinel and
    a message with an escalation keyword are not folded, and that nothing is
-   folded into, or superseded by, a turn that reads no history.
+   folded into, or superseded by, a turn that reads no history, and that a
+   turn that read no token before its wait is not folded.
 4. An integration test asserts that with `foldBursts` the first turn's reply
    is superseded, recorded with its spend, left out of the next turn's
    history, and that only the last bubble's reply is sent, inline or from the
