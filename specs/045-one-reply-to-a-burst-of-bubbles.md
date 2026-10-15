@@ -34,9 +34,10 @@ the contact has written again behind it, does not call the model. It records
 the contact's message and gives a silent response. The contact's latest turn
 reads every folded message from history and answers them together.
 
-- Only a turn that will answer the contact counts as one behind it: a bound
-  turn (`019`) whose message is not the opening sentinel, whose scripted reply
-  answers nothing the contact wrote.
+- Only a turn that will answer the contact counts as one behind it: a turn
+  that reads their history, so never an unbound or first turn while tokens
+  are enforced (`019`), and whose message is not the opening sentinel, whose
+  scripted reply answers nothing the contact wrote.
 - A message is folded only when the turn behind it can read it the way the
   model would have: text, never media, whose words alone the turn behind
   would not have answered differently. A media message, the opening sentinel,
@@ -90,7 +91,8 @@ own, as before.
    The middle ones call no model and get silent responses, and the last turn's
    history holds them all, in order.
 3. An integration test asserts that a media message, the opening sentinel and
-   a message with an escalation keyword are not folded.
+   a message with an escalation keyword are not folded, and that nothing is
+   folded into, or superseded by, a turn that reads no history.
 4. An integration test asserts that with `foldBursts` the first turn's reply
    is superseded, recorded with its spend, left out of the next turn's
    history, and that only the last bubble's reply is sent, inline or from the

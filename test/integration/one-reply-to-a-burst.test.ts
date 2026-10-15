@@ -86,7 +86,12 @@ const inbound = (text: string): InboundMessage => ({
 function handler(
   runner: AgentRunner,
   lanes: TurnLanes,
-  opts: { raceDeadlineMs?: number; foldBursts?: boolean; tools?: Tools } = {},
+  opts: {
+    raceDeadlineMs?: number;
+    foldBursts?: boolean;
+    tools?: Tools;
+    tokensEnforced?: boolean;
+  } = {},
 ) {
   return new TurnHandler({
     db,
@@ -97,7 +102,7 @@ function handler(
     raceDeadlineMs: opts.raceDeadlineMs ?? 2_000,
     modelAbortMs: 10_000,
     tokenWriter: contactFields,
-    tokensEnforced: false,
+    tokensEnforced: opts.tokensEnforced ?? false,
     actions: { performAction: () => Promise.resolve() },
     lanes,
   });
@@ -171,6 +176,30 @@ describe('bubbles that are never folded (specs/045 V3)', () => {
       'answered_inline',
       'answered_inline',
       'answered_scripted',
+    ]);
+  });
+
+  it('a turn that reads no history is not one to fold into (specs/019)', async () => {
+    // A new contact's bubbles all arrive before the first turn issues their
+    // token, so every one of them is a `first` turn, which reads no history
+    // while tokens are enforced.
+    const lanes = new TurnLanes(20_000);
+    const { runner, seen } = recordingRunner(text => (text === 'hi' ? 300 : 0));
+    const opts = { foldBursts: true, tokensEnforced: true };
+    const results = await Promise.all(
+      ['hi', 'I wanted to ask', 'about the evening course'].map(text =>
+        handler(runner, lanes, opts).handle(inbound(text)),
+      ),
+    );
+    expect(results.map(found => found.outcome)).toEqual([
+      'answered_inline',
+      'answered_inline',
+      'answered_inline',
+    ]);
+    expect(seen.map(call => call.text)).toEqual([
+      'hi',
+      'I wanted to ask',
+      'about the evening course',
     ]);
   });
 

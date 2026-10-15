@@ -266,9 +266,13 @@ export class TurnHandler {
       return this.run(inbound, { deadlineAt });
     }
     // This turn will answer whatever the contact wrote before it, so a turn
-    // ahead of it may leave its message to this one (specs/045). The opening
-    // sentinel's scripted reply answers nothing the contact wrote.
-    if (inbound.media || !matchOpeningTrigger(inbound.text, this.deps.rules)) slot.claim();
+    // ahead of it may leave its message to this one (specs/045). Only a turn
+    // that reads the contact's history can: a first turn while tokens are
+    // enforced reads none (specs/019), and the opening sentinel's scripted
+    // reply answers nothing the contact wrote.
+    const readsHistory = binding === 'bound' || !tokensEnforced;
+    const answers = inbound.media || !matchOpeningTrigger(inbound.text, this.deps.rules);
+    if (readsHistory && answers) slot.claim();
     // The next turn goes in once this one has settled: its reply recorded, and
     // queued when the race was lost.
     let background: Promise<void> = Promise.resolve();
