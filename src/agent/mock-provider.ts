@@ -355,10 +355,16 @@ function switchTo(options: LanguageModelV4CallOptions, lower: string): string | 
     : undefined;
 }
 
-/** From `offered` on, a switch is a person's decision (specs/028). */
+/**
+ * From `offered` on, a switch is a person's decision (specs/028), unless the
+ * system prompt says the offering stays open (specs/045).
+ */
 function courseLocked(options: LanguageModelV4CallOptions): boolean {
   const stage = contactNotes(options).stage;
-  return stage === 'offered' || stage === 'prepared' || stage === 'link_sent';
+  const locked = options.prompt.some(
+    entry => entry.role === 'system' && entry.content.includes('From offered on it is locked'),
+  );
+  return locked && (stage === 'offered' || stage === 'prepared' || stage === 'link_sent');
 }
 
 /** A request for course content from a contact with no course, named or recorded. */

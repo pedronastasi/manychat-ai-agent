@@ -139,6 +139,8 @@ and its catalog price have been put to the contact, and from `link_sent` a
 payment link for it has been sent. A model that silently switches offering
 after that leaves the contact holding one offering's price and another's
 payment link; a person deciding the switch costs one handoff.
+A tenant whose agent writes each offering's link itself can lift the lock
+with `switchable` on the offering field (`045`).
 
 The entry flow is not bound by the lock: it writes ManyChat directly, and a
 contact who clicks a second offering's ad mid-sale arrives with the new offering

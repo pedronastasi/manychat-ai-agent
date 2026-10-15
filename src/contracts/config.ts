@@ -429,6 +429,11 @@ export const ToolsSchema = z
            */
           offering: z.boolean().optional(),
           /**
+           * On the offering field: the offering stays open to a switch after
+           * the offer instead of locking at `offered` (specs/045).
+           */
+          switchable: z.boolean().optional(),
+          /**
            * The field the contact's intent is kept in: until it is `prospect`
            * every sales tool refuses (specs/034).
            */
@@ -469,6 +474,10 @@ export const ToolsSchema = z
       .refine(
         fields => !fields.some(field => field.funnel && field.offering),
         'a field may not be marked both "funnel" and "offering"',
+      )
+      .refine(
+        fields => fields.every(field => !field.switchable || field.offering),
+        'only the field marked "offering" may be "switchable"',
       )
       // Forward-only is decided by position in this list, so a list out of
       // order would let the agent move a lead backwards.
