@@ -159,8 +159,8 @@ export const TurnOutcome = z.enum([
   'media_fallback', // media the agent cannot read; contact asked to type (specs/020)
   'nudge_sent', // a follow-up the agent started, delivered through the outbox (specs/025)
   'nudge_skipped', // a follow-up the model declined by escalating; nothing sent (specs/025)
-  'folded', // a message left to the contact's next turn to answer; no reply row (specs/045)
-  'superseded', // a reply dropped because the contact kept writing; never sent (specs/045)
+  'folded', // a message left to the contact's next turn to answer; no reply row (specs/046)
+  'superseded', // a reply dropped because the contact kept writing; never sent (specs/046)
 ]);
 export type TurnOutcome = z.infer<typeof TurnOutcome>;
 

@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { TurnLanes } from '../../src/conversation/turns.ts';
 
 /**
- * specs/045-one-reply-to-a-burst-of-bubbles.md § Verification item 1: a turn
+ * specs/046-one-reply-to-a-burst-of-bubbles.md § Verification item 1: a turn
  * is followed only by a later turn of the same contact that has claimed its
  * place and not left.
  */
 
-describe('a turn followed by the contact (specs/045 V1)', () => {
+describe('a turn followed by the contact (specs/046 V1)', () => {
   it('is followed once a later turn claims its place, and not before', () => {
     const lanes = new TurnLanes(60_000);
     const first = lanes.enter('demo:s1');

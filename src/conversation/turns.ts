@@ -10,12 +10,12 @@ export interface TurnSlot {
   leave: () => void;
   /**
    * Says this turn will run and answer the contact: it enters their history
-   * (specs/045). Only a claimed turn counts as one that follows another.
+   * (specs/046). Only a claimed turn counts as one that follows another.
    */
   claim: () => void;
   /**
    * Whether a later turn of the contact has claimed its place and not left
-   * yet: the contact kept writing, and that turn answers them (specs/045).
+   * yet: the contact kept writing, and that turn answers them (specs/046).
    */
   followed: () => boolean;
 }

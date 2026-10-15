@@ -121,7 +121,7 @@ last of them calls the model, and its reply answers them all. With
 `"foldBursts": true`, a reply the model finished while the contact kept
 writing is dropped as well, so a burst gets one reply instead of two. The
 dropped call is still paid for. Off by default. See
-`specs/045-one-reply-to-a-burst-of-bubbles.md`.
+`specs/046-one-reply-to-a-burst-of-bubbles.md`.
 
 ```json
 "foldBursts": true

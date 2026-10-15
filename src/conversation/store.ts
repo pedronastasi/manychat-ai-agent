@@ -232,7 +232,7 @@ export class ConversationStore {
         eq(turns.conversationId, conversationId),
         gte(turns.createdAt, since),
         eq(turns.bound, true),
-        // Neither was sent: the contact never read them (specs/025, specs/045).
+        // Neither was sent: the contact never read them (specs/025, specs/046).
         or(isNull(turns.outcome), notInArray(turns.outcome, ['nudge_skipped', 'superseded'])),
       ),
       orderBy: (table, { desc }) => [desc(table.seq)],

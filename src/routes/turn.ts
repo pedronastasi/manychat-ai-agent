@@ -102,7 +102,7 @@ interface RunOptions {
   onBackground?: (work: Promise<void>) => void;
   /**
    * Whether the contact has written again since this turn started, and a
-   * later turn of theirs will answer them (specs/045).
+   * later turn of theirs will answer them (specs/046).
    */
   followed?: () => boolean;
 }
@@ -266,7 +266,7 @@ export class TurnHandler {
       return this.run(inbound, { deadlineAt });
     }
     // This turn will answer whatever the contact wrote before it, so a turn
-    // ahead of it may leave its message to this one (specs/045). Only a turn
+    // ahead of it may leave its message to this one (specs/046). Only a turn
     // that reads the contact's history can: a first turn while tokens are
     // enforced reads none (specs/019), and the opening sentinel's scripted
     // reply answers nothing the contact wrote.
@@ -327,7 +327,7 @@ export class TurnHandler {
     }
     try {
       // The contact wrote again while this message waited: the later turn
-      // answers both, so this one only records it (specs/045).
+      // answers both, so this one only records it (specs/046).
       if (slot.waited && slot.followed() && this.foldable(inbound)) {
         return await this.fold(inbound, binding);
       }
@@ -339,7 +339,7 @@ export class TurnHandler {
 
   /**
    * Whether a message can be left to the contact's next turn to answer
-   * (specs/045 § A waiting message is folded into the next one). The next
+   * (specs/046 § A waiting message is folded into the next one). The next
    * turn reads it from history, so it must be text the model can read there,
    * and nothing a check of its own words would have answered differently.
    */
@@ -354,7 +354,7 @@ export class TurnHandler {
 
   /**
    * Records a message the contact's next turn answers, and nothing else: no
-   * model call, no reply, and a silent response (specs/045).
+   * model call, no reply, and a silent response (specs/046).
    */
   private async fold(inbound: InboundMessage, binding: Binding): Promise<TurnResult> {
     const conversation = await this.store.startTurn(
@@ -825,7 +825,7 @@ export class TurnHandler {
     /**
      * Whether the model's reply is dropped because the contact kept writing
      * while it ran, and their next turn answers everything they wrote
-     * (specs/045 § A reply the contact wrote past is superseded). Never one
+     * (specs/046 § A reply the contact wrote past is superseded). Never one
      * that sent a flow, which has reached them, or that escalates, and never
      * a media turn's: history keeps only its marker, so the turn behind could
      * not see what the contact sent.

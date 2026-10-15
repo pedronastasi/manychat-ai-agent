@@ -159,7 +159,7 @@ export async function transcriptTurns(
         inArray(turns.conversationId, [...conversationIds]),
         eq(turns.bound, true),
         gte(turns.createdAt, since),
-        // A superseded reply was never sent: the contact did not read it (specs/045).
+        // A superseded reply was never sent: the contact did not read it (specs/046).
         or(isNull(turns.outcome), ne(turns.outcome, 'superseded')),
       ),
     )

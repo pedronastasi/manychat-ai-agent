@@ -788,8 +788,11 @@ export function buildTools(
           return moved ? { staged, ...(await sendTied(value)) } : { staged };
         }
         // Once an offering and its price have been put to the contact, a person
-        // decides a switch (specs/028 § The offering may change until the offer).
-        if (stageFloor() >= stageIndex(OFFERING_LOCKED_FROM)) return { staged: false };
+        // decides a switch (specs/028 § The offering may change until the offer),
+        // unless the tenant keeps it open (specs/045).
+        if (!offering?.switchable && stageFloor() >= stageIndex(OFFERING_LOCKED_FROM)) {
+          return { staged: false };
+        }
         const before = turnOffering();
         const staged = stage.stage({
           tool: 'set_field',

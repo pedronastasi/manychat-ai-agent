@@ -6,7 +6,7 @@ constitution: [C6, C7, C8]
 adr: [0001]
 ---
 
-# 045 — One Reply to a Burst of Bubbles
+# 046 — One Reply to a Burst of Bubbles
 
 Defines what happens when a contact splits one message over several bubbles
 sent seconds apart: which turns call the model, which reply is sent, and what

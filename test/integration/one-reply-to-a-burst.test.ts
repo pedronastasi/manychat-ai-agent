@@ -18,7 +18,7 @@ import { ManyChatMediaFetcher } from '../../src/channels/manychat/media.ts';
 import { asProspect } from '../helpers/intent.ts';
 
 /**
- * specs/045-one-reply-to-a-burst-of-bubbles.md § Verification items 2 to 5.
+ * specs/046-one-reply-to-a-burst-of-bubbles.md § Verification items 2 to 5.
  * The model is the only fake besides ManyChat: each call records the history
  * it was given and answers after a delay the test chooses. Every message is
  * invented.
@@ -141,7 +141,7 @@ async function burst(
 const sent = (results: TurnResult[]) =>
   results.filter(found => !found.silent).map(found => found.reply.messages);
 
-describe('bubbles that wait behind a running turn (specs/045 V2)', () => {
+describe('bubbles that wait behind a running turn (specs/046 V2)', () => {
   it('are folded into the last one, which answers them together', async () => {
     const { results, seen } = await burst(['hi', 'I wanted to ask', 'about the', 'evening course']);
 
@@ -168,7 +168,7 @@ describe('bubbles that wait behind a running turn (specs/045 V2)', () => {
   });
 });
 
-describe('bubbles that are never folded (specs/045 V3)', () => {
+describe('bubbles that are never folded (specs/046 V3)', () => {
   it('a message with an escalation keyword runs its own turn', async () => {
     const { results } = await burst(['hi', 'I want a refund', 'now']);
     expect(results[1]!.outcome).toBe('escalated_precheck');
@@ -223,7 +223,7 @@ describe('bubbles that are never folded (specs/045 V3)', () => {
   });
 });
 
-describe('a reply the contact wrote past, with foldBursts (specs/045 V4)', () => {
+describe('a reply the contact wrote past, with foldBursts (specs/046 V4)', () => {
   it('is superseded inline, and the last bubble answers everything', async () => {
     const { results, seen } = await burst(['hi', 'I wanted to ask', 'about the evening course'], {
       foldBursts: true,
@@ -281,7 +281,7 @@ function imageReader() {
   });
 }
 
-describe('a media reply the contact wrote past, with foldBursts (specs/045 V4)', () => {
+describe('a media reply the contact wrote past, with foldBursts (specs/046 V4)', () => {
   it('is still sent: the turn behind reads only its marker', async () => {
     const lanes = new TurnLanes(20_000);
     const recording = recordingRunner(text => (text === '' ? 300 : 0));
@@ -315,7 +315,7 @@ const tools: Tools = {
   flows: fixture.flows.map(flow => ({ ...flow, settleSeconds: undefined })),
 };
 
-describe('a first reply that is still sent (specs/045 V5)', () => {
+describe('a first reply that is still sent (specs/046 V5)', () => {
   it('without foldBursts', async () => {
     const { results } = await burst(['hi', 'I wanted to ask', 'about the evening course']);
     expect(sent(results)).toEqual([['reply to hi'], ['reply to about the evening course']]);
