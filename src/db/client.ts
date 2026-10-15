@@ -17,6 +17,10 @@ export async function createEmbeddedDatabase(url: string) {
   const { drizzle: drizzlePglite } = await import('drizzle-orm/pglite');
   const dataDir = url.startsWith('pglite:') ? url.slice('pglite:'.length) : undefined;
   const client = dataDir ? new PGlite(dataDir) : new PGlite();
+  // Since PGlite 0.5.10, close() on an instance still starting up never
+  // settles, so a caller that closes without querying (scripts/export-openapi.ts)
+  // would hang. Hand back a client that is ready.
+  await client.waitReady;
   return { db: drizzlePglite(client, { schema }), client };
 }
 
