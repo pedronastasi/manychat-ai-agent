@@ -113,6 +113,20 @@ opening. See `specs/001-agent-behavior.md`.
 | --------------------------- | ------- | ------------------------- |
 | `turnsPerSubscriberPerHour` | `60`    | Per-subscriber rate limit |
 
+### `foldBursts`
+
+Contacts often split one message over several bubbles. Bubbles that arrive
+while the agent is still answering an earlier one are always folded: only the
+last of them calls the model, and its reply answers them all. With
+`"foldBursts": true`, a reply the model finished while the contact kept
+writing is dropped as well, so a burst gets one reply instead of two. The
+dropped call is still paid for. Off by default. See
+`specs/046-one-reply-to-a-burst-of-bubbles.md`.
+
+```json
+"foldBursts": true
+```
+
 ## `tools.json`: actions the agent can take (optional)
 
 Without `tools.json` the agent only replies. With it, the agent can also act on

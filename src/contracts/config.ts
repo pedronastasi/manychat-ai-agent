@@ -190,6 +190,13 @@ export const RulesSchema = z.object({
     turnsPerSubscriberPerHour: z.number().int().positive().default(60),
   }),
   /**
+   * A contact who splits one message over several bubbles gets one reply
+   * (specs/046). When true, a reply the model finished while the contact kept
+   * writing is dropped, and their latest message's turn answers them all.
+   * Bubbles that wait behind a running turn are folded whatever this says.
+   */
+  foldBursts: z.boolean().default(false),
+  /**
    * Learning from outcomes (specs/031). Absent, no learning job runs, no
    * playbook is loaded, and the prompt is what it was before that spec.
    */
