@@ -826,10 +826,13 @@ export class TurnHandler {
      * Whether the model's reply is dropped because the contact kept writing
      * while it ran, and their next turn answers everything they wrote
      * (specs/045 § A reply the contact wrote past is superseded). Never one
-     * that sent a flow, which has reached them, or that escalates.
+     * that sent a flow, which has reached them, or that escalates, and never
+     * a media turn's: history keeps only its marker, so the turn behind could
+     * not see what the contact sent.
      */
     const superseded = (result: AgentResult) =>
       rules.foldBursts &&
+      !media &&
       opts.followed?.() === true &&
       stage.sent.length === 0 &&
       !result.reply.escalate &&

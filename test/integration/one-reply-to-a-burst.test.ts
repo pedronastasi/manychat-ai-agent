@@ -13,6 +13,7 @@ import type { Tools } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { FakeContactFields } from '../helpers/manychat.ts';
+import type { MediaResolver } from '../../src/media/resolver.ts';
 import { asProspect } from '../helpers/intent.ts';
 
 /**
@@ -91,6 +92,7 @@ function handler(
     foldBursts?: boolean;
     tools?: Tools;
     tokensEnforced?: boolean;
+    media?: MediaResolver;
   } = {},
 ) {
   return new TurnHandler({
@@ -105,6 +107,7 @@ function handler(
     tokensEnforced: opts.tokensEnforced ?? false,
     actions: { performAction: () => Promise.resolve() },
     lanes,
+    media: opts.media,
   });
 }
 
@@ -256,6 +259,31 @@ describe('a reply the contact wrote past, with foldBursts (specs/045 V4)', () =>
     await sleep(100);
     expect(await queuedReplies()).toEqual([['reply to about the evening course']]);
     expect((await recorded()).map(row => row.outcome)).toContain('superseded');
+  });
+});
+
+/** An image read as ready, with no transcript: the model sees it only on its own turn. */
+const imageReader = {
+  resolve: () => Promise.resolve({ status: 'ready', transcript: null, images: [], costUsd: 0 }),
+} as unknown as MediaResolver;
+
+describe('a media reply the contact wrote past, with foldBursts (specs/045 V4)', () => {
+  it('is still sent: the turn behind reads only its marker', async () => {
+    const lanes = new TurnLanes(20_000);
+    const { runner } = recordingRunner(text => (text === '' ? 300 : 0));
+    const opts = { foldBursts: true, media: imageReader };
+    const pending: Promise<TurnResult>[] = [];
+    for (const message of [
+      { ...inbound(''), media: { kind: 'image' as const, url: 'https://media.example.com/a.jpg' } },
+      inbound('how much'),
+      inbound('is this one?'),
+    ]) {
+      pending.push(handler(runner, lanes, opts).handle(message));
+      await sleep(20);
+    }
+    const results = await Promise.all(pending);
+    expect(results[0]!.outcome).toBe('answered_inline');
+    expect(results[0]!.silent).toBeUndefined();
   });
 });
 

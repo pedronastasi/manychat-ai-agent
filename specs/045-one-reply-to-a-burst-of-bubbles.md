@@ -62,6 +62,9 @@ The contact's latest turn answers everything since the last reply sent.
 - A reply that sent a flow is never superseded: the flow has reached the
   contact, and the reply it precedes is owed (`029`, `030`).
 - A reply that escalates, or a failed call, is never superseded (C6).
+- A reply to media is never superseded: history keeps only its marker, or a
+  transcript at most, so the turn behind would answer without the image or
+  video the contact sent (`020`).
 - A superseded reply is never sent, so it is left out of the history the
   model reads (`018`) and of the transcripts the learning job reads (`031`).
 - Off by default. The model call is paid for whether its reply is sent or
@@ -96,6 +99,6 @@ own, as before.
 4. An integration test asserts that with `foldBursts` the first turn's reply
    is superseded, recorded with its spend, left out of the next turn's
    history, and that only the last bubble's reply is sent, inline or from the
-   outbox.
+   outbox, and that a reply to media is still sent.
 5. An integration test asserts that without `foldBursts`, or when the first
    turn sent a flow, the first reply is sent.
