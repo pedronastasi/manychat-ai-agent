@@ -522,12 +522,18 @@ function offeringsSection(tools: Tools): Section[] {
           `The field ${offering.id} records the offering this contact is buying, one of: ${offering.values.join(', ')}.`,
           'A flow listed with an offering is accepted only once that is the contact’s offering;',
           'setting the offering earlier in the same turn is enough.',
-          ...(funnelField(tools)
-            ? [
-                'The offering may change until the stage is offered. From offered on it is locked: a',
-                'contact who asks to switch offering is escalated with "explicit_request".',
-              ]
-            : []),
+          ...(!funnelField(tools)
+            ? []
+            : offering.switchable
+              ? [
+                  'The offering may change at any stage, after the offer too. A question about',
+                  'another offering, or a switch to it, is not a reason to escalate: answer it, and',
+                  'when the contact switches, record the new offering and continue the sale with it.',
+                ]
+              : [
+                  'The offering may change until the stage is offered. From offered on it is locked: a',
+                  'contact who asks to switch offering is escalated with "explicit_request".',
+                ]),
           'An OFFERING note saying the offering changed means the contact came back through another',
           'offering’s advert.',
         ],

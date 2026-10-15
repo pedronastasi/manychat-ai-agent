@@ -76,7 +76,8 @@ the agent is offered no tools and behaves as it did before `012`.
   the server sends the flow (`032`)
 - `tags[]` — `id`, `tag`, `description`
 - `fields[]` — `id`, `field`, `values` (at least one, unique), `description`,
-  optional `funnel` (`023`), `offering` (`028`) and `intent` (`034`)
+  optional `funnel` (`023`), `offering` (`028`), `switchable` (`045`) and
+  `intent` (`034`)
 - `readable` — `tags[]` and `fields[]` in the shapes above, which `get_contact`
   returns but no tool writes (`024`)
 - `notes[]` — `id`, `field`, `maxLength` (at most 500), `neverRendered` (must be
@@ -114,7 +115,8 @@ and its `values` must be exactly `not_prospect`, `prospect`, in that order. A
 At most one field may be marked `offering`, and not the `funnel` field. Its
 `values` must be exactly the `catalog.json` offering ids, in any order. A flow's
 `offering` must be one of those ids, and a flow may carry one only when a field
-is marked `offering`; the `payment_link` flow carries none (`028`). These are
+is marked `offering`; the `payment_link` flow carries none (`028`). Only the
+`offering` field may be `switchable`, which lifts the lock at `offered` (`045`). These are
 checked against `catalog.json` when both load, so a catalog edit that drops an
 offering fails the reload until `tools.json` drops it too. A field or flow that
 still carries `course`, or a `learning` block with `enrolledTag`, fails at load
