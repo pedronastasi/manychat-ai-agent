@@ -331,6 +331,10 @@ function withLink(messages: readonly string[], link: string, questionAppended: b
  * Whether any message carries the link, as the catalog writes it or with its
  * percent-encoding undone, which is how a model often copies a URL with an
  * accented path. A trailing slash is optional.
+ *
+ * The link must end where the URL in the message ends: another offering's
+ * link that starts with this one (`…/foundation-plus` for `…/foundation`) is
+ * not this link, and counting it would leave the contact with the wrong one.
  */
 function carriesLink(messages: readonly string[], link: string): boolean {
   const bare = (url: string) => url.replace(/\/+$/, '');
@@ -340,9 +344,13 @@ function carriesLink(messages: readonly string[], link: string): boolean {
   } catch {
     // A malformed escape: only the link as written can match.
   }
-  const forms = [bare(link), bare(decoded)];
-  return messages.some(message => forms.some(form => message.includes(form)));
+  const patterns = [...new Set([bare(link), bare(decoded)])].map(
+    form => new RegExp(`${escapeRegExp(form)}/?(?![\\p{L}\\p{N}_%/-])`, 'u'),
+  );
+  return messages.some(message => patterns.some(pattern => pattern.test(message)));
 }
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Numbers with a currency cue nearby, e.g. "$45.000", "45000 pesos". */
 const PRICE_PATTERN = /(?:\$\s?)([\d][\d.,]{2,})|([\d][\d.,]{2,})\s?(?:pesos|ars|usd)/gi;

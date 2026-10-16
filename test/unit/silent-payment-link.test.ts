@@ -202,6 +202,20 @@ describe('where the added link goes (specs/023 V7)', () => {
     expect(out.messages).toEqual([`Ready when you are.\n${FOUNDATION_URL}`, 'Anything else?']);
   });
 
+  it('does not count another offering’s link that starts with this one', () => {
+    const { reply: out, interventions } = guard(
+      reply([`Enrol here:\n${FOUNDATION_URL}-plus`, `Or at ${FOUNDATION_URL}/extra`]),
+    );
+    expect(interventions).toContain('payment_link_added');
+    expect(out.messages.at(-1)).toBe(`Or at ${FOUNDATION_URL}/extra\n${FOUNDATION_URL}`);
+  });
+
+  it('counts the link with a trailing slash or before punctuation', () => {
+    for (const written of [`${FOUNDATION_URL}/`, `Enrol at ${FOUNDATION_URL}.`]) {
+      expect(guard(reply([written])).interventions).not.toContain('payment_link_added');
+    }
+  });
+
   it('counts the link written with its percent-encoding undone', () => {
     const link = 'https://example.com/enrol/course-%E2%9C%93/';
     const { reply: out, interventions } = applyGuardrails(
@@ -317,6 +331,20 @@ describe('a silent payment flow is checked at load (specs/023 V9)', () => {
     expect(
       loadWith({ tools: silenced })().tools!.flows.find(flow => flow.id === PAYMENT)!.silent,
     ).toBe(true);
+  });
+
+  it('refuses several offerings with no field to tell them apart', () => {
+    const load = loadWith({
+      tools: (raw: Tools) => {
+        const silent = silenced(raw);
+        return {
+          ...silent,
+          flows: silent.flows.filter(flow => flow.offering === undefined),
+          fields: silent.fields.filter(field => !field.offering),
+        };
+      },
+    });
+    expect(load).toThrow(/with several offerings a field must be marked "offering"/);
   });
 
   it('refuses an offering without a link', () => {
