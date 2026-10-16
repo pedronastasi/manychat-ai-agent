@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.24.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.24.0...v0.24.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **db:** wait for PGlite to be ready before handing it out ([3668e26](https://github.com/pedronastasi/manychat-ai-agent/commit/3668e262c04acb59aa363dbbba6a141563407113))
+* **db:** wait for PGlite to be ready before handing it out ([0497e88](https://github.com/pedronastasi/manychat-ai-agent/commit/0497e880dee8a6a649abdb0fc80c72651f667d6a))
+* **deps:** update patch dependencies ([#233](https://github.com/pedronastasi/manychat-ai-agent/issues/233)) ([026886c](https://github.com/pedronastasi/manychat-ai-agent/commit/026886c0f138cc0f145a191ed285127b021c90b1))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([d4d3bb7](https://github.com/pedronastasi/manychat-ai-agent/commit/d4d3bb720d89538eaa47c7ac7c5aa329ec9fca57))
+* **deps:** lock file maintenance ([07c9d9e](https://github.com/pedronastasi/manychat-ai-agent/commit/07c9d9e331b04d21570da7952222ac8901b048ad))
+
 ## [0.24.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.23.4...v0.24.0) (2026-10-15)
 
 
