@@ -125,6 +125,25 @@ function offeringMismatches(tools: Tools, catalog: Catalog): string[] {
       : tools.flows
           .filter(flow => flow.offering !== undefined)
           .map(flow => `flow '${flow.id}' has an offering, but no field is marked "offering"`)),
+    // A silent payment flow leaves the link to the reply, and the server puts
+    // the contact's offering's link there when the reply leaves it out, so
+    // that link must exist and the offering must be knowable (specs/023
+    // § A silent payment flow leaves the link to the reply).
+    ...tools.flows
+      .filter(flow => flow.role === 'payment_link' && flow.silent)
+      .flatMap(flow => [
+        ...catalog.offerings
+          .filter(offering => offering.url === null)
+          .map(
+            offering =>
+              `flow '${flow.id}' is a silent payment link, so offering '${offering.id}' needs a url`,
+          ),
+        ...(field || ids.length === 1
+          ? []
+          : [
+              `flow '${flow.id}' is a silent payment link, so with several offerings a field must be marked "offering"`,
+            ]),
+      ]),
   ];
 }
 

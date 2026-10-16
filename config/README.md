@@ -199,6 +199,12 @@ Four keys turn on the sales funnel of `specs/023-sales-funnel.md`:
 - **`role: "payment_link"`** on one flow marks the flow that sends your payment
   link. When it is performed, the server writes the funnel field to
   `link_sent`.
+- **`silent: true`** on a flow says it sends the contact nothing: it only
+  records something in ManyChat, such as a tracking event. On the payment-link
+  flow it means your links live in the catalog alone: the agent writes the
+  `url` of the contact's offering in its reply, and the server adds it when the
+  reply leaves it out. Every offering then needs a `url`. A silent flow takes
+  no `settleSeconds`.
 - **`repeatable: true`** on a flow lets the agent send it more than once to the
   same contact. Every other flow is sent at most once per contact. The payment
   link is the usual case.
