@@ -28,6 +28,7 @@ import {
   intentField,
   MAX_STEPS,
   openingFlow,
+  silentPaymentLink,
   stagesProspect,
 } from './tools.ts';
 import type { ContactActions } from './tools.ts';
@@ -394,6 +395,7 @@ export class GenerateTextRunner implements AgentRunner {
                         reads?.latest,
                         opening && stagesProspect(stage, tenantTools) ? opening : undefined,
                         pluginReads?.latest,
+                        tenantTools.flows,
                       ),
                     },
                   ],
@@ -464,7 +466,21 @@ export class GenerateTextRunner implements AgentRunner {
     }
 
     const earlierReplies = history.filter(turn => turn.role === 'agent').map(turn => turn.text);
-    const guarded = applyGuardrails(output, config.rules, earlierReplies);
+    const paymentLink = silentPaymentLink(tenantTools, config.catalog, stage, contact);
+    let guarded = applyGuardrails(output, config.rules, earlierReplies, {
+      paymentLink: paymentLink ?? undefined,
+    });
+    // Sent, with no link to put in the reply: the loader's checks leave only a
+    // contact with no offering recorded. A reply without the link would leave
+    // them at link_sent with no way to pay, so a person finishes the turn
+    // (specs/023 § A silent payment flow leaves the link to the reply, C6).
+    if (paymentLink === null && !guarded.reply.escalate) {
+      guarded = {
+        reply: escalationReply('low_confidence', config.rules.messages.escalation),
+        interventions: [...guarded.interventions, 'payment_link_unknown'],
+        escalatedBy: 'error',
+      };
+    }
 
     return {
       reply: guarded.reply,

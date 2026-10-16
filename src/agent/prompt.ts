@@ -479,7 +479,16 @@ function salesSection(tools: Tools): Section[] {
           'moves forward: a write to an earlier stage is refused.',
           ...(link
             ? [
-                `The payment link is the flow ${link.id}. It is refused before prepared, unless the contact`,
+                ...(link.silent
+                  ? [
+                      `The payment link is recorded by the flow ${link.id}, which is silent: it sends the`,
+                      'contact nothing. Every time you send it, write the link of the contact’s offering from',
+                      'the CATALOG in the same reply: the flow does not deliver it. It is refused before',
+                      'prepared, unless the contact',
+                    ]
+                  : [
+                      `The payment link is the flow ${link.id}. It is refused before prepared, unless the contact`,
+                    ]),
                 'asks for it: a contact whose message asks for the link, the payment methods or how to pay',
                 'gets it, qualified or not, and you pass contactAsked true. Never pass it otherwise.',
               ]
@@ -610,14 +619,35 @@ export function stagedNotice(
   opening?: { id: string; description: string },
   /** Each plugin read tool's last successful read, its text still fenced (specs/039). */
   reads: readonly { tool: string; result: ReadResult }[] = [],
+  /** The tenant's flows, for which of them send the contact nothing (specs/023). */
+  flows: readonly { id: string; role?: string | undefined; silent?: boolean | undefined }[] = [],
 ): string {
   // Flows only: a stage write sent ahead of a payment link is not news to the contact.
   const sent = (stage.sent ?? []).filter(entry => entry.action.tool === 'send_flow');
-  const went = sent.filter(entry => entry.records[0]?.status === 'performed');
+  const flowOf = (entry: { action: StagedAction }) =>
+    flows.find(flow => flow.id === entry.action.id);
+  const performed = sent.filter(entry => entry.records[0]?.status === 'performed');
+  const went = performed.filter(entry => !flowOf(entry)?.silent);
+  // A silent flow is not something the contact received, and a reply that
+  // treats it as one leaves out what it stands for (specs/023 § A silent
+  // payment flow leaves the link to the reply).
+  const recorded = performed.filter(entry => flowOf(entry)?.silent);
+  const silentLink = (action: StagedAction) => {
+    const flow = flows.find(entry => entry.id === action.id);
+    return action.tool === 'send_flow' && flow?.silent === true && flow.role === 'payment_link';
+  };
+  const link = recorded.some(entry => silentLink(entry.action));
+  const stagedLink = stage.staged.some(silentLink);
   const failed = sent.filter(entry => entry.records[0]?.status !== 'performed');
   const lines = [
     went.length > 0
       ? `SENT: Already sent to the contact, who receives it before your reply: ${went.map(entry => describeAction(entry.action)).join(', ')}. Your reply follows it; do not repeat what it contains.`
+      : null,
+    recorded.length > 0
+      ? `RECORDED: ${recorded.map(entry => describeAction(entry.action)).join(', ')}. Silent: the contact received nothing from it. Write your reply in full, as if it had not been sent.` +
+        (link
+          ? ' The payment link is yours to write: put the link of the contact’s offering from the CATALOG in this reply.'
+          : '')
       : null,
     failed.length > 0
       ? `NOT SENT: ManyChat refused: ${failed.map(entry => describeAction(entry.action)).join(', ')}. Do not say it was sent.`
@@ -627,6 +657,9 @@ export function stagedNotice(
       : sent.length > 0
         ? null
         : 'ACTIONS: None of your tool calls were staged.',
+    stagedLink
+      ? 'The payment link flow is silent and sends the contact nothing: put the link of the contact’s offering from the CATALOG in this reply.'
+      : null,
     stage.dropped.length > 0
       ? `Not staged, over the limit of ${MAX_ACTIONS_PER_TURN} per turn: ${stage.dropped.map(describeAction).join(', ')}.`
       : null,

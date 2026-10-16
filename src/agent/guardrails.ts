@@ -149,11 +149,16 @@ export function escalationReply(reason: EscalationReason, message: string): Agen
  *
  * `earlierReplies` is the text of the agent's earlier turns in the
  * conversation, which the repetition check compares against (specs/013).
+ *
+ * `paymentLink` is the link the reply must carry because the turn sent a
+ * silent payment-link flow (specs/023 § A silent payment flow leaves the link
+ * to the reply).
  */
 export function applyGuardrails(
   raw: unknown,
   rules: Rules,
   earlierReplies: readonly string[] = [],
+  options: { paymentLink?: string | undefined } = {},
 ): GuardedReply {
   const interventions: string[] = [];
 
@@ -255,11 +260,13 @@ export function applyGuardrails(
   // matters is that exactly one question ends the turn, not which.
   const bodyMessages = reply.messages;
   const body = bodyMessages.at(-1);
+  let questionAppended = false;
   if (reply.closing_question !== null && !reply.escalate) {
     if (body !== undefined && endsWithQuestion(body)) {
       interventions.push('closing_question_already_in_body');
     } else {
       reply = { ...reply, messages: [...reply.messages, reply.closing_question] };
+      questionAppended = true;
     }
   }
 
@@ -285,11 +292,65 @@ export function applyGuardrails(
       // is nothing to ask and nothing to hand off.
       interventions.push('duplicate_replaced');
       reply = { ...reply, messages: [closer], closing_question: null };
+      questionAppended = false;
     }
+  }
+
+  // A silent payment-link flow sent nothing, so a reply without the link
+  // leaves the contact recorded at link_sent with no way to pay (specs/023
+  // § A silent payment flow leaves the link to the reply). Checked last, on
+  // what would be delivered. The link goes on its own line at the end of the
+  // body, so the turn still ends on its one question. Skipped on an
+  // escalation: the person taking over sends it.
+  const link = options.paymentLink;
+  if (link !== undefined && !reply.escalate && !carriesLink(reply.messages, link)) {
+    interventions.push('payment_link_added');
+    reply = { ...reply, messages: withLink(reply.messages, link, questionAppended) };
   }
 
   return { reply, interventions, ...(escalatedBy ? { escalatedBy } : {}) };
 }
+
+/**
+ * The messages with the link on its own line after the body's last one, or as
+ * a message of its own ahead of a question the body ends on or that would not
+ * fit beside it.
+ */
+function withLink(messages: readonly string[], link: string, questionAppended: boolean): string[] {
+  const last = messages.length - 1;
+  const asked = questionAppended || endsWithQuestion(messages[last] ?? '');
+  const at = asked ? last - 1 : last;
+  const target = messages[at];
+  if (target === undefined || target.length + link.length + 1 > MAX_MESSAGE_CHARS) {
+    return messages.toSpliced(at + 1, 0, link);
+  }
+  return messages.with(at, `${target}\n${link}`);
+}
+
+/**
+ * Whether any message carries the link, as the catalog writes it or with its
+ * percent-encoding undone, which is how a model often copies a URL with an
+ * accented path. A trailing slash is optional.
+ *
+ * The link must end where the URL in the message ends: another offering's
+ * link that starts with this one (`…/foundation-plus` for `…/foundation`) is
+ * not this link, and counting it would leave the contact with the wrong one.
+ */
+function carriesLink(messages: readonly string[], link: string): boolean {
+  const bare = (url: string) => url.replace(/\/+$/, '');
+  let decoded = link;
+  try {
+    decoded = decodeURI(link);
+  } catch {
+    // A malformed escape: only the link as written can match.
+  }
+  const patterns = [...new Set([bare(link), bare(decoded)])].map(
+    form => new RegExp(`${escapeRegExp(form)}/?(?![\\p{L}\\p{N}_%/-])`, 'u'),
+  );
+  return messages.some(message => patterns.some(pattern => pattern.test(message)));
+}
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Numbers with a currency cue nearby, e.g. "$45.000", "45000 pesos". */
 const PRICE_PATTERN = /(?:\$\s?)([\d][\d.,]{2,})|([\d][\d.,]{2,})\s?(?:pesos|ars|usd)/gi;

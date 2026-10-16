@@ -362,8 +362,9 @@ export const ToolsSchema = z
           repeatable: z.boolean().optional(),
           /**
            * `payment_link`: performing it writes the funnel field to `link_sent`
-           * (specs/023). `opening`: the server sends it on the contact's first
-           * model turn, and the model never does (specs/032).
+           * (specs/023); with `silent`, the reply carries the link. `opening`:
+           * the server sends it on the contact's first model turn, and the
+           * model never does (specs/032).
            */
           role: z.enum(['payment_link', 'opening']).optional(),
           /**
@@ -388,10 +389,27 @@ export const ToolsSchema = z
            * (specs/030). Absent, it does not wait.
            */
           settleSeconds: z.number().int().min(0).max(MAX_SETTLE_SECONDS).optional(),
+          /**
+           * The flow sends the contact no message: it only records something
+           * in ManyChat, such as a tracking event. On the payment-link flow it
+           * means the reply carries the link (specs/023 § A silent payment
+           * flow leaves the link to the reply).
+           */
+          silent: z.boolean().optional(),
         }),
       )
       .default([])
       .refine(uniqueIds, 'flow ids must be unique')
+      // Nothing plays, so there is nothing for the reply to wait for (specs/030).
+      .refine(
+        flows => !flows.some(flow => flow.silent && flow.settleSeconds !== undefined),
+        'a "silent" flow may not have "settleSeconds"',
+      )
+      // The opening is the contact's first message from the tenant (specs/032).
+      .refine(
+        flows => !flows.some(flow => flow.silent && flow.role === 'opening'),
+        'the "opening" flow may not be "silent"',
+      )
       .refine(
         flows => flows.filter(flow => flow.role === 'payment_link').length <= 1,
         'only one flow may have role "payment_link"',

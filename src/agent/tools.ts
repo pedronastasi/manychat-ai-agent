@@ -1,7 +1,7 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { FUNNEL_STAGES, LINK_SENT, PREPARED, PROSPECT } from '../contracts/config.ts';
-import type { Tools, INTENT_VALUES } from '../contracts/config.ts';
+import type { Catalog, Tools, INTENT_VALUES } from '../contracts/config.ts';
 import type {
   ActionRecord,
   ActionStatus,
@@ -240,6 +240,44 @@ export function paymentLinkFlow(config: Tools) {
   return config.flows.find(flow => flow.role === 'payment_link');
 }
 
+/**
+ * The link a reply must carry because the turn sent a silent payment-link
+ * flow, which leaves the link to the reply (specs/023 § A silent payment flow
+ * leaves the link to the reply). `undefined` when the turn neither sent such
+ * a flow nor staged it to be sent after the reply.
+ *
+ * The link is the catalog `url` of the turn's offering: one written this turn,
+ * else the contact's, else the catalog's only offering. `null` when the flow
+ * went out and no offering or link is known, which the loader's checks leave
+ * to a contact with no offering recorded yet.
+ */
+export function silentPaymentLink(
+  config: Tools,
+  catalog: Catalog,
+  stage: ActionStage,
+  contact: { offering?: string | undefined } | undefined,
+): string | null | undefined {
+  const link = paymentLinkFlow(config);
+  if (!link?.silent) return undefined;
+  const sent = stage.sent.some(
+    entry =>
+      entry.action.tool === 'send_flow' &&
+      entry.action.id === link.id &&
+      entry.records[0]?.status === 'performed',
+  );
+  const staged = stage.staged.some(action => action.tool === 'send_flow' && action.id === link.id);
+  if (!sent && !staged) return undefined;
+  const written = stage.staged.findLast(
+    (action): action is Extract<StagedAction, { tool: 'set_field' }> =>
+      action.tool === 'set_field' && action.offering === true,
+  );
+  const id =
+    written?.value ??
+    contact?.offering ??
+    (catalog.offerings.length === 1 ? catalog.offerings[0]!.id : undefined);
+  return catalog.offerings.find(offering => offering.id === id)?.url ?? null;
+}
+
 /** The flow the server sends on a contact's prospect turn, if the tenant marked one (specs/034). */
 export function openingFlow(config: Tools) {
   return config.flows.find(flow => flow.role === 'opening');
@@ -406,6 +444,7 @@ const catalogOf = (
     description: string;
     offering?: string | undefined;
     onStage?: string | undefined;
+    silent?: boolean | undefined;
   }[],
 ) =>
   entries
@@ -413,6 +452,7 @@ const catalogOf = (
       const notes = [
         entry.offering === undefined ? null : `offering ${entry.offering}`,
         entry.onStage === undefined ? null : `sent by the system when you record ${entry.onStage}`,
+        entry.silent ? 'silent: sends the contact nothing' : null,
       ].filter(Boolean);
       return `- ${entry.id}${notes.length > 0 ? ` (${notes.join('; ')})` : ''}: ${entry.description}`;
     })
@@ -423,6 +463,15 @@ const STAGED =
 
 const SENT_NOW =
   'The flow is sent when you call this, before your reply: the contact receives it first and your reply follows it. Do not repeat what it contains. The result says whether it went out.';
+
+const SILENT =
+  'A silent flow sends the contact nothing: write your reply in full, as if it had not been sent.';
+
+/** The note a silent flow's result carries; the payment link's names the link. */
+const silentResult = (role: string | undefined) =>
+  role === 'payment_link'
+    ? 'The contact received nothing from this flow. Your reply must carry the link of the contact’s offering from the CATALOG.'
+    : 'The contact received nothing from this flow. Write your reply in full, as if it had not been sent.';
 
 const CONTACT_ASKED =
   'The payment link is refused before the stage is prepared. Pass contactAsked: true only when the contact’s message this turn asks for the link, the payment methods or how to pay; it is recorded.';
@@ -593,6 +642,7 @@ export function buildTools(
     tools.send_flow = tool({
       description:
         `Send the contact one of these flows.\n${listing}\n${sends ? SENT_NOW : STAGED}` +
+        (unsent.some(flow => flow.silent) ? `\n${SILENT}` : '') +
         (gated ? `\n${CONTACT_ASKED}` : ''),
       inputSchema: gated
         ? z.object({ flow: z.enum(idsOf(unsent)), contactAsked: z.boolean().optional() })
@@ -642,7 +692,14 @@ export function buildTools(
           ...(followOn ? { followOn } : {}),
           ...(asked ? { contactAsked: true as const } : {}),
         };
-        if (!sends) return { staged: stage.stage(action) };
+        // What a silent flow leaves to the reply, said where the model reads
+        // the outcome (specs/023 § A silent payment flow leaves the link to
+        // the reply).
+        const silent = entry.silent ? { silent: silentResult(entry.role) } : {};
+        if (!sends) {
+          const staged = stage.stage(action);
+          return staged ? { staged, ...silent } : { staged };
+        }
         // The opening goes first on the prospect turn (specs/034). A payment
         // link is counted at link_sent before the await, so a funnel or offering
         // write made beside it is refused rather than landing after it (specs/029).
@@ -662,7 +719,8 @@ export function buildTools(
             ? stage.staged.filter(staged => staged.tool === 'set_field' && staged.id === funnel.id)
             : [];
         const sent = await stage.send(action, sends, first);
-        return sent === undefined ? { sent: false, reason: 'over the per-turn limit' } : { sent };
+        if (sent === undefined) return { sent: false, reason: 'over the per-turn limit' };
+        return sent ? { sent, ...silent } : { sent };
       },
     });
   }
