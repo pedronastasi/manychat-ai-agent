@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.25.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.24.1...v0.25.0) (2026-10-16)
+
+
+### Features
+
+* a silent payment-link flow leaves the link to the reply ([b4d019e](https://github.com/pedronastasi/manychat-ai-agent/commit/b4d019e275fc0073acc82f1361eec0e59a68c163))
+* a silent payment-link flow leaves the link to the reply ([11d3929](https://github.com/pedronastasi/manychat-ai-agent/commit/11d3929ae3c4e734d42fab62022dab33ac214e3b))
+
+
+### Bug Fixes
+
+* an offering's link does not count as one it is a prefix of ([426ade9](https://github.com/pedronastasi/manychat-ai-agent/commit/426ade9850e3e72354697c9961218558ad8b6d05))
+
+
+### Specs and Docs
+
+* **specs:** a silent payment flow leaves the link to the reply ([4611b15](https://github.com/pedronastasi/manychat-ai-agent/commit/4611b15744f4a81bd3cf6943a2a1f39644d2bb7f))
+
 ## [0.24.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.24.0...v0.24.1) (2026-10-16)
 
 
