@@ -149,6 +149,50 @@ per-turn cap. If the flow fails, the stage is not written. If the tenant
 configured a conversion event for `link_sent`, it follows the write in turn
 (`027 § The event follows the stage write it records`).
 
+### A silent payment flow leaves the link to the reply
+
+The payment-link flow is assumed to deliver the link: it is a ManyChat flow
+that branches on the offering and sends its page. A tenant may instead keep
+its links in the catalog alone and point the flow at one that sends nothing,
+only a tracking event (`027`). The reply then carries the link, and nothing
+else does.
+
+A model told "the payment link is the flow" and "do not repeat what it
+contains" reads that as the link having gone out. It writes a warm line that
+it is there if needed, and stops. The contact is recorded at `link_sent`,
+which cancels their nudges (`025`) and tells every later turn the link is in
+the chat, so the turn is never repaired: the contact has no way to pay until
+a person notices. A sentence in the flow's description saying it sends
+nothing does not hold against two system lines saying the opposite.
+
+So the flow says it, with `"silent": true`, and the server holds the rest:
+
+- The SALES RULES name the flow as silent and tell the model to write the
+  link of the contact's offering from the CATALOG in the same reply, every
+  time it sends it. `send_flow` lists it as "silent: sends the contact
+  nothing", its result says the reply must carry the link, and the reply
+  step's notice says the flow was recorded, not received, instead of "do not
+  repeat what it contains".
+- When the turn sent the flow, or staged it to be sent after the reply, and
+  the reply does not escalate, a reply that does not carry the link gets it:
+  on its own line at the end of the body, ahead of the closing question, as
+  intervention `payment_link_added`. The link is the catalog `url` of the
+  turn's offering: one recorded this turn, else the contact's, else the
+  catalog's only offering. A link written with its percent-encoding undone
+  counts as carried.
+- When no offering is known, there is no link to add, and the turn escalates
+  instead (`payment_link_unknown`, C6). The flow has gone out and the stage
+  is written, so a reply without a link would strand the contact.
+- A silent payment flow is a load failure when an offering has no `url`, or
+  when several offerings exist and no field is marked `offering`. A silent
+  flow may not have `settleSeconds`, since nothing plays, and the opening may
+  not be silent.
+
+The server adds the link and nothing else. Terms, prices and the wording
+around the link stay the tenant's prompt's: an added link with no amount
+above it is a worse message than the one the tenant asked for, but it is one
+the contact can pay from.
+
 After `link_sent` the agent's job is answering questions about the offering and
 the link. A contact who says they have paid, or sends a receipt, is escalated
 with a new reason, `payment_reported`, added to `001`'s closed set: the agent
@@ -211,6 +255,17 @@ anything can be made.
    case for each item on the never-list, asserting it does not appear.
 6. `001 § Verification` item 3 (no price absent from the catalog) now also
    covers `paymentOptions`.
+7. A unit test asserts that a turn sending a silent payment flow returns a
+   reply carrying the link of the turn's offering, added when the model left
+   it out and untouched when it wrote it; that nothing is added for a flow
+   that is not silent or a turn that did not send it; and that a turn with
+   no offering to link to escalates.
+8. A unit test asserts the SALES RULES, the `send_flow` listing and result,
+   and the reply step's notice call a silent payment flow silent and leave the link
+   to the reply, and that a tenant without `silent` gets the rules as before.
+9. A config test asserts a silent payment flow fails at load when an offering
+   has no `url`, and that a silent flow with `settleSeconds`, or a silent
+   opening, is refused.
 
 What this misses: whether a tenant flow chains into another is invisible here,
 and only a person opening the flows can check it. The never-list cases catch
