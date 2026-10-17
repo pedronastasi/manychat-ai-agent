@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
 import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import { SdkTranscriber } from '../../src/agent/transcriber.ts';
 import { ManyChatAdapter } from '../../src/channels/manychat/adapter.ts';

@@ -30,7 +30,7 @@ import { ManyChatMediaFetcher } from './channels/manychat/media.ts';
 import type { ConfigStore } from './config/loader.ts';
 import { detectFfmpeg, FfmpegVideoSplitter, type FfmpegPaths } from './media/ffmpeg.ts';
 import { MediaResolver } from './media/resolver.ts';
-import { TurnHandler, type TurnDeps, type TurnLogger } from './routes/turn.ts';
+import { TurnHandler, type TurnDeps, type TurnLogger } from './turn/handler.ts';
 import { TurnLanes } from './conversation/turns.ts';
 import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/auth.ts';
 import { escalationReply } from './agent/guardrails.ts';

@@ -5,7 +5,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import { EXAMPLE_READ_PLUGIN, tenantProject } from '../helpers/plugins.ts';
 import type { Database } from '../../src/db/client.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
 import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import { MAX_STEPS } from '../../src/agent/tools.ts';
 import { FENCE } from '../../src/agent/prompt.ts';

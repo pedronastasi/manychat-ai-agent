@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { conversations, turns } from '../../src/db/schema.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
 import type { AgentResult, AgentRunner, AgentTurnInput } from '../../src/agent/runner.ts';
 import { ActionStage, buildTools } from '../../src/agent/tools.ts';
 import { RulesSchema } from '../../src/contracts/config.ts';

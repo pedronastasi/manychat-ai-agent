@@ -67,6 +67,7 @@ Ports-and-adapters (hexagonal). Key boundaries:
 - **FlowSends** (`src/agent/flows.ts`) — sends a flow when the model calls `send_flow` on an inbound turn, so the reply follows it (specs/029, ADR-0019), and keeps when the last one finishes playing, which the reply waits for (specs/030). Every other write is staged on `ActionStage` and performed after the reply (ADR-0010).
 - **Registry** (`src/agent/registry.ts`) — the ONLY file that imports provider packages.
 - **Contracts** (`src/contracts/`) — Zod schemas are the source of truth; types are inferred.
+- **TurnHandler** (`src/turn/handler.ts`) — runs one turn (the race, ADR-0001) and delegates each job: `TurnOrder` (one turn at a time per contact, folding; specs/037, 046, 047), `TurnAdmission` (binding, the turn, the user message; specs/019), `Prechecks` (opening sentinel, guards; C6), `MediaReader` (specs/020), `TurnRecorder` (how the turn ended), `ReplyDelivery` (inline or outbox; specs/030, 037), `DeferredSettlement` (a lost race).
 - **Outbox** (`src/outbox/`) — Postgres outbox with `FOR UPDATE SKIP LOCKED` for deferred delivery.
 - **Nudges** (`src/nudge/`) — follow-ups the agent schedules, run by a worker at due time (specs/025).
 
@@ -89,7 +90,8 @@ src/
   nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
   observability/       # PII redaction
   outbox/              # Deferred reply queue + polling worker
-  routes/              # Auth middleware, turn handler (the race)
+  routes/              # Auth middleware
+  turn/                # TurnHandler (the race) and the classes it delegates to
 test/
   unit/                # Pure logic tests
   integration/         # Tests hitting PGlite

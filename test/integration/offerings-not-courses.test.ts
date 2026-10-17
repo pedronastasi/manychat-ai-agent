@@ -10,7 +10,7 @@ import { conversations, insightProposals, learningRuns } from '../../src/db/sche
 import type { Database } from '../../src/db/client.ts';
 import { MIGRATIONS_DIR, runMigrations } from '../../src/db/migrate.ts';
 import { createTestDatabase } from '../helpers/db.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
 import type { AgentRunner } from '../../src/agent/runner.ts';
 import { RulesSchema } from '../../src/contracts/config.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
