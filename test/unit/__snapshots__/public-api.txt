@@ -1,0 +1,1261 @@
+# manychat-ai-agent
+
+CHANNEL_API_VERSION: 0
+
+type ChannelMessage = {
+  contactName?: null | string | undefined
+  locale?: null | string | undefined
+  subscriberId: string
+  text: string
+}
+
+type ChannelPush = {
+  logger: PluginLogger
+  reply: ChannelReply
+  signal: AbortSignal
+  subscriberId: string
+}
+
+type ChannelReply = {
+  escalate: false | true
+  messages: readonly string[]
+}
+
+defineChannel: {
+  <TInbound, TOutbound>(channel: PluginChannel<TInbound, TOutbound>) => PluginChannel<TInbound, TOutbound>
+}
+
+definePlugin: {
+  <const P extends Plugin>(plugin: P) => P
+}
+
+defineReadTool: {
+  <const S extends ReadParameters, const R extends ResultFields>(tool: PluginReadTool<S, R>) => PluginReadTool<S, R>
+}
+
+defineTool: {
+  <const S extends PluginParameters>(tool: PluginTool<S>) => PluginTool<S>
+}
+
+interface InboundSchema<T> { safeParse(raw: unknown): { success: true; data: T } | { success: false; error: unknown }; }
+
+type ParamsOf<S extends PluginParameters | ReadParameters> = { [K in keyof S as S[K] extends { optional: true } ? never : K]: ValueOf<S[K]>; } & { [K in keyof S as S[K] extends { optional: true } ? K : never]?: ValueOf<S[K]>; };
+
+type Plugin = {
+  apiVersion: number
+  channels?: readonly PluginChannel<any, any>[] | undefined
+  name: string
+  tools?: readonly (PluginReadTool<any, any> | PluginTool<any>)[] | undefined
+}
+
+PLUGIN_API_VERSION: 2
+
+interface PluginCall<P> { subscriberId: string; params: P; logger: PluginLogger; signal: AbortSignal; }
+
+interface PluginChannel<TInbound = unknown, TOutbound = unknown> { name: string; apiVersion: number; inbound: InboundSchema<TInbound>; parse(request: TInbound): ChannelMessage; render(reply: ChannelReply): TOutbound; push(call: ChannelPush): Promise<void> | void; }
+
+type PluginLogger = {
+  error: {
+    (message: string, fields?: Record<string, unknown> | undefined) => void
+  }
+  info: {
+    (message: string, fields?: Record<string, unknown> | undefined) => void
+  }
+  warn: {
+    (message: string, fields?: Record<string, unknown> | undefined) => void
+  }
+}
+
+type PluginParameter = {
+  description?: string | undefined
+  integer?: false | true | undefined
+  max?: number | undefined
+  min?: number | undefined
+  optional?: false | true | undefined
+  type: "number"
+} | {
+  description?: string | undefined
+  maxLength: number
+  optional?: false | true | undefined
+  type: "note"
+} | {
+  description?: string | undefined
+  optional?: false | true | undefined
+  type: "boolean"
+} | {
+  description?: string | undefined
+  optional?: false | true | undefined
+  type: "enum"
+  values: readonly [string, ...string[]]
+}
+
+type PluginParameters = Readonly<Record<string, PluginParameter>>
+
+interface PluginReadTool< S extends ReadParameters = ReadParameters, R extends ResultFields = ResultFields, > { name: string; description: string; parameters: S; result: R; read(call: PluginCall<ParamsOf<S>>): Promise<ResultOf<R>> | ResultOf<R>; }
+
+interface PluginTool<S extends PluginParameters = PluginParameters> { name: string; description: string; parameters: S; perform(call: PluginCall<ParamsOf<S>>): Promise<void> | void; }
+
+type ReadParameter = {
+  description?: string | undefined
+  integer?: false | true | undefined
+  max?: number | undefined
+  min?: number | undefined
+  optional?: false | true | undefined
+  type: "number"
+} | {
+  description?: string | undefined
+  maxLength: number
+  optional?: false | true | undefined
+  type: "query"
+} | {
+  description?: string | undefined
+  optional?: false | true | undefined
+  type: "boolean"
+} | {
+  description?: string | undefined
+  optional?: false | true | undefined
+  type: "enum"
+  values: readonly [string, ...string[]]
+}
+
+type ReadParameters = Readonly<Record<string, ReadParameter>>
+
+type ResultField = {
+  description?: string | undefined
+  integer?: false | true | undefined
+  max?: number | undefined
+  min?: number | undefined
+  optional?: false | true | undefined
+  type: "number"
+} | {
+  description?: string | undefined
+  maxItems: number
+  maxLength: number
+  optional?: false | true | undefined
+  type: "list"
+} | {
+  description?: string | undefined
+  maxLength: number
+  optional?: false | true | undefined
+  type: "text"
+} | {
+  description?: string | undefined
+  optional?: false | true | undefined
+  type: "boolean"
+} | {
+  description?: string | undefined
+  optional?: false | true | undefined
+  type: "enum"
+  values: readonly [string, ...string[]]
+}
+
+type ResultFields = Readonly<Record<string, ResultField>>
+
+type ResultOf<R extends ResultFields> = { [K in keyof R as R[K] extends { optional: true } ? never : K]: FieldValue<R[K]>; } & { [K in keyof R as R[K] extends { optional: true } ? K : never]?: FieldValue<R[K]>; };
+
+SUPPORTED_CHANNEL_API_VERSIONS: readonly number[]
+
+SUPPORTED_PLUGIN_API_VERSIONS: readonly number[]
+
+# manychat-ai-agent/config
+
+type Catalog = {
+  businessName: string
+  currency: string
+  faq: {
+    answer: string
+    question: string
+  }[]
+  offerings: Offering[]
+  paymentOptions: PaymentOption[]
+}
+
+CatalogSchema: zod schema of Catalog
+
+ConfigError: {
+  new (message: string) => ConfigError
+  captureStackTrace: captureStackTrace
+  prepareStackTrace: prepareStackTrace
+  stackTraceLimit: number
+}
+
+type ConfigError = {
+  cause?: unknown
+  message: string
+  name: string
+  stack?: string | undefined
+}
+
+ConfigStore: {
+  new (dir?: string, reserved?: ReservedNames) => ConfigStore
+}
+
+type ConfigStore = {
+  get: {
+    () => TenantConfig
+  }
+  reload: {
+    () => {
+      error: string
+      ok: false
+    } | {
+      ok: true
+    }
+  }
+}
+
+type Env = {
+  AGENT_MAX_OUTPUT_TOKENS: number
+  AGENT_MODEL: string
+  AGENT_REASONING_EFFORT?: "high" | "low" | "medium" | "minimal" | undefined
+  AGENT_TEMPERATURE: number
+  ANTHROPIC_API_KEY?: string | undefined
+  CHANNEL: string
+  CONTACT_TOKENS_ENFORCED: false | true
+  DATABASE_URL: string
+  GOOGLE_GENERATIVE_AI_API_KEY?: string | undefined
+  INSIGHT_MODEL?: string | undefined
+  LOG_LEVEL: "debug" | "error" | "fatal" | "info" | "trace" | "warn"
+  MANYCHAT_API_BASE: string
+  MANYCHAT_API_TOKEN?: string | undefined
+  MANYCHAT_REPLY_FIELD: string
+  MANYCHAT_REPLY_FLOW_NS?: string | undefined
+  MANYCHAT_REPLY_GAP_MS: number
+  MANYCHAT_SHARED_SECRET: string[]
+  MANYCHAT_TOKEN_FIELD: string
+  MODEL_ABORT_MS: number
+  NODE_ENV: "development" | "production" | "test"
+  OLLAMA_BASE_URL: string
+  OPENAI_API_KEY?: string | undefined
+  PORT: number
+  PUBLIC_BASE_URL: string
+  RACE_DEADLINE_MS: number
+  TENANT_ID: string
+  TRANSCRIPTION_MODEL?: string | undefined
+  TRUST_PROXY: string[]
+}
+
+EnvSchema: zod schema of Env
+
+loadEnv: {
+  (source?: ProcessEnv) => Env
+}
+
+loadTenantConfig: {
+  (dir?: string, reserved?: ReservedNames) => TenantConfig
+}
+
+type Messages = {
+  acknowledgement: string
+  closer?: string | undefined
+  escalation: string
+  mediaFallback?: string | undefined
+}
+
+MessagesSchema: zod schema of Messages
+
+type Nudge = {
+  delays: {
+    id: string
+    minutes: number
+  }[]
+  humanActiveTag?: string | undefined
+}
+
+NudgeSchema: zod schema of Nudge
+
+type Offering = {
+  description: string
+  durationHours: null | number
+  id: string
+  name: string
+  price: {
+    amount: number
+    currency: string
+  }
+  schedule: null | string
+  url: null | string
+}
+
+OfferingSchema: zod schema of Offering
+
+type PaymentOption = {
+  description: string
+  id: string
+}
+
+PaymentOptionSchema: zod schema of PaymentOption
+
+PROMPT_SECTIONS: readonly ["operating", "format", "closing", "actions", "intent", "sales", "offerings", "followUps"]
+
+type PromptOverrides = {
+  actions?: string | undefined
+  closing?: string | undefined
+  followUps?: string | undefined
+  format?: string | undefined
+  intent?: string | undefined
+  offerings?: string | undefined
+  operating?: string | undefined
+  sales?: string | undefined
+}
+
+PromptOverridesSchema: zod schema of PromptOverrides
+
+type PromptSection = "actions" | "closing" | "followUps" | "format" | "intent" | "offerings" | "operating" | "sales"
+
+type ReservedNames = {
+  replyField?: string | undefined
+  replyFlowNs?: string | undefined
+  tokenField?: string | undefined
+}
+
+type Rules = {
+  budget: {
+    dailyCostCapUsd: number
+    dailyTokenCap: number
+  }
+  burstWindowMs: number
+  confidenceThreshold: number
+  escalationKeywords: string[]
+  foldBursts: false | true
+  historyDays: number
+  idleResetHours: number
+  learning?: undefined | {
+    convertedTag: string
+    language: string
+    maxRunCostUsd: number
+  }
+  maxTurnsPerConversation: number
+  messages: Messages
+  openingTrigger?: undefined | {
+    keywords: string[]
+    message: string
+  }
+  rateLimit: {
+    turnsPerSubscriberPerHour: number
+  }
+}
+
+RulesSchema: zod schema of Rules
+
+type TenantConfig = {
+  catalog: Catalog
+  persona: string
+  promptOverrides?: PromptOverrides | undefined
+  rules: Rules
+  tools?: Tools | undefined
+}
+
+type Tools = {
+  events: {
+    flowNs: string
+    id: string
+    stage: "link_sent" | "nurturing" | "offered" | "prepared" | "qualifying"
+  }[]
+  fields: {
+    description: string
+    field: string
+    funnel?: false | true | undefined
+    id: string
+    intent?: false | true | undefined
+    offering?: false | true | undefined
+    switchable?: false | true | undefined
+    values: string[]
+  }[]
+  flows: {
+    description: string
+    flowNs: string
+    id: string
+    offering?: string | undefined
+    onStage?: "nurturing" | "offered" | "prepared" | "qualifying" | undefined
+    repeatable?: false | true | undefined
+    role?: "opening" | "payment_link" | undefined
+    settleSeconds?: number | undefined
+    silent?: false | true | undefined
+  }[]
+  notes: {
+    description: string
+    field: string
+    id: string
+    maxLength: number
+    neverRendered: true
+    onEscalation: false | true
+  }[]
+  nudge?: Nudge | undefined
+  readable: {
+    fields: {
+      description: string
+      field: string
+      id: string
+      values: string[]
+    }[]
+    tags: {
+      description: string
+      id: string
+      tag: string
+    }[]
+  }
+  tags: {
+    description: string
+    id: string
+    tag: string
+  }[]
+}
+
+ToolsSchema: zod schema of Tools
+
+# manychat-ai-agent/testing
+
+ActionStage: {
+  new () => ActionStage
+}
+
+type ActionStage = {
+  dropped: readonly {
+    contactAsked?: true | undefined
+    flowNs: string
+    followOn?: undefined | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    }
+    id: string
+    origin?: "opening" | "stage" | undefined
+    tool: "send_flow"
+  } | {
+    field: string
+    followOn?: undefined | {
+      flowNs: string
+      id: string
+      tool: "send_event"
+    }
+    id: string
+    offering?: true | undefined
+    tool: "set_field"
+    value: string
+  } | {
+    field: string
+    id: string
+    onEscalation: false | true
+    text: string
+    tool: "write_note"
+  } | {
+    id: string
+    minutes: number
+    tool: "schedule_nudge"
+  } | {
+    id: string
+    notes?: Record<string, string> | undefined
+    params: Record<string, false | number | string | true>
+    plugin: string
+    tool: "plugin"
+  } | {
+    id: string
+    tag: string
+    tool: "add_tag"
+  } | {
+    id: string
+    tag: string
+    tool: "remove_tag"
+  }[]
+  records: {
+    (status: "discarded" | "staged", kept?: readonly {
+      contactAsked?: true | undefined
+      flowNs: string
+      followOn?: undefined | {
+        field: string
+        followOn?: undefined | {
+          flowNs: string
+          id: string
+          tool: "send_event"
+        }
+        id: string
+        offering?: true | undefined
+        tool: "set_field"
+        value: string
+      }
+      id: string
+      origin?: "opening" | "stage" | undefined
+      tool: "send_flow"
+    } | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    } | {
+      field: string
+      id: string
+      onEscalation: false | true
+      text: string
+      tool: "write_note"
+    } | {
+      id: string
+      minutes: number
+      tool: "schedule_nudge"
+    } | {
+      id: string
+      notes?: Record<string, string> | undefined
+      params: Record<string, false | number | string | true>
+      plugin: string
+      tool: "plugin"
+    } | {
+      id: string
+      tag: string
+      tool: "add_tag"
+    } | {
+      id: string
+      tag: string
+      tool: "remove_tag"
+    }[]) => {
+      contactAsked?: true | undefined
+      error?: string | undefined
+      id: string
+      length?: number | undefined
+      origin?: "opening" | "stage" | undefined
+      status: "dead_lettered" | "discarded" | "dropped_over_cap" | "failed" | "performed" | "staged"
+      tool: "add_tag" | "plugin" | "remove_tag" | "schedule_nudge" | "send_event" | "send_flow" | "set_field" | "write_note"
+      value?: string | undefined
+    }[]
+  }
+  send: {
+    (action: {
+      contactAsked?: true | undefined
+      flowNs: string
+      followOn?: undefined | {
+        field: string
+        followOn?: undefined | {
+          flowNs: string
+          id: string
+          tool: "send_event"
+        }
+        id: string
+        offering?: true | undefined
+        tool: "set_field"
+        value: string
+      }
+      id: string
+      origin?: "opening" | "stage" | undefined
+      tool: "send_flow"
+    }, sends: {
+      playsUntil: number
+      send: {
+        (actions: readonly {
+          contactAsked?: true | undefined
+          flowNs: string
+          followOn?: undefined | {
+            field: string
+            followOn?: undefined | {
+              flowNs: string
+              id: string
+              tool: "send_event"
+            }
+            id: string
+            offering?: true | undefined
+            tool: "set_field"
+            value: string
+          }
+          id: string
+          origin?: "opening" | "stage" | undefined
+          tool: "send_flow"
+        } | {
+          field: string
+          followOn?: undefined | {
+            flowNs: string
+            id: string
+            tool: "send_event"
+          }
+          id: string
+          offering?: true | undefined
+          tool: "set_field"
+          value: string
+        } | {
+          field: string
+          id: string
+          onEscalation: false | true
+          text: string
+          tool: "write_note"
+        } | {
+          id: string
+          minutes: number
+          tool: "schedule_nudge"
+        } | {
+          id: string
+          notes?: Record<string, string> | undefined
+          params: Record<string, false | number | string | true>
+          plugin: string
+          tool: "plugin"
+        } | {
+          id: string
+          tag: string
+          tool: "add_tag"
+        } | {
+          id: string
+          tag: string
+          tool: "remove_tag"
+        }[]) => Promise<{
+          contactAsked?: true | undefined
+          error?: string | undefined
+          id: string
+          length?: number | undefined
+          origin?: "opening" | "stage" | undefined
+          status: "dead_lettered" | "discarded" | "dropped_over_cap" | "failed" | "performed" | "staged"
+          tool: "add_tag" | "plugin" | "remove_tag" | "schedule_nudge" | "send_event" | "send_flow" | "set_field" | "write_note"
+          value?: string | undefined
+        }[][]>
+      }
+    }, first?: readonly {
+      contactAsked?: true | undefined
+      flowNs: string
+      followOn?: undefined | {
+        field: string
+        followOn?: undefined | {
+          flowNs: string
+          id: string
+          tool: "send_event"
+        }
+        id: string
+        offering?: true | undefined
+        tool: "set_field"
+        value: string
+      }
+      id: string
+      origin?: "opening" | "stage" | undefined
+      tool: "send_flow"
+    } | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    } | {
+      field: string
+      id: string
+      onEscalation: false | true
+      text: string
+      tool: "write_note"
+    } | {
+      id: string
+      minutes: number
+      tool: "schedule_nudge"
+    } | {
+      id: string
+      notes?: Record<string, string> | undefined
+      params: Record<string, false | number | string | true>
+      plugin: string
+      tool: "plugin"
+    } | {
+      id: string
+      tag: string
+      tool: "add_tag"
+    } | {
+      id: string
+      tag: string
+      tool: "remove_tag"
+    }[], options?: {
+      uncapped?: false | true | undefined
+    }) => Promise<false | true | undefined>
+  }
+  sent: readonly {
+    action: {
+      contactAsked?: true | undefined
+      flowNs: string
+      followOn?: undefined | {
+        field: string
+        followOn?: undefined | {
+          flowNs: string
+          id: string
+          tool: "send_event"
+        }
+        id: string
+        offering?: true | undefined
+        tool: "set_field"
+        value: string
+      }
+      id: string
+      origin?: "opening" | "stage" | undefined
+      tool: "send_flow"
+    } | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    } | {
+      field: string
+      id: string
+      onEscalation: false | true
+      text: string
+      tool: "write_note"
+    } | {
+      id: string
+      minutes: number
+      tool: "schedule_nudge"
+    } | {
+      id: string
+      notes?: Record<string, string> | undefined
+      params: Record<string, false | number | string | true>
+      plugin: string
+      tool: "plugin"
+    } | {
+      id: string
+      tag: string
+      tool: "add_tag"
+    } | {
+      id: string
+      tag: string
+      tool: "remove_tag"
+    }
+    pending: false | true
+    records: readonly {
+      contactAsked?: true | undefined
+      error?: string | undefined
+      id: string
+      length?: number | undefined
+      origin?: "opening" | "stage" | undefined
+      status: "dead_lettered" | "discarded" | "dropped_over_cap" | "failed" | "performed" | "staged"
+      tool: "add_tag" | "plugin" | "remove_tag" | "schedule_nudge" | "send_event" | "send_flow" | "set_field" | "write_note"
+      value?: string | undefined
+    }[]
+  }[]
+  settled: {
+    () => Promise<void>
+  }
+  stage: {
+    (action: {
+      contactAsked?: true | undefined
+      flowNs: string
+      followOn?: undefined | {
+        field: string
+        followOn?: undefined | {
+          flowNs: string
+          id: string
+          tool: "send_event"
+        }
+        id: string
+        offering?: true | undefined
+        tool: "set_field"
+        value: string
+      }
+      id: string
+      origin?: "opening" | "stage" | undefined
+      tool: "send_flow"
+    } | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    } | {
+      field: string
+      id: string
+      onEscalation: false | true
+      text: string
+      tool: "write_note"
+    } | {
+      id: string
+      minutes: number
+      tool: "schedule_nudge"
+    } | {
+      id: string
+      notes?: Record<string, string> | undefined
+      params: Record<string, false | number | string | true>
+      plugin: string
+      tool: "plugin"
+    } | {
+      id: string
+      tag: string
+      tool: "add_tag"
+    } | {
+      id: string
+      tag: string
+      tool: "remove_tag"
+    }) => false | true
+  }
+  staged: readonly {
+    contactAsked?: true | undefined
+    flowNs: string
+    followOn?: undefined | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    }
+    id: string
+    origin?: "opening" | "stage" | undefined
+    tool: "send_flow"
+  } | {
+    field: string
+    followOn?: undefined | {
+      flowNs: string
+      id: string
+      tool: "send_event"
+    }
+    id: string
+    offering?: true | undefined
+    tool: "set_field"
+    value: string
+  } | {
+    field: string
+    id: string
+    onEscalation: false | true
+    text: string
+    tool: "write_note"
+  } | {
+    id: string
+    minutes: number
+    tool: "schedule_nudge"
+  } | {
+    id: string
+    notes?: Record<string, string> | undefined
+    params: Record<string, false | number | string | true>
+    plugin: string
+    tool: "plugin"
+  } | {
+    id: string
+    tag: string
+    tool: "add_tag"
+  } | {
+    id: string
+    tag: string
+    tool: "remove_tag"
+  }[]
+  survivors: {
+    (keepNotes: false | true) => {
+      contactAsked?: true | undefined
+      flowNs: string
+      followOn?: undefined | {
+        field: string
+        followOn?: undefined | {
+          flowNs: string
+          id: string
+          tool: "send_event"
+        }
+        id: string
+        offering?: true | undefined
+        tool: "set_field"
+        value: string
+      }
+      id: string
+      origin?: "opening" | "stage" | undefined
+      tool: "send_flow"
+    } | {
+      field: string
+      followOn?: undefined | {
+        flowNs: string
+        id: string
+        tool: "send_event"
+      }
+      id: string
+      offering?: true | undefined
+      tool: "set_field"
+      value: string
+    } | {
+      field: string
+      id: string
+      onEscalation: false | true
+      text: string
+      tool: "write_note"
+    } | {
+      id: string
+      minutes: number
+      tool: "schedule_nudge"
+    } | {
+      id: string
+      notes?: Record<string, string> | undefined
+      params: Record<string, false | number | string | true>
+      plugin: string
+      tool: "plugin"
+    } | {
+      id: string
+      tag: string
+      tool: "add_tag"
+    } | {
+      id: string
+      tag: string
+      tool: "remove_tag"
+    }[]
+  }
+}
+
+buildTools: {
+  (config: Tools, stage: ActionStage, contact?: {
+    advertOffering?: string | undefined
+    funnelStage?: string | undefined
+    intent?: "not_prospect" | "prospect" | undefined
+    offering?: string | undefined
+    offeringChangedFrom?: string | undefined
+    openingDue?: false | true | undefined
+    openingSpent?: false | true | undefined
+    sentFlows: ReadonlySet<string>
+  }, reads?: undefined | {
+    count: number
+    latest: undefined | {
+      fields: Record<string, null | string>
+      notes: Record<string, null | string>
+      tags: string[]
+    }
+    read: {
+      (tools: Tools, signal?: AbortSignal | undefined) => Promise<{
+        available: false
+      } | {
+        fields: Record<string, null | string>
+        notes: Record<string, null | string>
+        tags: string[]
+      }>
+    }
+  }, options?: {
+    beforeFlow?: undefined | {
+      () => Promise<void>
+    }
+    flows?: undefined | {
+      playsUntil: number
+      send: {
+        (actions: readonly {
+          contactAsked?: true | undefined
+          flowNs: string
+          followOn?: undefined | {
+            field: string
+            followOn?: undefined | {
+              flowNs: string
+              id: string
+              tool: "send_event"
+            }
+            id: string
+            offering?: true | undefined
+            tool: "set_field"
+            value: string
+          }
+          id: string
+          origin?: "opening" | "stage" | undefined
+          tool: "send_flow"
+        } | {
+          field: string
+          followOn?: undefined | {
+            flowNs: string
+            id: string
+            tool: "send_event"
+          }
+          id: string
+          offering?: true | undefined
+          tool: "set_field"
+          value: string
+        } | {
+          field: string
+          id: string
+          onEscalation: false | true
+          text: string
+          tool: "write_note"
+        } | {
+          id: string
+          minutes: number
+          tool: "schedule_nudge"
+        } | {
+          id: string
+          notes?: Record<string, string> | undefined
+          params: Record<string, false | number | string | true>
+          plugin: string
+          tool: "plugin"
+        } | {
+          id: string
+          tag: string
+          tool: "add_tag"
+        } | {
+          id: string
+          tag: string
+          tool: "remove_tag"
+        }[]) => Promise<{
+          contactAsked?: true | undefined
+          error?: string | undefined
+          id: string
+          length?: number | undefined
+          origin?: "opening" | "stage" | undefined
+          status: "dead_lettered" | "discarded" | "dropped_over_cap" | "failed" | "performed" | "staged"
+          tool: "add_tag" | "plugin" | "remove_tag" | "schedule_nudge" | "send_event" | "send_flow" | "set_field" | "write_note"
+          value?: string | undefined
+        }[][]>
+      }
+    }
+    nudgeTurn?: false | true | undefined
+    pluginReads?: undefined | {
+      latest: readonly {
+        result: {
+          fields: Record<string, false | number | string | true>
+          text?: string | undefined
+        }
+        tool: string
+      }[]
+      read: {
+        (__0: {
+          plugin: string
+          tool: PluginReadTool<ReadParameters, ResultFields>
+        }, input: Record<string, unknown>, signal?: AbortSignal | undefined) => Promise<{
+          available: false
+        } | {
+          fields: Record<string, false | number | string | true>
+          text?: string | undefined
+        }>
+      }
+      records: readonly {
+        available: false | true
+        durationMs: number
+        plugin: string
+        tool: string
+      }[]
+    }
+    plugins?: undefined | {
+      addReadTools: {
+        (tools: ToolSet, reads: {
+          latest: readonly {
+            result: {
+              fields: Record<string, false | number | string | true>
+              text?: string | undefined
+            }
+            tool: string
+          }[]
+          read: {
+            (__0: {
+              plugin: string
+              tool: PluginReadTool<ReadParameters, ResultFields>
+            }, input: Record<string, unknown>, signal?: AbortSignal | undefined) => Promise<{
+              available: false
+            } | {
+              fields: Record<string, false | number | string | true>
+              text?: string | undefined
+            }>
+          }
+          records: readonly {
+            available: false | true
+            durationMs: number
+            plugin: string
+            tool: string
+          }[]
+        }) => void
+      }
+      addTools: {
+        (tools: ToolSet, stage: ActionStage, closed: {
+          () => false | true
+        }, describe: {
+          (description: string) => string
+        }) => void
+      }
+      hasReadTools: false | true
+      hasTools: false | true
+      hasWriteTools: false | true
+      performer: {
+        (inner: {
+          performAction: {
+            (subscriberId: string, action: {
+              contactAsked?: true | undefined
+              flowNs: string
+              followOn?: undefined | {
+                field: string
+                followOn?: undefined | {
+                  flowNs: string
+                  id: string
+                  tool: "send_event"
+                }
+                id: string
+                offering?: true | undefined
+                tool: "set_field"
+                value: string
+              }
+              id: string
+              origin?: "opening" | "stage" | undefined
+              tool: "send_flow"
+            } | {
+              field: string
+              followOn?: undefined | {
+                flowNs: string
+                id: string
+                tool: "send_event"
+              }
+              id: string
+              offering?: true | undefined
+              tool: "set_field"
+              value: string
+            } | {
+              field: string
+              id: string
+              onEscalation: false | true
+              text: string
+              tool: "write_note"
+            } | {
+              flowNs: string
+              id: string
+              tool: "send_event"
+            } | {
+              id: string
+              minutes: number
+              tool: "schedule_nudge"
+            } | {
+              id: string
+              notes?: Record<string, string> | undefined
+              params: Record<string, false | number | string | true>
+              plugin: string
+              tool: "plugin"
+            } | {
+              id: string
+              tag: string
+              tool: "add_tag"
+            } | {
+              id: string
+              tag: string
+              tool: "remove_tag"
+            }) => Promise<void>
+          }
+        }, logger: {
+          error: {
+            (obj: {}, msg: string) => void
+          }
+          info: {
+            (obj: {}, msg: string) => void
+          }
+          warn: {
+            (obj: {}, msg: string) => void
+          }
+        }) => {
+          performAction: {
+            (subscriberId: string, action: {
+              contactAsked?: true | undefined
+              flowNs: string
+              followOn?: undefined | {
+                field: string
+                followOn?: undefined | {
+                  flowNs: string
+                  id: string
+                  tool: "send_event"
+                }
+                id: string
+                offering?: true | undefined
+                tool: "set_field"
+                value: string
+              }
+              id: string
+              origin?: "opening" | "stage" | undefined
+              tool: "send_flow"
+            } | {
+              field: string
+              followOn?: undefined | {
+                flowNs: string
+                id: string
+                tool: "send_event"
+              }
+              id: string
+              offering?: true | undefined
+              tool: "set_field"
+              value: string
+            } | {
+              field: string
+              id: string
+              onEscalation: false | true
+              text: string
+              tool: "write_note"
+            } | {
+              flowNs: string
+              id: string
+              tool: "send_event"
+            } | {
+              id: string
+              minutes: number
+              tool: "schedule_nudge"
+            } | {
+              id: string
+              notes?: Record<string, string> | undefined
+              params: Record<string, false | number | string | true>
+              plugin: string
+              tool: "plugin"
+            } | {
+              id: string
+              tag: string
+              tool: "add_tag"
+            } | {
+              id: string
+              tag: string
+              tool: "remove_tag"
+            }) => Promise<void>
+          }
+        }
+      }
+      readonly channels: readonly {
+        channel: PluginChannel<unknown, unknown>
+        plugin: string
+      }[]
+      readonly names: readonly string[]
+      summary: {
+        () => {
+          channels: string[]
+          plugin: string
+          reads: string[]
+          writes: string[]
+        }[]
+      }
+    }
+  }) => ToolSet | undefined
+}
+
+hangingModel: {
+  () => MockLanguageModelV4
+}
+
+mockModel: {
+  (object: unknown, opts?: {
+    cacheReadTokens?: number | undefined
+    inputTokens?: number | undefined
+    outputTokens?: number | undefined
+  }) => {
+    calls: LanguageModelV4CallOptions[]
+    model: MockLanguageModelV4
+  }
+}
+
+mockTranscriptionModel: {
+  (opts?: {
+    delayMs?: number | undefined
+    durationInSeconds?: number | undefined
+    error?: Error | undefined
+    text?: string | undefined
+  }) => {
+    calls: TranscriptionModelV4CallOptions[]
+    model: TranscriptionModelV2 | TranscriptionModelV3 | TranscriptionModelV4 | string
+  }
+}
+
+# Internal types named by the generics above
+
+type ValueOf<P extends PluginParameter | ReadParameter> = P extends { type: 'enum'; values: readonly (infer V)[]; } ? V : P extends { type: 'number' } ? number : P extends { type: 'boolean' } ? boolean : string;
+
+type FieldValue<F extends ResultField> = F extends { type: 'enum'; values: readonly (infer V)[] } ? V : F extends { type: 'number' } ? number : F extends { type: 'boolean' } ? boolean : F extends { type: 'list' } ? string[] : string;
