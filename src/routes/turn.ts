@@ -1,6 +1,6 @@
 import type { Database } from '../db/client.ts';
 import type { AgentRunner, AgentResult } from '../agent/runner.ts';
-import type { InboundMessage, AgentReply, StagedAction, TurnOutcome } from '../contracts/agent.ts';
+import type { InboundMessage, StagedAction } from '../contracts/agent.ts';
 import { NO_TOOLS } from '../contracts/config.ts';
 import type { Rules, Tools } from '../contracts/config.ts';
 import type { MediaResolver } from '../media/resolver.ts';
@@ -40,10 +40,13 @@ import { withConversation } from '../turn/logger.ts';
 import type { TurnLogger } from '../turn/logger.ts';
 import { MediaReader, mediaMarker } from '../turn/media.ts';
 import { TurnRecorder } from '../turn/recorder.ts';
+import { ContactOutbox, ReplyDelivery } from '../turn/delivery.ts';
+import type { DeferredActions } from '../turn/delivery.ts';
+import type { TurnResult } from '../turn/result.ts';
 
 const DAY_MS = 86_400_000;
 
-export type { TurnLogger };
+export type { TurnLogger, TurnResult };
 
 export interface TurnDeps {
   db: Database;
@@ -95,25 +98,6 @@ interface RunOptions {
   followed?: () => boolean;
 }
 
-export interface TurnResult {
-  reply: AgentReply;
-  outcome: TurnOutcome;
-  conversationId: string;
-  binding: Binding;
-  /**
-   * Performs the actions staged on an inline turn. The caller runs it once the
-   * response has been sent, never before (specs/012 § Actions follow the
-   * text). It never throws.
-   */
-  afterResponse?: () => Promise<void>;
-  /**
-   * The response carries no message: a flow sent this turn is still playing,
-   * and the reply follows it from the outbox (specs/030). `reply` is still
-   * set, for the log line.
-   */
-  silent?: boolean;
-}
-
 /**
  * Runs one conversational turn under the platform's timeout (specs/002).
  *
@@ -146,9 +130,13 @@ export class TurnHandler {
     });
   }
 
-  /** Queues a reply for the turn's channel: ManyChat, or a plugin's (specs/038). */
-  private enqueue(input: Parameters<OutboxQueue['enqueue']>[0]): Promise<string> {
-    return this.queue.enqueue({ ...input, channel: this.deps.channel });
+  /** The contact's queued replies, on the turn's channel (specs/038). */
+  private outboxFor(inbound: InboundMessage): ContactOutbox {
+    const { rules, logger, channel } = this.deps;
+    return new ContactOutbox(
+      { queue: this.queue, store: this.store, nudges: this.nudges, rules, logger, channel },
+      { tenantId: inbound.tenantId, subscriberId: inbound.subscriberId },
+    );
   }
 
   /**
@@ -238,7 +226,7 @@ export class TurnHandler {
         })
         .catch(async (error: unknown) => {
           logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
-          await this.handOffSilent(inbound);
+          await this.outboxFor(inbound).handOffSilent();
         })
         .finally(leave);
       // The previous turn has started the conversation by now; its reply,
@@ -305,38 +293,6 @@ export class TurnHandler {
     };
   }
 
-  /**
-   * A turn that failed after a silent response, which no error handler can
-   * answer any more: the handoff goes through the outbox instead, as the
-   * route's error handler would have sent it (C6, specs/037).
-   */
-  private async handOffSilent(inbound: InboundMessage): Promise<void> {
-    const { rules, logger } = this.deps;
-    let conversation;
-    try {
-      conversation = await this.store.find(inbound.tenantId, inbound.subscriberId);
-      await this.enqueue({
-        tenantId: inbound.tenantId,
-        subscriberId: inbound.subscriberId,
-        conversationId: conversation?.id ?? null,
-        reply: escalationReply('low_confidence', rules.messages.escalation),
-      });
-    } catch (error) {
-      logger.error({ err: String(error) }, 'silent turn handoff not queued');
-      return;
-    }
-    if (!conversation) return;
-    try {
-      await this.store.markEscalated(conversation.id);
-      await this.nudges.cancel(conversation.id, 'escalated');
-    } catch (error) {
-      logger.error(
-        { conversation: conversation.id, err: String(error) },
-        'silent turn handoff queued, escalation not recorded',
-      );
-    }
-  }
-
   private async run(inbound: InboundMessage, opts: RunOptions): Promise<TurnResult> {
     const { rules, tokensEnforced } = this.deps;
     const now = new Date();
@@ -369,39 +325,6 @@ export class TurnHandler {
             now,
           );
     const logger = withConversation(this.deps.logger, conversation.id);
-
-    /**
-     * Whether this turn's reply has to go through the outbox behind the
-     * contact's: a reply to them is still queued, or this turn's response was
-     * already sent (specs/037 § A reply never overtakes an earlier one).
-     */
-    const mustQueue = async () =>
-      opts.late === true ||
-      (await this.queue.hasQueuedReply(inbound.tenantId, inbound.subscriberId));
-
-    /**
-     * Answers a turn decided without the model: inline, or behind the
-     * contact's queued reply with a silent response.
-     */
-    const answer = async (result: TurnResult): Promise<TurnResult> => {
-      if (!(await mustQueue())) return result;
-      try {
-        await this.enqueue({
-          tenantId: inbound.tenantId,
-          subscriberId: inbound.subscriberId,
-          conversationId: conversation.id,
-          reply: result.reply,
-        });
-      } catch (error) {
-        // A late turn's response is gone, so its reply has nowhere else to go.
-        if (opts.late) throw error;
-        // Early is better than never: the reply goes out now.
-        logger.error({ err: String(error) }, 'failed to queue reply behind the previous one');
-        return result;
-      }
-      logger.info({ path: 'outbox' }, 'reply queued behind the previous one');
-      return { ...result, silent: true };
-    };
 
     // The request's offering is ManyChat's value now, which already holds every
     // write this service performed, so it wins over the one kept here
@@ -479,6 +402,24 @@ export class TurnHandler {
         ? new PluginReads({ subscriberId: inbound.subscriberId, logger, budget })
         : undefined;
 
+    // A flow is sent when the model calls it, so its reply follows it
+    // (specs/029). Through the nudging performer, so a payment link sent now
+    // still cancels a pending nudge.
+    const flows = new FlowSends({
+      performer: new NudgingPerformer(this.deps.actions, this.nudges, conversation.id),
+      subscriberId: inbound.subscriberId,
+      logger,
+      tools,
+    });
+
+    const outbox = this.outboxFor(inbound);
+    const delivery = new ReplyDelivery(outbox, {
+      conversationId: conversation.id,
+      logger,
+      late: opts.late === true,
+      deadlineAt: opts.deadlineAt,
+      flows,
+    });
     const recorder = new TurnRecorder(
       { store: this.store, budget: this.budget, nudges: this.nudges },
       {
@@ -505,7 +446,7 @@ export class TurnHandler {
       const reply = plainReply([opening]);
       await recorder.decided(reply, 'answered_scripted');
       logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
-      return answer({
+      return delivery.answer({
         reply,
         outcome: 'answered_scripted',
         conversationId: conversation.id,
@@ -527,7 +468,7 @@ export class TurnHandler {
       const reply = escalationReply(denied.reason, rules.messages.escalation);
       await recorder.decided(reply, 'escalated_precheck');
       logger.info({ reason: denied.reason, detail: denied.detail }, 'turn escalated before model');
-      return answer({
+      return delivery.answer({
         reply,
         outcome: 'escalated_precheck',
         conversationId: conversation.id,
@@ -575,20 +516,8 @@ export class TurnHandler {
           }
         : undefined;
 
-    // A flow is sent when the model calls it, so its reply follows it
-    // (specs/029). Through the nudging performer, so a payment link sent now
-    // still cancels a pending nudge.
-    const flows = new FlowSends({
-      performer: new NudgingPerformer(this.deps.actions, this.nudges, conversation.id),
-      subscriberId: inbound.subscriberId,
-      logger,
-      tools,
-    });
-
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.deps.modelAbortMs);
-
-    const { deadlineAt } = opts;
 
     // Once per turn, whichever comes first: the model's first flow, or its
     // reply settling (specs/032 § The opening flow is the server's).
@@ -643,7 +572,9 @@ export class TurnHandler {
     // A turn whose response already went out has no race left to win. The
     // deadline runs from the request's arrival, so a wait for the contact's
     // previous turn counts against it (specs/037).
-    const winner = opts.late ? ('deadline' as const) : await raceDeadline(completion, deadlineAt);
+    const winner = opts.late
+      ? ('deadline' as const)
+      : await raceDeadline(completion, opts.deadlineAt);
 
     /**
      * Whether the model's reply is dropped because the contact kept writing
@@ -661,64 +592,10 @@ export class TurnHandler {
       !result.reply.escalate &&
       !result.modelError;
 
-    /**
-     * Delivers a settled turn's reply after the flows it sent have played
-     * (specs/030 § The reply waits for the flow to play): inline once they
-     * end, when that is before the deadline, and otherwise from the outbox at
-     * that time, with a silent response now. `actions` go with it to the
-     * outbox, in place of `afterResponse`.
-     */
-    const deliver = async (
-      result: TurnResult,
-      actions?: { staged: readonly StagedAction[]; turnId: string },
-    ): Promise<TurnResult> => {
-      const until = flows.playsUntil;
-      const now = Date.now();
-      const queue = await mustQueue();
-      if (until <= now && !queue) return result;
-      if (until <= deadlineAt && !queue) {
-        logger.info({ heldMs: until - now, path: 'inline' }, 'reply held for flow');
-        await new Promise(resolve => setTimeout(resolve, until - now));
-        return result;
-      }
-      try {
-        await this.enqueue({
-          tenantId: inbound.tenantId,
-          subscriberId: inbound.subscriberId,
-          conversationId: conversation.id,
-          reply: result.reply,
-          actions,
-          notBefore: until > now ? new Date(until) : undefined,
-        });
-      } catch (error) {
-        // Early is better than never: the reply goes out now, inside the flow.
-        logger.error({ err: String(error) }, 'failed to hold reply for flow');
-        return result;
-      }
-      if (until > now) {
-        logger.info({ heldMs: until - now, path: 'outbox' }, 'reply held for flow');
-      } else {
-        logger.info({ path: 'outbox' }, 'reply queued behind the previous one');
-      }
-      return {
-        reply: result.reply,
-        outcome: result.outcome,
-        conversationId: result.conversationId,
-        binding: result.binding,
-        silent: true,
-      };
-    };
-
     if (winner === 'deadline') {
-      // A flow still playing is the contact's wait: a holding line now would
-      // land inside it (specs/030 § A flow still playing is the holding line).
-      // So would one while a reply to the contact is still queued: it is on
-      // its way (specs/037).
-      const silent = flows.playsUntil > Date.now() || (await mustQueue());
+      const silent = await delivery.silentNow();
       // A holding line while the real reply completes into the outbox.
       const holding = plainReply([rules.messages.acknowledgement]);
-      const notBefore = () =>
-        flows.playsUntil > Date.now() ? new Date(flows.playsUntil) : undefined;
 
       // The in-flight call is NOT cancelled: those tokens are already paid for,
       // and the answer is still wanted. It completes into the outbox instead.
@@ -746,19 +623,11 @@ export class TurnHandler {
             }
             // A silent response gave the contact nothing yet, so the holding
             // line it held back goes out now, after the flow (specs/030).
-            if (silent) {
-              await this.enqueue({
-                tenantId: inbound.tenantId,
-                subscriberId: inbound.subscriberId,
-                conversationId: conversation.id,
-                reply: holding,
-                notBefore: notBefore(),
-              });
-            }
+            if (silent) await delivery.queue(holding);
             return;
           }
           const { done } = outcome;
-          let deferred: { staged: readonly StagedAction[]; turnId: string } | undefined;
+          let deferred: DeferredActions | undefined;
           if (done.kind === 'decided') {
             await recorder.decided(done.reply, done.outcome);
           } else if (superseded(done.result)) {
@@ -783,20 +652,12 @@ export class TurnHandler {
               );
             }
           }
-          await this.enqueue({
-            tenantId: inbound.tenantId,
-            subscriberId: inbound.subscriberId,
-            conversationId: conversation.id,
-            reply: done.kind === 'decided' ? done.reply : done.result.reply,
-            actions: deferred,
-            // A flow the call sent, before or after the deadline, plays first.
-            notBefore: notBefore(),
-          });
+          await delivery.queue(done.kind === 'decided' ? done.reply : done.result.reply, deferred);
         } catch (error) {
           logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
           // A silent response, late or behind a queued reply or a flow, left
           // the contact this reply and nothing else (C6).
-          if (silent) await this.handOffSilent(inbound);
+          if (silent) await outbox.handOffSilent();
         }
       });
       opts.onBackground?.(settling);
@@ -817,13 +678,18 @@ export class TurnHandler {
       const reply = escalationReply('low_confidence', rules.messages.escalation);
       await recorder.failed(reply.messages[0]!, recorder.discard());
       await recorder.escalated();
-      return deliver({ reply, outcome: 'error', conversationId: conversation.id, binding });
+      return delivery.deliver({
+        reply,
+        outcome: 'error',
+        conversationId: conversation.id,
+        binding,
+      });
     }
 
     const { done } = winner;
     if (done.kind === 'decided') {
       await recorder.decided(done.reply, done.outcome);
-      return answer({
+      return delivery.answer({
         reply: done.reply,
         outcome: done.outcome,
         conversationId: conversation.id,
@@ -849,7 +715,7 @@ export class TurnHandler {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
     const staged = recorder.performable(done.result);
-    return deliver(
+    return delivery.deliver(
       {
         reply: done.result.reply,
         outcome,
