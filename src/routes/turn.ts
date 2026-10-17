@@ -286,54 +286,62 @@ export class TurnHandler {
     const leave = () => void background.then(slot.leave, slot.leave);
     const expired = () => logger.error({ conversation: known?.id }, 'turn wait expired');
 
-    if (slot.waited) {
-      let timer: NodeJS.Timeout | undefined;
-      const late = new Promise<'late'>(resolve => {
-        timer = setTimeout(() => resolve('late'), Math.max(0, deadlineAt - Date.now()));
-      });
-      const waited = await Promise.race([slot.ready, late]);
-      clearTimeout(timer);
-      if (waited === 'late') {
-        void slot.ready
-          .then(async ready => {
-            if (ready === 'expired') expired();
-            if (readsHistory && slot.followed() && this.foldable(inbound)) {
-              await this.fold(inbound, binding);
-            } else await this.run(inbound, { ...opts, late: true });
-          })
-          .catch(async (error: unknown) => {
-            logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
-            await this.handOffSilent(inbound);
-          })
-          .finally(leave);
-        // The previous turn has started the conversation by now; its reply,
-        // or its holding line, is the contact's answer for the moment.
-        const current = known ?? (await this.store.find(inbound.tenantId, inbound.subscriberId));
-        logger.info({ conversation: current?.id }, 'turn waits for the previous one');
-        return {
-          reply: {
-            messages: [],
-            escalate: false,
-            escalation_reason: null,
-            confidence: 1,
-            closing_question: null,
-          },
-          outcome: 'deferred',
-          conversationId: current?.id ?? '',
-          binding,
-          silent: true,
-        };
-      }
-      if (waited === 'expired') expired();
+    /**
+     * Whether this turn only records its message, which a later turn of the
+     * contact answers (specs/046): the contact wrote again while it waited for
+     * their previous turn, or, with a burst window, before that window passed
+     * in silence (specs/047). Only a turn that reads history folds: any other
+     * runs, and is bound by the token state it finds then (specs/019).
+     */
+    const folds = async (): Promise<boolean> => {
+      if (!readsHistory || !this.foldable(inbound)) return false;
+      if (slot.waited && slot.followed()) return true;
+      const windowMs = this.deps.rules.burstWindowMs;
+      return windowMs > 0 && (await slot.quiet(windowMs));
+    };
+    // The wait for the previous turn and the burst window both count against
+    // the deadline (C7): a turn still deciding at it is answered silently now.
+    const decided = (async () => {
+      if (slot.waited && (await slot.ready) === 'expired') expired();
+      return (await folds()) ? ('fold' as const) : ('run' as const);
+    })();
+
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<'late'>(resolve => {
+      timer = setTimeout(() => resolve('late'), Math.max(0, deadlineAt - Date.now()));
+    });
+    const first = await Promise.race([decided, late]).finally(() => clearTimeout(timer));
+    if (first === 'late') {
+      void decided
+        .then(async decision => {
+          if (decision === 'fold') await this.fold(inbound, binding);
+          else await this.run(inbound, { ...opts, late: true });
+        })
+        .catch(async (error: unknown) => {
+          logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
+          await this.handOffSilent(inbound);
+        })
+        .finally(leave);
+      // The previous turn has started the conversation by now; its reply,
+      // or its holding line, is the contact's answer for the moment.
+      const current = known ?? (await this.store.find(inbound.tenantId, inbound.subscriberId));
+      logger.info({ conversation: current?.id }, 'turn answered silently while it waits');
+      return {
+        reply: {
+          messages: [],
+          escalate: false,
+          escalation_reason: null,
+          confidence: 1,
+          closing_question: null,
+        },
+        outcome: 'deferred',
+        conversationId: current?.id ?? '',
+        binding,
+        silent: true,
+      };
     }
     try {
-      // The contact wrote again while this message waited: the later turn
-      // answers both, so this one only records it (specs/046). Only a turn
-      // that reads history folds: any other runs, and is bound by the token
-      // state it finds then (specs/019).
-      if (readsHistory && slot.waited && slot.followed() && this.foldable(inbound)) {
-        return await this.fold(inbound, binding);
-      }
+      if (first === 'fold') return await this.fold(inbound, binding);
       return await this.run(inbound, opts);
     } finally {
       leave();

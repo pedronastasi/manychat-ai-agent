@@ -18,10 +18,17 @@ export interface TurnSlot {
    * yet: the contact kept writing, and that turn answers them (specs/046).
    */
   followed: () => boolean;
+  /**
+   * Settles with `true` as soon as this turn is followed, or with `false` once
+   * `ms` have passed without it: the contact has gone quiet (specs/047).
+   */
+  quiet: (ms: number) => Promise<boolean>;
 }
 
 interface Place {
   claimed: boolean;
+  /** Called when a later turn of the contact claims its place. */
+  wake?: (() => void) | undefined;
 }
 
 /**
@@ -56,6 +63,11 @@ export class TurnLanes {
     const places = this.places.get(contact) ?? [];
     places.push(place);
     this.places.set(contact, places);
+    const followed = () => {
+      const current = this.places.get(contact) ?? [];
+      const index = current.indexOf(place);
+      return index >= 0 && current.slice(index + 1).some(later => later.claimed);
+    };
     const gone = () => {
       const current = this.places.get(contact);
       if (!current) return;
@@ -73,12 +85,23 @@ export class TurnLanes {
       },
       claim: () => {
         place.claimed = true;
-      },
-      followed: () => {
         const current = this.places.get(contact) ?? [];
-        const index = current.indexOf(place);
-        return index >= 0 && current.slice(index + 1).some(later => later.claimed);
+        for (const earlier of current.slice(0, current.indexOf(place))) earlier.wake?.();
       },
+      followed,
+      quiet: ms =>
+        new Promise<boolean>(resolve => {
+          if (followed()) return resolve(true);
+          const timer = setTimeout(() => {
+            place.wake = undefined;
+            resolve(false);
+          }, ms);
+          place.wake = () => {
+            clearTimeout(timer);
+            place.wake = undefined;
+            resolve(true);
+          };
+        }),
     };
   }
 

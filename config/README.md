@@ -127,6 +127,21 @@ dropped call is still paid for. Off by default. See
 "foldBursts": true
 ```
 
+### `burstWindowMs`
+
+With `foldBursts` a burst is answered once only while the model is still
+answering its first bubble. If your contacts write more slowly than the model
+answers, set `burstWindowMs` and every turn waits that long for another bubble
+before it calls the model: a bubble that arrives in time folds the earlier
+one, and the contact gets one reply once they go quiet. The wait comes out of
+the 8-second race, so replies that need more of it go out from the outbox
+after the holding line. Up to `4000`; `0`, the default, waits for nothing. See
+`specs/047-a-burst-window-before-the-model.md`.
+
+```json
+"burstWindowMs": 3000
+```
+
 ## `tools.json`: actions the agent can take (optional)
 
 Without `tools.json` the agent only replies. With it, the agent can also act on

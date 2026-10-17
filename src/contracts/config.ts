@@ -157,6 +157,9 @@ export const LearningSchema = z
   .strict();
 export type Learning = z.infer<typeof LearningSchema>;
 
+/** The longest `burstWindowMs`: it leaves the model most of the race (specs/047). */
+export const BURST_WINDOW_MAX_MS = 4_000;
+
 export const RulesSchema = z.object({
   messages: MessagesSchema,
   confidenceThreshold: z.number().min(0).max(1).default(0.6),
@@ -196,6 +199,13 @@ export const RulesSchema = z.object({
    * Bubbles that wait behind a running turn are folded whatever this says.
    */
   foldBursts: z.boolean().default(false),
+  /**
+   * How long a turn waits for the contact to write again before it calls the
+   * model (specs/047). A bubble that arrives in that time folds this turn's
+   * message into its own. The wait counts against the race deadline (C7), so
+   * it is capped well inside it. 0, the default, waits for nothing.
+   */
+  burstWindowMs: z.number().int().min(0).max(BURST_WINDOW_MAX_MS).default(0),
   /**
    * Learning from outcomes (specs/031). Absent, no learning job runs, no
    * playbook is loaded, and the prompt is what it was before that spec.
