@@ -1,17 +1,9 @@
 import type { Database } from '../db/client.ts';
 import type { AgentRunner, AgentResult } from '../agent/runner.ts';
-import type {
-  InboundMedia,
-  InboundMessage,
-  AgentReply,
-  MediaKind,
-  StagedAction,
-  TurnOutcome,
-} from '../contracts/agent.ts';
+import type { InboundMessage, AgentReply, StagedAction, TurnOutcome } from '../contracts/agent.ts';
 import { NO_TOOLS } from '../contracts/config.ts';
 import type { Rules, Tools } from '../contracts/config.ts';
 import type { MediaResolver } from '../media/resolver.ts';
-import { MediaFailure } from '../media/port.ts';
 import { escalationReply } from '../agent/guardrails.ts';
 import { ConversationStore } from '../conversation/store.ts';
 import {
@@ -30,8 +22,6 @@ import {
   openingFlow,
   stagesProspect,
 } from '../agent/tools.ts';
-import type { HistoryTurn } from '../agent/runner.ts';
-import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
 import { describeWriteError } from '../channels/manychat/client.ts';
 import { ContactReads, ReadBudget } from '../agent/contact.ts';
@@ -45,14 +35,14 @@ import type { TurnLanes } from '../conversation/turns.ts';
 import { advertOfferingOf } from '../turn/context.ts';
 import { raceDeadline } from '../turn/race.ts';
 import { modelOutcomeOf, plainReply } from '../turn/replies.ts';
+import type { Completion } from '../turn/completion.ts';
+import { withConversation } from '../turn/logger.ts';
+import type { TurnLogger } from '../turn/logger.ts';
+import { MediaReader, mediaMarker } from '../turn/media.ts';
 
 const DAY_MS = 86_400_000;
 
-export interface TurnLogger {
-  info: (o: object, m: string) => void;
-  warn: (o: object, m: string) => void;
-  error: (o: object, m: string) => void;
-}
+export type { TurnLogger };
 
 export interface TurnDeps {
   db: Database;
@@ -104,38 +94,6 @@ interface RunOptions {
   followed?: () => boolean;
 }
 
-/**
- * What a media turn is recorded as until, and unless, it has a transcript.
- * Never the URL: it opens the contact's file for good (specs/020).
- */
-const MEDIA_MARKERS: Record<MediaKind, string> = {
-  audio: '[voice note]',
-  image: '[image]',
-  video: '[video]',
-  unsupported: '[media]',
-};
-
-/**
- * What the part of a turn run against the deadline produced: the model's
- * answer, or a reply decided without it — a media fallback, a keyword found in
- * a transcript, or media we failed to read.
- */
-type Completion =
-  | { kind: 'model'; result: AgentResult }
-  | { kind: 'decided'; reply: AgentReply; outcome: TurnOutcome };
-
-/**
- * Every line about a turn names its conversation by the row's random ID, and
- * nothing derived from the subscriber ID (ADR-0014).
- */
-function withConversation(logger: TurnLogger, conversation: string): TurnLogger {
-  return {
-    info: (fields, message) => logger.info({ conversation, ...fields }, message),
-    warn: (fields, message) => logger.warn({ conversation, ...fields }, message),
-    error: (fields, message) => logger.error({ conversation, ...fields }, message),
-  };
-}
-
 export interface TurnResult {
   reply: AgentReply;
   outcome: TurnOutcome;
@@ -169,6 +127,7 @@ export class TurnHandler {
   private readonly queue: OutboxQueue;
   private readonly tokens: ContactTokens;
   private readonly nudges: NudgeStore;
+  private readonly media: MediaReader;
 
   constructor(deps: TurnDeps) {
     this.deps = deps;
@@ -177,6 +136,13 @@ export class TurnHandler {
     this.queue = new OutboxQueue(deps.db);
     this.tokens = new ContactTokens(deps.db, deps.tokenWriter);
     this.nudges = new NudgeStore(deps.db);
+    this.media = new MediaReader({
+      runner: deps.runner,
+      rules: deps.rules,
+      store: this.store,
+      budget: this.budget,
+      resolver: deps.media,
+    });
   }
 
   /** Queues a reply for the turn's channel: ManyChat, or a plugin's (specs/038). */
@@ -465,7 +431,7 @@ export class TurnHandler {
     const media = inbound.media;
     const userTurnId = await this.store.recordUserMessage(
       conversation.id,
-      media ? MEDIA_MARKERS[media.kind] : inbound.text,
+      media ? mediaMarker(media.kind) : inbound.text,
       { bound, mediaKind: media?.kind },
     );
 
@@ -676,33 +642,21 @@ export class TurnHandler {
     // A media turn's download and transcription share the model's deadline and
     // abort signal (specs/020 § Download and transcription run inside the
     // race), so the bound on a runaway model call also bounds a runaway fetch.
+    const input = {
+      history: priorHistory,
+      signal: abort.signal,
+      stage,
+      contact,
+      reads,
+      pluginReads,
+      flows,
+      beforeFlow: sendOpening,
+      builtInTools: this.deps.channel === undefined,
+    };
     const answered: Promise<Completion> = media
-      ? this.readMedia(media, {
-          userTurnId,
-          tenantId: inbound.tenantId,
-          history: priorHistory,
-          signal: abort.signal,
-          logger,
-          stage,
-          contact,
-          reads,
-          pluginReads,
-          flows,
-          beforeFlow: sendOpening,
-        })
+      ? this.media.read(media, { userTurnId, tenantId: inbound.tenantId, logger, input })
       : this.deps.runner
-          .run({
-            text: inbound.text,
-            history: priorHistory,
-            signal: abort.signal,
-            stage,
-            contact,
-            reads,
-            pluginReads,
-            flows,
-            beforeFlow: sendOpening,
-            builtInTools: this.deps.channel === undefined,
-          })
+          .run({ ...input, text: inbound.text })
           .then(result => ({ kind: 'model' as const, result }));
     // Inside the race, as a flow the model calls is (specs/029): a send that
     // runs past the deadline is deferred with the reply it precedes.
@@ -1056,125 +1010,5 @@ export class TurnHandler {
     } catch (error) {
       logger.error({ err: String(error) }, 'inline actions not recorded');
     }
-  }
-
-  /**
-   * The media half of a turn (specs/020): download, split and transcribe,
-   * then the keyword check the transcript makes possible, then the model.
-   */
-  private async readMedia(
-    media: InboundMedia,
-    ctx: {
-      userTurnId: string;
-      tenantId: string;
-      history: HistoryTurn[];
-      signal: AbortSignal;
-      logger: TurnLogger;
-      stage: ActionStage;
-      contact: ContactActions | undefined;
-      reads: ContactReads | undefined;
-      pluginReads: PluginReads | undefined;
-      flows: FlowSends | undefined;
-      beforeFlow: (() => Promise<void>) | undefined;
-    },
-  ): Promise<Completion> {
-    const { rules } = this.deps;
-    const { logger } = ctx;
-
-    let resolved;
-    try {
-      resolved = this.deps.media
-        ? await this.deps.media.resolve(media, ctx.signal)
-        : ({ status: 'fallback', reason: 'unsupported', costUsd: 0 } as const);
-    } catch (error) {
-      // A failed download, transcription or frame extraction is not something
-      // the contact can fix, and asking them to type would blame them for it.
-      // The message names the step, never the URL.
-      logger.error(
-        {
-          media: media.kind,
-          reason: error instanceof MediaFailure ? error.reason : 'unknown',
-          err: error instanceof Error ? error.message : String(error),
-        },
-        'media unreadable',
-      );
-      return {
-        kind: 'decided',
-        reply: escalationReply('low_confidence', rules.messages.escalation),
-        outcome: 'error',
-      };
-    }
-
-    // Owed whatever happens next: an empty transcript was still transcribed.
-    if (resolved.costUsd > 0) await this.budget.recordSpend(ctx.tenantId, 0, resolved.costUsd);
-
-    if (resolved.status === 'fallback') {
-      logger.info({ media: media.kind, reason: resolved.reason }, 'media fallback');
-      return this.mediaFallback();
-    }
-
-    const { transcript, images } = resolved;
-    if (transcript !== null) {
-      // From here the transcript is the contact's message, as if typed: it
-      // enters history, and it is matched against the keywords.
-      await this.store.replaceUserMessage(ctx.userTurnId, transcript);
-      const keyword = checkKeywords(transcript, rules);
-      if (!keyword.allowed) {
-        logger.info(
-          { reason: keyword.reason, detail: keyword.detail },
-          'turn escalated before model',
-        );
-        return {
-          kind: 'decided',
-          reply: escalationReply(keyword.reason, rules.messages.escalation),
-          outcome: 'escalated_precheck',
-        };
-      }
-    }
-
-    logger.info(
-      { media: media.kind, images: images.length, transcript: transcript !== null },
-      'media read',
-    );
-    const result = await this.deps.runner.run({
-      text: transcript ?? '',
-      history: ctx.history,
-      signal: ctx.signal,
-      stage: ctx.stage,
-      contact: ctx.contact,
-      reads: ctx.reads,
-      pluginReads: ctx.pluginReads,
-      flows: ctx.flows,
-      beforeFlow: ctx.beforeFlow,
-      builtInTools: this.deps.channel === undefined,
-      media: {
-        // `unsupported` never resolves; it always takes the fallback above.
-        kind: media.kind as 'audio' | 'image' | 'video',
-        images,
-        transcript: transcript !== null,
-      },
-    });
-    return { kind: 'model', result };
-  }
-
-  /**
-   * The tenant's "please type it" reply, or a handoff when the tenant has not
-   * written one: a contact who cannot be asked to type goes to a person (C6).
-   */
-  private mediaFallback(): Completion {
-    const { messages } = this.deps.rules;
-    if (!messages.mediaFallback) {
-      return {
-        kind: 'decided',
-        reply: escalationReply('out_of_scope', messages.escalation),
-        outcome: 'escalated_precheck',
-      };
-    }
-    return {
-      kind: 'decided',
-      // Tenant copy that already asks what it needs to.
-      reply: plainReply([messages.mediaFallback]),
-      outcome: 'media_fallback',
-    };
   }
 }
