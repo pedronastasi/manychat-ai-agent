@@ -30,7 +30,7 @@ export interface RecordedTurn {
  * Writes how a turn ended: its agent reply row, with usage, spend, what was
  * staged and what was read, and the escalation it made. One per turn; the
  * inline and the deferred path record through the same one, so the two cannot
- * drift apart.
+ * drift apart (ADR-0024).
  */
 export class TurnRecorder {
   private readonly deps: TurnRecorderDeps;

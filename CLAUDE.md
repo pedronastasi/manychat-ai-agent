@@ -67,7 +67,7 @@ Ports-and-adapters (hexagonal). Key boundaries:
 - **FlowSends** (`src/agent/flows.ts`) — sends a flow when the model calls `send_flow` on an inbound turn, so the reply follows it (specs/029, ADR-0019), and keeps when the last one finishes playing, which the reply waits for (specs/030). Every other write is staged on `ActionStage` and performed after the reply (ADR-0010).
 - **Registry** (`src/agent/registry.ts`) — the ONLY file that imports provider packages.
 - **Contracts** (`src/contracts/`) — Zod schemas are the source of truth; types are inferred.
-- **TurnHandler** (`src/turn/handler.ts`) — runs one turn (the race, ADR-0001) and delegates each job: `TurnOrder` (one turn at a time per contact, folding; specs/037, 046, 047), `TurnAdmission` (binding, the turn, the user message; specs/019), `Prechecks` (opening sentinel, guards; C6), `MediaReader` (specs/020), `TurnRecorder` (how the turn ended), `ReplyDelivery` (inline or outbox; specs/030, 037), `DeferredSettlement` (a lost race).
+- **TurnHandler** (`src/turn/handler.ts`) — runs one turn (the race, ADR-0001) and delegates each job: `TurnOrder` (one turn at a time per contact, folding; specs/037, 046, 047), `TurnAdmission` (binding, the turn, the user message; specs/019), `Prechecks` (opening sentinel, guards; C6), `MediaReader` (specs/020), `TurnRecorder` (how the turn ended), `ReplyDelivery` (inline or outbox; specs/030, 037), `DeferredSettlement` (a lost race). `TurnScope` builds the collaborators that need the admitted turn, so `run()` only sequences (ADR-0023); every ending records and delivers through the same two (ADR-0024).
 - **Outbox** (`src/outbox/`) — Postgres outbox with `FOR UPDATE SKIP LOCKED` for deferred delivery.
 - **Nudges** (`src/nudge/`) — follow-ups the agent schedules, run by a worker at due time (specs/025).
 
@@ -99,7 +99,7 @@ test/
   fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
-docs/adr/              # Architecture Decision Records (0001–0022)
+docs/adr/              # Architecture Decision Records (0001–0024)
 specs/                 # Specification documents (000–032)
 evals/golden/          # Golden eval cases (cases.jsonl)
 packages/create/       # create-manychat-ai-agent: scaffolds a tenant project (specs/035)
