@@ -97,7 +97,7 @@ package root; where that root lives is the implementing pull request's call.
 | `src/media/*`                                     | `media/*`                                 | The ffmpeg arguments, and the order in `020 § Download and transcription run inside the race` |
 | `src/observability/redact.ts`                     | `observability/redact.py`                 | The same patterns, applied at the root logger                                                 |
 | `src/outbox/*`                                    | `outbox/*`                                | The claim statement, `MAX_ATTEMPTS`, the backoff                                              |
-| `src/routes/auth.ts`, `src/routes/turn.ts`        | `routes/auth.py`, `routes/turn.py`        | Constant-time compare (`hmac.compare_digest`); the race                                       |
+| `src/routes/auth.ts`, `src/turn/*`                | `routes/auth.py`, `turn/*`                | Constant-time compare (`hmac.compare_digest`); the race                                       |
 | `src/backfill.ts`, `evals/*.ts`                   | `backfill.py`, `evals/*.py`               | Same flags; the eval reads the same `evals/golden/cases.jsonl`                                |
 
 The choices the developer left open:

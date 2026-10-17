@@ -4,7 +4,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { buildSystemPrompt } from '../../src/agent/prompt.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
 import type { AgentRunner, AgentResult } from '../../src/agent/runner.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
@@ -142,7 +142,7 @@ describe('committed source carries no Spanish copy', () => {
   // A cheap guard: copy in another language used to live in these files, and its
   // return would be invisible to every other test.
   it.each([
-    'src/routes/turn.ts',
+    'src/turn/handler.ts',
     'src/agent/guardrails.ts',
     'src/agent/prompt.ts',
     'src/agent/mock-provider.ts',

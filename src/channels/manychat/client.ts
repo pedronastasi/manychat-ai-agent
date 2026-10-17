@@ -1,4 +1,9 @@
-import { ManyChat } from 'manychat-sdk';
+import {
+  ManyChat,
+  ManyChatApiError,
+  ManyChatConnectionError,
+  ManyChatResponseError,
+} from 'manychat-sdk';
 import type { ContactTokenWriter } from '../../conversation/tokens.ts';
 import type { PerformableAction } from '../../contracts/agent.ts';
 import type { Env } from '../../contracts/config.ts';
@@ -12,6 +17,21 @@ export {
   ManyChatConnectionError,
   ManyChatResponseError,
 } from 'manychat-sdk';
+
+/**
+ * What may be logged about a failed write, which the outbox retries. Never its
+ * message: ManyChat's answer could quote the token it was sent (specs/022 §
+ * Error text stays within what C5 and 019 allow).
+ */
+export function describeWriteError(error: unknown) {
+  if (!(error instanceof Error)) return { name: typeof error };
+  return {
+    name: error.name,
+    ...(error instanceof ManyChatApiError ? { status: error.status } : {}),
+    ...(error instanceof ManyChatConnectionError ? { reason: error.reason } : {}),
+    ...(error instanceof ManyChatResponseError ? { endpoint: error.endpoint } : {}),
+  };
+}
 
 /**
  * Performs an action the agent staged on a turn (specs/012), one request per

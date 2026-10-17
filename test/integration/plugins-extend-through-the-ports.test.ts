@@ -5,7 +5,7 @@ import { createTestDatabase } from '../helpers/db.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import { EXAMPLE_PLUGIN, tenantProject } from '../helpers/plugins.ts';
 import type { Database } from '../../src/db/client.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
 import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { NO_TOOLS } from '../../src/contracts/config.ts';

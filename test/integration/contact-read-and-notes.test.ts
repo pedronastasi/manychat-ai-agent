@@ -4,8 +4,8 @@ import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk
 import { createTestDatabase } from '../helpers/db.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import type { Database } from '../../src/db/client.ts';
-import { TurnHandler } from '../../src/routes/turn.ts';
-import type { TurnLogger } from '../../src/routes/turn.ts';
+import { TurnHandler } from '../../src/turn/handler.ts';
+import type { TurnLogger } from '../../src/turn/handler.ts';
 import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { ContactReads, MAX_READS_PER_TURN, READ_TIMEOUT_MS } from '../../src/agent/contact.ts';
