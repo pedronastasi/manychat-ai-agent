@@ -1,7 +1,6 @@
 import type { Database } from '../db/client.ts';
 import type { AgentRunner, AgentResult } from '../agent/runner.ts';
 import type {
-  ActionRecord,
   InboundMedia,
   InboundMessage,
   AgentReply,
@@ -27,7 +26,6 @@ import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
 import {
   ActionStage,
   contactActionsFrom,
-  offeringField,
   knownOffering,
   openingFlow,
   stagesProspect,
@@ -35,19 +33,18 @@ import {
 import type { HistoryTurn } from '../agent/runner.ts';
 import type { ContactActions } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
+import { describeWriteError } from '../channels/manychat/client.ts';
 import { ContactReads, ReadBudget } from '../agent/contact.ts';
 import { PluginReads } from '../plugins/reads.ts';
 import type { Plugins } from '../plugins/plugins.ts';
-import {
-  ManyChatApiError,
-  ManyChatConnectionError,
-  ManyChatResponseError,
-} from '../channels/manychat/client.ts';
 import { performActions, performedOffering } from '../conversation/actions.ts';
 import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 import { FlowSends } from '../agent/flows.ts';
 import type { TurnLanes } from '../conversation/turns.ts';
+import { advertOfferingOf } from '../turn/context.ts';
+import { raceDeadline } from '../turn/race.ts';
+import { modelOutcomeOf, plainReply } from '../turn/replies.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -159,47 +156,6 @@ export interface TurnResult {
 }
 
 /**
- * A write that fails is retried by the outbox. Its message is never logged:
- * ManyChat's answer could quote the token it was sent (specs/022 § Error text
- * stays within what C5 and 019 allow).
- */
-/**
- * The offering the contact arrived through, as the model is told it: one
- * stored from a bound request that the agent never wrote (specs/034 § What
- * counts as prospect intent). An unbound request's offering is never stored
- * (specs/028),
- * so it is never one, and a forged request cannot make a contact a prospect.
- */
-function advertOfferingOf(
-  stored: string | undefined,
-  turns: readonly { actions: readonly ActionRecord[] | null }[],
-  tools: Tools,
-): { advertOffering?: string } {
-  const field = offeringField(tools);
-  if (stored === undefined || field === undefined) return {};
-  const written = turns.some(turn =>
-    (turn.actions ?? []).some(
-      action =>
-        action.tool === 'set_field' &&
-        action.id === field.id &&
-        action.value === stored &&
-        action.status === 'performed',
-    ),
-  );
-  return written ? {} : { advertOffering: stored };
-}
-
-function describeWriteError(error: unknown) {
-  if (!(error instanceof Error)) return { name: typeof error };
-  return {
-    name: error.name,
-    ...(error instanceof ManyChatApiError ? { status: error.status } : {}),
-    ...(error instanceof ManyChatConnectionError ? { reason: error.reason } : {}),
-    ...(error instanceof ManyChatResponseError ? { endpoint: error.endpoint } : {}),
-  };
-}
-
-/**
  * Runs one conversational turn under the platform's timeout (specs/002).
  *
  * The race is the whole design (ADR-0001): if the model answers before the
@@ -306,12 +262,8 @@ export class TurnHandler {
       return (await folds()) ? ('fold' as const) : ('run' as const);
     })();
 
-    let timer: NodeJS.Timeout | undefined;
-    const late = new Promise<'late'>(resolve => {
-      timer = setTimeout(() => resolve('late'), Math.max(0, deadlineAt - Date.now()));
-    });
-    const first = await Promise.race([decided, late]).finally(() => clearTimeout(timer));
-    if (first === 'late') {
+    const first = await raceDeadline(decided, deadlineAt);
+    if (first === 'deadline') {
       void decided
         .then(async decision => {
           if (decision === 'fold') await this.fold(inbound, binding);
@@ -327,13 +279,7 @@ export class TurnHandler {
       const current = known ?? (await this.store.find(inbound.tenantId, inbound.subscriberId));
       logger.info({ conversation: current?.id }, 'turn answered silently while it waits');
       return {
-        reply: {
-          messages: [],
-          escalate: false,
-          escalation_reason: null,
-          confidence: 1,
-          closing_question: null,
-        },
+        reply: plainReply([]),
         outcome: 'deferred',
         conversationId: current?.id ?? '',
         binding,
@@ -384,13 +330,7 @@ export class TurnHandler {
       'message folded into the next turn',
     );
     return {
-      reply: {
-        messages: [],
-        escalate: false,
-        escalation_reason: null,
-        confidence: 1,
-        closing_question: null,
-      },
+      reply: plainReply([]),
       outcome: 'folded',
       conversationId: conversation.id,
       binding,
@@ -570,15 +510,9 @@ export class TurnHandler {
       await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted', turn);
       logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
       return answer({
-        reply: {
-          messages: [opening],
-          escalate: false,
-          escalation_reason: null,
-          confidence: 1,
-          // The opening copy is the tenant's own and already ends how it
-          // should; appending a second question would talk over it.
-          closing_question: null,
-        },
+        // The opening copy is the tenant's own and already ends how it
+        // should; appending a second question would talk over it.
+        reply: plainReply([opening]),
         outcome: 'answered_scripted',
         conversationId: conversation.id,
         binding,
@@ -718,13 +652,7 @@ export class TurnHandler {
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.deps.modelAbortMs);
 
-    // From the request's arrival, so a wait for the contact's previous turn
-    // counts against it (specs/037).
-    let deadlineTimer: NodeJS.Timeout | undefined;
     const { deadlineAt } = opts;
-    const deadline = new Promise<'deadline'>(resolve => {
-      deadlineTimer = setTimeout(() => resolve('deadline'), Math.max(0, deadlineAt - Date.now()));
-    });
 
     // Once per turn, whichever comes first: the model's first flow, or its
     // reply settling (specs/032 § The opening flow is the server's).
@@ -788,8 +716,10 @@ export class TurnHandler {
       .then(done => ({ kind: 'done' as const, done }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
 
-    // A turn whose response already went out has no race left to win.
-    const winner = opts.late ? ('deadline' as const) : await Promise.race([completion, deadline]);
+    // A turn whose response already went out has no race left to win. The
+    // deadline runs from the request's arrival, so a wait for the contact's
+    // previous turn counts against it (specs/037).
+    const winner = opts.late ? ('deadline' as const) : await raceDeadline(completion, deadlineAt);
 
     /**
      * Persists usage, spend and what was staged. Shared by the inline and
@@ -913,20 +843,13 @@ export class TurnHandler {
     };
 
     if (winner === 'deadline') {
-      clearTimeout(deadlineTimer);
       // A flow still playing is the contact's wait: a holding line now would
       // land inside it (specs/030 § A flow still playing is the holding line).
       // So would one while a reply to the contact is still queued: it is on
       // its way (specs/037).
       const silent = flows.playsUntil > Date.now() || (await mustQueue());
-      const holding: AgentReply = {
-        messages: [rules.messages.acknowledgement],
-        escalate: false,
-        escalation_reason: null,
-        confidence: 1,
-        // A holding line while the real reply completes into the outbox.
-        closing_question: null,
-      };
+      // A holding line while the real reply completes into the outbox.
+      const holding = plainReply([rules.messages.acknowledgement]);
       const notBefore = () =>
         flows.playsUntil > Date.now() ? new Date(flows.playsUntil) : undefined;
 
@@ -1026,7 +949,6 @@ export class TurnHandler {
     }
 
     clearTimeout(abortTimer);
-    clearTimeout(deadlineTimer);
 
     if (winner.kind === 'error') {
       logger.error({ err: String(winner.error) }, 'model call failed');
@@ -1063,14 +985,7 @@ export class TurnHandler {
       };
     }
 
-    // A failed call and a deliberate escalation both carry `escalate: true` and
-    // the same tenant message, so without the first branch the turns table
-    // recorded a dead model call as a decision the model made.
-    const outcome: TurnOutcome = done.result.modelError
-      ? 'error'
-      : done.result.reply.escalate
-        ? 'escalated_model'
-        : 'answered_inline';
+    const outcome = modelOutcomeOf(done.result);
     const turnId = await settle(done.result, outcome);
     if (done.result.interventions.length > 0) {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
@@ -1257,14 +1172,8 @@ export class TurnHandler {
     }
     return {
       kind: 'decided',
-      reply: {
-        messages: [messages.mediaFallback],
-        escalate: false,
-        escalation_reason: null,
-        confidence: 1,
-        // Tenant copy that already asks what it needs to.
-        closing_question: null,
-      },
+      // Tenant copy that already asks what it needs to.
+      reply: plainReply([messages.mediaFallback]),
       outcome: 'media_fallback',
     };
   }
