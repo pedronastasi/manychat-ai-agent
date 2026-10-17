@@ -39,6 +39,7 @@ import type { Completion } from '../turn/completion.ts';
 import { withConversation } from '../turn/logger.ts';
 import type { TurnLogger } from '../turn/logger.ts';
 import { MediaReader, mediaMarker } from '../turn/media.ts';
+import { TurnRecorder } from '../turn/recorder.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -368,7 +369,6 @@ export class TurnHandler {
             now,
           );
     const logger = withConversation(this.deps.logger, conversation.id);
-    const turn = { bound };
 
     /**
      * Whether this turn's reply has to go through the outbox behind the
@@ -456,13 +456,40 @@ export class TurnHandler {
       });
     }
 
-    // An unbound request must not change the contact's own state. Any
-    // escalation cancels a waiting nudge, though: it can only err toward
-    // sending nothing (specs/025).
-    const markEscalated = async () => {
-      await this.nudges.cancel(conversation.id, 'escalated');
-      if (bound) await this.store.markEscalated(conversation.id);
-    };
+    // What the model stages this turn. Held here rather than in the runner, so
+    // it is still known when the call is aborted and never returns.
+    const stage = new ActionStage();
+
+    // The contact's record holds their own words in its notes, so a turn that
+    // may not read their history may not read it either (specs/024). A plugin
+    // read is given the subscriber, so it is held to the same rule, and
+    // spends the same two reads (specs/039).
+    const budget = new ReadBudget();
+    const reads =
+      this.deps.contacts && readsHistory
+        ? new ContactReads({
+            reader: this.deps.contacts,
+            subscriberId: inbound.subscriberId,
+            logger,
+            budget,
+          })
+        : undefined;
+    const pluginReads =
+      this.deps.plugins?.hasReadTools && readsHistory
+        ? new PluginReads({ subscriberId: inbound.subscriberId, logger, budget })
+        : undefined;
+
+    const recorder = new TurnRecorder(
+      { store: this.store, budget: this.budget, nudges: this.nudges },
+      {
+        conversationId: conversation.id,
+        tenantId: inbound.tenantId,
+        bound,
+        logger,
+        stage,
+        pluginReads,
+      },
+    );
 
     // The channel flow's opening sentinel. Fully determined - no contact input
     // to interpret and exactly one correct reply - so it never reaches the
@@ -473,12 +500,13 @@ export class TurnHandler {
     // matches: the sentinel is sent by the flow, not spoken by a contact.
     const opening = media ? null : matchOpeningTrigger(inbound.text, rules);
     if (opening) {
-      await this.store.recordAgentReply(conversation.id, opening, 'answered_scripted', turn);
+      // The opening copy is the tenant's own and already ends how it should;
+      // appending a second question would talk over it.
+      const reply = plainReply([opening]);
+      await recorder.decided(reply, 'answered_scripted');
       logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
       return answer({
-        // The opening copy is the tenant's own and already ends how it
-        // should; appending a second question would talk over it.
-        reply: plainReply([opening]),
+        reply,
         outcome: 'answered_scripted',
         conversationId: conversation.id,
         binding,
@@ -497,13 +525,7 @@ export class TurnHandler {
     const denied = guards.find(guard => !guard.allowed);
     if (denied && !denied.allowed) {
       const reply = escalationReply(denied.reason, rules.messages.escalation);
-      await this.store.recordAgentReply(
-        conversation.id,
-        reply.messages[0]!,
-        'escalated_precheck',
-        turn,
-      );
-      await markEscalated();
+      await recorder.decided(reply, 'escalated_precheck');
       logger.info({ reason: denied.reason, detail: denied.detail }, 'turn escalated before model');
       return answer({
         reply,
@@ -553,33 +575,6 @@ export class TurnHandler {
           }
         : undefined;
 
-    // What the model stages this turn. Held here rather than in the runner, so
-    // it is still known when the call is aborted and never returns.
-    const stage = new ActionStage();
-
-    // The contact's record holds their own words in its notes, so a turn that
-    // may not read their history may not read it either (specs/024). A plugin
-    // read is given the subscriber, so it is held to the same rule, and
-    // spends the same two reads (specs/039).
-    const budget = new ReadBudget();
-    const reads =
-      this.deps.contacts && readsHistory
-        ? new ContactReads({
-            reader: this.deps.contacts,
-            subscriberId: inbound.subscriberId,
-            logger,
-            budget,
-          })
-        : undefined;
-    const pluginReads =
-      this.deps.plugins?.hasReadTools && readsHistory
-        ? new PluginReads({ subscriberId: inbound.subscriberId, logger, budget })
-        : undefined;
-    // Every row an agent turn writes carries its reads, an errored one too:
-    // null only when no read tool was offered (specs/039 § The turn records
-    // that a read happened, never what it returned).
-    const readRecords = () => (pluginReads ? [...pluginReads.records] : null);
-
     // A flow is sent when the model calls it, so its reply follows it
     // (specs/029). Through the nudging performer, so a payment link sent now
     // still cancels a pending nudge.
@@ -589,31 +584,6 @@ export class TurnHandler {
       logger,
       tools,
     });
-
-    /**
-     * Staged actions are performed only when the final reply, after the
-     * guardrails, does not escalate. Every other ending lands here (specs/012
-     * § Guardrails run before any action is performed), except the
-     * `onEscalation` notes in `kept` (specs/024).
-     */
-    const discard = (kept: readonly StagedAction[] = []) => {
-      const discarded = stage.staged.length - kept.length;
-      if (discarded > 0) logger.info({ discarded }, 'staged actions discarded');
-      return stage.staged.length + stage.dropped.length + stage.sent.length > 0
-        ? stage.records('discarded', kept)
-        : undefined;
-    };
-
-    /**
-     * What a settled turn performs once its text is delivered: everything
-     * staged when it did not escalate, and on an escalation the model or the
-     * confidence threshold made, the notes that outlive it (specs/024 § A
-     * handoff summary survives the escalation it describes).
-     */
-    const performable = (result: AgentResult): readonly StagedAction[] =>
-      result.reply.escalate
-        ? stage.survivors(result.escalatedBy === 'model' || result.escalatedBy === 'confidence')
-        : stage.staged;
 
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.deps.modelAbortMs);
@@ -676,48 +646,6 @@ export class TurnHandler {
     const winner = opts.late ? ('deadline' as const) : await raceDeadline(completion, deadlineAt);
 
     /**
-     * Persists usage, spend and what was staged. Shared by the inline and
-     * deferred paths. Returns the agent turn's id.
-     */
-    const settle = async (result: AgentResult, outcome: TurnOutcome) => {
-      // Null when no tool was offered, so it reads apart from "offered, none
-      // chosen" (specs/012 § Every staged action is recorded on its turn).
-      // A flow the server sent is recorded even when the model was offered no
-      // tool: the opening may be a tenant's only flow (specs/032).
-      const actions =
-        !result.toolsOffered && stage.sent.length === 0
-          ? null
-          : outcome === 'superseded'
-            ? (discard() ?? [])
-            : result.reply.escalate
-              ? (discard(performable(result)) ?? [])
-              : stage.records('staged');
-      const turnId = await this.store.recordAgentReply(
-        conversation.id,
-        result.reply.messages.join('\n'),
-        outcome,
-        {
-          bound,
-          usage: {
-            model: result.model,
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            cacheReadTokens: result.usage.cacheReadTokens,
-            costUsd: result.usage.costUsd,
-            latencyMs: result.latencyMs,
-            playbookVersion: result.playbookVersion,
-          },
-          actions,
-          reads: readRecords(),
-        },
-      );
-      const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
-      await this.budget.recordSpend(inbound.tenantId, tokens, result.usage.costUsd);
-      if (result.reply.escalate) await markEscalated();
-      return turnId;
-    };
-
-    /**
      * Whether the model's reply is dropped because the contact kept writing
      * while it ran, and their next turn answers everything they wrote
      * (specs/046 § A reply the contact wrote past is superseded). Never one
@@ -732,21 +660,6 @@ export class TurnHandler {
       stage.sent.length === 0 &&
       !result.reply.escalate &&
       !result.modelError;
-
-    /**
-     * Records a reply decided without the model. Its own outcome is kept even
-     * when it lands after the deadline: `deferred` describes a slow model, and
-     * a fallback recorded as one could not be counted as a fallback.
-     */
-    const conclude = async (decided: Extract<Completion, { kind: 'decided' }>) => {
-      await this.store.recordAgentReply(
-        conversation.id,
-        decided.reply.messages.join('\n'),
-        decided.outcome,
-        turn,
-      );
-      if (decided.reply.escalate) await markEscalated();
-    };
 
     /**
      * Delivers a settled turn's reply after the flows it sent have played
@@ -821,7 +734,7 @@ export class TurnHandler {
             // MODEL_ABORT_MS lands here, with whatever it had staged, and
             // perhaps a flow request still in flight.
             await stage.settled();
-            const actions = discard();
+            const actions = recorder.discard();
             logger.error({ err: String(outcome.error) }, 'deferred model call failed');
             // A flow sent during the call has reached the contact, so the turn
             // is recorded with it: otherwise the next turn would not know it
@@ -829,12 +742,7 @@ export class TurnHandler {
             // escalation cannot recall a flow). Recorded as the holding line
             // the contact was actually given.
             if (stage.sent.length > 0) {
-              await this.store.recordAgentReply(
-                conversation.id,
-                rules.messages.acknowledgement,
-                'error',
-                { ...turn, actions, reads: readRecords() },
-              );
+              await recorder.failed(rules.messages.acknowledgement, actions);
             }
             // A silent response gave the contact nothing yet, so the holding
             // line it held back goes out now, after the flow (specs/030).
@@ -852,17 +760,17 @@ export class TurnHandler {
           const { done } = outcome;
           let deferred: { staged: readonly StagedAction[]; turnId: string } | undefined;
           if (done.kind === 'decided') {
-            await conclude(done);
+            await recorder.decided(done.reply, done.outcome);
           } else if (superseded(done.result)) {
-            await settle(done.result, 'superseded');
+            await recorder.settle(done.result, 'superseded');
             logger.info({ outcome: 'superseded', deferred: true }, 'reply superseded');
             return;
           } else {
-            const turnId = await settle(done.result, 'deferred');
+            const turnId = await recorder.settle(done.result, 'deferred');
             // Deferred with the reply, never dropped from it: the worker
             // performs them once the text is delivered (specs/012 § The whole
             // loop runs inside the race).
-            const staged = performable(done.result);
+            const staged = recorder.performable(done.result);
             if (staged.length > 0) deferred = { staged, turnId };
             // The inline path logs these below. Without the same line here a
             // guardrail or a failed call on a deferred turn left no trace in
@@ -907,18 +815,14 @@ export class TurnHandler {
     if (winner.kind === 'error') {
       logger.error({ err: String(winner.error) }, 'model call failed');
       const reply = escalationReply('low_confidence', rules.messages.escalation);
-      await this.store.recordAgentReply(conversation.id, reply.messages[0]!, 'error', {
-        ...turn,
-        actions: discard(),
-        reads: readRecords(),
-      });
-      await markEscalated();
+      await recorder.failed(reply.messages[0]!, recorder.discard());
+      await recorder.escalated();
       return deliver({ reply, outcome: 'error', conversationId: conversation.id, binding });
     }
 
     const { done } = winner;
     if (done.kind === 'decided') {
-      await conclude(done);
+      await recorder.decided(done.reply, done.outcome);
       return answer({
         reply: done.reply,
         outcome: done.outcome,
@@ -928,7 +832,7 @@ export class TurnHandler {
     }
 
     if (superseded(done.result)) {
-      await settle(done.result, 'superseded');
+      await recorder.settle(done.result, 'superseded');
       logger.info({ outcome: 'superseded' }, 'reply superseded');
       return {
         reply: done.result.reply,
@@ -940,11 +844,11 @@ export class TurnHandler {
     }
 
     const outcome = modelOutcomeOf(done.result);
-    const turnId = await settle(done.result, outcome);
+    const turnId = await recorder.settle(done.result, outcome);
     if (done.result.interventions.length > 0) {
       logger.info({ interventions: done.result.interventions }, 'guardrails intervened');
     }
-    const staged = performable(done.result);
+    const staged = recorder.performable(done.result);
     return deliver(
       {
         reply: done.result.reply,
