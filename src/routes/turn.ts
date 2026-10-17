@@ -6,24 +6,12 @@ import type { Rules, Tools } from '../contracts/config.ts';
 import type { MediaResolver } from '../media/resolver.ts';
 import { escalationReply } from '../agent/guardrails.ts';
 import { ConversationStore } from '../conversation/store.ts';
-import {
-  BudgetGuard,
-  checkKeywords,
-  checkTurnCap,
-  matchOpeningTrigger,
-} from '../conversation/budget.ts';
+import { BudgetGuard, checkKeywords, matchOpeningTrigger } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
-import { ContactTokens, bindingFor } from '../conversation/tokens.ts';
+import { ContactTokens } from '../conversation/tokens.ts';
 import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
-import {
-  ActionStage,
-  contactActionsFrom,
-  knownOffering,
-  openingFlow,
-  stagesProspect,
-} from '../agent/tools.ts';
+import { ActionStage, contactActionsFrom, openingFlow, stagesProspect } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
-import { describeWriteError } from '../channels/manychat/client.ts';
 import { ContactReads, ReadBudget } from '../agent/contact.ts';
 import { PluginReads } from '../plugins/reads.ts';
 import type { Plugins } from '../plugins/plugins.ts';
@@ -32,14 +20,16 @@ import { NudgeStore } from '../nudge/store.ts';
 import { NudgingPerformer } from '../nudge/performer.ts';
 import { FlowSends } from '../agent/flows.ts';
 import type { TurnLanes } from '../conversation/turns.ts';
-import { advertOfferingOf } from '../turn/context.ts';
+import { advertOfferingOf, offeringOf } from '../turn/context.ts';
+import { TurnAdmission, bindingOf } from '../turn/admission.ts';
+import { Prechecks } from '../turn/prechecks.ts';
 import { raceDeadline } from '../turn/race.ts';
 import { modelOutcomeOf, plainReply } from '../turn/replies.ts';
 import type { Completion, Settled } from '../turn/completion.ts';
 import { DeferredSettlement } from '../turn/deferred.ts';
 import { withConversation } from '../turn/logger.ts';
 import type { TurnLogger } from '../turn/logger.ts';
-import { MediaReader, mediaMarker } from '../turn/media.ts';
+import { MediaReader } from '../turn/media.ts';
 import { TurnRecorder } from '../turn/recorder.ts';
 import { ContactOutbox, ReplyDelivery } from '../turn/delivery.ts';
 import type { TurnResult } from '../turn/result.ts';
@@ -113,6 +103,7 @@ export class TurnHandler {
   private readonly tokens: ContactTokens;
   private readonly nudges: NudgeStore;
   private readonly media: MediaReader;
+  private readonly prechecks: Prechecks;
 
   constructor(deps: TurnDeps) {
     this.deps = deps;
@@ -121,6 +112,7 @@ export class TurnHandler {
     this.queue = new OutboxQueue(deps.db);
     this.tokens = new ContactTokens(deps.db, deps.tokenWriter);
     this.nudges = new NudgeStore(deps.db);
+    this.prechecks = new Prechecks({ budget: this.budget, rules: deps.rules });
     this.media = new MediaReader({
       runner: deps.runner,
       rules: deps.rules,
@@ -139,12 +131,18 @@ export class TurnHandler {
     );
   }
 
-  /**
-   * A plugin channel's contact is bound by the channel's own auth: it has no
-   * token to present, and none is issued (specs/038).
-   */
-  private bindingOf(known: Parameters<typeof bindingFor>[0], inbound: InboundMessage): Binding {
-    return this.deps.channel !== undefined ? 'bound' : bindingFor(known, inbound.contactToken);
+  private admission(tools: Tools): TurnAdmission {
+    const { rules, tokensEnforced, channel, logger } = this.deps;
+    return new TurnAdmission({
+      store: this.store,
+      tokens: this.tokens,
+      nudges: this.nudges,
+      rules,
+      tools,
+      tokensEnforced,
+      channel,
+      logger,
+    });
   }
 
   /**
@@ -171,7 +169,7 @@ export class TurnHandler {
         slot.leave();
         throw error;
       });
-    const binding = this.bindingOf(known, inbound);
+    const binding = bindingOf(known, inbound, this.deps.channel);
     if (binding === 'unbound' && tokensEnforced) {
       slot.leave();
       return this.run(inbound, { deadlineAt });
@@ -294,90 +292,13 @@ export class TurnHandler {
   }
 
   private async run(inbound: InboundMessage, opts: RunOptions): Promise<TurnResult> {
-    const { rules, tokensEnforced } = this.deps;
+    const { rules } = this.deps;
     const now = new Date();
-
-    // The shared secret proved the caller; the token proves the contact
-    // (specs/019). Without it the request is answered from its own message
-    // alone, and neither reads nor extends the contact's history.
-    const known = await this.store.find(inbound.tenantId, inbound.subscriberId);
-    const binding = this.bindingOf(known, inbound);
-    // During the rollout a request without the token is treated as it was
-    // before specs/019, so nobody loses context before their token lands.
-    const bound = binding !== 'unbound' || !tokensEnforced;
-    // A contact with no token yet starts their history here: whatever came
-    // before was never proved to be theirs.
-    const readsHistory = binding === 'bound' || !tokensEnforced;
-
-    // Only a bound turn counts toward the cap or moves the idle gap; the
-    // per-contact rate limit bounds the rest (specs/019 § Only bound turns
-    // enter history and the turn cap).
-    const conversation =
-      !bound && known
-        ? known
-        : await this.store.startTurn(
-            {
-              tenantId: inbound.tenantId,
-              subscriberId: inbound.subscriberId,
-              channel: inbound.channel,
-              idleResetHours: rules.idleResetHours,
-            },
-            now,
-          );
-    const logger = withConversation(this.deps.logger, conversation.id);
-
-    // The request's offering is ManyChat's value now, which already holds every
-    // write this service performed, so it wins over the one kept here
-    // (specs/028). It narrows this turn's flows bound or not, but only a
-    // bound request may store it: an unbound one must not change the
-    // contact's own state (specs/019). The kept one is checked too, since a
-    // reload may have dropped its offering from the catalog.
     const tools = this.deps.tools ?? NO_TOOLS;
-    const keptOffering = knownOffering(known?.offering, tools);
-    const requestOffering = knownOffering(inbound.offering, tools);
-    if (bound && requestOffering !== undefined && requestOffering !== keptOffering) {
-      await this.store.setOffering(conversation.id, requestOffering);
-    }
-    const offering = {
-      offering: requestOffering ?? keptOffering,
-      // The stage is not reset: the model confirms the offering instead.
-      offeringChangedFrom:
-        requestOffering !== undefined &&
-        keptOffering !== undefined &&
-        requestOffering !== keptOffering
-          ? keptOffering
-          : undefined,
-    };
-    // The contact wrote, so the follow-up waiting for their silence is moot
-    // (specs/025). Any message, bound or not: it errs toward sending nothing.
-    await this.nudges.cancel(conversation.id, 'contact_replied');
-    const media = inbound.media;
-    const userTurnId = await this.store.recordUserMessage(
-      conversation.id,
-      media ? mediaMarker(media.kind) : inbound.text,
-      { bound, mediaKind: media?.kind },
-    );
-
-    // Watched as a share of all turns: a flow that stopped sending the field
-    // shows up here and nowhere else.
-    if (binding === 'unbound') logger.info({ binding, enforced: tokensEnforced }, 'unbound turn');
-
-    // A contact without a token gets one, and so does an unbound request,
-    // which repairs a cleared field or a lost write. It goes only to the real
-    // contact's field, so a forger gains nothing by triggering it.
-    if (binding !== 'bound') {
-      const issued = await this.tokens.issue(
-        {
-          tenantId: inbound.tenantId,
-          subscriberId: inbound.subscriberId,
-          conversationId: conversation.id,
-        },
-        now,
-      );
-      issued?.written.catch((error: unknown) => {
-        logger.error({ error: describeWriteError(error) }, 'contact token write failed');
-      });
-    }
+    const admitted = await this.admission(tools).admit(inbound, now);
+    const { binding, bound, readsHistory, conversation, logger, userTurnId } = admitted;
+    const { keptOffering, requestOffering } = admitted;
+    const { media } = inbound;
 
     // What the model stages this turn. Held here rather than in the runner, so
     // it is still known when the call is aborted and never returns.
@@ -432,45 +353,23 @@ export class TurnHandler {
       },
     );
 
-    // The channel flow's opening sentinel. Fully determined - no contact input
-    // to interpret and exactly one correct reply - so it never reaches the
-    // model: instant, free, and it cannot be lost to a low-confidence
-    // self-report. Checked before the guards because the sentinel is emitted by
-    // the flow rather than typed by a contact, and the caps below exist to
-    // bound model spend, which a scripted reply does not incur. Media never
-    // matches: the sentinel is sent by the flow, not spoken by a contact.
-    const opening = media ? null : matchOpeningTrigger(inbound.text, rules);
-    if (opening) {
-      // The opening copy is the tenant's own and already ends how it should;
-      // appending a second question would talk over it.
-      const reply = plainReply([opening]);
-      await recorder.decided(reply, 'answered_scripted');
-      logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
+    const precheck = await this.prechecks.check(inbound, {
+      turnCount: conversation.turnCount,
+      bound,
+    });
+    if (precheck) {
+      await recorder.decided(precheck.reply, precheck.outcome);
+      if (precheck.outcome === 'answered_scripted') {
+        logger.info({ outcome: 'answered_scripted' }, 'scripted opening sent');
+      } else {
+        logger.info(
+          { reason: precheck.reason, detail: precheck.detail },
+          'turn escalated before model',
+        );
+      }
       return delivery.answer({
-        reply,
-        outcome: 'answered_scripted',
-        conversationId: conversation.id,
-        binding,
-      });
-    }
-
-    // Pre-model guards: each denial costs nothing and fails toward a human (C6).
-    // A media turn has no words to match until it is transcribed, inside the
-    // race; the rest need none, so a contact over a limit costs no download.
-    const guards = [
-      media ? { allowed: true as const } : checkKeywords(inbound.text, rules),
-      bound ? checkTurnCap(conversation.turnCount, rules) : { allowed: true as const },
-      await this.budget.checkRateLimit(inbound.tenantId, inbound.subscriberId, rules),
-      await this.budget.checkBudget(inbound.tenantId, rules),
-    ];
-    const denied = guards.find(guard => !guard.allowed);
-    if (denied && !denied.allowed) {
-      const reply = escalationReply(denied.reason, rules.messages.escalation);
-      await recorder.decided(reply, 'escalated_precheck');
-      logger.info({ reason: denied.reason, detail: denied.detail }, 'turn escalated before model');
-      return delivery.answer({
-        reply,
-        outcome: 'escalated_precheck',
+        reply: precheck.reply,
+        outcome: precheck.outcome,
         conversationId: conversation.id,
         binding,
       });
@@ -506,7 +405,7 @@ export class TurnHandler {
       actionHistory && recorded
         ? {
             ...recorded,
-            ...offering,
+            ...offeringOf(requestOffering, keptOffering),
             openingDue,
             ...advertOfferingOf(
               bound ? (requestOffering ?? keptOffering) : keptOffering,

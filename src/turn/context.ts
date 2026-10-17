@@ -27,3 +27,23 @@ export function advertOfferingOf(
   );
   return written ? {} : { advertOffering: stored };
 }
+
+/**
+ * The offering the model is told of: the request's, which wins (specs/028),
+ * and the one it replaced, when it changed. The stage is not reset: the model
+ * confirms the offering instead.
+ */
+export function offeringOf(
+  requestOffering: string | undefined,
+  keptOffering: string | undefined,
+): { offering: string | undefined; offeringChangedFrom: string | undefined } {
+  return {
+    offering: requestOffering ?? keptOffering,
+    offeringChangedFrom:
+      requestOffering !== undefined &&
+      keptOffering !== undefined &&
+      requestOffering !== keptOffering
+        ? keptOffering
+        : undefined,
+  };
+}
