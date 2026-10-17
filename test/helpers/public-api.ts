@@ -249,6 +249,31 @@ export function publicApi(entries: Record<string, string>): string {
       .replace(/\s+/g, ' ')
       .replace(/^export (declare )?/, '');
 
+  /**
+   * Internal types a generic's declaration names, in the order first met. Its
+   * text names them rather than showing their shape, so each is defined too:
+   * `ParamsOf` is only as stable as the `ValueOf` it is written with.
+   */
+  const internals = new Map<ts.Symbol, string>();
+  function nameInternals(node: ts.Node): void {
+    if (ts.isTypeReferenceNode(node)) {
+      const found = checker.getSymbolAtLocation(node.typeName);
+      const target = found && aliasOf(found);
+      if (
+        target &&
+        target.flags & typeFlags &&
+        !inDependency(target) &&
+        !exportedNames.has(target) &&
+        !internals.has(target)
+      ) {
+        const taken = [...internals.values()].includes(target.name);
+        const file = fileOf(target).replace(/^.*?\/src\//, 'src/');
+        internals.set(target, taken ? `${target.name} (${file})` : target.name);
+      }
+    }
+    ts.forEachChild(node, nameInternals);
+  }
+
   /** An exported type's definition: its declaration when generic, else its members. */
   function definition(symbol: ts.Symbol, name: string): string {
     const generic = symbol.declarations?.find(
@@ -258,12 +283,15 @@ export function publicApi(entries: Record<string, string>): string {
           ts.isClassDeclaration(declaration)) &&
         declaration.typeParameters !== undefined,
     );
-    if (generic) return declarationText(generic);
+    if (generic) {
+      nameInternals(generic);
+      return declarationText(generic);
+    }
     const type = checker.getDeclaredTypeOfSymbol(symbol);
     return `type ${name} = ${format(type, '', type)}`;
   }
 
-  return modules
+  const sections = modules
     .map(({ specifier, exports }) => {
       const printed = exports.flatMap(symbol => {
         const target = aliasOf(symbol);
@@ -279,4 +307,14 @@ export function publicApi(entries: Record<string, string>): string {
       return `# ${specifier}\n\n${printed.join('\n\n')}\n`;
     })
     .join('\n');
+
+  // Defining one internal type can name another, so this runs until none is new.
+  const named: string[] = [];
+  for (let done = 0; done < internals.size; done += 1) {
+    const [symbol, name] = [...internals][done]!;
+    named.push(definition(symbol, name));
+  }
+  return named.length > 0
+    ? `${sections}\n# Internal types named by the generics above\n\n${named.join('\n\n')}\n`
+    : sections;
 }

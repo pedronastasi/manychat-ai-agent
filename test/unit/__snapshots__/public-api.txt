@@ -1253,3 +1253,9 @@ mockTranscriptionModel: {
     model: TranscriptionModelV2 | TranscriptionModelV3 | TranscriptionModelV4 | string
   }
 }
+
+# Internal types named by the generics above
+
+type ValueOf<P extends PluginParameter | ReadParameter> = P extends { type: 'enum'; values: readonly (infer V)[]; } ? V : P extends { type: 'number' } ? number : P extends { type: 'boolean' } ? boolean : string;
+
+type FieldValue<F extends ResultField> = F extends { type: 'enum'; values: readonly (infer V)[] } ? V : F extends { type: 'number' } ? number : F extends { type: 'boolean' } ? boolean : F extends { type: 'list' } ? string[] : string;
