@@ -29,6 +29,8 @@ let close: () => Promise<void>;
 let store: ConversationStore;
 let conversationId: string;
 beforeEach(async () => {
+  // The logger is shared, so one test's lines must not satisfy the next's.
+  vi.clearAllMocks();
   ({ db, close } = await createTestDatabase());
   store = new ConversationStore(db);
   const conversation = await store.startTurn(
