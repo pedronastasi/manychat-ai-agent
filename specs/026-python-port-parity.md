@@ -83,7 +83,7 @@ package root; where that root lives is the implementing pull request's call.
 | `src/server.ts`                                   | `app.py`                                  | Hooks in the same order: rate limit, auth, then the body (`017`)                              |
 | `src/agent/registry.ts`                           | `agent/registry.py`                       | The only provider import (C2); `PRICING`, `supportsTemperature`, `acceptsImages`              |
 | `src/agent/runner.ts`                             | `agent/runner.py`                         | `AgentRunner` port, `AgentResult` fields, the fail-closed `modelError`                        |
-| `src/agent/tools.ts`                              | `agent/tools.py`                          | `MAX_STEPS`, `MAX_ACTIONS_PER_TURN`, `ActionStage`, tool names and descriptions               |
+| `src/agent/tools.ts`, `src/agent/tools/*`         | `agent/tools.py`, `agent/tools/*`         | `MAX_STEPS`, `MAX_ACTIONS_PER_TURN`, `ActionStage`, tool names and descriptions               |
 | `src/agent/prompt.ts`                             | `agent/prompt.py`                         | Every string, byte for byte, including the fence and the staged notice                        |
 | `src/agent/guardrails.ts`                         | `agent/guardrails.py`                     | Pure functions, the same interventions under the same names                                   |
 | `src/agent/transcriber.ts`                        | `agent/transcriber.py`                    | The `Transcriber` port; its provider import lives in `registry.py`                            |
