@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.26.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.25.0...v0.26.0) (2026-10-17)
+
+
+### Features
+
+* wait for a burst to end before calling the model ([729bfca](https://github.com/pedronastasi/manychat-ai-agent/commit/729bfca32c20ea1d44d6eef2438ab852ec1b9bfb))
+* wait for a burst to end before calling the model ([2cd1d91](https://github.com/pedronastasi/manychat-ai-agent/commit/2cd1d915b046b0972b0ca303e34bc3286ac08ebd))
+
+
+### Bug Fixes
+
+* **deps:** update patch dependencies ([#239](https://github.com/pedronastasi/manychat-ai-agent/issues/239)) ([371bfaf](https://github.com/pedronastasi/manychat-ai-agent/commit/371bfaf4dbb525f23f73f4dfbc3691afd393ccf8))
+
+
+### Specs and Docs
+
+* record PR 244 in spec 047 ([52fd1bd](https://github.com/pedronastasi/manychat-ai-agent/commit/52fd1bda1af595c7094a05aaa97c82213e84c585))
+* specify a burst window before the model (spec 047) ([3351037](https://github.com/pedronastasi/manychat-ai-agent/commit/3351037174ab519bb7a9387c9a878db72e7747d9))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([5c22bf0](https://github.com/pedronastasi/manychat-ai-agent/commit/5c22bf0622de025e5ade1155b9f9dd1ebcbac90c))
+* **deps:** lock file maintenance ([ca4b49b](https://github.com/pedronastasi/manychat-ai-agent/commit/ca4b49b3deee81c3951b4aa9ae80d24d73676ad2))
+* **deps:** update pnpm to v12.14.0 ([6599f97](https://github.com/pedronastasi/manychat-ai-agent/commit/6599f97b7e27f4b41d1dced8e90c8a188db66c42))
+* **deps:** update pnpm to v12.14.0 ([c68b87e](https://github.com/pedronastasi/manychat-ai-agent/commit/c68b87ee8e72786f201b372f037304cb387fa42b))
+
 ## [0.25.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.24.1...v0.25.0) (2026-10-16)
 
 
