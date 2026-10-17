@@ -22,19 +22,19 @@ type ChannelReply = {
 }
 
 defineChannel: {
-  (channel: PluginChannel) => PluginChannel
+  <TInbound, TOutbound>(channel: PluginChannel<TInbound, TOutbound>) => PluginChannel<TInbound, TOutbound>
 }
 
 definePlugin: {
-  (plugin: P) => P
+  <const P extends Plugin>(plugin: P) => P
 }
 
 defineReadTool: {
-  (tool: PluginReadTool) => PluginReadTool
+  <const S extends ReadParameters, const R extends ResultFields>(tool: PluginReadTool<S, R>) => PluginReadTool<S, R>
 }
 
 defineTool: {
-  (tool: PluginTool) => PluginTool
+  <const S extends PluginParameters>(tool: PluginTool<S>) => PluginTool<S>
 }
 
 interface InboundSchema<T> { safeParse(raw: unknown): { success: true; data: T } | { success: false; error: unknown }; }
@@ -43,9 +43,9 @@ type ParamsOf<S extends PluginParameters | ReadParameters> = { [K in keyof S as 
 
 type Plugin = {
   apiVersion: number
-  channels?: readonly PluginChannel[] | undefined
+  channels?: readonly PluginChannel<any, any>[] | undefined
   name: string
-  tools?: readonly (PluginReadTool | PluginTool)[] | undefined
+  tools?: readonly (PluginReadTool<any, any> | PluginTool<any>)[] | undefined
 }
 
 PLUGIN_API_VERSION: 2
@@ -86,7 +86,7 @@ type PluginParameter = {
   description?: string | undefined
   optional?: false | true | undefined
   type: "enum"
-  values: [string, string]
+  values: readonly [string, ...string[]]
 }
 
 type PluginParameters = Readonly<Record<string, PluginParameter>>
@@ -115,7 +115,7 @@ type ReadParameter = {
   description?: string | undefined
   optional?: false | true | undefined
   type: "enum"
-  values: [string, string]
+  values: readonly [string, ...string[]]
 }
 
 type ReadParameters = Readonly<Record<string, ReadParameter>>
@@ -146,7 +146,7 @@ type ResultField = {
   description?: string | undefined
   optional?: false | true | undefined
   type: "enum"
-  values: [string, string]
+  values: readonly [string, ...string[]]
 }
 
 type ResultFields = Readonly<Record<string, ResultField>>
@@ -286,7 +286,7 @@ type PaymentOption = {
 
 PaymentOptionSchema: zod schema of PaymentOption
 
-PROMPT_SECTIONS: ["operating", "format", "closing", "actions", "intent", "sales", "offerings", "followUps"]
+PROMPT_SECTIONS: readonly ["operating", "format", "closing", "actions", "intent", "sales", "offerings", "followUps"]
 
 type PromptOverrides = {
   actions?: string | undefined
@@ -1021,7 +1021,7 @@ buildTools: {
       read: {
         (__0: {
           plugin: string
-          tool: PluginReadTool
+          tool: PluginReadTool<ReadParameters, ResultFields>
         }, input: Record<string, unknown>, signal?: AbortSignal | undefined) => Promise<{
           available: false
         } | {
@@ -1049,7 +1049,7 @@ buildTools: {
           read: {
             (__0: {
               plugin: string
-              tool: PluginReadTool
+              tool: PluginReadTool<ReadParameters, ResultFields>
             }, input: Record<string, unknown>, signal?: AbortSignal | undefined) => Promise<{
               available: false
             } | {
@@ -1211,7 +1211,7 @@ buildTools: {
         }
       }
       readonly channels: readonly {
-        channel: PluginChannel
+        channel: PluginChannel<unknown, unknown>
         plugin: string
       }[]
       readonly names: readonly string[]

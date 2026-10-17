@@ -71,15 +71,31 @@ export function publicApi(entries: Record<string, string>): string {
       }
     }
   }
-  const exportedName = (type: ts.Type): string | undefined => {
+  /** The exported name a tenant knows the type by, with the arguments it was given. */
+  const exportedName = (type: ts.Type): { name: string; args: readonly ts.Type[] } | undefined => {
+    // A non-generic alias, matched by what it resolves to: it takes no arguments.
     const matched = exportedTypes.get(type);
-    if (matched) return matched;
+    if (matched) return { name: matched, args: [] };
     const alias = type.aliasSymbol && exportedNames.get(type.aliasSymbol);
-    if (alias) return alias;
+    if (alias) return { name: alias, args: type.aliasTypeArguments ?? [] };
     const symbol = type.getSymbol();
-    return symbol && symbol.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.Class)
-      ? exportedNames.get(symbol)
-      : undefined;
+    const name =
+      symbol && symbol.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.Class)
+        ? exportedNames.get(symbol)
+        : undefined;
+    return name ? { name, args: referenceArguments(type) } : undefined;
+  };
+
+  /**
+   * The type arguments of a reference to a generic interface or class, as
+   * `PluginTool<S>`, without the implicit `this` TypeScript appends to them.
+   */
+  const referenceArguments = (type: ts.Type): readonly ts.Type[] => {
+    if (!((type as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference)) return [];
+    const symbol = type.getSymbol();
+    const declared = symbol && (checker.getDeclaredTypeOfSymbol(symbol) as ts.InterfaceType);
+    const count = declared?.typeParameters?.length ?? 0;
+    return checker.getTypeArguments(type as ts.TypeReference).slice(0, count);
   };
 
   /**
@@ -95,11 +111,7 @@ export function publicApi(entries: Record<string, string>): string {
     }
     const symbol = type.getSymbol();
     if (!symbol || anonymous(symbol) || !inDependency(symbol)) return undefined;
-    const args =
-      (type as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference
-        ? checker.getTypeArguments(type as ts.TypeReference)
-        : [];
-    return { name: symbol.name, args };
+    return { name: symbol.name, args: referenceArguments(type) };
   };
 
   const isPrivate = (symbol: ts.Symbol) =>
@@ -127,9 +139,9 @@ export function publicApi(entries: Record<string, string>): string {
     seen: ReadonlySet<ts.Type> = new Set(),
   ): string {
     if (type.flags & atomic && !type.isUnion()) return checker.typeToString(type, undefined, flags);
-    const name = type === expand ? undefined : exportedName(type);
-    if (name) {
-      const args = type.aliasTypeArguments ?? [];
+    const exported = type === expand ? undefined : exportedName(type);
+    if (exported) {
+      const { name, args } = exported;
       return args.length > 0
         ? `${name}<${args.map(arg => format(arg, indent, undefined, seen)).join(', ')}>`
         : name;
@@ -142,15 +154,24 @@ export function publicApi(entries: Record<string, string>): string {
       const parts = [...new Set(type.types.map(part => sub(part)))].sort();
       return parts.join(type.isUnion() ? ' | ' : ' & ');
     }
-    if (checker.isArrayType(type) || checker.isTupleType(type)) {
-      const readonly = type.getSymbol()?.name === 'ReadonlyArray' ? 'readonly ' : '';
-      const items = checker.getTypeArguments(type as ts.TypeReference).map(item => {
-        const text = sub(item);
-        return / [|&] /.test(text) && !text.startsWith('{') ? `(${text})` : text;
+    const element = (item: ts.Type) => {
+      const text = sub(item);
+      return / [|&] /.test(text) && !text.startsWith('{') ? `(${text})` : text;
+    };
+    if (checker.isTupleType(type)) {
+      // Each element by its kind, so `[string, ...string[]]` is not `[string, string]`.
+      const { target } = type as ts.TupleTypeReference;
+      const items = checker.getTypeArguments(type as ts.TypeReference).map((item, at) => {
+        const kind = target.elementFlags[at] ?? ts.ElementFlags.Required;
+        if (kind & ts.ElementFlags.Rest) return `...${element(item)}[]`;
+        if (kind & ts.ElementFlags.Variadic) return `...${element(item)}`;
+        return kind & ts.ElementFlags.Optional ? `${element(item)}?` : sub(item);
       });
-      return checker.isArrayType(type)
-        ? `${readonly}${items[0]}[]`
-        : `${readonly}[${items.join(', ')}]`;
+      return `${target.readonly ? 'readonly ' : ''}[${items.join(', ')}]`;
+    }
+    if (checker.isArrayType(type)) {
+      const readonly = type.getSymbol()?.name === 'ReadonlyArray' ? 'readonly ' : '';
+      return `${readonly}${element(checker.getTypeArguments(type as ts.TypeReference)[0]!)}[]`;
     }
 
     // A zod schema: what parsing it returns.
@@ -173,7 +194,24 @@ export function publicApi(entries: Record<string, string>): string {
         const rest = declaration?.dotDotDotToken ? '...' : '';
         return `${rest}${param.name}${optional}: ${sub(checker.getTypeOfSymbol(param), next)}`;
       });
-      return `${prefix}(${params.join(', ')}) => ${sub(sig.getReturnType(), next)}`;
+      // A generic's parameters, with `const`, constraint and default: narrowing
+      // one changes what a tenant may pass.
+      const generics = (sig.typeParameters ?? []).map(parameter => {
+        const declaration = parameter.getSymbol()?.declarations?.[0];
+        const isConst =
+          declaration &&
+          ts.isTypeParameterDeclaration(declaration) &&
+          declaration.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ConstKeyword);
+        const constraint = parameter.getConstraint();
+        const fallback = parameter.getDefault();
+        return [
+          `${isConst ? 'const ' : ''}${parameter.getSymbol()?.name ?? '?'}`,
+          constraint ? ` extends ${sub(constraint, next)}` : '',
+          fallback ? ` = ${sub(fallback, next)}` : '',
+        ].join('');
+      });
+      const typeParams = generics.length > 0 ? `<${generics.join(', ')}>` : '';
+      return `${prefix}${typeParams}(${params.join(', ')}) => ${sub(sig.getReturnType(), next)}`;
     };
     const index = [ts.IndexKind.String, ts.IndexKind.Number].flatMap(kind => {
       const info = checker.getIndexInfoOfType(type, kind);
