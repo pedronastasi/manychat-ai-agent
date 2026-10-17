@@ -21,11 +21,11 @@ ManyChat sends each bubble as its own request, so the agent ran five turns.
 one of them still called the model and sent a reply. The contact got five
 answers in a row, the first to a greeting, each one repeating part of the last.
 
-| Way to answer a burst once                            | Why not                                                                                          |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Wait a few seconds before every turn for more bubbles | Every turn pays the wait out of the 10-second budget (C7), to fix the few that are split (`037`) |
-| Abort the running model call when a bubble arrives    | The call is paid for whether it is aborted or not, and a flow it sent cannot be recalled (`029`) |
-| Answer each bubble, as `037` does                     | The cascade above                                                                                |
+| Way to answer a burst once                            | Why not                                                                                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Wait a few seconds before every turn for more bubbles | Every turn pays the wait out of the 10-second budget (C7), to fix the few that are split (`037`). A tenant may opt in (`047`) |
+| Abort the running model call when a bubble arrives    | The call is paid for whether it is aborted or not, and a flow it sent cannot be recalled (`029`)                              |
+| Answer each bubble, as `037` does                     | The cascade above                                                                                                             |
 
 ## A waiting message is folded into the next one
 
