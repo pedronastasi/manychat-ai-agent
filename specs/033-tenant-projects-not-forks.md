@@ -269,6 +269,11 @@ made here first and the contract table above records it.
   in the table above, and that importing a path outside them, such as
   `manychat-ai-agent/dist/agent/runner.js`, fails with
   `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+- A test prints every export of those entry points down to its members and
+  compares the text with a committed snapshot. A type an entry point exports is
+  printed by name, every other type by its shape, so a refactor that keeps the
+  shape leaves the snapshot alone and one that changes it fails until the
+  snapshot is regenerated in the same pull request.
 - For each `agent upgrade` migration, a test runs it on the previous release's
   example config and asserts the result passes `agent config check`, and that a
   second run changes nothing.
@@ -299,8 +304,10 @@ made here first and the contract table above records it.
   `specified`, and a later one flips it once the move is confirmed.
 
 **What this does not catch.** Nothing checks that a release which changes the
-contract is marked breaking. The migration test only runs for migrations that
-exist, so a breaking config change with no migration and no `!` in the commit
+contract is marked breaking. A change to what the entry points export does
+fail the snapshot test above, so it cannot reach a release unseen, but whether
+it breaks a tenant, and the commit marked `!`, is still the reviewer's call.
+The migration test only runs for migrations that exist, so a breaking config change with no migration and no `!` in the commit
 ships as a minor with no upgrade path. Review is the enforcement, as `010`
 says of commit subjects in general. Nothing counts live `pnpm patch` files across tenants;
 the revisit trigger of ADR-0021 is watched by the maintainers, not by CI.
