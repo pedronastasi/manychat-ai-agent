@@ -59,7 +59,7 @@ test fails the suite.
 | [044 — Tenants Override Individual System Prompt Sections](044-tenant-prompt-section-overrides.md)                         | implemented | 2026-10-14  | #223 | 1     | C1, C3, C4, C6, C8, C9             | —                                                                                      |
 | [045 — A Tenant Can Keep the Offering Open After the Offer](045-switchable-offering.md)                                    | implemented | 2026-10-15  | —    | 1     | C3, C6, C8                         | —                                                                                      |
 | [046 — One Reply to a Burst of Bubbles](046-one-reply-to-a-burst-of-bubbles.md)                                            | implemented | 2026-10-15  | #227 | 2     | C6, C7, C8                         | [0001]                                                                                 |
-| [047 — A Burst Window Before the Model](047-a-burst-window-before-the-model.md)                                            | implemented | 2026-10-17  | —    | 2     | C6, C7, C8                         | [0001]                                                                                 |
+| [047 — A Burst Window Before the Model](047-a-burst-window-before-the-model.md)                                            | implemented | 2026-10-17  | #244 | 2     | C6, C7, C8                         | [0001]                                                                                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
