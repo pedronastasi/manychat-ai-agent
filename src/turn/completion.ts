@@ -9,3 +9,6 @@ import type { AgentReply, TurnOutcome } from '../contracts/agent.ts';
 export type Completion =
   | { kind: 'model'; result: AgentResult }
   | { kind: 'decided'; reply: AgentReply; outcome: TurnOutcome };
+
+/** How the raced work ended: with a completion, or with a failure it threw. */
+export type Settled = { kind: 'done'; done: Completion } | { kind: 'error'; error: unknown };

@@ -35,13 +35,13 @@ import type { TurnLanes } from '../conversation/turns.ts';
 import { advertOfferingOf } from '../turn/context.ts';
 import { raceDeadline } from '../turn/race.ts';
 import { modelOutcomeOf, plainReply } from '../turn/replies.ts';
-import type { Completion } from '../turn/completion.ts';
+import type { Completion, Settled } from '../turn/completion.ts';
+import { DeferredSettlement } from '../turn/deferred.ts';
 import { withConversation } from '../turn/logger.ts';
 import type { TurnLogger } from '../turn/logger.ts';
 import { MediaReader, mediaMarker } from '../turn/media.ts';
 import { TurnRecorder } from '../turn/recorder.ts';
 import { ContactOutbox, ReplyDelivery } from '../turn/delivery.ts';
-import type { DeferredActions } from '../turn/delivery.ts';
 import type { TurnResult } from '../turn/result.ts';
 
 const DAY_MS = 86_400_000;
@@ -565,7 +565,7 @@ export class TurnHandler {
           return done;
         })
       : answered;
-    const completion = work
+    const completion: Promise<Settled> = work
       .then(done => ({ kind: 'done' as const, done }))
       .catch((error: unknown) => ({ kind: 'error' as const, error }));
 
@@ -603,62 +603,20 @@ export class TurnHandler {
       // abortTimer deliberately stays armed. MODEL_ABORT_MS is the outer bound
       // on a runaway call, and this is the only path where a call can outlive
       // the request — so clearing it here would leave the deferred call with no
-      // bound at all. It is cleared below, when the call actually settles.
-      const settling = completion.then(async outcome => {
+      // bound at all. It is cleared when the call actually settles.
+      const deferred = new DeferredSettlement({
+        logger,
+        stage,
+        recorder,
+        delivery,
+        outbox,
+        holding,
+        silent,
+        superseded,
+      });
+      const settling = completion.then(async settled => {
         clearTimeout(abortTimer);
-        try {
-          if (outcome.kind === 'error') {
-            // MODEL_ABORT_MS lands here, with whatever it had staged, and
-            // perhaps a flow request still in flight.
-            await stage.settled();
-            const actions = recorder.discard();
-            logger.error({ err: String(outcome.error) }, 'deferred model call failed');
-            // A flow sent during the call has reached the contact, so the turn
-            // is recorded with it: otherwise the next turn would not know it
-            // went out, and could send a send-once flow again (specs/029 § An
-            // escalation cannot recall a flow). Recorded as the holding line
-            // the contact was actually given.
-            if (stage.sent.length > 0) {
-              await recorder.failed(rules.messages.acknowledgement, actions);
-            }
-            // A silent response gave the contact nothing yet, so the holding
-            // line it held back goes out now, after the flow (specs/030).
-            if (silent) await delivery.queue(holding);
-            return;
-          }
-          const { done } = outcome;
-          let deferred: DeferredActions | undefined;
-          if (done.kind === 'decided') {
-            await recorder.decided(done.reply, done.outcome);
-          } else if (superseded(done.result)) {
-            await recorder.settle(done.result, 'superseded');
-            logger.info({ outcome: 'superseded', deferred: true }, 'reply superseded');
-            return;
-          } else {
-            const turnId = await recorder.settle(done.result, 'deferred');
-            // Deferred with the reply, never dropped from it: the worker
-            // performs them once the text is delivered (specs/012 § The whole
-            // loop runs inside the race).
-            const staged = recorder.performable(done.result);
-            if (staged.length > 0) deferred = { staged, turnId };
-            // The inline path logs these below. Without the same line here a
-            // guardrail or a failed call on a deferred turn left no trace in
-            // the logs at all, which is most of them whenever the model runs
-            // slow.
-            if (done.result.interventions.length > 0) {
-              logger.info(
-                { interventions: done.result.interventions, deferred: true },
-                'guardrails intervened',
-              );
-            }
-          }
-          await delivery.queue(done.kind === 'decided' ? done.reply : done.result.reply, deferred);
-        } catch (error) {
-          logger.error({ err: String(error) }, 'failed to enqueue deferred reply');
-          // A silent response, late or behind a queued reply or a flow, left
-          // the contact this reply and nothing else (C6).
-          if (silent) await outbox.handOffSilent();
-        }
+        await deferred.settle(settled);
       });
       opts.onBackground?.(settling);
 
