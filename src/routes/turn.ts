@@ -6,10 +6,10 @@ import type { Rules, Tools } from '../contracts/config.ts';
 import type { MediaResolver } from '../media/resolver.ts';
 import { escalationReply } from '../agent/guardrails.ts';
 import { ConversationStore } from '../conversation/store.ts';
-import { BudgetGuard, checkKeywords, matchOpeningTrigger } from '../conversation/budget.ts';
+import { BudgetGuard } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
-import type { Binding, ContactTokenWriter } from '../conversation/tokens.ts';
+import type { ContactTokenWriter } from '../conversation/tokens.ts';
 import { ActionStage, contactActionsFrom, openingFlow, stagesProspect } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
 import { ContactReads, ReadBudget } from '../agent/contact.ts';
@@ -21,13 +21,15 @@ import { NudgingPerformer } from '../nudge/performer.ts';
 import { FlowSends } from '../agent/flows.ts';
 import type { TurnLanes } from '../conversation/turns.ts';
 import { advertOfferingOf, offeringOf } from '../turn/context.ts';
-import { TurnAdmission, bindingOf } from '../turn/admission.ts';
+import { TurnAdmission } from '../turn/admission.ts';
 import { Prechecks } from '../turn/prechecks.ts';
 import { raceDeadline } from '../turn/race.ts';
+import { TurnOrder } from '../turn/order.ts';
+import type { RunOptions } from '../turn/order.ts';
+import { MessageFold, supersedes } from '../turn/fold.ts';
 import { modelOutcomeOf, plainReply } from '../turn/replies.ts';
 import type { Completion, Settled } from '../turn/completion.ts';
 import { DeferredSettlement } from '../turn/deferred.ts';
-import { withConversation } from '../turn/logger.ts';
 import type { TurnLogger } from '../turn/logger.ts';
 import { MediaReader } from '../turn/media.ts';
 import { TurnRecorder } from '../turn/recorder.ts';
@@ -71,21 +73,6 @@ export interface TurnDeps {
    * through its adapter.
    */
   channel?: string | undefined;
-}
-
-/** How a turn runs once its contact's order lets it (specs/037). */
-interface RunOptions {
-  /** The race deadline, from the request's arrival (specs/002). */
-  deadlineAt: number;
-  /** Its response was already sent, silent: every reply goes to the outbox. */
-  late?: boolean;
-  /** Called with the work a lost race leaves running, which the turn settles in. */
-  onBackground?: (work: Promise<void>) => void;
-  /**
-   * Whether the contact has written again since this turn started, and a
-   * later turn of theirs will answer them (specs/046).
-   */
-  followed?: () => boolean;
 }
 
 /**
@@ -146,149 +133,30 @@ export class TurnHandler {
   }
 
   /**
-   * Runs the turn once the contact's previous one has settled (specs/037 §
-   * Turns that enter history run one at a time). A turn still waiting at its
-   * deadline is answered silently now and runs when its turn comes, through
-   * the outbox.
+   * Runs the turn once the contact's previous one has settled (specs/037).
+   * Without lanes, turns run side by side.
    */
   async handle(inbound: InboundMessage): Promise<TurnResult> {
-    const { lanes, tokensEnforced, logger } = this.deps;
+    const { lanes, rules, tokensEnforced, channel, logger } = this.deps;
     const deadlineAt = Date.now() + this.deps.raceDeadlineMs;
     if (!lanes) return this.run(inbound, { deadlineAt });
-
-    // Its place is taken on arrival, before any read can reorder two requests.
-    const slot = lanes.enter(`${inbound.tenantId}:${inbound.subscriberId}`);
-    // Only a turn that enters the contact's history is ordered. One without
-    // the token gives its place back at once: it neither waits nor holds the
-    // contact's own turns up.
-    // A failed read gives the place back, or the contact's next turn would
-    // wait out the whole bound for a turn that never ran.
-    const known = await this.store
-      .find(inbound.tenantId, inbound.subscriberId)
-      .catch((error: unknown) => {
-        slot.leave();
-        throw error;
-      });
-    const binding = bindingOf(known, inbound, this.deps.channel);
-    if (binding === 'unbound' && tokensEnforced) {
-      slot.leave();
-      return this.run(inbound, { deadlineAt });
-    }
-    // This turn will answer whatever the contact wrote before it, so a turn
-    // ahead of it may leave its message to this one (specs/046). Only a turn
-    // that reads the contact's history can: a first turn while tokens are
-    // enforced reads none (specs/019), and the opening sentinel's scripted
-    // reply answers nothing the contact wrote.
-    const readsHistory = binding === 'bound' || !tokensEnforced;
-    const answers = inbound.media || !matchOpeningTrigger(inbound.text, this.deps.rules);
-    if (readsHistory && answers) slot.claim();
-    // The next turn goes in once this one has settled: its reply recorded, and
-    // queued when the race was lost.
-    let background: Promise<void> = Promise.resolve();
-    const opts: RunOptions = {
-      deadlineAt,
-      onBackground: work => {
-        background = work;
-      },
-      followed: slot.followed,
-    };
-    const leave = () => void background.then(slot.leave, slot.leave);
-    const expired = () => logger.error({ conversation: known?.id }, 'turn wait expired');
-
-    /**
-     * Whether this turn only records its message, which a later turn of the
-     * contact answers (specs/046): the contact wrote again while it waited for
-     * their previous turn, or, with a burst window, before that window passed
-     * in silence (specs/047). Only a turn that reads history folds: any other
-     * runs, and is bound by the token state it finds then (specs/019).
-     */
-    const folds = async (): Promise<boolean> => {
-      if (!readsHistory || !this.foldable(inbound)) return false;
-      if (slot.waited && slot.followed()) return true;
-      const windowMs = this.deps.rules.burstWindowMs;
-      return windowMs > 0 && (await slot.quiet(windowMs));
-    };
-    // The wait for the previous turn and the burst window both count against
-    // the deadline (C7): a turn still deciding at it is answered silently now.
-    const decided = (async () => {
-      if (slot.waited && (await slot.ready) === 'expired') expired();
-      return (await folds()) ? ('fold' as const) : ('run' as const);
-    })();
-
-    const first = await raceDeadline(decided, deadlineAt);
-    if (first === 'deadline') {
-      void decided
-        .then(async decision => {
-          if (decision === 'fold') await this.fold(inbound, binding);
-          else await this.run(inbound, { ...opts, late: true });
-        })
-        .catch(async (error: unknown) => {
-          logger.error({ conversation: known?.id, err: String(error) }, 'waiting turn failed');
-          await this.outboxFor(inbound).handOffSilent();
-        })
-        .finally(leave);
-      // The previous turn has started the conversation by now; its reply,
-      // or its holding line, is the contact's answer for the moment.
-      const current = known ?? (await this.store.find(inbound.tenantId, inbound.subscriberId));
-      logger.info({ conversation: current?.id }, 'turn answered silently while it waits');
-      return {
-        reply: plainReply([]),
-        outcome: 'deferred',
-        conversationId: current?.id ?? '',
-        binding,
-        silent: true,
-      };
-    }
-    try {
-      if (first === 'fold') return await this.fold(inbound, binding);
-      return await this.run(inbound, opts);
-    } finally {
-      leave();
-    }
-  }
-
-  /**
-   * Whether a message can be left to the contact's next turn to answer
-   * (specs/046 § A waiting message is folded into the next one). The next
-   * turn reads it from history, so it must be text the model can read there,
-   * and nothing a check of its own words would have answered differently.
-   */
-  private foldable(inbound: InboundMessage): boolean {
-    const { rules } = this.deps;
-    return (
-      !inbound.media &&
-      !matchOpeningTrigger(inbound.text, rules) &&
-      checkKeywords(inbound.text, rules).allowed
-    );
-  }
-
-  /**
-   * Records a message the contact's next turn answers, and nothing else: no
-   * model call, no reply, and a silent response (specs/046).
-   */
-  private async fold(inbound: InboundMessage, binding: Binding): Promise<TurnResult> {
-    const conversation = await this.store.startTurn(
-      {
-        tenantId: inbound.tenantId,
-        subscriberId: inbound.subscriberId,
-        channel: inbound.channel,
-        idleResetHours: this.deps.rules.idleResetHours,
-      },
-      new Date(),
-    );
-    await this.nudges.cancel(conversation.id, 'contact_replied');
-    await this.store.recordUserMessage(conversation.id, inbound.text, { bound: true });
-    withConversation(this.deps.logger, conversation.id).info(
-      { outcome: 'folded' },
-      'message folded into the next turn',
-    );
-    return {
-      reply: plainReply([]),
-      outcome: 'folded',
-      conversationId: conversation.id,
-      binding,
-      silent: true,
-    };
+    const order = new TurnOrder({
+      lanes,
+      store: this.store,
+      rules,
+      tokensEnforced,
+      channel,
+      logger,
+    });
+    return order.handle(inbound, deadlineAt, {
+      run: opts => this.run(inbound, opts),
+      fold: binding =>
+        new MessageFold({ store: this.store, nudges: this.nudges, rules, logger }).fold(
+          inbound,
+          binding,
+        ),
+      handOffSilent: () => this.outboxFor(inbound).handOffSilent(),
+    });
   }
 
   private async run(inbound: InboundMessage, opts: RunOptions): Promise<TurnResult> {
@@ -475,21 +343,13 @@ export class TurnHandler {
       ? ('deadline' as const)
       : await raceDeadline(completion, opts.deadlineAt);
 
-    /**
-     * Whether the model's reply is dropped because the contact kept writing
-     * while it ran, and their next turn answers everything they wrote
-     * (specs/046 § A reply the contact wrote past is superseded). Never one
-     * that sent a flow, which has reached them, or that escalates, and never
-     * a media turn's: history keeps only its marker, so the turn behind could
-     * not see what the contact sent.
-     */
     const superseded = (result: AgentResult) =>
-      rules.foldBursts &&
-      !media &&
-      opts.followed?.() === true &&
-      stage.sent.length === 0 &&
-      !result.reply.escalate &&
-      !result.modelError;
+      supersedes(result, {
+        rules,
+        media: media !== undefined,
+        followed: opts.followed?.() === true,
+        flowsSent: stage.sent.length,
+      });
 
     if (winner === 'deadline') {
       const silent = await delivery.silentNow();
