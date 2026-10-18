@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.26.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.26.0...v0.26.1) (2026-10-18)
+
+
+### Refactors
+
+* build a turn's collaborators in TurnScope, not TurnHandler ([12157eb](https://github.com/pedronastasi/manychat-ai-agent/commit/12157eb0f59c1a0af0c0472d760a6ee6f55efea1))
+* build a turn's collaborators in TurnScope, not TurnHandler ([556925a](https://github.com/pedronastasi/manychat-ai-agent/commit/556925af52b16ee6b522f50040129d8abe901aa2))
+* delegate a contact's turn order to TurnOrder ([0542994](https://github.com/pedronastasi/manychat-ai-agent/commit/0542994617efd499655cd587cc41a9a7386e1309))
+* delegate a turn's media half to MediaReader ([c612dd7](https://github.com/pedronastasi/manychat-ai-agent/commit/c612dd79d3e50bcca07d4018729f27849b497d56))
+* delegate admitting a turn and its prechecks to their own classes ([2835c78](https://github.com/pedronastasi/manychat-ai-agent/commit/2835c78f8de05c99bb105a22403a5d99918b4e0c))
+* delegate finishing a lost race to DeferredSettlement ([a6ba96b](https://github.com/pedronastasi/manychat-ai-agent/commit/a6ba96be0fb995f0e421c9f9f1ff6547bccea6ed))
+* delegate inline-or-outbox delivery to ReplyDelivery ([c54f482](https://github.com/pedronastasi/manychat-ai-agent/commit/c54f482105ee73854c90815e21316a80052891a7))
+* delegate recording how a turn ended to TurnRecorder ([1c6681c](https://github.com/pedronastasi/manychat-ai-agent/commit/1c6681c2daa2f57e1d43e2f34c86aa66adf3951a))
+* delegate the turn handler's jobs to their own classes ([b6c882d](https://github.com/pedronastasi/manychat-ai-agent/commit/b6c882d32e7ecca270aa63e2b991b6b6f0fdfb9a))
+* extract reply, race and offering helpers from the turn handler ([0d02b5c](https://github.com/pedronastasi/manychat-ai-agent/commit/0d02b5c62f1238c452d77120242c4bfe7af41edc))
+* move TurnHandler into src/turn ([a5a0096](https://github.com/pedronastasi/manychat-ai-agent/commit/a5a0096f26e4727c78152ca56c1142ae150e096a))
+* split agent/tools.ts and contracts/config.ts by concern ([cc4a578](https://github.com/pedronastasi/manychat-ai-agent/commit/cc4a578fae28b85d6a3e0d426d1aea7ebf351921))
+* split agent/tools.ts into one file per concern and per tool ([5aabb79](https://github.com/pedronastasi/manychat-ai-agent/commit/5aabb79b56957a490d75f491d0dc7994e7238080))
+* split contracts/config.ts into one file per configuration surface ([928c81c](https://github.com/pedronastasi/manychat-ai-agent/commit/928c81c579a3c27fd15e13c1953b8692b59ef4c7))
+
+
+### Specs and Docs
+
+* record who builds the turn's collaborators, and the single path a turn ends on ([c996ccd](https://github.com/pedronastasi/manychat-ai-agent/commit/c996ccd3802bd95f0b84c3ce5ac442f71d8efaf1))
+
 ## [0.26.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.25.0...v0.26.0) (2026-10-17)
 
 
