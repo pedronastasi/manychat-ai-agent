@@ -10,15 +10,13 @@ import { BudgetGuard } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
 import type { ContactTokenWriter } from '../conversation/tokens.ts';
-import { ActionStage, contactActionsFrom, openingFlow, stagesProspect } from '../agent/tools.ts';
+import { contactActionsFrom, openingFlow, stagesProspect } from '../agent/tools.ts';
+import type { ActionStage } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
-import { ContactReads, ReadBudget } from '../agent/contact.ts';
-import { PluginReads } from '../plugins/reads.ts';
 import type { Plugins } from '../plugins/plugins.ts';
 import { performActions, performedOffering } from '../conversation/actions.ts';
 import { NudgeStore } from '../nudge/store.ts';
-import { NudgingPerformer } from '../nudge/performer.ts';
-import { FlowSends } from '../agent/flows.ts';
+import type { FlowSends } from '../agent/flows.ts';
 import type { TurnLanes } from '../conversation/turns.ts';
 import { advertOfferingOf, offeringOf } from './context.ts';
 import { TurnAdmission } from './admission.ts';
@@ -29,11 +27,9 @@ import type { RunOptions } from './order.ts';
 import { MessageFold, supersedes } from './fold.ts';
 import { modelOutcomeOf, plainReply } from './replies.ts';
 import type { Completion, Settled } from './completion.ts';
-import { DeferredSettlement } from './deferred.ts';
 import type { TurnLogger } from './logger.ts';
 import { MediaReader } from './media.ts';
-import { TurnRecorder } from './recorder.ts';
-import { ContactOutbox, ReplyDelivery } from './delivery.ts';
+import { TurnScope } from './scope.ts';
 import type { TurnResult } from './result.ts';
 
 const DAY_MS = 86_400_000;
@@ -84,49 +80,57 @@ export interface TurnDeps {
  */
 export class TurnHandler {
   private readonly deps: TurnDeps;
+  private readonly tools: Tools;
   private readonly store: ConversationStore;
-  private readonly budget: BudgetGuard;
-  private readonly queue: OutboxQueue;
-  private readonly tokens: ContactTokens;
-  private readonly nudges: NudgeStore;
   private readonly media: MediaReader;
   private readonly prechecks: Prechecks;
+  private readonly admission: TurnAdmission;
+  private readonly fold: MessageFold;
+  private readonly order: TurnOrder | undefined;
+  private readonly scope: TurnScope;
 
+  // Everything built here needs only `deps`; what needs the admitted turn is
+  // built by `TurnScope` for that turn (ADR-0023).
   constructor(deps: TurnDeps) {
+    const { db, rules, logger, channel, tokensEnforced, lanes } = deps;
     this.deps = deps;
-    this.store = new ConversationStore(deps.db);
-    this.budget = new BudgetGuard(deps.db);
-    this.queue = new OutboxQueue(deps.db);
-    this.tokens = new ContactTokens(deps.db, deps.tokenWriter);
-    this.nudges = new NudgeStore(deps.db);
-    this.prechecks = new Prechecks({ budget: this.budget, rules: deps.rules });
+    this.tools = deps.tools ?? NO_TOOLS;
+    const store = new ConversationStore(db);
+    const budget = new BudgetGuard(db);
+    const nudges = new NudgeStore(db);
+    this.store = store;
+    this.prechecks = new Prechecks({ budget, rules });
     this.media = new MediaReader({
       runner: deps.runner,
-      rules: deps.rules,
-      store: this.store,
-      budget: this.budget,
+      rules,
+      store,
+      budget,
       resolver: deps.media,
     });
-  }
-
-  /** The contact's queued replies, on the turn's channel (specs/038). */
-  private outboxFor(inbound: InboundMessage): ContactOutbox {
-    const { rules, logger, channel } = this.deps;
-    return new ContactOutbox(
-      { queue: this.queue, store: this.store, nudges: this.nudges, rules, logger, channel },
-      { tenantId: inbound.tenantId, subscriberId: inbound.subscriberId },
-    );
-  }
-
-  private admission(tools: Tools): TurnAdmission {
-    const { rules, tokensEnforced, channel, logger } = this.deps;
-    return new TurnAdmission({
-      store: this.store,
-      tokens: this.tokens,
-      nudges: this.nudges,
+    this.admission = new TurnAdmission({
+      store,
+      tokens: new ContactTokens(db, deps.tokenWriter),
+      nudges,
       rules,
-      tools,
+      tools: this.tools,
       tokensEnforced,
+      channel,
+      logger,
+    });
+    this.fold = new MessageFold({ store, nudges, rules, logger });
+    this.order = lanes
+      ? new TurnOrder({ lanes, store, rules, tokensEnforced, channel, logger })
+      : undefined;
+    this.scope = new TurnScope({
+      store,
+      budget,
+      queue: new OutboxQueue(db),
+      nudges,
+      rules,
+      tools: this.tools,
+      actions: deps.actions,
+      contacts: deps.contacts,
+      plugins: deps.plugins,
       channel,
       logger,
     });
@@ -137,89 +141,34 @@ export class TurnHandler {
    * Without lanes, turns run side by side.
    */
   async handle(inbound: InboundMessage): Promise<TurnResult> {
-    const { lanes, rules, tokensEnforced, channel, logger } = this.deps;
     const deadlineAt = Date.now() + this.deps.raceDeadlineMs;
-    if (!lanes) return this.run(inbound, { deadlineAt });
-    const order = new TurnOrder({
-      lanes,
-      store: this.store,
-      rules,
-      tokensEnforced,
-      channel,
-      logger,
-    });
-    return order.handle(inbound, deadlineAt, {
+    if (!this.order) return this.run(inbound, { deadlineAt });
+    return this.order.handle(inbound, deadlineAt, {
       run: opts => this.run(inbound, opts),
-      fold: binding =>
-        new MessageFold({ store: this.store, nudges: this.nudges, rules, logger }).fold(
-          inbound,
-          binding,
-        ),
-      handOffSilent: () => this.outboxFor(inbound).handOffSilent(),
+      fold: binding => this.fold.fold(inbound, binding),
+      handOffSilent: () => this.scope.outbox(inbound).handOffSilent(),
     });
   }
 
   private async run(inbound: InboundMessage, opts: RunOptions): Promise<TurnResult> {
     const { rules } = this.deps;
     const now = new Date();
-    const tools = this.deps.tools ?? NO_TOOLS;
-    const admitted = await this.admission(tools).admit(inbound, now);
+    const { tools } = this;
+    const admitted = await this.admission.admit(inbound, now);
     const { binding, bound, readsHistory, conversation, logger, userTurnId } = admitted;
     const { keptOffering, requestOffering } = admitted;
     const { media } = inbound;
 
-    // What the model stages this turn. Held here rather than in the runner, so
-    // it is still known when the call is aborted and never returns.
-    const stage = new ActionStage();
-
-    // The contact's record holds their own words in its notes, so a turn that
-    // may not read their history may not read it either (specs/024). A plugin
-    // read is given the subscriber, so it is held to the same rule, and
-    // spends the same two reads (specs/039).
-    const budget = new ReadBudget();
-    const reads =
-      this.deps.contacts && readsHistory
-        ? new ContactReads({
-            reader: this.deps.contacts,
-            subscriberId: inbound.subscriberId,
-            logger,
-            budget,
-          })
-        : undefined;
-    const pluginReads =
-      this.deps.plugins?.hasReadTools && readsHistory
-        ? new PluginReads({ subscriberId: inbound.subscriberId, logger, budget })
-        : undefined;
-
-    // A flow is sent when the model calls it, so its reply follows it
-    // (specs/029). Through the nudging performer, so a payment link sent now
-    // still cancels a pending nudge.
-    const flows = new FlowSends({
-      performer: new NudgingPerformer(this.deps.actions, this.nudges, conversation.id),
-      subscriberId: inbound.subscriberId,
-      logger,
-      tools,
-    });
-
-    const outbox = this.outboxFor(inbound);
-    const delivery = new ReplyDelivery(outbox, {
+    const turn = this.scope.open({
+      inbound,
       conversationId: conversation.id,
+      bound,
+      readsHistory,
       logger,
       late: opts.late === true,
       deadlineAt: opts.deadlineAt,
-      flows,
     });
-    const recorder = new TurnRecorder(
-      { store: this.store, budget: this.budget, nudges: this.nudges },
-      {
-        conversationId: conversation.id,
-        tenantId: inbound.tenantId,
-        bound,
-        logger,
-        stage,
-        pluginReads,
-      },
-    );
+    const { stage, reads, pluginReads, flows, delivery, recorder } = turn;
 
     const precheck = await this.prechecks.check(inbound, {
       turnCount: conversation.turnCount,
@@ -363,16 +312,7 @@ export class TurnHandler {
       // on a runaway call, and this is the only path where a call can outlive
       // the request — so clearing it here would leave the deferred call with no
       // bound at all. It is cleared when the call actually settles.
-      const deferred = new DeferredSettlement({
-        logger,
-        stage,
-        recorder,
-        delivery,
-        outbox,
-        holding,
-        silent,
-        superseded,
-      });
+      const deferred = this.scope.settlement(turn, logger, { holding, silent, superseded });
       const settling = completion.then(async settled => {
         clearTimeout(abortTimer);
         await deferred.settle(settled);
@@ -489,7 +429,7 @@ export class TurnHandler {
     logger: TurnLogger,
   ): Promise<void> {
     try {
-      const performer = new NudgingPerformer(this.deps.actions, this.nudges, conversationId);
+      const performer = this.scope.performer(conversationId);
       const outcomes = await performActions(performer, subscriberId, staged, logger);
       await this.store.resolveStaged(turnId, outcomes);
       const offering = performedOffering(staged, outcomes);
