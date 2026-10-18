@@ -2,11 +2,15 @@ import type { Database } from '../db/client.ts';
 import type { AgentResult, AgentRunner } from '../agent/runner.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import type { ContactReader } from '../channels/manychat/client.ts';
-import { LINK_SENT, MAX_NUDGE_MINUTES, NO_TOOLS } from '../contracts/config.ts';
-import { ActionStage, contactActionsFrom, knownOffering } from '../agent/tools.ts';
-import { BudgetGuard, checkTurnCap } from '../conversation/budget.ts';
+import { NO_TOOLS } from '../contracts/config.ts';
+import { ActionStage } from '../agent/tools.ts';
+import { BudgetGuard } from '../conversation/budget.ts';
 import { ConversationStore } from '../conversation/store.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
+import { ContactOutbox } from '../turn/delivery.ts';
+import { withConversation } from '../turn/logger.ts';
+import { TurnRecorder } from '../turn/recorder.ts';
+import { NudgeChecks } from './checks.ts';
 import { NudgeStore } from './store.ts';
 import type { CancelReason, ClaimedNudge } from './store.ts';
 
@@ -31,15 +35,6 @@ export interface NudgeWorkerOptions {
 }
 
 export type NudgeResult = 'sent' | 'skipped' | CancelReason;
-
-const MINUTE_MS = 60_000;
-
-/**
- * No race to protect here, unlike `get_contact`'s 1500 ms (specs/024): the
- * client's own 10-second bound, so a slow read is not mistaken for a failure.
- */
-const TAG_READ_TIMEOUT_MS = 10_000;
-const DAY_MS = 86_400_000;
 
 /**
  * Runs the follow-ups the agent scheduled, once they are due and only while
@@ -94,66 +89,24 @@ export class NudgeWorker {
       return 'skipped';
     }
     // The conversation's random id, never the subscriber (ADR-0014).
-    const log = (fields: object) => ({ conversation: conversation.id, ...fields });
+    const logger = withConversation(this.opts.logger, conversation.id);
     const cancel = async (reason: CancelReason): Promise<NudgeResult> => {
       await this.nudges.cancelClaimed(nudge.id, reason);
-      this.opts.logger.info(log({ reason }), 'nudge cancelled');
+      logger.info({ reason }, 'nudge cancelled');
       return reason;
     };
 
-    // Cheapest first; the ManyChat read last, just before the turn.
-    if (conversation.escalatedAt && conversation.escalatedAt >= nudge.scheduledAt) {
-      return cancel('escalated');
-    }
-    const historySince = new Date(now.getTime() - rules.historyDays * DAY_MS);
-    const contact = {
-      ...contactActionsFrom(await this.store.actionHistory(conversation.id), tools, historySince),
-      // No request to carry one, so the offering the conversation keeps, if
-      // the catalog still has it (specs/028).
-      offering: knownOffering(conversation.offering, tools),
-    };
-    if (contact.funnelStage === LINK_SENT) return cancel('link_sent');
-
-    const lastInbound = await this.store.lastInbound(conversation.id);
-    if (!lastInbound || now.getTime() > lastInbound.getTime() + MAX_NUDGE_MINUTES * MINUTE_MS) {
-      return cancel('window_closing');
-    }
-
-    // A cap never escalates a nudge: the contact asked nothing, so there is
-    // nothing to hand off.
-    const turnCap = checkTurnCap(conversation.turnCount + 1, rules);
-    const budget = await this.budget.checkBudget(conversation.tenantId, rules, now);
-    if (!turnCap.allowed || !budget.allowed) return cancel('cap_reached');
-
-    const humanActiveTag = tools.nudge?.humanActiveTag;
-    if (humanActiveTag) {
-      let tags: string[];
-      try {
-        const record = await this.opts.contacts.readContact(
-          conversation.subscriberId,
-          AbortSignal.timeout(TAG_READ_TIMEOUT_MS),
-        );
-        tags = record.tags;
-      } catch (error) {
-        // An unprompted message on top of a person's conversation is worse
-        // than a missed follow-up (C6).
-        this.opts.logger.warn(
-          log({ err: error instanceof Error ? error.name : 'unknown' }),
-          'nudge tag read failed',
-        );
-        return cancel('read_failed');
-      }
-      if (tags.includes(humanActiveTag)) return cancel('human_active');
-    }
-
-    // Last, because it counts the turn against the contact's hourly limit.
-    const rate = await this.budget.checkRateLimit(
-      conversation.tenantId,
-      conversation.subscriberId,
+    const checks = new NudgeChecks({
+      store: this.store,
+      budget: this.budget,
+      contacts: this.opts.contacts,
       rules,
-      now,
-    );
-    if (!rate.allowed) return cancel('cap_reached');
+      tools,
+      warn: (fields, message) => this.opts.logger.warn(fields, message),
+    });
+    const checked = await checks.check(nudge, conversation, now);
+    if ('cancel' in checked) return cancel(checked.cancel);
+    const { contact, lastInbound, historySince } = checked.allowed;
     await this.store.countTurn(conversation.id);
 
     const history = await this.store.recentTurns(conversation.id, historySince, 10);
@@ -171,69 +124,59 @@ export class NudgeWorker {
         nudge: { since: lastInbound },
       });
     } catch (error) {
-      this.opts.logger.error(log({ err: String(error) }), 'nudge model call failed');
+      logger.error({ err: String(error) }, 'nudge model call failed');
       await this.nudges.finish(nudge.id, 'skipped');
       return 'skipped';
     } finally {
       clearTimeout(abortTimer);
     }
 
-    const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
-    await this.budget.recordSpend(conversation.tenantId, tokens, result.usage.costUsd, now);
+    // The same recorder an inbound turn ends through (ADR-0024). A nudge is
+    // always bound: it was scheduled by a bound turn of this contact.
+    const recorder = new TurnRecorder(
+      { store: this.store, budget: this.budget, nudges: this.nudges },
+      {
+        conversationId: conversation.id,
+        tenantId: conversation.tenantId,
+        bound: true,
+        logger,
+        stage,
+      },
+    );
+    // Spent whether or not anything is sent: the call was made.
+    await recorder.spend(result, now);
 
     // The contact may have written while the model ran; their own turn
     // answers them, and a follow-up on top of it would talk over it.
     const latest = await this.store.lastInbound(conversation.id);
     if (latest && latest > lastInbound) return cancel('contact_replied');
 
-    const usage = {
-      model: result.model,
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      cacheReadTokens: result.usage.cacheReadTokens,
-      costUsd: result.usage.costUsd,
-      latencyMs: result.latencyMs,
-      playbookVersion: result.playbookVersion,
-    };
-
     // Escalating is how the model declines. The contact asked nothing, so
     // nothing is sent, no person is notified, and what it staged is dropped.
     if (result.reply.escalate) {
-      await this.store.recordAgentReply(
-        conversation.id,
-        result.reply.messages.join('\n'),
-        'nudge_skipped',
-        {
-          bound: true,
-          usage,
-          actions: result.toolsOffered ? stage.records('discarded') : null,
-        },
-      );
+      await recorder.declined(result);
       await this.nudges.finish(nudge.id, 'skipped');
-      this.opts.logger.info(
-        log({ outcome: 'nudge_skipped', interventions: result.interventions }),
+      logger.info(
+        { outcome: 'nudge_skipped', interventions: result.interventions },
         'nudge skipped',
       );
       return 'skipped';
     }
 
-    const turnId = await this.store.recordAgentReply(
-      conversation.id,
-      result.reply.messages.join('\n'),
-      'nudge_sent',
-      { bound: true, usage, actions: result.toolsOffered ? stage.records('staged') : null },
-    );
+    const turnId = await recorder.recordReply(result, 'nudge_sent');
     // No race and nobody waiting on a Dynamic Block: the reply goes straight
     // to the deferred path, and its actions follow its text (specs/012).
-    await this.queue.enqueue({
-      tenantId: conversation.tenantId,
-      subscriberId: conversation.subscriberId,
+    const outbox = new ContactOutbox(
+      { queue: this.queue, store: this.store, nudges: this.nudges, rules, logger },
+      { tenantId: conversation.tenantId, subscriberId: conversation.subscriberId },
+    );
+    await outbox.enqueue({
       conversationId: conversation.id,
       reply: result.reply,
       actions: { staged: stage.staged, turnId },
     });
     await this.nudges.finish(nudge.id, 'sent');
-    this.opts.logger.info(log({ outcome: 'nudge_sent' }), 'nudge sent');
+    logger.info({ outcome: 'nudge_sent' }, 'nudge sent');
     return 'sent';
   }
 

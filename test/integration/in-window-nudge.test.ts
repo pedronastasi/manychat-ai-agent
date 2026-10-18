@@ -486,6 +486,11 @@ describe('a failed read cancels the nudge (specs/025 V4)', () => {
     const [row] = await nudgeRows(id);
     expect(row).toMatchObject({ status: 'cancelled', cancelReason: 'read_failed' });
     expect(inputs).toHaveLength(0);
+    // Named by the conversation's random id, never the subscriber (ADR-0014).
+    expect(logger.warn).toHaveBeenCalledWith(
+      { conversation: id, err: 'Error' },
+      'nudge tag read failed',
+    );
   });
 
   it('makes no read when the tenant sets no humanActiveTag', async () => {

@@ -69,7 +69,7 @@ Ports-and-adapters (hexagonal). Key boundaries:
 - **Contracts** (`src/contracts/`) — Zod schemas are the source of truth; types are inferred.
 - **TurnHandler** (`src/turn/handler.ts`) — runs one turn (the race, ADR-0001) and delegates each job: `TurnOrder` (one turn at a time per contact, folding; specs/037, 046, 047), `TurnAdmission` (binding, the turn, the user message; specs/019), `Prechecks` (opening sentinel, guards; C6), `MediaReader` (specs/020), `TurnRecorder` (how the turn ended), `ReplyDelivery` (inline or outbox; specs/030, 037), `DeferredSettlement` (a lost race). `TurnScope` builds the collaborators that need the admitted turn, so `run()` only sequences (ADR-0023); every ending records and delivers through the same two (ADR-0024).
 - **Outbox** (`src/outbox/`) — Postgres outbox with `FOR UPDATE SKIP LOCKED` for deferred delivery.
-- **Nudges** (`src/nudge/`) — follow-ups the agent schedules, run by a worker at due time (specs/025).
+- **Nudges** (`src/nudge/`) — follow-ups the agent schedules, run by a worker at due time (specs/025). `NudgeChecks` decides whether a due nudge may still run; its turn records through `TurnRecorder` and queues through `ContactOutbox`, as an inbound turn does (ADR-0024).
 
 Ports are implemented as classes; pure functions stay as functions (ADR-0008).
 

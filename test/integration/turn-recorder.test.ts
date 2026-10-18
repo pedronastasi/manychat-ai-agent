@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
-import { nudges, turns } from '../../src/db/schema.ts';
+import { budgetCounters, nudges, turns } from '../../src/db/schema.ts';
 import { ConversationStore } from '../../src/conversation/store.ts';
 import { BudgetGuard } from '../../src/conversation/budget.ts';
 import { NudgeStore } from '../../src/nudge/store.ts';
@@ -64,6 +64,15 @@ const agentRow = async (conversationId: string) => {
   return rows.find(row => row.role === 'agent')!;
 };
 
+const tag = { tool: 'add_tag', id: 'interested', tag: 'interested' } as const;
+const note = {
+  tool: 'write_note',
+  id: 'handoff',
+  field: 'handoff_note',
+  text: 'Asked about evening classes.',
+  onEscalation: true,
+} as const;
+
 describe('a decided reply (specs/019, specs/025)', () => {
   it('records its own outcome and marks a bound escalation', async () => {
     const { recorder, conversationId } = await recorderFor(true);
@@ -95,15 +104,6 @@ describe('a decided reply (specs/019, specs/025)', () => {
 });
 
 describe('a settled model reply (specs/012, specs/024)', () => {
-  const tag = { tool: 'add_tag', id: 'interested', tag: 'interested' } as const;
-  const note = {
-    tool: 'write_note',
-    id: 'handoff',
-    field: 'handoff_note',
-    text: 'Asked about evening classes.',
-    onEscalation: true,
-  } as const;
-
   it('records null actions when no tool was offered', async () => {
     const { recorder, conversationId } = await recorderFor(true);
     await recorder.settle(result({ toolsOffered: false }), 'answered_inline');
@@ -152,5 +152,42 @@ describe('a settled model reply (specs/012, specs/024)', () => {
     expect((await agentRow(conversationId)).actions?.map(action => action.status)).toEqual([
       'discarded',
     ]);
+  });
+});
+
+describe('a nudge turn (specs/025 § A nudge is recorded like a turn)', () => {
+  it('records a declined nudge as skipped, drops every staged action and hands nothing off', async () => {
+    const stage = new ActionStage();
+    stage.stage(tag);
+    stage.stage(note);
+    const { recorder, conversationId } = await recorderFor(true, stage);
+    await new NudgeStore(db).schedule(conversationId, 60);
+    await recorder.declined(escalating('model'));
+    const row = await agentRow(conversationId);
+    expect(row.outcome).toBe('nudge_skipped');
+    expect(row.model).toBe('mock:demo');
+    expect(row.actions?.map(action => `${action.tool}:${action.status}`)).toEqual([
+      'add_tag:discarded',
+      'write_note:discarded',
+    ]);
+    expect((await store.find('demo', 's1'))?.escalatedAt).toBeNull();
+    const [nudge] = await db.select().from(nudges).where(eq(nudges.conversationId, conversationId));
+    expect(nudge?.status).toBe('pending');
+  });
+
+  it('records a sent nudge with its usage, and leaves its spend to the call', async () => {
+    const stage = new ActionStage();
+    stage.stage(tag);
+    const { recorder, conversationId } = await recorderFor(true, stage);
+    await recorder.recordReply(result(), 'nudge_sent');
+    const row = await agentRow(conversationId);
+    expect([row.outcome, row.inputTokens, row.outputTokens]).toEqual(['nudge_sent', 100, 20]);
+    expect(row.actions?.map(action => action.status)).toEqual(['staged']);
+    expect(await db.select().from(budgetCounters)).toEqual([]);
+
+    const day = new Date('2026-03-04T12:00:00Z');
+    await recorder.spend(result(), day);
+    const [counter] = await db.select().from(budgetCounters);
+    expect(counter?.tokens).toBe(120);
   });
 });
