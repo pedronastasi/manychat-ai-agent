@@ -2,7 +2,7 @@ import type { AgentResult } from '../agent/runner.ts';
 import type { ActionStage } from '../agent/tools.ts';
 import type { ActionRecord, AgentReply, StagedAction, TurnOutcome } from '../contracts/agent.ts';
 import type { BudgetGuard } from '../conversation/budget.ts';
-import type { ConversationStore } from '../conversation/store.ts';
+import type { ConversationStore, TurnUsage } from '../conversation/store.ts';
 import type { NudgeStore } from '../nudge/store.ts';
 import type { PluginReads } from '../plugins/reads.ts';
 import type { TurnLogger } from './logger.ts';
@@ -113,30 +113,54 @@ export class TurnRecorder {
    * escalation it made. Returns the agent turn's id.
    */
   async settle(result: AgentResult, outcome: TurnOutcome): Promise<string> {
-    const { conversationId, tenantId, bound } = this.turn;
-    const turnId = await this.deps.store.recordAgentReply(
-      conversationId,
+    const turnId = await this.recordReply(result, outcome);
+    await this.spend(result);
+    if (result.reply.escalate) await this.escalated();
+    return turnId;
+  }
+
+  /**
+   * Writes a model reply's row, with its usage, what was staged and what was
+   * read, and nothing else: no spend and no escalation. Returns its id.
+   */
+  async recordReply(result: AgentResult, outcome: TurnOutcome): Promise<string> {
+    return this.deps.store.recordAgentReply(
+      this.turn.conversationId,
       result.reply.messages.join('\n'),
       outcome,
       {
-        bound,
-        usage: {
-          model: result.model,
-          inputTokens: result.usage.inputTokens,
-          outputTokens: result.usage.outputTokens,
-          cacheReadTokens: result.usage.cacheReadTokens,
-          costUsd: result.usage.costUsd,
-          latencyMs: result.latencyMs,
-          playbookVersion: result.playbookVersion,
-        },
+        bound: this.turn.bound,
+        usage: usageOf(result),
         actions: this.actionsOf(result, outcome),
         reads: this.reads(),
       },
     );
+  }
+
+  /** Counts a model call's tokens and cost against the tenant's daily cap. */
+  async spend(result: AgentResult, now?: Date): Promise<void> {
     const tokens = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
-    await this.deps.budget.recordSpend(tenantId, tokens, result.usage.costUsd);
-    if (result.reply.escalate) await this.escalated();
-    return turnId;
+    await this.deps.budget.recordSpend(this.turn.tenantId, tokens, result.usage.costUsd, now);
+  }
+
+  /**
+   * A nudge the model declined by escalating. The contact asked nothing, so
+   * this is not a handoff: nothing is marked escalated, and everything staged
+   * is dropped, notes included (specs/025 § A nudge is recorded like a turn).
+   */
+  async declined(result: AgentResult): Promise<void> {
+    const { conversationId, bound, stage } = this.turn;
+    await this.deps.store.recordAgentReply(
+      conversationId,
+      result.reply.messages.join('\n'),
+      'nudge_skipped',
+      {
+        bound,
+        usage: usageOf(result),
+        actions: result.toolsOffered ? stage.records('discarded') : null,
+        reads: this.reads(),
+      },
+    );
   }
 
   /**
@@ -162,4 +186,17 @@ export class TurnRecorder {
     const { pluginReads } = this.turn;
     return pluginReads ? [...pluginReads.records] : null;
   }
+}
+
+/** What a model reply cost and which playbook wrote it, as its row records it. */
+function usageOf(result: AgentResult): TurnUsage {
+  return {
+    model: result.model,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    cacheReadTokens: result.usage.cacheReadTokens,
+    costUsd: result.usage.costUsd,
+    latencyMs: result.latencyMs,
+    playbookVersion: result.playbookVersion,
+  };
 }
