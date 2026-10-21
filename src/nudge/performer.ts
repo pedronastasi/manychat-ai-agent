@@ -16,16 +16,24 @@ export class NudgingPerformer implements ActionPerformer {
   private readonly inner: ActionPerformer;
   private readonly nudges: NudgeStore;
   private readonly conversationId: string;
+  /** The channel of the turn whose actions these are, which a nudge runs on (specs/048). */
+  private readonly channel: string | undefined;
 
-  constructor(inner: ActionPerformer, nudges: NudgeStore, conversationId: string) {
+  constructor(
+    inner: ActionPerformer,
+    nudges: NudgeStore,
+    conversationId: string,
+    channel?: string,
+  ) {
     this.inner = inner;
     this.nudges = nudges;
     this.conversationId = conversationId;
+    this.channel = channel;
   }
 
   async performAction(subscriberId: string, action: PerformableAction): Promise<void> {
     if (action.tool === 'schedule_nudge') {
-      await this.nudges.schedule(this.conversationId, action.minutes);
+      await this.nudges.schedule(this.conversationId, action.minutes, new Date(), this.channel);
       return;
     }
     await this.inner.performAction(subscriberId, action);

@@ -23,6 +23,12 @@ export interface ReplyPayload {
   channel?: string;
   /** Set on a handoff queued for a plugin channel, which is told so (specs/038). */
   escalate?: true;
+  /**
+   * The ManyChat channel of the turn it answers, whose flow delivers it
+   * (specs/048). Absent on a plugin channel's reply, and on one queued before
+   * specs/048, which goes out on `CHANNEL`.
+   */
+  manychatChannel?: string;
 }
 
 /**
@@ -55,11 +61,15 @@ export class OutboxQueue {
     notBefore?: Date | undefined;
     /** A plugin channel's name; ManyChat when absent (specs/038). */
     channel?: string | undefined;
+    /** On ManyChat, the channel of the turn it answers (specs/048). */
+    manychatChannel?: string | undefined;
   }): Promise<string> {
     const payload: ReplyPayload = { messages: input.reply.messages };
     if (input.channel !== undefined) {
       payload.channel = input.channel;
       if (input.reply.escalate) payload.escalate = true;
+    } else if (input.manychatChannel !== undefined) {
+      payload.manychatChannel = input.manychatChannel;
     }
     if (input.actions && input.actions.staged.length > 0) {
       payload.actions = [...input.actions.staged];

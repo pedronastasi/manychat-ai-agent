@@ -95,7 +95,7 @@ export class ConversationStore {
   async recordUserMessage(
     conversationId: string,
     text: string,
-    turn: { bound: boolean; mediaKind?: MediaKind | undefined },
+    turn: { bound: boolean; mediaKind?: MediaKind | undefined; channel: string },
   ): Promise<string> {
     const [row] = await this.db
       .insert(turns)
@@ -105,6 +105,7 @@ export class ConversationStore {
         text,
         bound: turn.bound,
         mediaKind: turn.mediaKind ?? null,
+        channel: turn.channel,
       })
       .returning({ id: turns.id });
     if (!row) throw new Error('recordUserMessage: insert returned no row');
@@ -270,14 +271,25 @@ export class ConversationStore {
   }
 
   /**
-   * When the contact last wrote, bound or not: WhatsApp's 24-hour window opens
-   * on any message, not only those that carried the token (specs/025).
+   * When the contact last wrote, bound or not: the 24-hour window opens on any
+   * message, not only those that carried the token (specs/025). With
+   * `channel`, on that channel only, since a message on one opens no window on
+   * another (specs/048).
    */
-  async lastInbound(conversationId: string): Promise<Date | null> {
+  async lastInbound(conversationId: string, channel?: string): Promise<Date | null> {
     const [row] = await this.db
       .select({ at: max(turns.createdAt) })
       .from(turns)
-      .where(and(eq(turns.conversationId, conversationId), eq(turns.role, 'user')));
+      .where(
+        and(
+          eq(turns.conversationId, conversationId),
+          eq(turns.role, 'user'),
+          // A message with no channel was written by a process older than
+          // specs/048, after the migration ran: counted on every channel,
+          // so a rolling deploy never closes a window that is still open.
+          channel === undefined ? undefined : or(eq(turns.channel, channel), isNull(turns.channel)),
+        ),
+      );
     return row?.at ? new Date(row.at) : null;
   }
 

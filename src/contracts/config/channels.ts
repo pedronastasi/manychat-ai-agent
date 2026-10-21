@@ -45,6 +45,16 @@ export const CHANNEL_CAPABILITIES: Record<string, ChannelCapabilities> = {
   },
 };
 
+/**
+ * The channels ManyChat delivers a deferred reply to only inside Meta's
+ * 24-hour window: they have no template a flow could leave it with
+ * (specs/048 § Outside the window, only WhatsApp has a way back).
+ */
+export const WINDOW_BOUND_CHANNELS: ReadonlySet<string> = new Set(['instagram', 'messenger']);
+
+/** Meta's free-form messaging window, from the contact's last message on a channel. */
+export const REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export function capabilitiesFor(channel: string): ChannelCapabilities {
   const caps = CHANNEL_CAPABILITIES[channel];
   if (!caps) {

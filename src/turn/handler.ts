@@ -381,7 +381,7 @@ export class TurnHandler {
         ...(staged.length > 0
           ? {
               afterResponse: () =>
-                this.performInline(inbound.subscriberId, conversation.id, staged, turnId, logger),
+                this.performInline(inbound, conversation.id, staged, turnId, logger),
             }
           : {}),
       },
@@ -422,15 +422,15 @@ export class TurnHandler {
    * worse than a missing one.
    */
   private async performInline(
-    subscriberId: string,
+    inbound: InboundMessage,
     conversationId: string,
     staged: readonly StagedAction[],
     turnId: string,
     logger: TurnLogger,
   ): Promise<void> {
     try {
-      const performer = this.scope.performer(conversationId);
-      const outcomes = await performActions(performer, subscriberId, staged, logger);
+      const performer = this.scope.performer(conversationId, inbound.channel);
+      const outcomes = await performActions(performer, inbound.subscriberId, staged, logger);
       await this.store.resolveStaged(turnId, outcomes);
       const offering = performedOffering(staged, outcomes);
       if (offering !== undefined) await this.store.setOffering(conversationId, offering);

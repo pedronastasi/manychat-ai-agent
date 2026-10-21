@@ -121,7 +121,7 @@ describe('TurnScope (ADR-0023)', () => {
   it('schedules a nudge on the conversation instead of sending one (specs/025 § The agent schedules a nudge; it does not send one)', async () => {
     const actions = new RecordingPerformer();
     await scopeOf({ actions })
-      .performer(conversationId)
+      .performer(conversationId, 'whatsapp')
       .performAction('s1', { tool: 'schedule_nudge', id: 'n1', minutes: 30 });
     expect(actions.performed).toEqual([]);
     const pending = await db.select().from(nudges);

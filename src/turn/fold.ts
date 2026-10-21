@@ -76,7 +76,10 @@ export class MessageFold {
       new Date(),
     );
     await nudges.cancel(conversation.id, 'contact_replied');
-    await store.recordUserMessage(conversation.id, inbound.text, { bound: true });
+    await store.recordUserMessage(conversation.id, inbound.text, {
+      bound: true,
+      channel: inbound.channel,
+    });
     withConversation(logger, conversation.id).info(
       { outcome: 'folded' },
       'message folded into the next turn',

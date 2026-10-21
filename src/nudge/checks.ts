@@ -34,7 +34,7 @@ export interface NudgeChecksDeps {
 /** A nudge every check allowed, with what its turn runs on. */
 export interface AllowedNudge {
   contact: ContactActions & { offering: string | undefined };
-  /** The contact's last message, which the nudge follows up (specs/025). */
+  /** The contact's last message on the nudge's channel, which it follows up (specs/025, 048). */
   lastInbound: Date;
   /** How far back the turn's history reaches (specs/018). */
   historySince: Date;
@@ -74,7 +74,8 @@ export class NudgeChecks {
     };
     if (contact.funnelStage === LINK_SENT) return { cancel: 'link_sent' };
 
-    const lastInbound = await store.lastInbound(conversation.id);
+    // On the nudge's own channel, whose window it is sent in (specs/048).
+    const lastInbound = await store.lastInbound(conversation.id, nudge.channel ?? undefined);
     if (!lastInbound || now.getTime() > lastInbound.getTime() + MAX_NUDGE_MINUTES * MINUTE_MS) {
       return { cancel: 'window_closing' };
     }

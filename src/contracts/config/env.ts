@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import { z } from 'zod';
+import { CHANNEL_CAPABILITIES } from './channels.ts';
 
 /**
  * Treats an empty env var as unset.
@@ -20,6 +21,9 @@ const csv = (raw: string) =>
     .split(',')
     .map(part => part.trim())
     .filter(Boolean);
+
+/** What `CHANNELS` may list (specs/048 § The channel belongs to the request). */
+const META_CHANNELS: ReadonlySet<string> = new Set(['whatsapp', 'instagram', 'messenger']);
 
 const PROXY_PRESETS = new Set(['loopback', 'linklocal', 'uniquelocal']);
 
@@ -77,7 +81,13 @@ export const EnvSchema = z
       z.string().regex(MODEL_SPEC, 'Expected "provider:model"').optional(),
     ),
 
+    /** The channel of a request that names none (specs/048). */
     CHANNEL: z.string().default('whatsapp'),
+    /**
+     * The channels this deployment answers, comma-separated (specs/048 § The
+     * channel belongs to the request). Unset, it is `CHANNEL` alone.
+     */
+    CHANNELS: z.preprocess(emptyAsUnset, z.string().transform(csv).optional()),
     // ManyChat refuses a non-HTTPS callback, and the response schema refuses it
     // before that, so an http:// base would fail every turn rather than boot
     // (specs/017 § Callbacks are HTTPS or the process does not boot).
@@ -109,6 +119,9 @@ export const EnvSchema = z
     // (specs/002-channel-contract.md § Verification).
     MANYCHAT_REPLY_FIELD: z.string().min(1).default('ai_message'),
     MANYCHAT_REPLY_FLOW_NS: optionalString,
+    /** The reply flows of the other channels, authored per channel (specs/048). */
+    MANYCHAT_REPLY_FLOW_NS_INSTAGRAM: optionalString,
+    MANYCHAT_REPLY_FLOW_NS_MESSENGER: optionalString,
     /**
      * The pause before each deferred reply message after the first, and
      * between two replies to one contact (specs/002 § Messages to one contact
@@ -145,5 +158,83 @@ export const EnvSchema = z
   .refine(env => env.MODEL_ABORT_MS > env.RACE_DEADLINE_MS, {
     message: 'MODEL_ABORT_MS must be greater than RACE_DEADLINE_MS',
     path: ['MODEL_ABORT_MS'],
-  });
+  })
+  .refine(env => isKnownChannel(env.CHANNEL), {
+    message: `CHANNEL must be one of ${Object.keys(CHANNEL_CAPABILITIES).join(', ')}`,
+    path: ['CHANNEL'],
+  })
+  // The Meta channels only: Telegram stays out of a multi-channel deployment
+  // (specs/048). CHANNEL alone keeps accepting it, as it did before.
+  .refine(env => (env.CHANNELS ?? []).every(channel => META_CHANNELS.has(channel)), {
+    message: `CHANNELS may list only ${[...META_CHANNELS].join(', ')}`,
+    path: ['CHANNELS'],
+  })
+  .refine(env => acceptedChannels(env).includes(env.CHANNEL), {
+    message: 'CHANNELS must include CHANNEL, the channel of a request that names none',
+    path: ['CHANNELS'],
+  })
+  // A channel accepted with no flow to defer its replies through would strand
+  // every race it lost (specs/048 § A reply goes to the channel of the turn it
+  // answers, C6). Without an API token nothing is deferred at all.
+  .refine(
+    env =>
+      !env.MANYCHAT_API_TOKEN ||
+      acceptedChannels(env)
+        .filter(channel => OWN_REPLY_FLOW.has(channel))
+        .every(channel => replyFlowFor(env, channel) !== undefined),
+    {
+      message: 'Instagram and Messenger in CHANNELS need MANYCHAT_REPLY_FLOW_NS_<CHANNEL>',
+      path: ['CHANNELS'],
+    },
+  );
 export type Env = z.infer<typeof EnvSchema>;
+
+/** The channels whose reply flow has a variable of its own (specs/048). */
+const OWN_REPLY_FLOW: ReadonlySet<string> = new Set(['instagram', 'messenger']);
+
+/** The flows of the accepted channels that have their own, by channel (specs/048). */
+export function ownReplyFlows(env: ChannelEnv): Record<string, string> {
+  return Object.fromEntries(
+    acceptedChannels(env).flatMap(channel => {
+      if (!OWN_REPLY_FLOW.has(channel)) return [];
+      const flow = replyFlowFor(env, channel);
+      return flow === undefined ? [] : [[channel, flow]];
+    }),
+  );
+}
+
+function isKnownChannel(channel: string): boolean {
+  return Object.hasOwn(CHANNEL_CAPABILITIES, channel);
+}
+
+/** What the channel helpers read; spelled out, since the schema's own refines call them. */
+interface ChannelEnv {
+  CHANNEL: string;
+  CHANNELS?: string[] | undefined;
+  MANYCHAT_REPLY_FLOW_NS?: string | undefined;
+  MANYCHAT_REPLY_FLOW_NS_INSTAGRAM?: string | undefined;
+  MANYCHAT_REPLY_FLOW_NS_MESSENGER?: string | undefined;
+}
+
+/** The channels a request may name (specs/048). */
+export function acceptedChannels(env: Pick<ChannelEnv, 'CHANNEL' | 'CHANNELS'>): string[] {
+  return env.CHANNELS ?? [env.CHANNEL];
+}
+
+/**
+ * The flow that renders a deferred reply on `channel` (specs/048). A channel
+ * without one of its own, such as WhatsApp, uses `MANYCHAT_REPLY_FLOW_NS`, and
+ * so does the one channel of a deployment that answers only one, as it did
+ * before specs/048.
+ */
+export function replyFlowFor(env: ChannelEnv, channel: string): string | undefined {
+  const own =
+    channel === 'instagram'
+      ? env.MANYCHAT_REPLY_FLOW_NS_INSTAGRAM
+      : channel === 'messenger'
+        ? env.MANYCHAT_REPLY_FLOW_NS_MESSENGER
+        : undefined;
+  if (own !== undefined) return own;
+  const single = acceptedChannels(env).length === 1;
+  return !OWN_REPLY_FLOW.has(channel) || single ? env.MANYCHAT_REPLY_FLOW_NS : undefined;
+}

@@ -11,6 +11,8 @@ export interface RenderContext {
   contactTokenField?: string | undefined;
   /** The contact field the channel fills into the callback as `offering` (specs/028). */
   offeringField?: string | undefined;
+  /** The turn's channel, sent back as a literal by the callback (specs/048). */
+  channel?: string | undefined;
   /**
    * Renders no message, only the callback: a flow sent this turn is still
    * playing and the reply follows it from the outbox (specs/030).

@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import type { FastifyError } from 'fastify';
+import type { FastifyError, FastifyReply } from 'fastify';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import underPressure from '@fastify/under-pressure';
@@ -12,7 +12,7 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { ManyChatInbound, ManyChatResponse } from './contracts/manychat.ts';
-import { capabilitiesFor, NO_TOOLS } from './contracts/config.ts';
+import { acceptedChannels, capabilitiesFor, NO_TOOLS } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
 import type { AgentReply, InboundMessage } from './contracts/agent.ts';
 import type { TranscriptionModel } from 'ai';
@@ -118,7 +118,15 @@ export async function buildServer(opts: BuildOptions) {
   app.setSerializerCompiler(serializerCompiler);
 
   const tenant = () => configStore.get();
-  const capabilities = capabilitiesFor(env.CHANNEL);
+  // Per request, never fixed at boot: one deployment answers every channel
+  // it accepts (specs/048 § The channel belongs to the request).
+  const accepted = new Set(acceptedChannels(env));
+  /** The channel a ManyChat request names, `CHANNEL` when it names none (specs/048). */
+  const channelOf = (body: unknown): string => {
+    const named =
+      typeof body === 'object' && body !== null ? (body as { channel?: unknown }).channel : null;
+    return typeof named === 'string' && named !== '' ? named : env.CHANNEL;
+  };
 
   const built = opts.manychat ? undefined : manychatClientFor(env, opts.manychatFetch);
   const manychatClient = opts.manychat ?? built!;
@@ -213,10 +221,23 @@ export async function buildServer(opts: BuildOptions) {
   const channels = channelAdapters(plugins, app.log);
 
   /** How each message route renders a handoff, by route. */
-  const handoffs = new Map<string, (reply: AgentReply, secret: string | undefined) => unknown>([
+  const handoffs = new Map<
+    string,
+    (reply: AgentReply, secret: string | undefined, body: unknown) => unknown
+  >([
     [
       MESSAGE_ROUTE,
-      (handoff, secret) => adapter.render(handoff, { capabilities, ...callbackFor(secret) }),
+      (handoff, secret, body) => {
+        // A request naming a channel this deployment does not answer is
+        // handed off as `CHANNEL`, never rendered for an unknown one.
+        const named = channelOf(body);
+        const channel = accepted.has(named) ? named : env.CHANNEL;
+        return adapter.render(handoff, {
+          capabilities: capabilitiesFor(channel),
+          channel,
+          ...callbackFor(secret),
+        });
+      },
     ],
     ...[...channels.values()].map(
       channel => [channel.route, (handoff: AgentReply) => channel.render(handoff)] as const,
@@ -255,6 +276,7 @@ export async function buildServer(opts: BuildOptions) {
         const handoff = render(
           escalationReply('low_confidence', tenant().rules.messages.escalation),
           bearerToken(request.headers.authorization),
+          request.body,
         );
         // under-pressure sets it for its 503; on a 200 it means nothing.
         reply.removeHeader('retry-after');
@@ -346,6 +368,16 @@ export async function buildServer(opts: BuildOptions) {
     MESSAGE_ROUTE,
     {
       onRequest: createSharedSecretGuard(env.MANYCHAT_SHARED_SECRET),
+      // After authentication, and before anything reads the turn: a channel
+      // this deployment does not answer is refused, without saying why
+      // (specs/048, specs/017, C3).
+      preValidation: async (request, reply) => {
+        if (!accepted.has(channelOf(request.body))) {
+          request.log.warn({ route: MESSAGE_ROUTE }, 'channel not accepted');
+          // Untyped: the route's schema declares its 200 only.
+          await (reply as FastifyReply).code(400).send({ error: 'invalid request' });
+        }
+      },
       onResponse: performAfterResponse,
       schema: {
         summary: 'ManyChat Dynamic Block webhook',
@@ -355,9 +387,10 @@ export async function buildServer(opts: BuildOptions) {
       },
     },
     async request => {
+      const channel = channelOf(request.body);
       const inbound = adapter.parse(request.body, {
         tenantId: env.TENANT_ID,
-        channel: env.CHANNEL,
+        channel,
         logger: request.log,
       });
       const turn = await runTurn(request, inbound, {
@@ -369,7 +402,8 @@ export async function buildServer(opts: BuildOptions) {
         tools: tenant().tools,
       });
       return adapter.render(turn.reply, {
-        capabilities,
+        capabilities: capabilitiesFor(channel),
+        channel,
         silent: turn.silent,
         // Re-registered every turn so the loop stays server-side (specs/002).
         ...callbackFor(bearerToken(request.headers.authorization)),

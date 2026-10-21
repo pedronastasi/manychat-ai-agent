@@ -19,6 +19,8 @@ export interface ContactOutboxDeps {
   logger: TurnLogger;
   /** The plugin channel the turn arrived on (specs/038); ManyChat when absent. */
   channel?: string | undefined;
+  /** On ManyChat, the channel the turn arrived on, whose flow delivers its reply (specs/048). */
+  manychatChannel?: string | undefined;
 }
 
 /** A contact's queued replies, on the channel their turn arrived on. */
@@ -38,7 +40,8 @@ export class ContactOutbox {
     actions?: DeferredActions | undefined;
     notBefore?: Date | undefined;
   }): Promise<string> {
-    return this.deps.queue.enqueue({ ...this.contact, ...input, channel: this.deps.channel });
+    const { channel, manychatChannel } = this.deps;
+    return this.deps.queue.enqueue({ ...this.contact, ...input, channel, manychatChannel });
   }
 
   hasQueuedReply(): Promise<boolean> {

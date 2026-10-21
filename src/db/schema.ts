@@ -80,6 +80,11 @@ export const turns = pgTable(
      */
     bound: boolean('bound').notNull().default(true),
     /**
+     * The channel a contact's message arrived on, so a deferred reply or a
+     * nudge can find that channel's window (specs/048). Null on agent turns.
+     */
+    channel: text('channel'),
+    /**
      * What the contact sent when it was not typed text, so a transcript can be
      * told apart from a typed message. `text` then holds the transcript or a
      * marker such as `[image]`, never the media URL (specs/020).
@@ -184,6 +189,11 @@ export const nudges = pgTable(
         'cap_reached',
       ],
     }),
+    /**
+     * The channel of the turn that scheduled it, which the nudge runs on
+     * (specs/048). Null on a nudge scheduled before it: any channel.
+     */
+    channel: text('channel'),
     /** When the pending nudge was last scheduled; a later escalation cancels it. */
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
