@@ -14,7 +14,7 @@ delivered only while WhatsApp's 24-hour window is still open. It leaves out
 anything sent after the window closes (which needs a paid template), more than
 one nudge per silence, and nudges on any channel but WhatsApp through ManyChat.
 Instagram and Messenger nudges are specified in
-[`048`](048-one-deployment-every-meta-channel.md) and not yet built.
+[`048`](048-one-deployment-every-meta-channel.md).
 
 ## A lead who stops replying is lost by default
 

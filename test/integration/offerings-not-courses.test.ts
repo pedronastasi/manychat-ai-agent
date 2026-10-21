@@ -142,7 +142,8 @@ describe('the migration keeps every stored value (specs/042 V6)', () => {
           (tenant_id, run_id, text, rationale, enrolled_count, not_enrolled_count, turn_ids)
         VALUES ('demo', ${run!.id}, 'An invented tactic.', 'Invented.', 5, 2, '[]'::jsonb)`);
 
-      expect(await runMigrations(db)).toEqual(['0012_offerings_and_conversions.sql']);
+      // 0012 first; the migrations after it are their own specs' to test.
+      expect((await runMigrations(db))[0]).toBe('0012_offerings_and_conversions.sql');
 
       const kept = await db
         .select({ subscriberId: conversations.subscriberId, offering: conversations.offering })

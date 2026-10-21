@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-21
 constitution: [C3, C5, C6, C7]
 adr: [0005]
 ---
@@ -20,9 +21,10 @@ The reflexive way to add Instagram is a second deployment with
 once at boot and fixes the capabilities every reply is rendered against. It
 looks harmless until a ManyChat account sends both channels to one URL, which
 is what an account with one External Request in a shared flow does. Then an
-Instagram contact is rendered as a WhatsApp one: one message where ten were
-allowed, and no quick replies. A WhatsApp contact on an `instagram` deployment
-is worse: quick replies they never see (`002 § Channel capability matrix`).
+Instagram contact is rendered as a WhatsApp one: a reply of four messages
+joined into one, where ten were allowed. A WhatsApp contact on an `instagram`
+deployment is worse: four messages of which ManyChat delivers only the first
+(`002 § Channel capability matrix`).
 
 So the rule is:
 
@@ -68,9 +70,9 @@ channel:
 
 An inline reply goes back on the request it answers, so its channel needs no
 rule. A deferred reply does. Every outbox row for a ManyChat contact records
-the channel of the turn that wrote it, in a payload field distinct from `038`'s
-`channel`, where absence already means "ManyChat". A row written before this
-spec carries none and is read as `CHANNEL`.
+the channel of the turn that wrote it, as `manychatChannel` in its payload:
+`038`'s `channel` is not reused, because its absence already means "ManyChat".
+A row written before this spec carries none and is read as `CHANNEL`.
 
 The worker delivers each row through that channel's reply flow. A ManyChat flow
 is authored per channel, so `002`'s two calls need a flow per channel:
@@ -84,9 +86,11 @@ is authored per channel, so `002`'s two calls need a flow per channel:
 The reply field (`MANYCHAT_REPLY_FIELD`) is shared: it is per subscriber, and
 `002 § Messages to one contact are paced` already serialises a contact's sends.
 
-A channel in `CHANNELS` with no flow is a boot error whenever deferred delivery
-is configured. A deployment that accepts Instagram and cannot defer a reply
-there would silently strand every race it lost (C6).
+Instagram or Messenger in `CHANNELS` without its flow is a boot error whenever
+deferred delivery is configured, which is whenever `MANYCHAT_API_TOKEN` is set.
+A deployment that accepts Instagram and cannot defer a reply there would
+silently strand every race it lost (C6). `MANYCHAT_REPLY_FLOW_NS` keeps the
+rule it had before this spec, so no WhatsApp deployment stops booting.
 
 A turn on one channel never sends to another. A reply to an Instagram turn is
 not rerouted to WhatsApp because WhatsApp's window is still open. The contact
@@ -144,11 +148,11 @@ observed, and nothing else.
 ## Verification
 
 1. A route test sends one request with `channel: instagram` and one with
-   `channel: whatsapp` to a single server, with the same reply of four messages
-   and two quick replies. It asserts the Instagram response carries four
-   messages and `quick_replies`, and the WhatsApp one a single message and no
-   `quick_replies` key. This is the check that fails if capabilities are ever
-   fixed at boot again.
+   `channel: whatsapp` to a single server, with the same reply of four
+   messages. It asserts the Instagram response carries four messages, and the
+   WhatsApp one a single message holding all four. This is the check that fails
+   if capabilities are ever fixed at boot again. Quick replies are not part of
+   it: the agent's reply has none to render on any channel.
 2. A route test asserts a request without `channel` is rendered as `CHANNEL`,
    and that one naming `telegram`, or a channel outside `CHANNELS`, gets a 400
    after authentication and never reaches the model.
@@ -169,9 +173,9 @@ observed, and nothing else.
 8. A nudge test asserts `window_closing` on an Instagram nudge is measured from
    the last Instagram turn, not a later WhatsApp one, and that a WhatsApp
    message cancels it as `contact_replied`.
-9. An adapter test passes an invented URL on `020`'s host with an `ig` segment
-   and asserts kind `unsupported`, no download, and no URL in the stored turn
-   or the log.
+9. A route test sends an invented URL on `020`'s host with an `ig` segment and
+   asserts kind `unsupported`, no download, no model call, the URL's shape in
+   the log, and no URL in the stored turn or the log.
 
 **What this does not catch.** The per-channel flows live in the tenant's
 ManyChat account. A flow authored for the wrong channel, or one whose message

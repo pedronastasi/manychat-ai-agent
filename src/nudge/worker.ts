@@ -107,6 +107,8 @@ export class NudgeWorker {
     const checked = await checks.check(nudge, conversation, now);
     if ('cancel' in checked) return cancel(checked.cancel);
     const { contact, lastInbound, historySince } = checked.allowed;
+    // Any channel: a contact who answered on another has answered (specs/048).
+    const answeredBefore = await this.store.lastInbound(conversation.id);
     await this.store.countTurn(conversation.id);
 
     const history = await this.store.recentTurns(conversation.id, historySince, 10);
@@ -149,7 +151,7 @@ export class NudgeWorker {
     // The contact may have written while the model ran; their own turn
     // answers them, and a follow-up on top of it would talk over it.
     const latest = await this.store.lastInbound(conversation.id);
-    if (latest && latest > lastInbound) return cancel('contact_replied');
+    if (latest && answeredBefore && latest > answeredBefore) return cancel('contact_replied');
 
     // Escalating is how the model declines. The contact asked nothing, so
     // nothing is sent, no person is notified, and what it staged is dropped.
@@ -167,7 +169,15 @@ export class NudgeWorker {
     // No race and nobody waiting on a Dynamic Block: the reply goes straight
     // to the deferred path, and its actions follow its text (specs/012).
     const outbox = new ContactOutbox(
-      { queue: this.queue, store: this.store, nudges: this.nudges, rules, logger },
+      {
+        queue: this.queue,
+        store: this.store,
+        nudges: this.nudges,
+        rules,
+        logger,
+        // On the channel it was scheduled for (specs/048).
+        manychatChannel: nudge.channel ?? undefined,
+      },
       { tenantId: conversation.tenantId, subscriberId: conversation.subscriberId },
     );
     await outbox.enqueue({

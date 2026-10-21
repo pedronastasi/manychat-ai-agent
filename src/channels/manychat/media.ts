@@ -21,8 +21,22 @@ const KIND_BY_EXTENSION: Record<string, MediaKind> = {
   '3gp': 'video',
 };
 
+/**
+ * The same path under another channel's segment. No such URL has been
+ * observed, so it is never downloaded: it is media the agent cannot read,
+ * never a link the model answers (specs/048 § Media is recognised per channel).
+ */
+const OTHER_CHANNEL_MEDIA_URL =
+  /^https:\/\/manybot-files\.s3\.eu-central-1\.amazonaws\.com\/\d+\/(?!wa\/)[a-z]+\/\d{4}\/\d{2}\/\d{2}\/original_[0-9a-f]+\.[a-z0-9]+$/i;
+
+/** Whether `text` is a file sent on a channel whose URL shape is not yet known (specs/048). */
+export function isOtherChannelMedia(text: string): boolean {
+  return OTHER_CHANNEL_MEDIA_URL.test(text.trim());
+}
+
 export function matchMediaUrl(text: string): InboundMedia | null {
   const url = text.trim();
+  if (isOtherChannelMedia(url)) return { kind: 'unsupported', url };
   const match = MEDIA_URL.exec(url);
   if (!match) return null;
   const extension = match[1]!.toLowerCase();

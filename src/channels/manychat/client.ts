@@ -6,7 +6,7 @@ import {
 } from 'manychat-sdk';
 import type { ContactTokenWriter } from '../../conversation/tokens.ts';
 import type { PerformableAction } from '../../contracts/agent.ts';
-import type { Env } from '../../contracts/config.ts';
+import { ownReplyFlows, type Env } from '../../contracts/config.ts';
 import { ContactRecord } from '../../contracts/manychat.ts';
 
 // The worker retries on `ManyChatError.retryable` (specs/022 § Retries follow
@@ -64,7 +64,11 @@ export interface ContactReader {
  * against it. Note each message now costs two requests.
  */
 export interface ManyChatClient extends ContactTokenWriter, ActionPerformer {
-  sendText(subscriberId: string, messages: string[]): Promise<void>;
+  /**
+   * Delivers a reply through `channel`'s reply flow, the default flow when it
+   * has none of its own (specs/048).
+   */
+  sendText(subscriberId: string, messages: string[], channel?: string): Promise<void>;
 }
 
 /**
@@ -97,6 +101,8 @@ export interface ManyChatClientOptions {
   replyField: string;
   /** Namespace of the flow that renders `replyField`. */
   replyFlowNs: string;
+  /** The channels whose reply flow is their own, by channel (specs/048). */
+  replyFlows?: Readonly<Record<string, string>>;
   /** Custom field that holds the contact's token (specs/019). */
   tokenField: string;
   /**
@@ -118,6 +124,7 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
   private readonly api: ManyChat;
   private readonly replyField: string;
   private readonly replyFlowNs: string;
+  private readonly replyFlows: Readonly<Record<string, string>>;
   private readonly tokenField: string;
   private readonly replyGapMs: number;
   /**
@@ -137,6 +144,7 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
     });
     this.replyField = opts.replyField;
     this.replyFlowNs = opts.replyFlowNs;
+    this.replyFlows = opts.replyFlows ?? {};
     this.tokenField = opts.tokenField;
     this.replyGapMs = opts.replyGapMs ?? 0;
   }
@@ -151,13 +159,13 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
    * leaks a contact's reply to a different contact is this method name — hence
    * the two are never abstracted behind one helper (specs/022).
    */
-  private async sendOne(subscriberId: string, text: string): Promise<void> {
+  private async sendOne(subscriberId: string, text: string, flowNs: string): Promise<void> {
     await this.api.subscriber.setCustomFieldByName({
       subscriber_id: subscriberId,
       field_name: this.replyField,
       field_value: text,
     });
-    await this.api.sending.sendFlow({ subscriber_id: subscriberId, flow_ns: this.replyFlowNs });
+    await this.api.sending.sendFlow({ subscriber_id: subscriberId, flow_ns: flowNs });
   }
 
   /**
@@ -234,9 +242,16 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
    * settles with this reply's own delivery; the gap after it holds back only
    * the contact's next send, never the caller.
    */
-  sendText(subscriberId: string, messages: string[]): Promise<void> {
+  sendText(subscriberId: string, messages: string[], channel?: string): Promise<void> {
+    // A flow is authored per channel, so the reply goes out through the one
+    // for the channel the contact wrote on (specs/048). The lane is the
+    // contact's on every channel: the reply field is theirs, not a channel's.
+    const flowNs =
+      (channel !== undefined && Object.hasOwn(this.replyFlows, channel)
+        ? this.replyFlows[channel]
+        : undefined) ?? this.replyFlowNs;
     const before = this.lanes.get(subscriberId) ?? Promise.resolve();
-    const sending = before.then(() => this.sendEach(subscriberId, messages));
+    const sending = before.then(() => this.sendEach(subscriberId, messages, flowNs));
     const lane = sending.then(
       () => pause(this.replyGapMs),
       () => pause(this.replyGapMs),
@@ -248,7 +263,7 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
     return sending;
   }
 
-  private async sendEach(subscriberId: string, messages: string[]): Promise<void> {
+  private async sendEach(subscriberId: string, messages: string[], flowNs: string): Promise<void> {
     // Sequential, so the contact receives them in the order they were written,
     // and so each flow renders its own message rather than the last one written.
     // The gap gives a flow time to render the field before the next message
@@ -259,7 +274,7 @@ export class ManyChatHttpClient implements ManyChatClient, ContactReader {
     // a half-finished attempt may since have been overwritten by another turn.
     for (const [index, text] of messages.entries()) {
       if (index > 0) await pause(this.replyGapMs);
-      await this.sendOne(subscriberId, text);
+      await this.sendOne(subscriberId, text, flowNs);
     }
   }
 }
@@ -294,6 +309,7 @@ export function manychatClientFor(
     baseUrl: env.MANYCHAT_API_BASE,
     replyField: env.MANYCHAT_REPLY_FIELD,
     replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS ?? '',
+    replyFlows: ownReplyFlows(env),
     tokenField: env.MANYCHAT_TOKEN_FIELD,
     replyGapMs: env.MANYCHAT_REPLY_GAP_MS,
     ...(fetchImpl ? { fetchImpl } : {}),

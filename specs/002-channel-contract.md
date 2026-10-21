@@ -82,7 +82,8 @@ The response may include `external_message_callback`, which registers a URL that
 ManyChat calls when the contact sends their **next** message (`timeout` in
 seconds, default and max 86400). `{{last_input_text}}` in the payload is replaced
 with the contact's message text, and `{{ai_token}}` with the contact's token
-from their custom field (specs/019).
+from their custom field (specs/019). The payload also names the turn's channel
+as a literal, so the next message is rendered for the same one (specs/048).
 
 This is what keeps the conversation loop in this service rather than in
 ManyChat's visual flow builder, and is the reason the agent stays portable across

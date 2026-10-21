@@ -109,7 +109,7 @@ export class TurnScope {
     // (specs/029). Through the nudging performer, so a payment link sent now
     // still cancels a pending nudge.
     const flows = new FlowSends({
-      performer: this.performer(conversationId),
+      performer: this.performer(conversationId, inbound.channel),
       subscriberId,
       logger,
       tools,
@@ -130,18 +130,19 @@ export class TurnScope {
     return { stage, reads, pluginReads, flows, outbox, delivery, recorder };
   }
 
-  /** The contact's queued replies, on the turn's channel (specs/038). */
+  /** The contact's queued replies, on the turn's channel (specs/038, 048). */
   outbox(inbound: InboundMessage): ContactOutbox {
     const { queue, store, nudges, rules, logger, channel } = this.deps;
+    const manychatChannel = channel === undefined ? inbound.channel : undefined;
     return new ContactOutbox(
-      { queue, store, nudges, rules, logger, channel },
+      { queue, store, nudges, rules, logger, channel, manychatChannel },
       { tenantId: inbound.tenantId, subscriberId: inbound.subscriberId },
     );
   }
 
   /** Performs the contact's actions; a payment link cancels a pending nudge (specs/025). */
-  performer(conversationId: string): NudgingPerformer {
-    return new NudgingPerformer(this.deps.actions, this.deps.nudges, conversationId);
+  performer(conversationId: string, channel: string): NudgingPerformer {
+    return new NudgingPerformer(this.deps.actions, this.deps.nudges, conversationId, channel);
   }
 
   /** Finishes the turn after a lost race (ADR-0001), with what it already built. */

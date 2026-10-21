@@ -63,6 +63,7 @@ export async function main() {
     client: manychat,
     logger: app.log,
     plugins,
+    channel: env.CHANNEL,
   }).start();
 
   // Follow-ups the agent scheduled (specs/025). Idle for a tenant without a

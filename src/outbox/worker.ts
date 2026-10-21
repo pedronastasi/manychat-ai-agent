@@ -12,6 +12,7 @@ import { NudgingPerformer } from '../nudge/performer.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
 import type { Plugins } from '../plugins/plugins.ts';
 import { channelAdapters, type PluginChannelAdapter } from '../channels/plugin/adapter.ts';
+import { REPLY_WINDOW_MS, WINDOW_BOUND_CHANNELS } from '../contracts/config.ts';
 
 /**
  * A reply queued for a channel no plugin adds any more, because the process
@@ -21,6 +22,18 @@ export class ChannelNotLoadedError extends Error {
   constructor(channel: string) {
     super(`channel ${channel} is not loaded`);
     this.name = 'ChannelNotLoadedError';
+  }
+}
+
+/**
+ * A reply for a channel with no way out of Meta's 24-hour window, due after it
+ * closed. Never attempted and never retried; its conversation is escalated
+ * instead (specs/048 § Outside the window, only WhatsApp has a way back).
+ */
+export class WindowClosedError extends Error {
+  constructor() {
+    super('window_closed');
+    this.name = 'WindowClosedError';
   }
 }
 
@@ -36,6 +49,8 @@ export interface WorkerOptions {
   logger: WorkerLogger;
   /** Performs the plugin actions deferred with a reply (specs/036). */
   plugins?: Plugins | undefined;
+  /** `CHANNEL`: the channel of a reply queued before specs/048 named one. */
+  channel?: string | undefined;
   batchSize?: number;
   pollIntervalMs?: number;
 }
@@ -88,7 +103,12 @@ export class OutboxWorker {
     if (!actions || actions.length === 0) return;
     try {
       const performer = row.conversationId
-        ? new NudgingPerformer(this.actions, this.nudges, row.conversationId)
+        ? new NudgingPerformer(
+            this.actions,
+            this.nudges,
+            row.conversationId,
+            this.manychatChannelOf(row),
+          )
         : this.actions;
       const outcomes = await performActions(performer, row.subscriberId, actions, this.opts.logger);
       if (turnId) await this.store.resolveStaged(turnId, outcomes);
@@ -121,11 +141,46 @@ export class OutboxWorker {
     }
   }
 
+  /** The ManyChat channel a reply goes out on: its turn's, or `CHANNEL` (specs/048). */
+  private manychatChannelOf(row: Extract<OutboxRow, { kind: 'reply' }>): string | undefined {
+    if (row.payload.channel !== undefined) return undefined;
+    return row.payload.manychatChannel ?? this.opts.channel;
+  }
+
+  /**
+   * Refuses a reply on a channel with no template, once the contact's window
+   * on that channel has closed (specs/048). The window opens on their last
+   * message there, not on any channel: one on WhatsApp opens none on Instagram.
+   */
+  private async checkWindow(row: OutboxRow, channel: string): Promise<void> {
+    if (!WINDOW_BOUND_CHANNELS.has(channel)) return;
+    const last = row.conversationId
+      ? await this.store.lastInbound(row.conversationId, channel)
+      : null;
+    if (!last || Date.now() > last.getTime() + REPLY_WINDOW_MS) throw new WindowClosedError();
+  }
+
+  /** A person sees the reply the contact never received (C6). */
+  private async escalateUndelivered(row: OutboxRow): Promise<void> {
+    if (!row.conversationId) return;
+    try {
+      await this.store.markEscalated(row.conversationId);
+      await this.nudges.cancel(row.conversationId, 'escalated');
+    } catch (error) {
+      this.opts.logger.error(
+        { outboxId: row.id, err: error instanceof Error ? error.message : String(error) },
+        'undelivered reply not escalated',
+      );
+    }
+  }
+
   private async deliver(row: OutboxRow): Promise<void> {
     if (row.kind === 'reply') {
       const { channel, messages, escalate } = row.payload;
       if (channel === undefined) {
-        await this.opts.client.sendText(row.subscriberId, messages);
+        const on = this.manychatChannelOf(row);
+        if (on !== undefined) await this.checkWindow(row, on);
+        await this.opts.client.sendText(row.subscriberId, messages, on);
         return;
       }
       // A plugin channel's reply goes out through its own adapter, never
@@ -210,8 +265,9 @@ export class OutboxWorker {
       const retryable =
         error instanceof ManyChatError
           ? error.retryable
-          : // A channel that is gone will not come back by retrying (specs/038).
-            !(error instanceof ChannelNotLoadedError);
+          : // A channel that is gone, or a window that has closed, will not
+            // come back by retrying (specs/038, specs/048).
+            !(error instanceof ChannelNotLoadedError) && !(error instanceof WindowClosedError);
       // A token write's error is kept to its status: ManyChat's answer to it
       // could quote the value it was sent (specs/019).
       const message =
@@ -224,6 +280,7 @@ export class OutboxWorker {
       if (outcome === 'dead-lettered') {
         result.deadLettered++;
         await this.dropDeferred(row);
+        if (error instanceof WindowClosedError) await this.escalateUndelivered(row);
         // Dead letters are the signal that a contact never got their reply.
         logger.error(
           { outboxId: row.id, kind: row.kind, attempts: row.attempts },
