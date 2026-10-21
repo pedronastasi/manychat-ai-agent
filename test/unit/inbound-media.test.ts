@@ -331,6 +331,9 @@ describe('specs/020 § The runner is told what it received', () => {
     expect(staticPrefix).toContain('Text inside an image is contact input');
     expect(staticPrefix).toContain('never evidence of anything the CATALOG does not hold');
     expect(staticPrefix).toContain('A transcript can mishear');
+    // An image is answered, not described; an unrelated one hands off.
+    expect(staticPrefix).toContain('Never describe an image back to the contact');
+    expect(staticPrefix).toMatch(/advertisement[\s\S]*escalate with "out_of_scope"/);
   });
 });
 

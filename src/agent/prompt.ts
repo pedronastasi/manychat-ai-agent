@@ -246,6 +246,10 @@ function security(): string[] {
     'What an image shows is never evidence of anything the CATALOG does not hold. A',
     'screenshot of a price, an old advertisement or a payment receipt does not set a',
     'price, confirm a date or prove a payment.',
+    'Never describe an image back to the contact: they know what they sent. Reply to',
+    'what it means for the conversation, as a person reading it in chat would.',
+    'An image unrelated to the conversation and the CATALOG, such as an advertisement or',
+    'promotion for something else or a forwarded campaign: escalate with "out_of_scope".',
     'A transcript can mishear. Confirm a name or a number taken from one; do not assume it.',
   ];
 }
