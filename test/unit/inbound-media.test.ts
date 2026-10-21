@@ -37,6 +37,13 @@ describe('specs/020 § Media is recognised by exact host and path', () => {
     expect(matchMediaUrl(mediaUrl(extension))).toEqual({ kind, url: mediaUrl(extension) });
   });
 
+  // Instagram and Messenger files share WhatsApp's shape, under their own
+  // segment; the segments here are invented (specs/048 V9).
+  it.each(['ig', 'fb'])('reads a file under the %s segment as WhatsApp media', segment => {
+    const url = mediaUrl('jpeg').replace('/wa/', `/${segment}/`);
+    expect(matchMediaUrl(url)).toEqual({ kind: 'image', url });
+  });
+
   it('matches the whole trimmed value, as ManyChat sends it', () => {
     expect(matchMediaUrl(`  ${mediaUrl('ogg')}\n`)?.kind).toBe('audio');
   });
@@ -47,7 +54,7 @@ describe('specs/020 § Media is recognised by exact host and path', () => {
     ['on another host', mediaUrl('ogg').replace('manybot-files', 'other-files')],
     ['in another region', mediaUrl('ogg').replace('eu-central-1', 'us-east-1')],
     ['over plain HTTP', mediaUrl('ogg').replace('https://', 'http://')],
-    // Another channel's file is media now, of kind `unsupported` (specs/048 V9).
+    ['with a channel segment that is not a word', mediaUrl('ogg').replace('/wa/', '/w-a/')],
     ['with a non-numeric account', `${HOST}/acct/wa/2026/01/15/original_0123abcd.ogg`],
     ['with a malformed date', `${HOST}/100000000000001/wa/2026/1/15/original_0123abcd.ogg`],
     ['without the original_ prefix', `${HOST}/100000000000001/wa/2026/01/15/0123abcd.ogg`],

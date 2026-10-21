@@ -6,7 +6,7 @@ import {
 import type { AgentReply, InboundMessage } from '../../contracts/agent.ts';
 import type { ChannelAdapter, ParseContext, RenderContext } from '../port.ts';
 import type { ManyChatClient } from './client.ts';
-import { isOtherChannelMedia, matchMediaUrl, unmatchedMediaUrlShape } from './media.ts';
+import { matchMediaUrl, unmatchedMediaUrlShape } from './media.ts';
 
 /**
  * Renders an AgentReply as a Dynamic Block v2 body.
@@ -77,10 +77,7 @@ export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse
     // ManyChat sends no field saying the message was media: a file arrives as
     // its URL in `text` (specs/020).
     const media = matchMediaUrl(parsed.text);
-    // A file from another channel is logged too: its shape is how the first
-    // sample of that channel's URL is found (specs/048).
-    const shape =
-      media && !isOtherChannelMedia(parsed.text) ? null : unmatchedMediaUrlShape(parsed.text);
+    const shape = media ? null : unmatchedMediaUrlShape(parsed.text);
     if (shape !== null) ctx.logger?.warn({ shape }, 'media_url_unmatched');
     return {
       ...(media ? { media } : {}),

@@ -421,24 +421,25 @@ describe("nudges follow each channel's window (specs/048 V8)", () => {
   });
 });
 
-describe("another channel's media is unsupported until its shape is observed (specs/048 V9)", () => {
-  it('answers an invented Instagram file without downloading it, storing it or logging it', async () => {
+describe('Instagram media is read as WhatsApp media is (specs/048 V9)', () => {
+  it('downloads an invented Instagram photo, gives it to the model, and stores no URL', async () => {
     const { runner, inputs } = recordingRunner();
     const app = await makeApp(runner);
     const url = mediaUrl('jpeg').replace('/wa/', '/ig/');
+    api.media.files.set(url, {
+      body: new Uint8Array([0xff, 0xd8, 0xff]),
+      contentType: 'image/jpeg',
+    });
 
     const res = await post(app, { channel: 'instagram', text: url });
 
     expect(res.statusCode).toBe(200);
-    expect(api.media.requested).toEqual([]);
-    expect(inputs).toHaveLength(0);
+    expect(api.media.requested.map(request => request.url)).toEqual([url]);
+    expect(inputs).toHaveLength(1);
     const [turn] = await db.select().from(turns).where(eq(turns.role, 'user'));
-    expect(turn!.mediaKind).toBe('unsupported');
+    expect(turn!.mediaKind).toBe('image');
     expect(turn!.text).not.toContain('manybot-files');
-    const logged = logs.join('\n');
-    expect(logged).toContain('media_url_unmatched');
-    expect(logged).toContain('/<n>/ig/<n>/<n>/<n>/original_<hex>.jpeg');
-    expect(logged).not.toContain(url);
+    expect(logs.join('\n')).not.toContain(url);
     await app.close();
   });
 });

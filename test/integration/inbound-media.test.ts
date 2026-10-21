@@ -590,7 +590,9 @@ describe('specs/020 § The URL never reaches storage or logs, through the route'
         .escalation,
     );
 
-    const changed = mediaUrl('ogg').replace('/wa/', '/whatsapp/');
+    // A changed path, not a changed channel segment: any word there is a
+    // channel's (specs/048).
+    const changed = mediaUrl('ogg').replace('/original_', '/copy_');
     await post(app, changed);
     await app.close();
 

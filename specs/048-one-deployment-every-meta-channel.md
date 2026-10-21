@@ -131,24 +131,20 @@ A WhatsApp reply is unchanged: its flow carries the template.
 - `contact_replied` cancels it on a message from any channel. A contact who
   answered on WhatsApp has answered.
 
-## Media is recognised per channel, and only once a shape has been observed
+## Media on every channel is read as WhatsApp media is
 
-`020` recognises media by the exact host and path ManyChat stores a WhatsApp
-file under, with `wa` as the channel segment. No Instagram or Messenger file
-URL has been observed for this service, so none is specified here. Guessing
-one would let a wrong pattern decide which URLs this server downloads.
+`020` recognises media by the exact host and path ManyChat stores a file
+under. Instagram and Messenger direct messages use the same shape as WhatsApp,
+under their own channel segment, as the tenant reported on 2026-10-21. So the
+segment may be any word, and a voice note, photo or video on any of the three
+channels is downloaded, transcribed or shown to the model exactly as `020`
+says. The host and the rest of the path are what keep this server from
+fetching anything else.
 
-Until a shape is observed and added to `020`:
-
-- A `text` that matches `020`'s host, with a channel segment other than `wa`,
-  is media of kind `unsupported`. It gets `rules.messages.mediaFallback` and is
-  never downloaded, and never reaches the model or storage as text (`020 § The
-URL never reaches storage or logs`) (C5).
-- The `media_url_unmatched` warning logs its shape, without the URL, which is
-  how the first sample is found.
-
-Adding a channel's shape is an edit to `020`'s table, with the date it was
-observed, and nothing else.
+`020`'s formats and size limits are WhatsApp's. They apply to every channel
+until one of Instagram's or Messenger's is measured. A file over them escalates
+(`020 § A failure we caused hands off`), which is how a different limit would
+first show.
 
 ## Verification
 
@@ -178,9 +174,10 @@ observed, and nothing else.
 8. A nudge test asserts `window_closing` on an Instagram nudge is measured from
    the last Instagram turn, not a later WhatsApp one, and that a WhatsApp
    message cancels it as `contact_replied`.
-9. A route test sends an invented URL on `020`'s host with an `ig` segment and
-   asserts kind `unsupported`, no download, no model call, the URL's shape in
-   the log, and no URL in the stored turn or the log.
+9. A route test sends an invented photo URL on `020`'s host with an `ig`
+   segment and asserts it is downloaded, given to the model, stored as an
+   image, and that no URL is stored or logged. A unit test reads `ig` and `fb`
+   segments as media and a segment that is not a word as text.
 
 **What this does not catch.** The per-channel flows live in the tenant's
 ManyChat account. A flow authored for the wrong channel, or one whose message
@@ -191,4 +188,7 @@ says `whatsapp` is rendered as WhatsApp, and only someone reading the contact's
 Instagram closes that gap. The window is computed from this service's own record
 of inbound turns. A message the contact sent to a flow that never called this
 service opens a window it cannot see, so the check errs towards dead-lettering a
-reply that could have been sent, which is the failure C6 prefers.
+reply that could have been sent, which is the failure C6 prefers. The media
+shape on Instagram and Messenger is the tenant's report, not a URL this service
+has logged: a channel whose files ManyChat stores elsewhere would fall through
+to `020`'s handling of an unrecognised URL, which `media_url_unmatched` shows.
