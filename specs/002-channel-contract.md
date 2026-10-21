@@ -68,7 +68,9 @@ all the same.
 | Messages       | 10       | 10        | 10        | 10       |
 | Actions        | 5        | 5         | 5         | 5        |
 
-WhatsApp is the target channel. **Emitting `quick_replies` on WhatsApp is a
+WhatsApp is the default channel; one deployment answering Instagram and
+Messenger beside it, each turn rendered for its own channel, is specified in
+[`048`](048-one-deployment-every-meta-channel.md). **Emitting `quick_replies` on WhatsApp is a
 silent failure** — ManyChat accepts the payload and the contact never sees them.
 The renderer must omit the key entirely rather than send an empty array.
 
@@ -80,7 +82,8 @@ The response may include `external_message_callback`, which registers a URL that
 ManyChat calls when the contact sends their **next** message (`timeout` in
 seconds, default and max 86400). `{{last_input_text}}` in the payload is replaced
 with the contact's message text, and `{{ai_token}}` with the contact's token
-from their custom field (specs/019).
+from their custom field (specs/019). The payload also names the turn's channel
+as a literal, so the next message is rendered for the same one (specs/048).
 
 This is what keeps the conversation loop in this service rather than in
 ManyChat's visual flow builder, and is the reason the agent stays portable across

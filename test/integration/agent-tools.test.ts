@@ -232,7 +232,7 @@ describe('delivery ordering (specs/012 V6)', () => {
       channel: 'whatsapp',
       idleResetHours: 24,
     });
-    await store.recordUserMessage(conversation.id, 'hello', { bound: true });
+    await store.recordUserMessage(conversation.id, 'hello', { bound: true, channel: 'whatsapp' });
     const turnId = await store.recordAgentReply(
       conversation.id,
       'Sending the brochure.',

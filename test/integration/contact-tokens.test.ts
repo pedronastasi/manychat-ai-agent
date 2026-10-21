@@ -185,6 +185,8 @@ describe("specs/019 § Each contact's token lives in ManyChat, never in a respon
     expect(res.json().content.external_message_callback.payload).toEqual({
       text: '{{last_input_text}}',
       subscriber_id: '{{contact.id}}',
+      // The turn's channel, sent back as a literal (specs/048).
+      channel: 'whatsapp',
       ai_token: '{{ai_token}}',
       // The fixture tenant marks a course field (specs/028).
       offering: '{{course}}',

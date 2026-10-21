@@ -121,7 +121,7 @@ export class TurnAdmission {
     const userTurnId = await store.recordUserMessage(
       conversation.id,
       media ? mediaMarker(media.kind) : inbound.text,
-      { bound, mediaKind: media?.kind },
+      { bound, mediaKind: media?.kind, channel: inbound.channel },
     );
 
     // Watched as a share of all turns: a flow that stopped sending the field

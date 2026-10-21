@@ -2,14 +2,17 @@ import type { InboundMedia, MediaKind } from '../../contracts/agent.ts';
 import { MediaFailure, type MediaDownload, type MediaFetcher } from '../../media/port.ts';
 
 /**
- * Where ManyChat puts a file a WhatsApp contact sends, as observed on
- * 2026-09-27 (specs/020 § Media is recognised by exact host and path). The
- * whole trimmed `text` must match: a URL inside a sentence is something the
- * contact typed, and a URL on any other host is not ours to fetch.
+ * Where ManyChat puts a file a contact sends, as observed for WhatsApp on
+ * 2026-09-27 (specs/020 § Media is recognised by exact host and path), and
+ * reported by the tenant on 2026-10-21 to be the same for Instagram and
+ * Messenger direct messages (specs/048). The channel segment is any word, so
+ * the host and the rest of the path are what decide. The whole trimmed `text`
+ * must match: a URL inside a sentence is something the contact typed, and a
+ * URL on any other host is not ours to fetch.
  */
 const MEDIA_HOST = 'manybot-files.s3.eu-central-1.amazonaws.com';
 const MEDIA_URL =
-  /^https:\/\/manybot-files\.s3\.eu-central-1\.amazonaws\.com\/\d+\/wa\/\d{4}\/\d{2}\/\d{2}\/original_[0-9a-f]+\.([a-z0-9]+)$/i;
+  /^https:\/\/manybot-files\.s3\.eu-central-1\.amazonaws\.com\/\d+\/[a-z]+\/\d{4}\/\d{2}\/\d{2}\/original_[0-9a-f]+\.([a-z0-9]+)$/i;
 
 /** Only `.ogg` and `.jpeg` have been observed; the rest are formats WhatsApp accepts. */
 const KIND_BY_EXTENSION: Record<string, MediaKind> = {

@@ -45,6 +45,9 @@ export function renderManyChat(reply: AgentReply, ctx: RenderContext): ManyChatR
       payload: {
         text: '{{last_input_text}}',
         subscriber_id: '{{contact.id}}',
+        // The contact's next message names the channel this one did, without
+        // the tenant configuring the callback (specs/048).
+        ...(ctx.channel ? { channel: ctx.channel } : {}),
         ...(ctx.contactTokenField ? { ai_token: `{{${ctx.contactTokenField}}}` } : {}),
         // And the contact's offering, so the next turn's flows are chosen
         // before the model runs (specs/028).
@@ -81,7 +84,8 @@ export class ManyChatAdapter implements ChannelAdapter<unknown, ManyChatResponse
       tenantId: ctx.tenantId,
       subscriberId: parsed.subscriber_id,
       text: parsed.text,
-      channel: parsed.channel ?? ctx.channel,
+      // An empty field names no channel, so it is the default (specs/048).
+      channel: parsed.channel || ctx.channel,
       contactName: name.length > 0 ? name : null,
       locale: parsed.locale ?? null,
       // An empty field arrives as an empty string, which is no token at all.

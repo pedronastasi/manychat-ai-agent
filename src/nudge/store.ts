@@ -11,6 +11,8 @@ export interface ClaimedNudge {
   conversationId: string;
   dueAt: Date;
   scheduledAt: Date;
+  /** The channel it runs on; null when scheduled before specs/048, any channel. */
+  channel: string | null;
 }
 
 const MINUTE_MS = 60_000;
@@ -31,15 +33,20 @@ export class NudgeStore {
    * conversation in the same statement. The partial unique index makes "at
    * most one waits" hold between processes, not just within one.
    */
-  async schedule(conversationId: string, minutes: number, now = new Date()): Promise<void> {
+  async schedule(
+    conversationId: string,
+    minutes: number,
+    now = new Date(),
+    channel?: string,
+  ): Promise<void> {
     const dueAt = new Date(now.getTime() + minutes * MINUTE_MS);
     await this.db
       .insert(nudges)
-      .values({ conversationId, dueAt, scheduledAt: now })
+      .values({ conversationId, dueAt, scheduledAt: now, channel: channel ?? null })
       .onConflictDoUpdate({
         target: nudges.conversationId,
         targetWhere: sql`${nudges.status} = 'pending'`,
-        set: { dueAt, scheduledAt: now, updatedAt: sql`now()` },
+        set: { dueAt, scheduledAt: now, channel: channel ?? null, updatedAt: sql`now()` },
       });
   }
 
@@ -76,6 +83,7 @@ export class NudgeStore {
       conversation_id: string;
       due_at: Date | string;
       scheduled_at: Date | string;
+      channel: string | null;
     };
     const result: unknown = await this.db.execute(sql`
       UPDATE ${nudges} SET status = 'running', updated_at = now()
@@ -86,7 +94,7 @@ export class NudgeStore {
         FOR UPDATE SKIP LOCKED
         LIMIT ${limit}
       )
-      RETURNING id, conversation_id, due_at, scheduled_at
+      RETURNING id, conversation_id, due_at, scheduled_at, channel
     `);
     // postgres-js returns a RowList (array); PGlite returns `{ rows }`.
     const rows: Row[] = Array.isArray(result)
@@ -97,6 +105,7 @@ export class NudgeStore {
       conversationId: row.conversation_id,
       dueAt: new Date(row.due_at),
       scheduledAt: new Date(row.scheduled_at),
+      channel: row.channel,
     }));
   }
 }

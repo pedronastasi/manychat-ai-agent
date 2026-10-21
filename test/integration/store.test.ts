@@ -84,7 +84,7 @@ describe('conversation store', () => {
       channel: 'whatsapp',
       idleResetHours: 24,
     });
-    await store.recordUserMessage(conversation.id, 'first', { bound: true });
+    await store.recordUserMessage(conversation.id, 'first', { bound: true, channel: 'whatsapp' });
     await store.recordAgentReply(conversation.id, 'reply', 'answered_inline', {
       bound: true,
       usage: {
@@ -95,7 +95,7 @@ describe('conversation store', () => {
         model: 'anthropic:claude-haiku-4-5',
       },
     });
-    await store.recordUserMessage(conversation.id, 'second', { bound: true });
+    await store.recordUserMessage(conversation.id, 'second', { bound: true, channel: 'whatsapp' });
     const history = await store.recentTurns(conversation.id, new Date(0));
     expect(history.map(turn => turn.text)).toEqual(['first', 'reply', 'second']);
   });

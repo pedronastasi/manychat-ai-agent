@@ -50,10 +50,13 @@ The ManyChat adapter treats `text` as media only when the whole trimmed value
 matches:
 
 ```
-https://manybot-files.s3.eu-central-1.amazonaws.com/<digits>/wa/<yyyy>/<mm>/<dd>/original_<hex>.<ext>
+https://manybot-files.s3.eu-central-1.amazonaws.com/<digits>/<channel>/<yyyy>/<mm>/<dd>/original_<hex>.<ext>
 ```
 
-The `wa` segment is the WhatsApp channel. The extension decides the kind:
+The channel segment is `wa` for WhatsApp, observed on 2026-09-27. Instagram and
+Messenger direct messages use the same shape under their own segment, as the
+tenant reported on 2026-10-21 (`048`), so the segment may be any word: the host
+and the rest of the path decide. The extension decides the kind:
 
 | Extension               | Kind          | Handling                            |
 | ----------------------- | ------------- | ----------------------------------- |
@@ -218,7 +221,8 @@ contact can fix, and asking them to type would blame them for our failure.
 Those hand off (C6).
 
 The size limits are WhatsApp's own: 5 MB for an image and 16 MB for audio or
-video (ManyChat's media guidelines, updated 2026-08-24). A file over them
+video (ManyChat's media guidelines, updated 2026-08-24). They apply on Instagram
+and Messenger too until a limit of theirs is measured (`048`). A file over them
 should not exist, so exceeding one means the platform has changed. That is an
 anomaly to escalate, not a contact to redirect. The limit is enforced while
 reading the body, not trusted from `Content-Length`.

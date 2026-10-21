@@ -4,6 +4,7 @@ import {
   CatalogSchema,
   EnvSchema,
   NO_PROMPT_OVERRIDES,
+  ownReplyFlows,
   NO_TOOLS,
   PromptOverridesSchema,
   RulesSchema,
@@ -29,6 +30,8 @@ export interface TenantConfig {
  */
 export interface ReservedNames {
   replyFlowNs?: string | undefined;
+  /** The reply flows of channels that have their own, by channel (specs/048). */
+  channelReplyFlows?: Readonly<Record<string, string>> | undefined;
   replyField?: string | undefined;
   tokenField?: string | undefined;
 }
@@ -36,6 +39,7 @@ export interface ReservedNames {
 export function reservedNames(env: Env): ReservedNames {
   return {
     replyFlowNs: env.MANYCHAT_REPLY_FLOW_NS,
+    channelReplyFlows: ownReplyFlows(env),
     replyField: env.MANYCHAT_REPLY_FIELD,
     tokenField: env.MANYCHAT_TOKEN_FIELD,
   };
@@ -209,7 +213,23 @@ function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tool
     );
   }
 
+  // Each channel's reply flow renders the same reply field (specs/048).
+  // One that is MANYCHAT_REPLY_FLOW_NS itself is reported as that, below.
+  const channelFlows = Object.entries(reserved.channelReplyFlows ?? {}).filter(
+    ([, flowNs]) => flowNs !== reserved.replyFlowNs,
+  );
+  const channelFlowOf = (flowNs: string) =>
+    channelFlows.find(([, reservedNs]) => reservedNs === flowNs)?.[0];
+  const variableOf = (channel: string) => `MANYCHAT_REPLY_FLOW_NS_${channel.toUpperCase()}`;
   const collisions = [
+    ...tools.data.flows.flatMap(flow => {
+      const channel = channelFlowOf(flow.flowNs);
+      return channel ? [`flow '${flow.id}' is ${variableOf(channel)}`] : [];
+    }),
+    ...tools.data.events.flatMap(event => {
+      const channel = channelFlowOf(event.flowNs);
+      return channel ? [`event '${event.id}' is ${variableOf(channel)}`] : [];
+    }),
     ...tools.data.flows
       .filter(flow => flow.flowNs === reserved.replyFlowNs)
       .map(flow => `flow '${flow.id}' is MANYCHAT_REPLY_FLOW_NS`),
