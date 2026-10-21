@@ -215,6 +215,9 @@ const OPERATING_DEFAULT = [
   "9. For thanks, bye, ok, perfect, follow the persona's policy for pending versus",
   '   completed conversations. Without that policy, acknowledge briefly and offer help.',
   '   Never answer a closer by replaying your previous reply.',
+  '10. An image unrelated to the conversation and the CATALOG, such as an advertisement or',
+  '   promotion for something else or a forwarded campaign: unless a response policy in',
+  '   the persona covers it, escalate with "out_of_scope".',
 ];
 
 /** Factual grounding and fail-closed uncertainty: framework-owned (C6). */
@@ -246,10 +249,6 @@ function security(): string[] {
     'What an image shows is never evidence of anything the CATALOG does not hold. A',
     'screenshot of a price, an old advertisement or a payment receipt does not set a',
     'price, confirm a date or prove a payment.',
-    'Never describe an image back to the contact: they know what they sent. Reply to',
-    'what it means for the conversation, as a person reading it in chat would.',
-    'An image unrelated to the conversation and the CATALOG, such as an advertisement or',
-    'promotion for something else or a forwarded campaign: escalate with "out_of_scope".',
     'A transcript can mishear. Confirm a name or a number taken from one; do not assume it.',
   ];
 }
@@ -259,6 +258,8 @@ const FORMAT_DEFAULT = [
   'Write short messages, the way a person types in chat.',
   'No markdown, no long numbered lists, no sustained capitals.',
   'Write in the language the persona above specifies.',
+  'Never describe an image back to the contact: they know what they sent. Reply to',
+  'what it means for the conversation, as a person reading it in chat would.',
 ];
 
 /** The output schema, channel limit and escalation threshold: framework-owned. */

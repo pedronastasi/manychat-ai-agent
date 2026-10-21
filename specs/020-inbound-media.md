@@ -134,7 +134,10 @@ machine. The reply responds to what the image means for the conversation, as a
 person reading it in chat would. An image unrelated to the conversation and the
 catalog, such as an advertisement or promotion for something else or a
 forwarded campaign, escalates with `out_of_scope`: a person decides whether it
-needs an answer, and the agent never summarises it back.
+needs an answer, and the agent never summarises it back. Both are conversational
+defaults a tenant may replace (`044`): the tone rule lives in `format` and the
+escalation rule in `operating`, where a response policy in the persona takes
+precedence over it as it does over every other escalation default.
 
 Whether the answering model accepts images is a registry capability, keyed on
 the `provider:model` string like `supportsTemperature`. A model that does not
