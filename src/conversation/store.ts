@@ -284,7 +284,10 @@ export class ConversationStore {
         and(
           eq(turns.conversationId, conversationId),
           eq(turns.role, 'user'),
-          channel === undefined ? undefined : eq(turns.channel, channel),
+          // A message with no channel was written by a process older than
+          // specs/048, after the migration ran: counted on every channel,
+          // so a rolling deploy never closes a window that is still open.
+          channel === undefined ? undefined : or(eq(turns.channel, channel), isNull(turns.channel)),
         ),
       );
     return row?.at ? new Date(row.at) : null;

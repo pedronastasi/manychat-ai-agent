@@ -314,6 +314,22 @@ describe('outside the window, only WhatsApp has a way back (specs/048 V7)', () =
     expect(nudge).toMatchObject({ status: 'cancelled', cancelReason: 'escalated' });
   });
 
+  it('counts a message an older process wrote without a channel, as during a rolling deploy', async () => {
+    const conversationId = await wrote('303', 'instagram', 30);
+    // Written after migration 0013 by code from before it: no channel.
+    await db
+      .insert(turns)
+      .values({ conversationId, role: 'user', text: 'An invented question.', bound: true });
+    await new OutboxQueue(db).enqueue({
+      tenantId: 'demo',
+      subscriberId: '303',
+      conversationId,
+      reply: replyOf(['Still in time.']),
+      manychatChannel: 'instagram',
+    });
+    expect(await outboxWorker().drainOnce()).toMatchObject({ delivered: 1, deadLettered: 0 });
+  });
+
   it('delivers an Instagram reply inside its window', async () => {
     const conversationId = await wrote('301', 'instagram', 23);
     await new OutboxQueue(db).enqueue({
