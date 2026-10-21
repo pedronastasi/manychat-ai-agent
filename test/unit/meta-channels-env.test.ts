@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { EnvSchema, acceptedChannels } from '../../src/contracts/config.ts';
+import {
+  EnvSchema,
+  acceptedChannels,
+  ownReplyFlows,
+  replyFlowFor,
+} from '../../src/contracts/config.ts';
 
 /**
  * specs/048-one-deployment-every-meta-channel.md § Verification item 6, and
@@ -34,6 +39,20 @@ describe('a channel accepted with no flow is a boot error (specs/048 V6)', () =>
     });
     expect(parsed.success).toBe(true);
   });
+
+  it.each(['instagram', 'messenger'])(
+    'boots a %s-only deployment that kept its flow in MANYCHAT_REPLY_FLOW_NS, as before the spec',
+    channel => {
+      const env = EnvSchema.parse({
+        ...base,
+        CHANNEL: channel,
+        MANYCHAT_API_TOKEN: 'tok',
+        MANYCHAT_REPLY_FLOW_NS: 'content_single_channel_reply',
+      });
+      expect(replyFlowFor(env, channel)).toBe('content_single_channel_reply');
+      expect(ownReplyFlows(env)).toEqual({ [channel]: 'content_single_channel_reply' });
+    },
+  );
 
   it('boots without an API token, when nothing is deferred at all', () => {
     expect(EnvSchema.safeParse({ ...base, CHANNELS: 'whatsapp,messenger' }).success).toBe(true);

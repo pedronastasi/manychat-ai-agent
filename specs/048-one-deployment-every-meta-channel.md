@@ -90,8 +90,10 @@ The reply field (`MANYCHAT_REPLY_FIELD`) is shared: it is per subscriber, and
 Instagram or Messenger in `CHANNELS` without its flow is a boot error whenever
 deferred delivery is configured, which is whenever `MANYCHAT_API_TOKEN` is set.
 A deployment that accepts Instagram and cannot defer a reply there would
-silently strand every race it lost (C6). `MANYCHAT_REPLY_FLOW_NS` keeps the
-rule it had before this spec, so no WhatsApp deployment stops booting.
+silently strand every race it lost (C6). A deployment that answers one channel
+alone delivers through `MANYCHAT_REPLY_FLOW_NS` when that channel has no flow
+of its own set, so a single-channel deployment of any channel, Instagram and
+Messenger included, boots and delivers as it did before this spec.
 
 A turn on one channel never sends to another. A reply to an Instagram turn is
 not rerouted to WhatsApp because WhatsApp's window is still open. The contact

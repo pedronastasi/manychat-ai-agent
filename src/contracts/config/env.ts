@@ -187,10 +187,11 @@ export type Env = z.infer<typeof EnvSchema>;
 /** The channels whose reply flow has a variable of its own (specs/048). */
 const OWN_REPLY_FLOW: ReadonlySet<string> = new Set(['instagram', 'messenger']);
 
-/** The configured flows of the channels that have their own, by channel (specs/048). */
+/** The flows of the accepted channels that have their own, by channel (specs/048). */
 export function ownReplyFlows(env: ChannelEnv): Record<string, string> {
   return Object.fromEntries(
-    [...OWN_REPLY_FLOW].flatMap(channel => {
+    acceptedChannels(env).flatMap(channel => {
+      if (!OWN_REPLY_FLOW.has(channel)) return [];
       const flow = replyFlowFor(env, channel);
       return flow === undefined ? [] : [[channel, flow]];
     }),
@@ -217,10 +218,18 @@ export function acceptedChannels(env: Pick<ChannelEnv, 'CHANNEL' | 'CHANNELS'>):
 
 /**
  * The flow that renders a deferred reply on `channel` (specs/048). A channel
- * without one of its own, such as WhatsApp, uses `MANYCHAT_REPLY_FLOW_NS`.
+ * without one of its own, such as WhatsApp, uses `MANYCHAT_REPLY_FLOW_NS`, and
+ * so does the one channel of a deployment that answers only one, as it did
+ * before specs/048.
  */
 export function replyFlowFor(env: ChannelEnv, channel: string): string | undefined {
-  if (channel === 'instagram') return env.MANYCHAT_REPLY_FLOW_NS_INSTAGRAM;
-  if (channel === 'messenger') return env.MANYCHAT_REPLY_FLOW_NS_MESSENGER;
-  return env.MANYCHAT_REPLY_FLOW_NS;
+  const own =
+    channel === 'instagram'
+      ? env.MANYCHAT_REPLY_FLOW_NS_INSTAGRAM
+      : channel === 'messenger'
+        ? env.MANYCHAT_REPLY_FLOW_NS_MESSENGER
+        : undefined;
+  if (own !== undefined) return own;
+  const single = acceptedChannels(env).length === 1;
+  return !OWN_REPLY_FLOW.has(channel) || single ? env.MANYCHAT_REPLY_FLOW_NS : undefined;
 }
