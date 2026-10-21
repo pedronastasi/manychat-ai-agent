@@ -53,7 +53,8 @@ matches:
 https://manybot-files.s3.eu-central-1.amazonaws.com/<digits>/wa/<yyyy>/<mm>/<dd>/original_<hex>.<ext>
 ```
 
-The `wa` segment is the WhatsApp channel. The extension decides the kind:
+The `wa` segment is the WhatsApp channel. Other channels' segments are
+`unsupported` until one is observed (`048`). The extension decides the kind:
 
 | Extension               | Kind          | Handling                            |
 | ----------------------- | ------------- | ----------------------------------- |

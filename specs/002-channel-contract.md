@@ -68,7 +68,9 @@ all the same.
 | Messages       | 10       | 10        | 10        | 10       |
 | Actions        | 5        | 5         | 5         | 5        |
 
-WhatsApp is the target channel. **Emitting `quick_replies` on WhatsApp is a
+WhatsApp is the default channel; one deployment answering Instagram and
+Messenger beside it, each turn rendered for its own channel, is specified in
+[`048`](048-one-deployment-every-meta-channel.md). **Emitting `quick_replies` on WhatsApp is a
 silent failure** — ManyChat accepts the payload and the contact never sees them.
 The renderer must omit the key entirely rather than send an empty array.
 
