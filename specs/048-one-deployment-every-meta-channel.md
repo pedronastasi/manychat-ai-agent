@@ -40,9 +40,11 @@ turn, never from a value fixed at boot.
 - A request with no `channel`, or an empty one, is read as `CHANNEL`.
 - A request naming a channel outside the table, or outside `CHANNELS`, is
   refused with a 400, after authentication and without saying why (`017`) (C3).
-- `CHANNELS` lists the channels this deployment accepts, comma-separated. It
-  defaults to `CHANNEL`, so a deployment that sets neither behaves as it did
-  before this spec.
+- `CHANNELS` lists the channels this deployment accepts, comma-separated, and
+  may list only `whatsapp`, `instagram` and `messenger`. It defaults to
+  `CHANNEL`, so a deployment that sets neither behaves as it did before this
+  spec. That includes `CHANNEL=telegram` alone, which this spec neither adds
+  to a multi-channel deployment nor takes away.
 - The `external_message_callback` the reply registers carries the turn's
   channel back as a literal, so the contact's next message names the same
   channel without the tenant configuring the callback.

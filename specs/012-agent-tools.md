@@ -201,7 +201,9 @@ carries its staged actions with it, as on the race-lost path (`030`).
 
 ## The flow set may not include the reply flow or field
 
-`flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, and `fields[].field`
+`flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, nor a channel's own
+reply flow (`MANYCHAT_REPLY_FLOW_NS_INSTAGRAM`, `_MESSENGER`; `048`), and
+`fields[].field`
 may not equal `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`. The reply flow
 renders whatever the reply field holds, so firing it as a tool would resend a
 stale reply, and writing that field as a tool would overwrite a reply in flight

@@ -22,6 +22,9 @@ const csv = (raw: string) =>
     .map(part => part.trim())
     .filter(Boolean);
 
+/** What `CHANNELS` may list (specs/048 § The channel belongs to the request). */
+const META_CHANNELS: ReadonlySet<string> = new Set(['whatsapp', 'instagram', 'messenger']);
+
 const PROXY_PRESETS = new Set(['loopback', 'linklocal', 'uniquelocal']);
 
 function isProxyAddress(entry: string): boolean {
@@ -160,8 +163,10 @@ export const EnvSchema = z
     message: `CHANNEL must be one of ${Object.keys(CHANNEL_CAPABILITIES).join(', ')}`,
     path: ['CHANNEL'],
   })
-  .refine(env => (env.CHANNELS ?? []).every(isKnownChannel), {
-    message: `CHANNELS may list only ${Object.keys(CHANNEL_CAPABILITIES).join(', ')}`,
+  // The Meta channels only: Telegram stays out of a multi-channel deployment
+  // (specs/048). CHANNEL alone keeps accepting it, as it did before.
+  .refine(env => (env.CHANNELS ?? []).every(channel => META_CHANNELS.has(channel)), {
+    message: `CHANNELS may list only ${[...META_CHANNELS].join(', ')}`,
     path: ['CHANNELS'],
   })
   .refine(env => acceptedChannels(env).includes(env.CHANNEL), {

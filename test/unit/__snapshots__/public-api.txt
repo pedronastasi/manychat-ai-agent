@@ -307,6 +307,7 @@ PromptOverridesSchema: zod schema of PromptOverrides
 type PromptSection = "actions" | "closing" | "followUps" | "format" | "intent" | "offerings" | "operating" | "sales"
 
 type ReservedNames = {
+  channelReplyFlows?: Readonly<Record<string, string>> | undefined
   replyField?: string | undefined
   replyFlowNs?: string | undefined
   tokenField?: string | undefined

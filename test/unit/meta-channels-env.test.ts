@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ConfigError, loadTenantConfig, reservedNames } from '../../src/config/loader.ts';
 import {
   EnvSchema,
   acceptedChannels,
@@ -71,7 +75,31 @@ describe('the channels a deployment answers (specs/048 § The channel belongs to
     ['an unknown CHANNEL', { CHANNEL: 'carrier-pigeon' }],
     ['an unknown entry in CHANNELS', { CHANNELS: 'whatsapp,carrier-pigeon' }],
     ['CHANNELS without CHANNEL', { CHANNELS: 'instagram' }],
+    // Telegram is outside the spec's channels (specs/048).
+    ['Telegram in CHANNELS', { CHANNELS: 'whatsapp,telegram' }],
   ])('refuses %s at boot', (_label, env) => {
     expect(EnvSchema.safeParse({ ...base, ...env }).success).toBe(false);
+  });
+});
+
+describe("each channel's reply flow is reserved against tools.json (specs/012 § The flow set may not include the reply flow or field, specs/048)", () => {
+  it('refuses a tool flow that is the Instagram reply flow', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reserved-channel-flow-'));
+    cpSync('test/fixtures/config', dir, { recursive: true });
+    const tools = JSON.parse(readFileSync(join(dir, 'tools.json'), 'utf8')) as {
+      flows: { flowNs: string }[];
+    };
+    tools.flows[0]!.flowNs = 'content_instagram_reply';
+    writeFileSync(join(dir, 'tools.json'), JSON.stringify(tools));
+    const env = EnvSchema.parse({
+      ...base,
+      CHANNELS: 'whatsapp,instagram',
+      MANYCHAT_REPLY_FLOW_NS_INSTAGRAM: 'content_instagram_reply',
+    });
+
+    expect(() => loadTenantConfig(dir, reservedNames(env))).toThrow(ConfigError);
+    expect(() => loadTenantConfig(dir, reservedNames(env))).toThrow(
+      /is MANYCHAT_REPLY_FLOW_NS_INSTAGRAM/,
+    );
   });
 });
