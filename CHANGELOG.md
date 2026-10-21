@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.27.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.26.1...v0.27.0) (2026-10-21)
+
+
+### Features
+
+* answer an image instead of describing it, and hand off an unrelated one ([f86d9bc](https://github.com/pedronastasi/manychat-ai-agent/commit/f86d9bc1957a16208dd19aed2e143e8031619ffc))
+* answer an image instead of describing it, and hand off an unrelated one ([5e72cb4](https://github.com/pedronastasi/manychat-ai-agent/commit/5e72cb4d3596376f48f763fc55146a5b8aff9a1c))
+* answer WhatsApp, Instagram and Messenger from one deployment (spec 048) ([563f530](https://github.com/pedronastasi/manychat-ai-agent/commit/563f53053bd8c4cd3a5cbf785d3bdcc06502813c))
+* answer WhatsApp, Instagram and Messenger from one deployment (spec 048) ([5af5985](https://github.com/pedronastasi/manychat-ai-agent/commit/5af59857919136f443bbd16c5723b9bfe2c8ad6f))
+* read Instagram and Messenger media as WhatsApp media is (spec 048) ([6896ffa](https://github.com/pedronastasi/manychat-ai-agent/commit/6896ffa8b035e8db2d42547567756f1cef9d0c3c))
+
+
+### Bug Fixes
+
+* count a message written without a channel on every channel's window (spec 048) ([f399e19](https://github.com/pedronastasi/manychat-ai-agent/commit/f399e19dd4d8129d7ae59ad5078e22fb3a365fe0))
+* keep a single-channel deployment on MANYCHAT_REPLY_FLOW_NS (spec 048) ([8fbc44a](https://github.com/pedronastasi/manychat-ai-agent/commit/8fbc44ae577c9112dc2e8e9a0cad3d839d010950))
+* reserve each channel's reply flow and keep Telegram out of CHANNELS (spec 048) ([fc5b25e](https://github.com/pedronastasi/manychat-ai-agent/commit/fc5b25ec20cae1b9e98cbfd13ae5651bee32630b))
+
+
+### Refactors
+
+* move the image rules into the operating and format defaults ([0fb6d51](https://github.com/pedronastasi/manychat-ai-agent/commit/0fb6d51ae2e84486931094edc1ef0bba3498a4bb))
+* run a nudge through NudgeChecks and the turn's own recorder ([7d2b33e](https://github.com/pedronastasi/manychat-ai-agent/commit/7d2b33ede634e590f6051aed6cd8ed705e2140db))
+* run a nudge through NudgeChecks and the turn's own recorder ([4406fab](https://github.com/pedronastasi/manychat-ai-agent/commit/4406fabf35e88ac7dc7d9ff53df406f513d67d46))
+
+
+### Specs and Docs
+
+* record PR 254 in spec 048 ([f7082bf](https://github.com/pedronastasi/manychat-ai-agent/commit/f7082bfd9ab064a06d01a9c27ddf3f0e9830f8b8))
+* record the no-channel window rule in spec 048 ([80f27c0](https://github.com/pedronastasi/manychat-ai-agent/commit/80f27c00fca2b216119f4cfc0f1fba679f1d596a))
+* specify one deployment answering every Meta channel (048) ([26172bb](https://github.com/pedronastasi/manychat-ai-agent/commit/26172bbb502a497864a691fe1d5c48b985424a6c))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([a905683](https://github.com/pedronastasi/manychat-ai-agent/commit/a90568320c3b8423c251e8ae4249daea174a568e))
+* **deps:** lock file maintenance ([1ae252f](https://github.com/pedronastasi/manychat-ai-agent/commit/1ae252f15f94ba79e23825bc8304cbfa49bf71a7))
+* **deps:** lock file maintenance ([b364b44](https://github.com/pedronastasi/manychat-ai-agent/commit/b364b44039fe4ff927118a017a60fa9ff7ebe294))
+* **deps:** lock file maintenance ([aaca26c](https://github.com/pedronastasi/manychat-ai-agent/commit/aaca26c04cf9969a4475069c4b6286fe65cc41d7))
+
 ## [0.26.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.26.0...v0.26.1) (2026-10-18)
 
 
