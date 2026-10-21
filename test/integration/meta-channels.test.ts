@@ -314,6 +314,7 @@ describe('outside the window, only WhatsApp has a way back (specs/048 V7)', () =
     expect(nudge).toMatchObject({ status: 'cancelled', cancelReason: 'escalated' });
   });
 
+  // specs/048 § A message with no channel counts on every channel.
   it('counts a message an older process wrote without a channel, as during a rolling deploy', async () => {
     const conversationId = await wrote('303', 'instagram', 30);
     // Written after migration 0013 by code from before it: no channel.

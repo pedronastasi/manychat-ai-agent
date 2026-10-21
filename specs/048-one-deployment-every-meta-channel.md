@@ -120,6 +120,18 @@ never sent through `sendContent`, which would refuse it anyway.
 
 A WhatsApp reply is unchanged: its flow carries the template.
 
+### A message with no channel counts on every channel
+
+During a rolling deploy, a process from before this spec can record a
+contact's message after migration `0013` has run, with no channel. Such a
+message counts on every channel's window, for a deferred reply and for a nudge
+alike. This is the one place the check errs towards sending. The alternative
+dead-letters every Instagram reply to a contact whose only recent message an
+old process recorded, for the length of a deploy, on a deployment that cannot
+have been answering Instagram alongside WhatsApp before this spec. A reply sent
+past a window this way is attempted, and ManyChat's answer decides it as it
+does any other send's.
+
 ## Nudges follow each channel's window
 
 `025` covers WhatsApp only. It now covers all three channels:
