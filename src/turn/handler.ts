@@ -10,7 +10,13 @@ import { BudgetGuard } from '../conversation/budget.ts';
 import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactTokens } from '../conversation/tokens.ts';
 import type { ContactTokenWriter } from '../conversation/tokens.ts';
-import { contactActionsFrom, openingFlow, stagesProspect } from '../agent/tools.ts';
+import {
+  DEFAULT_CHANNEL,
+  contactActionsFrom,
+  openingFlow,
+  stagesProspect,
+  toolsOn,
+} from '../agent/tools.ts';
 import type { ActionStage } from '../agent/tools.ts';
 import type { ActionPerformer, ContactReader } from '../channels/manychat/client.ts';
 import type { Plugins } from '../plugins/plugins.ts';
@@ -69,6 +75,8 @@ export interface TurnDeps {
    * through its adapter.
    */
   channel?: string | undefined;
+  /** `CHANNEL`: the Meta channel a string `flowNs` names (specs/049). WhatsApp when absent. */
+  defaultChannel?: string | undefined;
 }
 
 /**
@@ -204,7 +212,11 @@ export class TurnHandler {
     // contact's ManyChat record, not their words, and they narrow what the
     // tools offer, so a request without the token cannot resend a flow or
     // walk the sale back (specs/023).
-    const openingEntry = openingFlow(tools);
+    // Only the channel's own opening: one authored for another channel is not
+    // sent, then or later (specs/049 § The server's own flows follow the
+    // same rule).
+    const defaultChannel = this.deps.defaultChannel ?? DEFAULT_CHANNEL;
+    const openingEntry = openingFlow(toolsOn(tools, inbound.channel, defaultChannel));
     const actionHistory =
       tools.flows.length + tools.fields.length > 0
         ? await this.store.actionHistory(conversation.id)
@@ -267,6 +279,7 @@ export class TurnHandler {
       flows,
       beforeFlow: sendOpening,
       builtInTools: this.deps.channel === undefined,
+      channel: inbound.channel,
     };
     const answered: Promise<Completion> = media
       ? this.media.read(media, { userTurnId, tenantId: inbound.tenantId, logger, input })

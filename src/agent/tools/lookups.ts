@@ -52,7 +52,9 @@ export function silentPaymentLink(
 }
 
 /** The flow the server sends on a contact's prospect turn, if the tenant marked one (specs/034). */
-export function openingFlow(config: Tools) {
+export function openingFlow<T extends Pick<Tools, 'flows'>>(
+  config: T,
+): T['flows'][number] | undefined {
   return config.flows.find(flow => flow.role === 'opening');
 }
 

@@ -57,6 +57,11 @@ no `offering` (`028`), and it may not also be the `payment_link` flow, nor
 > requires an intent field. The timing within that turn below still holds; the
 > first-turn system instruction is replaced by `set_field`'s `openingQueued`.
 
+> **Amended by `049`.** An opening with no flow for the prospect turn's
+> channel is not sent, then or later, and the model is not told it is queued.
+> A stage move on a channel without its tied flow sends nothing
+> (`049 § The server's own flows follow the same rule`).
+
 The opening flow is sent on the contact's **first model turn**: the first
 turn for this conversation on which the model runs. A turn answered by the
 scripted opening (`001`) or escalated before the model ran (budget, rate or

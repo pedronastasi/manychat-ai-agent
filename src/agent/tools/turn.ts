@@ -7,6 +7,8 @@ import type { FlowSends } from '../flows.ts';
 import type { ContactActions } from './contact-actions.ts';
 import { funnelField, intentField, offeringField, stageIndex } from './lookups.ts';
 import type { Intent } from './lookups.ts';
+import { toolsOn } from './channel.ts';
+import type { ChannelTools } from './channel.ts';
 import type { ActionStage } from './stage.ts';
 
 export interface BuildToolsOptions {
@@ -30,7 +32,14 @@ export interface BuildToolsOptions {
    * `get_contact`, only a turn that reads history may read (specs/039).
    */
   pluginReads?: PluginReads | undefined;
+  /** The Meta channel the turn arrived on; `defaultChannel` when absent (specs/049). */
+  channel?: string | undefined;
+  /** The deployment's `CHANNEL`, the channel a string `flowNs` names; WhatsApp when absent. */
+  defaultChannel?: string | undefined;
 }
+
+/** `CHANNEL`'s default (specs/003), which a string `flowNs` names when nothing says otherwise. */
+export const DEFAULT_CHANNEL = 'whatsapp';
 
 /** What a sales tool returns while the contact is not a prospect (specs/034). */
 export const NOT_PROSPECT = { staged: false, reason: 'not_prospect' } as const;
@@ -48,7 +57,8 @@ export const fitsOffering = (
  * step included.
  */
 export class ToolTurn {
-  readonly config: Tools;
+  /** Only the flows and events the turn's channel has (specs/049). */
+  readonly config: ChannelTools;
   readonly stage: ActionStage;
   readonly contact: ContactActions;
   readonly options: BuildToolsOptions;
@@ -62,7 +72,7 @@ export class ToolTurn {
    * (specs/028). The opening flow is the server's to send, never the model's
    * (specs/032).
    */
-  readonly unsent: Tools['flows'];
+  readonly unsent: ChannelTools['flows'];
   /**
    * A payment link marked here before any await on its way out, so a call
    * beside it in the same step already sees it (specs/029, specs/032).
@@ -75,14 +85,15 @@ export class ToolTurn {
     contact: ContactActions,
     options: BuildToolsOptions,
   ) {
-    this.config = config;
+    const defaultChannel = options.defaultChannel ?? DEFAULT_CHANNEL;
+    this.config = toolsOn(config, options.channel ?? defaultChannel, defaultChannel);
     this.stage = stage;
     this.contact = contact;
     this.options = options;
     this.funnel = funnelField(config);
     this.intent = intentField(config);
     this.offering = offeringField(config);
-    this.unsent = config.flows.filter(
+    this.unsent = this.config.flows.filter(
       flow => flow.role !== 'opening' && (flow.repeatable || !contact.sentFlows.has(flow.id)),
     );
   }

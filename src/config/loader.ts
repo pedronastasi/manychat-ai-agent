@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import {
   CatalogSchema,
   EnvSchema,
+  namespacesOf,
   NO_PROMPT_OVERRIDES,
   ownReplyFlows,
   NO_TOOLS,
@@ -10,7 +11,14 @@ import {
   RulesSchema,
   ToolsSchema,
 } from '../contracts/config.ts';
-import type { Catalog, Env, PromptOverrides, Rules, Tools } from '../contracts/config.ts';
+import type {
+  Catalog,
+  Env,
+  FlowNamespace,
+  PromptOverrides,
+  Rules,
+  Tools,
+} from '../contracts/config.ts';
 
 export interface TenantConfig {
   persona: string;
@@ -221,21 +229,17 @@ function loadTools(dir: string, reserved: ReservedNames, catalog: Catalog): Tool
   const channelFlowOf = (flowNs: string) =>
     channelFlows.find(([, reservedNs]) => reservedNs === flowNs)?.[0];
   const variableOf = (channel: string) => `MANYCHAT_REPLY_FLOW_NS_${channel.toUpperCase()}`;
+  // Every value of a map, whichever channel it sits under (specs/049).
+  const replyFlowCollisions = (kind: string, entry: { id: string; flowNs: FlowNamespace }) =>
+    namespacesOf(entry.flowNs).flatMap(flowNs => {
+      if (flowNs === reserved.replyFlowNs)
+        return [`${kind} '${entry.id}' is MANYCHAT_REPLY_FLOW_NS`];
+      const channel = channelFlowOf(flowNs);
+      return channel ? [`${kind} '${entry.id}' is ${variableOf(channel)}`] : [];
+    });
   const collisions = [
-    ...tools.data.flows.flatMap(flow => {
-      const channel = channelFlowOf(flow.flowNs);
-      return channel ? [`flow '${flow.id}' is ${variableOf(channel)}`] : [];
-    }),
-    ...tools.data.events.flatMap(event => {
-      const channel = channelFlowOf(event.flowNs);
-      return channel ? [`event '${event.id}' is ${variableOf(channel)}`] : [];
-    }),
-    ...tools.data.flows
-      .filter(flow => flow.flowNs === reserved.replyFlowNs)
-      .map(flow => `flow '${flow.id}' is MANYCHAT_REPLY_FLOW_NS`),
-    ...tools.data.events
-      .filter(event => event.flowNs === reserved.replyFlowNs)
-      .map(event => `event '${event.id}' is MANYCHAT_REPLY_FLOW_NS`),
+    ...tools.data.flows.flatMap(flow => replyFlowCollisions('flow', flow)),
+    ...tools.data.events.flatMap(event => replyFlowCollisions('event', event)),
     ...tools.data.fields
       .filter(field => field.field === reserved.replyField)
       .map(field => `field '${field.id}' is MANYCHAT_REPLY_FIELD`),

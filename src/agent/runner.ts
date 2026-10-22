@@ -143,6 +143,11 @@ export interface AgentTurnInput {
    * still are (specs/038).
    */
   builtInTools?: boolean | undefined;
+  /**
+   * The Meta channel the turn is on, so its tools offer and send only that
+   * channel's flows (specs/049). Absent, the runner's `defaultChannel`.
+   */
+  channel?: string | undefined;
 }
 
 /**
@@ -256,6 +261,8 @@ export interface RunnerOptions {
    * source refreshes on a timer (specs/031).
    */
   playbook?: { current(): ActivePlaybook | undefined } | undefined;
+  /** `CHANNEL`: the Meta channel a string `flowNs` names (specs/049). WhatsApp when absent. */
+  defaultChannel?: string | undefined;
 }
 
 export class GenerateTextRunner implements AgentRunner {
@@ -333,6 +340,7 @@ export class GenerateTextRunner implements AgentRunner {
     beforeFlow,
     nudge,
     builtInTools = true,
+    channel,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
@@ -353,6 +361,8 @@ export class GenerateTextRunner implements AgentRunner {
           beforeFlow,
           plugins: this.opts.plugins,
           pluginReads,
+          channel,
+          defaultChannel: this.opts.defaultChannel,
         })
       : undefined;
     // The opening is no longer known before the loop runs: the prospect write

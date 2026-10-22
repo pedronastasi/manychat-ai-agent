@@ -49,7 +49,7 @@ const tools: Tools = {
   ...fixture,
   events: [{ id: 'checkout_started', stage: 'link_sent', flowNs: CHECKOUT_NS }],
 };
-const flowNs = (id: string) => tools.flows.find(flow => flow.id === id)!.flowNs;
+const flowNs = (id: string) => tools.flows.find(flow => flow.id === id)!.flowNs as string;
 
 const rules = RulesSchema.parse({
   messages: { acknowledgement: 'One moment.', escalation: 'Passing you to a person.' },

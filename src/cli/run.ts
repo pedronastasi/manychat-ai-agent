@@ -249,6 +249,7 @@ async function startWorkers(configDir: string) {
     reasoningEffort: env.AGENT_REASONING_EFFORT,
     plugins,
     playbook,
+    defaultChannel: env.CHANNEL,
   });
 
   const stopOutbox = new OutboxWorker({ db, client: manychat, logger, plugins }).start();
