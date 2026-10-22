@@ -144,8 +144,8 @@ The graph has three nodes and a step counter in its state:
    `prepareStep`. It must produce the `AgentReply`. A tenant with no tools gets
    this node alone, one model call.
 
-The numbers are `tools.ts`'s, at the commit the gate runs against. Read on
-2026-10-02, they are a cap of 2 steps and 3 staged actions, with no read tool.
+The numbers are `tools.ts`'s, at the TypeScript tag the gate runs against.
+Read on 2026-10-02, they are a cap of 2 steps and 3 staged actions, with no read tool.
 `024` raises them to 4 steps, 8 actions and 2 reads, and adds the read with its
 1500 ms timeout. The graph does not change shape when it does. ADR-0010 as
 amended by ADR-0016 and ADR-0019 is the rule in both cases: reads perform
