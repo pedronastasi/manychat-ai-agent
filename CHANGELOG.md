@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.28.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.27.0...v0.28.0) (2026-10-22)
+
+
+### Features
+
+* send each flow through the turn's channel's namespace (spec 049) ([7688a9c](https://github.com/pedronastasi/manychat-ai-agent/commit/7688a9c018bc1109a103b9479851a25323ff393e))
+* send each flow through the turn's channel's namespace (spec 049) ([bd862e2](https://github.com/pedronastasi/manychat-ai-agent/commit/bd862e2f70bcb774e70d7ba9c033e5127f4e8770))
+
+
+### Bug Fixes
+
+* let one event name the same tracking flow on several channels (spec 049) ([6fa255b](https://github.com/pedronastasi/manychat-ai-agent/commit/6fa255bf29c9ce706b1f1446fa71319801fd8a17))
+
+
+### Specs and Docs
+
+* give every flow and event in the tools.json example a per-channel map ([ec2b238](https://github.com/pedronastasi/manychat-ai-agent/commit/ec2b238d0b11e42f5f013dcba76cd9cdb7d4bb87))
+* record PR 258 in spec 049 ([f6569c4](https://github.com/pedronastasi/manychat-ai-agent/commit/f6569c4c8ea3dd9ee6a760a71b031cc49626343a))
+* show a per-channel flowNs in the tools.json example ([c1cb360](https://github.com/pedronastasi/manychat-ai-agent/commit/c1cb3607795f6ebaeba60b82e6de1bb9c4efef07))
+* specify a flow authored per channel (spec 049) ([772b45c](https://github.com/pedronastasi/manychat-ai-agent/commit/772b45c629fd7295d1bb55db9f922c8456529c68))
+* specify a flow authored per channel (spec 049) ([9f88147](https://github.com/pedronastasi/manychat-ai-agent/commit/9f881471b60d595ba71554e9564a7d8f681c446d))
+
 ## [0.27.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.26.1...v0.27.0) (2026-10-21)
 
 
