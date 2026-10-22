@@ -73,6 +73,9 @@ moves`). The event is that record, sent somewhere else.
   twice. Any collision is a startup failure.
 - `events` without a `funnel` field is a load failure: there is no stage to
   key on.
+- `flowNs` may be a map per channel, as a flow's may. An event is fired only
+  on a turn whose channel has a tracking flow for it, and every value of the
+  map is held to the rules above (`049 § Events take the same shape`).
 
 The flow itself is the tenant's: one ManyChat flow containing a "Send event to
 Meta Conversions API" action and **no message**. Nothing in this repository can

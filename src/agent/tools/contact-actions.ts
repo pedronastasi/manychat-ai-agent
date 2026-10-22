@@ -3,6 +3,7 @@ import type { Tools } from '../../contracts/config.ts';
 import type { ActionRecord, SendEventAction } from '../../contracts/agent.ts';
 import { funnelField, intentField, stageIndex } from './lookups.ts';
 import type { Intent } from './lookups.ts';
+import type { ChannelTools } from './channel.ts';
 
 /**
  * What this service has already done for the contact, as far as the next
@@ -106,7 +107,7 @@ export function contactActionsFrom(
  * event per stage per contact).
  */
 export function eventFor(
-  config: Tools,
+  config: ChannelTools,
   contact: ContactActions,
   value: string,
 ): SendEventAction | undefined {

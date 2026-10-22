@@ -2,45 +2,73 @@
   "flows": [
     {
       "id": "welcome_note",
-      "flowNs": "content00000000000000_000007",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000007",
+        "instagram": "content00000000000000_000207",
+        "messenger": "content00000000000000_000307"
+      },
       "description": "A short welcome voice note that asks whether the contact has studied the subject before. The system sends it on the contact's first turn.",
       "role": "opening",
       "settleSeconds": 10
     },
     {
       "id": "foundation_brochure",
-      "flowNs": "content00000000000000_000001",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000001",
+        "instagram": "content00000000000000_000201",
+        "messenger": "content00000000000000_000301"
+      },
       "description": "PDF brochure for the Foundation Course. Send when the contact asks for details, a syllabus or something to read about it.",
       "offering": "foundation"
     },
     {
       "id": "student_results",
-      "flowNs": "content00000000000000_000002",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000002",
+        "instagram": "content00000000000000_000202",
+        "messenger": "content00000000000000_000302"
+      },
       "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it. The system also sends it when you record nurturing.",
       "onStage": "nurturing",
       "settleSeconds": 4
     },
     {
       "id": "fitting_it_in",
-      "flowNs": "content00000000000000_000003",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000003",
+        "instagram": "content00000000000000_000203",
+        "messenger": "content00000000000000_000303"
+      },
       "description": "A short video of a past student explaining how they fitted the course around a full-time job. Send when the contact says they do not have time."
     },
     {
       "id": "enrolment_link",
-      "flowNs": "content00000000000000_000004",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000004",
+        "instagram": "content00000000000000_000204",
+        "messenger": "content00000000000000_000304"
+      },
       "description": "The enrolment and payment link. Send when the contact asks for the link or says they want to enrol.",
       "role": "payment_link",
       "repeatable": true
     },
     {
       "id": "advanced_brochure",
-      "flowNs": "content00000000000000_000005",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000005",
+        "instagram": "content00000000000000_000205",
+        "messenger": "content00000000000000_000305"
+      },
       "description": "PDF brochure for the Advanced Course. Send when the contact asks for details, a syllabus or something to read about it.",
       "offering": "advanced"
     },
     {
       "id": "intensive_brochure",
-      "flowNs": "content00000000000000_000006",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000006",
+        "instagram": "content00000000000000_000206",
+        "messenger": "content00000000000000_000306"
+      },
       "description": "PDF brochure for the Weekend Intensive. Send when the contact asks for details, a syllabus or something to read about it.",
       "offering": "weekend-intensive"
     }
@@ -138,12 +166,20 @@
     {
       "id": "lead_qualified",
       "stage": "nurturing",
-      "flowNs": "content00000000000000_000101"
+      "flowNs": {
+        "whatsapp": "content00000000000000_000101",
+        "instagram": "content00000000000000_000501",
+        "messenger": "content00000000000000_000601"
+      }
     },
     {
       "id": "checkout_started",
       "stage": "link_sent",
-      "flowNs": "content00000000000000_000102"
+      "flowNs": {
+        "whatsapp": "content00000000000000_000102",
+        "instagram": "content00000000000000_000502",
+        "messenger": "content00000000000000_000602"
+      }
     }
   ]
 }

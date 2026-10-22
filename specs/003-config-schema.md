@@ -68,7 +68,9 @@ JSON edit and a restart — no prompt editing, no deploy.
 Optional. The flows, tags and field values the agent may act with (`012`). Absent,
 the agent is offered no tools and behaves as it did before `012`.
 
-- `flows[]` — `id`, `flowNs`, `description`, optional `repeatable` and
+- `flows[]` — `id`, `flowNs` (a string, the flow for `CHANNEL`, or a map of
+  `whatsapp`, `instagram` and `messenger` to that channel's flow; `049`),
+  `description`, optional `repeatable` and
   `role`, `"payment_link"` (`023`) or `"opening"` (`032`), optional `offering`,
   a catalog offering id (`028`), optional `settleSeconds`, an integer from 0 to
   30: how long the flow plays, which a reply sent after it waits for (`030`),
@@ -86,7 +88,8 @@ the agent is offered no tools and behaves as it did before `012`.
 - `nudge` — optional: `delays[]` (`id`, `minutes`, at most 1380) and
   `humanActiveTag`, a non-empty ManyChat tag name that is no `tags[].tag`
   (`025`). Absent, `schedule_nudge` is not offered.
-- `events[]` — `id`, `stage` (a funnel stage other than `new`), `flowNs`: the
+- `events[]` — `id`, `stage` (a funnel stage other than `new`), `flowNs` (a
+  string or a map, as a flow's; `049`): the
   tracking flow the server sends when a funnel write advances to `stage`
   (`027`). Never shown to the model.
 
@@ -122,7 +125,8 @@ offering fails the reload until `tools.json` drops it too. A field or flow that
 still carries `course`, or a `learning` block with `enrolledTag`, fails at load
 naming the key and `agent upgrade` (`042`).
 
-Loading also refuses a flow or event whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`, a
+Loading also refuses a flow or event whose `flowNs`, or any value of its map,
+is `MANYCHAT_REPLY_FLOW_NS` or a channel's own reply flow (`048`), a
 field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`, and a
 note whose `field` is either of those, any `fields[].field`, or another note's.
 Firing the reply flow or writing either field as an action would resend a stale

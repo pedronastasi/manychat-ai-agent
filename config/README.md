@@ -185,6 +185,15 @@ A list you leave empty or omit offers no tool for it. Each entry has:
 - **`flowNs`, `tag` or `field`**: the object's name in your ManyChat account. The
   model never sees it, so renaming the object in ManyChat only needs an edit
   here.
+- **`flowNs` per channel**: a ManyChat flow is built for one channel. A plain
+  string is the flow for `CHANNEL` (WhatsApp unless you set it). A deployment
+  that also answers Instagram or Messenger (`CHANNELS`) names each channel's
+  flow in a map, as every flow and event in the example does:
+  `{ "whatsapp": "…", "instagram": "…", "messenger": "…" }`. Leave out a
+  channel you have no flow for yet. A turn is offered
+  and sent only the flows its channel has, and never another channel's. That
+  includes the opening, the stage flows, the payment link and `events`, so a
+  channel with no payment flow never reaches `link_sent` (specs/049).
 - **`values`** (fields only): the only values the agent may write. The model
   picks one of them and can never write free text.
 - **`description`**: what the entry is and when to use it. This is the only
@@ -583,7 +592,9 @@ the boot, and a malformed reload is refused and the previous config is kept. A
 file is also refused if it names an object this service already uses for
 delivery:
 
-- a flow whose `flowNs` is `MANYCHAT_REPLY_FLOW_NS`;
+- a flow or event whose `flowNs`, or any value of its map, is
+  `MANYCHAT_REPLY_FLOW_NS`, `MANYCHAT_REPLY_FLOW_NS_INSTAGRAM` or
+  `MANYCHAT_REPLY_FLOW_NS_MESSENGER`;
 - a field whose `field` is `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`;
 - a note whose `field` is either of those, a `fields` entry's `field`, or
   another note's.

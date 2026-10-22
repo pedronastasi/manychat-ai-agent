@@ -352,7 +352,11 @@ type TenantConfig = {
 
 type Tools = {
   events: {
-    flowNs: string
+    flowNs: string | {
+      instagram?: string | undefined
+      messenger?: string | undefined
+      whatsapp?: string | undefined
+    }
     id: string
     stage: "link_sent" | "nurturing" | "offered" | "prepared" | "qualifying"
   }[]
@@ -368,7 +372,11 @@ type Tools = {
   }[]
   flows: {
     description: string
-    flowNs: string
+    flowNs: string | {
+      instagram?: string | undefined
+      messenger?: string | undefined
+      whatsapp?: string | undefined
+    }
     id: string
     offering?: string | undefined
     onStage?: "nurturing" | "offered" | "prepared" | "qualifying" | undefined
@@ -945,6 +953,8 @@ buildTools: {
     beforeFlow?: undefined | {
       () => Promise<void>
     }
+    channel?: string | undefined
+    defaultChannel?: string | undefined
     flows?: undefined | {
       playsUntil: number
       send: {

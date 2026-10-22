@@ -124,6 +124,8 @@ export class NudgeWorker {
         stage,
         contact,
         nudge: { since: lastInbound },
+        // Its flows are the nudge channel's own (specs/049).
+        channel: nudge.channel ?? undefined,
       });
     } catch (error) {
       logger.error({ err: String(error) }, 'nudge model call failed');

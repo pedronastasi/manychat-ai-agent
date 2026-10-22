@@ -16,6 +16,34 @@ const ToolDescription = z.string().min(1);
 const uniqueIds = (entries: { id: string }[]) =>
   new Set(entries.map(entry => entry.id)).size === entries.length;
 
+/** The channels a flow may be authored for (specs/049). */
+export const FLOW_CHANNELS = ['whatsapp', 'instagram', 'messenger'] as const;
+
+/**
+ * A ManyChat flow is authored for one channel. A string is the flow for
+ * `CHANNEL` alone; a map names one per Meta channel (specs/049 § `flowNs` is
+ * a string or a map per channel).
+ */
+const FlowNamespace = z.union([
+  z.string().min(1),
+  z
+    .strictObject({
+      whatsapp: z.string().min(1).optional(),
+      instagram: z.string().min(1).optional(),
+      messenger: z.string().min(1).optional(),
+    })
+    .refine(map => Object.values(map).some(value => value !== undefined), {
+      message: 'a flowNs map names at least one channel',
+    }),
+]);
+export type FlowNamespace = z.infer<typeof FlowNamespace>;
+
+/** Every ManyChat flow a `flowNs` names, on any channel. */
+export const namespacesOf = (flowNs: FlowNamespace): string[] =>
+  typeof flowNs === 'string'
+    ? [flowNs]
+    : Object.values(flowNs).filter((value): value is string => value !== undefined);
+
 /**
  * The latest a nudge may be scheduled for: an hour inside WhatsApp's 24-hour
  * window, for the worker's poll, a deferred delivery and the model call. Chosen,
@@ -91,7 +119,7 @@ const EventEntry = z.object({
   stage: z
     .enum(FUNNEL_STAGES)
     .refine(stage => stage !== 'new', 'an event may not be keyed on stage "new"'),
-  flowNs: z.string().min(1),
+  flowNs: FlowNamespace,
 });
 
 /**
@@ -114,7 +142,7 @@ const Flows = z
   .array(
     z.object({
       id: ToolEntryId,
-      flowNs: z.string().min(1),
+      flowNs: FlowNamespace,
       description: ToolDescription,
       /** Exempt from "sent at most once per contact" (specs/023). */
       repeatable: z.boolean().optional(),
@@ -348,10 +376,14 @@ export const ToolsSchema = z
   })
   // A tracking flow that is also a content flow would be sent once by the
   // model and once by the server, and the event would count twice (specs/027).
+  // Over every value of a map, whichever channel it sits under (specs/049).
   .refine(
-    tools =>
-      new Set([...tools.flows, ...tools.events].map(entry => entry.flowNs)).size ===
-      new Set(tools.flows.map(flow => flow.flowNs)).size + tools.events.length,
+    tools => {
+      // One event may name the same tracking flow on several channels.
+      const events = tools.events.flatMap(event => [...new Set(namespacesOf(event.flowNs))]);
+      const flows = new Set(tools.flows.flatMap(flow => namespacesOf(flow.flowNs)));
+      return new Set(events).size === events.length && events.every(ns => !flows.has(ns));
+    },
     {
       message: "an event's flowNs may not be a flow's or another event's",
       path: ['events'],

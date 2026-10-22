@@ -79,7 +79,9 @@ contact is a prospect, it is refused with no request and takes no slot of the
 turn's cap. `get_contact` is unaffected.
 
 Each parameter is a `z.enum` built from `config/tools.json` at load, so the
-model can only name something the tenant configured (C3). A tool whose list is
+model can only name something the tenant configured (C3). `send_flow`'s enum
+holds only the flows authored for the turn's channel, so it is built per turn
+(`049 § A turn sees only the flows its channel has`). A tool whose list is
 empty is not offered at all. The file reloads on `SIGHUP` with the rest of the
 tenant config, and is added to `003-config-schema.md` in the pull request that
 implements this spec. Shape, with values invented for the demo tenant:
@@ -202,7 +204,8 @@ carries its staged actions with it, as on the race-lost path (`030`).
 ## The flow set may not include the reply flow or field
 
 `flows[].flowNs` may not equal `MANYCHAT_REPLY_FLOW_NS`, nor a channel's own
-reply flow (`MANYCHAT_REPLY_FLOW_NS_INSTAGRAM`, `_MESSENGER`; `048`), and
+reply flow (`MANYCHAT_REPLY_FLOW_NS_INSTAGRAM`, `_MESSENGER`; `048`), nor may
+any value of a per-channel map (`049`), and
 `fields[].field`
 may not equal `MANYCHAT_REPLY_FIELD` or `MANYCHAT_TOKEN_FIELD`. The reply flow
 renders whatever the reply field holds, so firing it as a tool would resend a

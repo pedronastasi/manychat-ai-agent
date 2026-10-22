@@ -4,7 +4,10 @@
  * file is the one place they are imported from.
  */
 export { MAX_STEPS, buildTools } from './tools/build.ts';
+export { DEFAULT_CHANNEL } from './tools/turn.ts';
 export type { BuildToolsOptions } from './tools/turn.ts';
+export { flowOn, toolsOn } from './tools/channel.ts';
+export type { ChannelTools } from './tools/channel.ts';
 export { MAX_ACTIONS_PER_TURN, ActionStage, describeAction, recordOf } from './tools/stage.ts';
 export {
   funnelField,

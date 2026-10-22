@@ -148,6 +148,7 @@ export async function buildServer(opts: BuildOptions) {
       reasoningEffort: env.AGENT_REASONING_EFFORT,
       plugins,
       playbook: opts.playbook,
+      defaultChannel: env.CHANNEL,
     });
 
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
@@ -341,6 +342,7 @@ export async function buildServer(opts: BuildOptions) {
       plugins,
       media,
       lanes,
+      defaultChannel: env.CHANNEL,
       ...deps,
     });
     const turn = await handler.handle(inbound);
