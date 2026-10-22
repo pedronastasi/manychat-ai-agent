@@ -15,7 +15,11 @@
     },
     {
       "id": "student_results",
-      "flowNs": "content00000000000000_000002",
+      "flowNs": {
+        "whatsapp": "content00000000000000_000002",
+        "instagram": "content00000000000000_000202",
+        "messenger": "content00000000000000_000302"
+      },
       "description": "Photos of work by past students who started from zero. Send when the contact is not sure they could learn it. The system also sends it when you record nurturing.",
       "onStage": "nurturing",
       "settleSeconds": 4
