@@ -1,17 +1,18 @@
 ---
 status: specified
 constitution: [C1, C2, C3, C4, C5, C6, C7, C8, C9]
-adr: [0018, 0001, 0004, 0008, 0010, 0012, 0013, 0014, 0016, 0017, 0019]
+adr: [0025, 0001, 0004, 0008, 0010, 0012, 0013, 0014, 0016, 0017, 0019]
 ---
 
 # 026 — Python Port Parity
 
-Defines what the Python service of ADR-0018 must preserve before it takes
-traffic from the TypeScript one: the framework defaults it overrides, how
-modules map, the bounded loop as a LangGraph graph, the state both services
-share during cutover, and the gate each traffic step waits on. It leaves out
-new features (retrieval, multi-agent), the docs site port, and Python CI wiring
-beyond the parity gate.
+Defines what the Python implementation of ADR-0025 must preserve to be the same
+agent as the TypeScript one: the framework defaults it overrides, how modules
+map, the bounded loop as a LangGraph graph, what the two keep identical so a
+tenant can switch, and the gate each Python release passes. It leaves out new
+features (retrieval, multi-agent), the docs site port, and the Python
+repository's own CI beyond that gate. There is no cutover: the two run
+separately, each on its own database, for as long as both have users.
 
 ## The port preserves behaviour, not framework defaults
 
@@ -25,16 +26,15 @@ result would pass a review of the Python and fail a reading of `012`.
 `022` met the same move with the ManyChat SDK and answered it with a rule. This
 spec applies that rule to the whole port:
 
-> **The Python service changes no behaviour a spec in this repository fixes.**
-> Every framework option that behaviour depends on is set explicitly, and a
-> default is kept only where no spec is touched by it.
+> **The Python implementation changes no behaviour a spec in this repository
+> fixes.** Every framework option that behaviour depends on is set explicitly,
+> and a default is kept only where no spec is touched by it.
 
-The parity target is the TypeScript service at the commit the gate runs
-against, which means the specs marked `implemented`. Specs still `specified`
-(`007`, `015`, `016`, `023`, `024`, `025`) are not in the target.
-Where this spec mentions one, it says what must already hold when it lands.
-Whichever codebase implements such a spec first, the other matches it before
-traffic moves again (ADR-0018).
+The parity target is a TypeScript release: the specs marked `implemented` at
+the tag a Python release names. Each Python release states the TypeScript
+version it matches, and matches every spec implemented at that tag. A spec
+lands here first, in `specs/`, and stays the one description of the behaviour
+for both (ADR-0025).
 
 ## Defaults that change behaviour are pinned, and each pin has a test
 
@@ -55,7 +55,7 @@ Read on 2026-10-02 from the wheels on PyPI: `langchain` 1.4.3,
 | `asyncio.wait_for` cancels the awaited task when it times out; the event loop keeps only a weak reference to a task from `create_task`                                                                                                    | ADR-0001: the losing call is not abandoned                                                                           | The race uses `asyncio.wait` with a timeout, never `wait_for`, and the turn handler holds a strong reference to the task until it settles                         |
 | LangSmith tracing is off until `LANGSMITH_TRACING`, `LANGCHAIN_TRACING_V2` or a sibling is `"true"`, and then sends every run's inputs and outputs unless `LANGSMITH_HIDE_INPUTS` and `_OUTPUTS` are set                                  | C5 ("no PII in logs or traces"); the tenant's prompt and catalog, the data C1 keeps out of git, would go to a vendor | Boot refuses to start while any of those variables is `"true"`. The TypeScript runner's telemetry records no inputs by default (`recordPromptsInTraces`)          |
 | `set_verbose` and `set_debug` in `langchain-core` are off by default, and when on they attach handlers that print each run to stdout, past the logger                                                                                     | C5                                                                                                                   | Never called. A test asserts both read false after boot                                                                                                           |
-| `init_chat_model` infers a provider from a bare model name (`gemini…` becomes `google_vertexai`); the Gemini API's provider name is `google_genai`, not `google`; with no model, `configurable_fields` lets runtime config pick the model | C2's `provider:model` string (ADR-0018); C4: no inbound field alters model selection                                 | The registry splits `provider:model` itself, maps `google` to `google_genai`, passes `model_provider` explicitly, and never sets `configurable_fields`            |
+| `init_chat_model` infers a provider from a bare model name (`gemini…` becomes `google_vertexai`); the Gemini API's provider name is `google_genai`, not `google`; with no model, `configurable_fields` lets runtime config pick the model | C2's `provider:model` string (ADR-0025); C4: no inbound field alters model selection                                 | The registry splits `provider:model` itself, maps `google` to `google_genai`, passes `model_provider` explicitly, and never sets `configurable_fields`            |
 | A LangGraph checkpointer is the idiomatic memory, and `PostgresSaver` creates its own tables                                                                                                                                              | `018`, `019`: history is the last ten bound turns in `turns`; the schema rule below                                  | No checkpointer. History is read from `turns` exactly as `store.ts` reads it                                                                                      |
 | Pydantic models ignore unknown keys (`extra='ignore'`)                                                                                                                                                                                    | The `.strict()` inbound schemas of `002 § Inbound payload`                                                           | `extra='forbid'` on every inbound model and on the model-output model                                                                                             |
 | FastAPI answers a validation failure with 422 and `exc.errors()`, which carries each rejected `input`                                                                                                                                     | `017`: "a 400 for an invalid body"; C5                                                                               | A handler answers 400 and echoes no input value                                                                                                                   |
@@ -75,7 +75,7 @@ reads the configured value, not a comment saying what it was.
 Each TypeScript module has one Python counterpart, with the same name in
 `snake_case` and the same constants under the same names, so a reviewer can
 read the two side by side. Paths on the right are relative to the Python
-package root; where that root lives is the implementing pull request's call.
+package root in the Python repository.
 
 | TypeScript                                        | Python                                    | What must stay identical                                                                      |
 | ------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -93,7 +93,7 @@ package root; where that root lives is the implementing pull request's call.
 | `src/contracts/*`                                 | `contracts/*`                             | Field names, limits and enum values, as Pydantic models                                       |
 | `src/conversation/*`                              | `conversation/*`                          | The SQL each query issues, and the token format and hash (`019`)                              |
 | `src/db/client.ts`, `src/db/schema.ts`            | `db/client.py`, `db/schema.py`            | Table definitions that mirror the Drizzle schema and never create it                          |
-| `src/db/migrate.ts`                               | none while TypeScript serves              | See § Side by side means one schema                                                           |
+| `src/db/migrate.ts`                               | Alembic, `migrations/`                    | See § Each implementation owns its database                                                   |
 | `src/media/*`                                     | `media/*`                                 | The ffmpeg arguments, and the order in `020 § Download and transcription run inside the race` |
 | `src/observability/redact.ts`                     | `observability/redact.py`                 | The same patterns, applied at the root logger                                                 |
 | `src/outbox/*`                                    | `outbox/*`                                | The claim statement, `MAX_ATTEMPTS`, the backoff                                              |
@@ -105,7 +105,7 @@ The choices the developer left open:
 | Concern     | Choice                                    | Why                                                                                |
 | ----------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
 | Database    | SQLAlchemy 2 Core over psycopg 3, async   | Core issues the SQL written; the ORM's unit of work would hide the claim statement |
-| Migrations  | Alembic, only after TypeScript is retired | One owner of the schema at a time                                                  |
+| Migrations  | Alembic, from a baseline equal to the SQL | Each implementation owns its schema; the comparison test keeps them equal          |
 | Tests       | pytest, with coverage.py in branch mode   | The default runner; branch mode is what makes a branch threshold measurable        |
 | Lint/format | Ruff, line length 100                     | One tool for both jobs, and it bans imports per file, which C2 needs               |
 | Types       | pyright in strict mode                    | The closest match to `tsc` under `strict`, which the TypeScript side runs          |
@@ -184,140 +184,57 @@ from "misbehaved".
 | C8     | Each ported test cites the clause its TypeScript original cites                                                                                  |
 | C9     | No customer-facing copy in Python source; `005`'s accent check covers the Python tree                                                            |
 
-`008` derives a spec's evidence from citations under `test/`. Python tests
-count only where the index looks, which the implementing pull request settles
-before it claims any spec.
+Python tests cite the clause by this repository's spec number and heading, as
+the TypeScript ones do; `008`'s index does not read them (§ Verification).
 
-## Side by side means one schema, owned by TypeScript until it is retired
+## Each implementation owns its database, and the schemas stay equivalent
 
-The TypeScript service applies `db/migrations/*.sql` at boot and records them
-in `_migrations`. While it serves traffic, it owns the schema. The Python
-service runs no migration against the shared database: no `alembic upgrade`,
-no `metadata.create_all`, no checkpointer `setup()`. Two migration histories on
-one database is two tools each sure it knows the schema, and the second one to
-run is wrong.
+The Python implementation never connects to a database the TypeScript one
+uses, and runs its own migrations with Alembic. Its schema is kept equivalent
+to the one `db/migrations/*.sql` builds: the same tables, columns, types,
+nullability and defaults. That is what lets a tenant move from one
+implementation to the other by pointing it at a copy of its database, without
+a data migration.
 
-- A schema change during cutover lands as a TypeScript migration, deployed,
-  before any Python code uses it. Changes are additive (new tables, nullable
-  columns); nothing is dropped or renamed while both serve.
-- The Python table definitions mirror `schema.ts`. A test applies the SQL
-  migrations to an empty Postgres and compares the reflected schema with them:
-  tables, columns, types, nullability and defaults. Drift fails the build.
-- When TypeScript is retired, Alembic starts from a baseline stamped against the
-  schema as it then stands. `_migrations` stays, as history.
+- A schema change lands here first, as a TypeScript migration, and the Python
+  release that matches it carries the Alembic revision producing the same
+  result.
+- A test in the Python repository applies this repository's SQL migrations, at
+  the matched tag, to one empty Postgres and the Alembic history to another,
+  and compares the reflected schemas. Drift fails the build.
 
-## The outbox lets two workers coexist, and nothing else in the process does
+Rejected: one schema shared by both, as ADR-0018 had it. It made sense while
+traffic moved between them and a contact's history had to follow. With no
+handover, it would bind each release of one to a deploy of the other and leave
+the schema with two owners for good.
 
-`claimBatch` is one statement, an `UPDATE` whose `WHERE id IN (…)` selects the
-due rows `FOR UPDATE SKIP LOCKED`. A row one worker has locked is skipped by the
-other, and once claimed it is `delivering`, so neither sees it as pending
-again. The Python worker issues the same statement. A select in one
-transaction followed by an update in another would let both workers read the
-same pending row, which is the race ADR-0004 exists to avoid.
+## Wire formats are the same, so a tenant can switch
 
-- **The payload is a contract.** A row either service writes is one the other
-  can deliver: `{ messages, actions?, turnId? }` for a reply, with the
-  `StagedAction` shapes of `contracts/agent.ts`, and `{ generation }` for a
-  contact token. Retries, `MAX_ATTEMPTS` (5), the backoff of
-  `min(300, 2^attempts)` seconds and the first-attempt dead letter for a 4xx
-  other than 429 are the same.
-- **The first traffic step runs the Python worker off.** The TypeScript worker
-  delivers Python's rows, which is the strongest evidence the payload matches.
-- **No reaper exists.** A row claimed by a worker that dies before marking it
-  stays `delivering` (read in `queue.ts` on 2026-10-02). Both workers finish
-  their in-flight batch on `SIGTERM`, and a deploy never kills one mid-batch.
-  The TypeScript worker's batch ends sooner on a stop: it finishes each
-  contact's current reply and hands their later rows back (`002 § Messages to
-one contact are paced`).
+A tenant that moves between implementations keeps its config, its ManyChat
+setup and its contacts' tokens. So the two agree on:
 
-What does not coexist is anything held in memory:
+- **Tenant config:** the same files in `CONFIG_DIR`, validated by the same
+  contracts (`003`), so a tenant project (`033`) runs on either.
+- **The inbound and outbound ManyChat shapes** (`002`, `017`), including the
+  callback payload.
+- **Contact tokens** (`019`): 32 random bytes as base64url, the SHA-256 hex
+  hash, the constant-time compare. A token one issued binds in the other.
+- **The outbox payload** (`{ messages, actions?, turnId? }` and
+  `{ generation }`), so rows left pending by one are delivered by the other
+  after a switch.
 
-- **The ManyChat rate limit.** Each process has its own token bucket.
-  TypeScript runs one, shared by the server and the worker
-  (`022 § One instance per process`). A Python process adds its own. While both
-  serve, the sum of every bucket's rate stays at what TypeScript sends alone
-  today, for example by halving each.
-- **The per-address limit** of 300 requests a minute (`017`) is per process, so
-  the ceiling doubles while both run. Accepted: the limits that bound a contact
-  and a tenant are in Postgres (`rate_counters`, `budget_counters`) and hold
-  across both.
-- **In-flight turns.** A losing model call completes into the outbox only from
-  the process that ran it (ADR-0001), and so do token writes in flight (`019`)
-  and inline actions after the response (`012`). A service leaves the cutover
-  in this order: no new requests reach it, which takes up to a day because of
-  callbacks (§ Callbacks pin a contact), then at least `MODEL_ABORT_MS` for its
-  last turns to land, then `SIGTERM`.
+## A Python release ships only on a green parity gate
 
-## Each piece of state has one home, and both services read it there
-
-| State                           | Spec         | Home                                                                                                          | Both services must                                                                                           |
-| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| History                         | `018`, `019` | `turns`: `text`, `bound`, `media_kind`, `actions`, `outcome`                                                  | Read the last ten bound turns within `historyDays`; write the same `outcome` values                          |
-| Turn cap                        | `018`        | `conversations.turn_count`, `last_message_at`                                                                 | Reset after `idleResetHours` of silence, counting bound turns only                                           |
-| Contact token                   | `019`        | Its SHA-256 (current and previous) on `conversations`; the token in the ManyChat field `MANYCHAT_TOKEN_FIELD` | Issue 32 random bytes as base64url, hash to hex, compare in constant time, reissue at most hourly            |
-| Token write retry               | `019`        | `outbox`, `kind = 'contact_token'`, due 60 s after issue                                                      | Replace by `token_generation`, so a token one service issued is repaired by the other                        |
-| Reply text in transit           | `002`        | The ManyChat field `MANYCHAT_REPLY_FIELD`                                                                     | Re-set it before every trigger; never read it back                                                           |
-| Action record                   | `012`        | `turns.actions`                                                                                               | Write the same entries and statuses                                                                          |
-| Daily spend                     | `003`        | `budget_counters`, per tenant per UTC day                                                                     | Record the same estimate from the same `PRICING`                                                             |
-| Per-contact rate                | `017`        | `rate_counters`                                                                                               | Count in the same windows                                                                                    |
-| Tenant config                   | `003`        | Files in `CONFIG_DIR`, loaded per process                                                                     | Load the same files; a `SIGHUP` goes to both processes, because each reloads only itself                     |
-| Notes (`024`, specified)        | `024`        | ManyChat note fields; `turns.actions` holds id and length                                                     | Nothing new in Postgres                                                                                      |
-| Funnel stage (`023`, specified) | `023`        | A ManyChat field; "earlier stage" and "sent once" read `turns.actions`                                        | Read the record the other service wrote                                                                      |
-| Nudges (`025`)                  | `025`        | A new `nudges` table, and a worker                                                                            | See the next section                                                                                         |
-| Offering (`028`, `042`)         | `028`        | `conversations.offering`; the ManyChat offering field                                                         | Store a bound request's offering or a performed offering write; treat an id the catalog lacks as no offering |
-
-The token is the case that most needs both sides to agree. A contact whose
-token one service issued writes next through the other, and is bound only if
-both generate, hash and compare it the same way. A test issues in one and binds
-in the other, in both directions.
-
-## A scheduled job runs where its claim is atomic
-
-Read on 2026-10-02, the only recurring work in `src/` is the outbox poll; the
-other timers are the race, the abort and the rate limiter's wait. The outbox
-is safe in both services, as above. The backfill (`019`) is a one-off and
-already safe to run twice.
-
-`025` adds the nudge worker. Its claim at due time uses
-`FOR UPDATE SKIP LOCKED`, so running it in both services is safe. Its
-scheduling is not, unless "at most one nudge waits per contact" is a database
-constraint (a unique index on pending rows per conversation) rather than a
-check in code. Two services scheduling at once would each find none pending
-and each insert one. If `025` lands before the cutover completes, its
-migration carries the constraint.
-
-## Callbacks pin a contact to the service that answered last
-
-Routing the Dynamic Block moves only a contact's entry into the conversation.
-Every reply registers `external_message_callback` at the answering service's
-`PUBLIC_BASE_URL`, for up to 86 400 s (`002 § Owning the conversation loop`),
-so the contact's next message goes back to that service whatever the Dynamic
-Block now says.
-
-- **A rollback is not instant.** Pointing the Dynamic Block back at TypeScript
-  leaves up to 24 hours of callbacks aimed at Python. The Python service keeps
-  serving them for that long; switching it off sooner drops those contacts'
-  messages.
-- **Each service accepts the other's callback.** The payload carries `text`,
-  `subscriber_id` and `ai_token`, and the secret the caller presented
-  (`017 § The callback carries back the secret the caller presented`), in the
-  same shape from both.
-
-## Traffic moves only on a green parity gate
-
-Each step that moves contacts to Python waits for all of these, run against
-the TypeScript commit deployed at the time:
+Each Python release runs all of these against the TypeScript tag it names:
 
 1. **The golden set under the mock model.** `eval:mock` and its Python
-   counterpart run `evals/golden/cases.jsonl` (22 cases, counted 2026-10-02)
-   and agree case by case on outcome and staged actions, not merely both pass.
+   counterpart run `evals/golden/cases.jsonl` and agree case by case on
+   outcome and staged actions, not merely both pass.
 2. **The golden set under the real model.** Both runners, one `AGENT_MODEL`.
    The deterministic assertions of `009` pass in both. `review` criteria are
-   read by a person. `016`'s judged verdicts join the gate when `016` is
-   implemented; until then there is no judge.
-3. **Each tenant's suite** (`009`), run the same way by the operator against
-   the tenant's own config, outside CI (C1).
-4. **The test suite, ported clause by clause.** Every TypeScript test that
+   read by a person, and `016`'s judged verdicts count once `016` is
+   implemented.
+3. **The test suite, ported clause by clause.** Every TypeScript test that
    cites a spec clause has a Python counterpart citing the same clause, and the
    Python coverage meets the floor of `004`: 85 % statements, 75 % branches,
    85 % functions, 85 % lines. coverage.py's own `fail_under` is a single
@@ -325,12 +242,15 @@ the TypeScript commit deployed at the time:
    threshold separately. coverage.py 7.16.2 reports functions only as regions
    in that report; computing the function figure from them, or dropping it,
    must be decided explicitly, not by default.
-5. **The cross-service checks:** the schema comparison, the outbox payload
-   round trip in both directions, the token round trip, and the system prompt
-   built from each fixture config compared byte for byte between the two.
-6. **CI.** A Python job runs `ruff check`, `ruff format --check`, pyright, the
-   tests with the coverage gate and the mock eval on every pull request, beside
-   the TypeScript job. Both must pass.
+4. **The cross-implementation checks:** the schema comparison, the outbox
+   payload and token round trips in both directions, and the system prompt
+   built from each fixture config compared byte for byte.
+5. **CI.** The Python repository runs `ruff check`, `ruff format --check`,
+   pyright, the tests with the coverage gate and the mock eval on every pull
+   request.
+
+A tenant's own suite (`009`) is the tenant's to run, against its own config and
+outside CI (C1), before it switches implementation.
 
 ## Verification
 
@@ -345,24 +265,19 @@ the TypeScript commit deployed at the time:
   line.
 - Ruff's `banned-api` and an import test enforce C2.
 - The schema comparison, the payload and token round trips and the prompt
-  comparison run on every pull request (gate item 5).
+  comparison run on every pull request in the Python repository (gate item 4).
 
 What this misses:
 
-- **Latency.** `evals/run.ts` checks each case's runner latency against
-  `EVAL_MAX_LATENCY_MS`, which defaults to the race deadline. That is 22 cases
-  from one machine, with no webhook, database or ManyChat in the path, and
-  under the mock model it measures nothing. The rate at which turns lose the
-  race in production is not measured anywhere in the gate. It is compared
-  during each traffic step: the share of model turns recorded as `deferred`,
-  per service. `turns` records no service today, so the column that does is a
-  TypeScript migration that lands before the first step.
-- **A shadow is not available.** Sending each request to both services and
-  discarding Python's reply cannot run against the shared database: the
-  Python turn would record turns, spend the budget, issue a second token and
-  queue a second reply. A true shadow needs its own database and a faked
-  ManyChat, and measures latency without real conversations. The traffic steps
-  are the shadow this spec can offer.
+- **Specs claimed here.** `008` derives a spec's evidence from citations under
+  this repository's `test/`. A Python test citing a clause counts nowhere in
+  `specs/README.md`, so the index says nothing about whether the Python side
+  meets a spec. The Python release notes, naming the TypeScript tag matched,
+  are the only record.
+- **Latency.** The eval checks each case's runner latency against
+  `EVAL_MAX_LATENCY_MS` from one machine, with no webhook, database or ManyChat
+  in the path, and under the mock model it measures nothing. How often turns
+  lose the race in production is measured by each deployment on its own.
 - **New defaults.** A pin's test catches a pinned value that changed. It does
   not catch an option a new version adds. Reading the changelog of each
   LangChain, LangGraph, FastAPI and provider update is the check, and review
@@ -370,8 +285,9 @@ What this misses:
 - **The real model.** Identical prompts through two SDKs are not identical
   requests: message conversion, cache-control placement and structured-output
   mode differ. Real-model evals can disagree for those reasons alone, with
-  neither service wrong. The mock comparison is exact; the real-model one is
-  read by a person.
+  neither implementation wrong. The mock comparison is exact; the real-model
+  one is read by a person.
+- **Drift between releases.** The gate runs when Python releases. A spec
+  implemented here today is unmet in Python until its next release, and
+  nothing here fails meanwhile. ADR-0025's revisit trigger is the bound.
 - **What ManyChat does.** As in `002` and `012`, every test here fakes it.
-  Whether both services' deliveries reach a phone is checked by a person
-  reading one, during each step.
