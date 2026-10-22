@@ -92,7 +92,7 @@ package root in the Python repository.
 | `src/config/loader.ts`                            | `config/loader.py`                        | A failed reload keeps the previous config (`003`)                                             |
 | `src/contracts/*`                                 | `contracts/*`                             | Field names, limits and enum values, as Pydantic models                                       |
 | `src/conversation/*`                              | `conversation/*`                          | The SQL each query issues, and the token format and hash (`019`)                              |
-| `src/db/client.ts`, `src/db/schema.ts`            | `db/client.py`, `db/schema.py`            | Table definitions that mirror the Drizzle schema and never create it                          |
+| `src/db/client.ts`, `src/db/schema.ts`            | `db/client.py`, `db/schema.py`            | Table definitions that mirror the Drizzle schema; Alembic, not these, creates it              |
 | `src/db/migrate.ts`                               | Alembic, `migrations/`                    | See § Each implementation owns its database                                                   |
 | `src/media/*`                                     | `media/*`                                 | The ffmpeg arguments, and the order in `020 § Download and transcription run inside the race` |
 | `src/observability/redact.ts`                     | `observability/redact.py`                 | The same patterns, applied at the root logger                                                 |
@@ -172,7 +172,7 @@ from "misbehaved".
 
 ## The Constitution transfers whole
 
-| Clause | In the Python service                                                                                                                            |
+| Clause | In the Python implementation                                                                                                                     |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | C1     | The same gitignored `config/`; Gitleaks scans the repository whatever the language; fixtures are invented                                        |
 | C2     | Ruff's `banned-api` rejects the provider packages and `init_chat_model` everywhere but `agent/registry.py`, and a test asserts it                |
