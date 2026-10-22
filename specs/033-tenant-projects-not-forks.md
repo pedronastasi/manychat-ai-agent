@@ -159,8 +159,9 @@ codebases, which is the cost ADR-0021 and ADR-0025 accept.
 
 Two things do not carry over, and this spec says so rather than hiding it.
 Tenant tests that import `manychat-ai-agent/testing` are TypeScript and run
-against the TypeScript package; at the cutover they are rewritten or replaced
-by `agent config check` and evals run through the image. Plugins are code, and
+against the TypeScript package; when a tenant switches to the Python
+implementation, they are rewritten or replaced by `agent config check` and
+evals run through the image. Plugins are code, and
 a plugin is written for one codebase (`036`).
 
 ## A release is a version bump, and a breaking config change ships its migration

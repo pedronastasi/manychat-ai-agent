@@ -90,7 +90,7 @@ Every non-obvious choice is written down in [`docs/adr/`](../adr/):
 | [0015](../adr/0015-the-agent-closes-the-sale.md)                             | The agent takes a lead to the payment link itself; every C6 limit on what it may claim stays             |
 | [0016](../adr/0016-reads-are-performed-inside-the-loop.md)                   | Read tools are performed when called and the loop grows to four steps; writes are still staged           |
 | [0017](../adr/0017-bounded-free-text-notes.md)                               | Free text only in declared note fields no flow renders, length-capped and stripped of identifiers        |
-| [0018](../adr/0018-port-to-python-beside-typescript-on-one-database.md)      | Port to Python on LangChain, LangGraph, FastAPI and Pydantic, cut over beside TypeScript on one database |
+| [0018](../adr/0018-port-to-python-beside-typescript-on-one-database.md)      | Port to Python on LangChain, LangGraph, FastAPI and Pydantic, cut over beside TypeScript (superseded)    |
 | [0019](../adr/0019-flows-are-sent-inside-the-loop.md)                        | On an inbound turn a flow is sent when the model calls it, so the reply follows it; other writes stage   |
 | [0020](../adr/0020-learning-is-offline-and-human-approved.md)                | Learning is offline, from paid outcomes; a tactic reaches the prompt only after approval and an eval     |
 | [0021](../adr/0021-tenants-depend-on-a-package-not-a-fork.md)                | A tenant depends on one published package and starts from a scaffolder; nobody forks to deploy           |

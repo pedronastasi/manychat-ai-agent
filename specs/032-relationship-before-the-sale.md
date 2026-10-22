@@ -99,8 +99,8 @@ was rolled out count, so an existing contact does not receive it.
 - **Once, when first messages arrive together.** A contact who sends three
   messages in a row starts three turns that are each a first model turn. The
   turn that sends the flow first claims it on the conversation row, in one
-  conditional update, and the others send nothing (`026 § A scheduled job
-runs where its claim is atomic` takes the same approach). Their models
+  conditional update, and the others send nothing. The claim is atomic in the
+  database, so it holds across replicas. Their models
   were told the flow would go out; one did, so the reply still follows it.
 
 When the model loses the race (`002`), the holding line goes out at the
