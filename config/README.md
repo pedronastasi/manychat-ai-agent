@@ -188,8 +188,9 @@ A list you leave empty or omit offers no tool for it. Each entry has:
 - **`flowNs` per channel**: a ManyChat flow is built for one channel. A plain
   string is the flow for `CHANNEL` (WhatsApp unless you set it). A deployment
   that also answers Instagram or Messenger (`CHANNELS`) names each channel's
-  flow in a map, as `student_results` does in the example:
-  `{ "whatsapp": "…", "instagram": "…", "messenger": "…" }`. A turn is offered
+  flow in a map, as every flow and event in the example does:
+  `{ "whatsapp": "…", "instagram": "…", "messenger": "…" }`. Leave out a
+  channel you have no flow for yet. A turn is offered
   and sent only the flows its channel has, and never another channel's. That
   includes the opening, the stage flows, the payment link and `events`, so a
   channel with no payment flow never reaches `link_sent` (specs/049).
