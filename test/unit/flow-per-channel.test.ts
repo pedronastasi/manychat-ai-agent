@@ -88,6 +88,19 @@ describe('flowNs is a string or a map per channel (specs/049 V1)', () => {
     ).toContain("an event's flowNs may not be a flow's or another event's");
   });
 
+  it('loads an event that names one tracking flow on two channels', () => {
+    const shared = 'content00000000000000_000206';
+    expect(
+      issuesOf({
+        ...fixture.tools,
+        flows: [flow('content00000000000000_000207')],
+        events: [
+          { id: 'checkout', stage: 'link_sent', flowNs: { whatsapp: shared, instagram: shared } },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
   it("refuses a map value that is any channel's reply flow, whichever key it sits under", () => {
     dir = mkdtempSync(join(tmpdir(), 'flow-per-channel-'));
     cpSync(FIXTURE, dir, { recursive: true });

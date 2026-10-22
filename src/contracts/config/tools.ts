@@ -379,7 +379,8 @@ export const ToolsSchema = z
   // Over every value of a map, whichever channel it sits under (specs/049).
   .refine(
     tools => {
-      const events = tools.events.flatMap(event => namespacesOf(event.flowNs));
+      // One event may name the same tracking flow on several channels.
+      const events = tools.events.flatMap(event => [...new Set(namespacesOf(event.flowNs))]);
       const flows = new Set(tools.flows.flatMap(flow => namespacesOf(flow.flowNs)));
       return new Set(events).size === events.length && events.every(ns => !flows.has(ns));
     },
