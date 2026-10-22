@@ -42,6 +42,46 @@ points at the field. The key is always `ai_token`; any key the service does not
 know is refused with a 400. Nothing else needs configuring: the callback the
 service registers asks for the same field.
 
+## Instagram and Messenger
+
+One deployment answers WhatsApp, Instagram and Messenger
+([spec 048](../../specs/048-one-deployment-every-meta-channel.md)). Each channel's
+External Request names its channel as a literal, next to the other keys:
+
+```json
+{
+  "subscriber_id": "{{contact.id}}",
+  "text": "{{last_input_text}}",
+  "ai_token": "{{ai_token}}",
+  "channel": "instagram"
+}
+```
+
+The value is `whatsapp`, `instagram` or `messenger`. A request without it is
+read as `CHANNEL` (WhatsApp unless set), and one naming a channel outside
+`CHANNELS` gets a 400. The callback the service registers carries the channel
+back, so the contact's next message needs nothing more.
+
+- **List the channels** in `CHANNELS`, for example
+  `CHANNELS=whatsapp,instagram,messenger`. Empty means `CHANNEL` alone.
+- **Give each channel its reply flow.** A ManyChat flow is built for one
+  channel, so a deferred reply on Instagram goes through
+  `MANYCHAT_REPLY_FLOW_NS_INSTAGRAM` and one on Messenger through
+  `MANYCHAT_REPLY_FLOW_NS_MESSENGER`, each built like the WhatsApp one. With
+  `MANYCHAT_API_TOKEN` set, a listed channel without its flow fails at startup.
+- **A reply never changes channel.** The reply, a deferred delivery and a
+  follow-up go back on the channel the contact wrote on. Outside that channel's
+  24-hour window, a deferred Instagram or Messenger reply is not sent: it is
+  dead-lettered as `window_closed` and the conversation is handed to a person,
+  because only WhatsApp has a template to reach past it.
+- **A merged contact is one conversation.** When ManyChat merges a person's
+  channels into one subscriber, they keep one history, one turn cap and one
+  token on all three.
+- **Tools need a flow per channel too.** A flow in `tools.json` sent on
+  Instagram or Messenger needs that channel's namespace
+  ([spec 049](../../specs/049-a-flow-is-authored-per-channel.md)); see
+  [config/README.md](../../config/README.md#toolsjson-actions-the-agent-can-take-optional).
+
 ## Contact tokens
 
 ```mermaid
@@ -88,7 +128,8 @@ are in
 
 ## Voice notes, images and videos
 
-WhatsApp media reaches the service as a link in `text`. The service downloads
+Media on WhatsApp, Instagram and Messenger reaches the service as a link in
+`text`. The service downloads
 the file itself, and the link is never stored, logged or shown to the model
 ([spec 020](../../specs/020-inbound-media.md)):
 

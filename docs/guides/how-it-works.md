@@ -32,7 +32,10 @@ bill cap that fails into a human is the correct failure mode for a business.
 
 **Channel constraints are data, not memory.** Quick replies silently do nothing
 on WhatsApp; ManyChat accepts them and the contact never sees them. That lives in
-a `ChannelCapabilities` value with a test, not in a comment someone forgets.
+a `ChannelCapabilities` value with a test, not in a comment someone forgets. One
+deployment answers WhatsApp, Instagram and Messenger, so the value is chosen per
+request from the channel it names, never fixed at boot
+([spec 048](../../specs/048-one-deployment-every-meta-channel.md)).
 
 **No PII in logs.** Redaction is configured at the logger, so a new log statement
 cannot opt out. Telemetry spans omit prompts by default. Log lines name a

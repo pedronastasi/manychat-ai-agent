@@ -56,6 +56,11 @@ flow has already gone out, and the outbox worker delivers the reply after it.
 - **The model only picks from the config.** It names entries by `id`, never a
   ManyChat name or free text, and every action lands on the contact whose
   message it is answering.
+- **A flow is authored per channel.** Each flow names its ManyChat flow for
+  WhatsApp, Instagram and Messenger separately, and a turn is offered and sent
+  only the flows its own channel has. A flow already sent on one channel is not
+  sent again on another
+  ([spec 049](../../specs/049-a-flow-is-authored-per-channel.md)).
 - **Every action is recorded** on its turn with what became of it, and the next
   turn's history tells the model what it already sent.
 
@@ -108,7 +113,7 @@ sequenceDiagram
 With a `nudge` section, the agent can also schedule one follow-up for a contact
 who goes quiet ([spec 025](../../specs/025-in-window-nudge.md)). A worker checks at
 due time that the contact has not written, no person has taken over, the sale
-is not closed and WhatsApp's 24-hour window is still open. Only then does it
+is not closed and the 24-hour window on the nudge's channel is still open. Only then does it
 run a model turn on a system note in place of a message. The model may decline,
 and then nothing is sent. Otherwise the follow-up goes out through the outbox,
 and it never schedules another.

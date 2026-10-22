@@ -7,8 +7,8 @@
 [![Node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpedronastasi%2Fmanychat-ai-agent%2Fmain%2Fpackage.json&query=%24.engines.node&label=node)](package.json)
 
 A production-shaped, provider-agnostic AI agent that answers customer questions
-on WhatsApp through [ManyChat](https://manychat.com), escalating to a human
-rather than guessing.
+on WhatsApp, Instagram and Messenger through [ManyChat](https://manychat.com),
+escalating to a human rather than guessing.
 
 Switching the model is one environment variable. Switching the chat platform is
 one adapter.
@@ -89,7 +89,11 @@ record — is in [How it works](docs/guides/how-it-works.md).
 - **Keep each contact's history theirs.** A token held in the contact's own
   ManyChat field, not the shared secret, unlocks their conversation
   ([spec 019](specs/019-contact-tokens.md)).
-- **Read voice notes, images and videos** sent on WhatsApp
+- **Answer WhatsApp, Instagram and Messenger from one deployment.** Each request
+  names its channel, and the reply, a deferred delivery and a follow-up go back
+  on that channel alone. A contact ManyChat has merged across channels keeps one
+  conversation ([spec 048](specs/048-one-deployment-every-meta-channel.md)).
+- **Read voice notes, images and videos** sent on any of the three
   ([spec 020](specs/020-inbound-media.md)).
 - **Act in ManyChat and sell.** Optionally send flows, set tags and fields, read
   the contact, schedule a follow-up, and take a lead to the payment link
