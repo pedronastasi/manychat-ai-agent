@@ -62,6 +62,7 @@ test fails the suite.
 | [047 — A Burst Window Before the Model](047-a-burst-window-before-the-model.md)                                            | implemented | 2026-10-17  | #244 | 2     | C6, C7, C8                         | [0001]                                                                                 |
 | [048 — One Deployment Answers Every Meta Channel](048-one-deployment-every-meta-channel.md)                                | implemented | 2026-10-21  | #254 | 5     | C3, C5, C6, C7                     | [0005]                                                                                 |
 | [049 — A Flow Is Authored per Channel](049-a-flow-is-authored-per-channel.md)                                              | implemented | 2026-10-22  | #258 | 2     | C3, C6                             | —                                                                                      |
+| [050 — LangChain Runner Parity](050-langchain-runner-parity.md)                                                            | specified   | —           | —    | —     | C2, C3, C5, C6, C7, C8             | [0025], [0026], [0001], [0010], [0016], [0019]                                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
@@ -80,3 +81,5 @@ test fails the suite.
 [0020]: ../docs/adr/0020-learning-is-offline-and-human-approved.md
 [0021]: ../docs/adr/0021-tenants-depend-on-a-package-not-a-fork.md
 [0022]: ../docs/adr/0022-built-in-tools-are-not-plugins.md
+[0025]: ../docs/adr/0025-the-typescript-model-layer-moves-to-langchain.md
+[0026]: ../docs/adr/0026-the-bounded-loop-is-a-langgraph-graph-not-a-prebuilt-agent.md
