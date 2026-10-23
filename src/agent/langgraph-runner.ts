@@ -1,4 +1,4 @@
-import { asSchema } from 'ai';
+import { asSchema, InvalidToolInputError, NoSuchToolError, TypeValidationError } from 'ai';
 import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
@@ -253,25 +253,39 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
 
   /**
    * One tool call, as `generateText` performs it: the input checked against the
-   * tool's schema, then its `execute`. A tool that rejects its input or throws
-   * answers with the error and the loop goes on; an unknown tool fails the turn.
+   * tool's schema, then its `execute`. An unknown tool, input that fails the
+   * schema and a tool that throws each answer the model with the error, in the
+   * AI SDK's own error text, and the loop goes on (specs/050 § The runner
+   * changes no behaviour a spec here fixes).
    */
   private async perform(
     tools: ToolSet,
     toolCall: { id?: string | undefined; name: string; args: Record<string, unknown> },
     signal: AbortSignal | undefined,
   ): Promise<ToolMessage> {
-    const tool = tools[toolCall.name];
-    if (!tool?.execute)
-      throw new Error(`the model called a tool it was not offered: ${toolCall.name}`);
     const id = toolCall.id ?? '';
     const answer = (content: string, status: 'success' | 'error') =>
       new ToolMessage({ tool_call_id: id, name: toolCall.name, content, status });
+    const tool = tools[toolCall.name];
+    if (!tool?.execute) {
+      const unknown = new NoSuchToolError({
+        toolName: toolCall.name,
+        availableTools: Object.keys(tools),
+      });
+      return answer(String(unknown), 'error');
+    }
     const schema = asSchema(tool.inputSchema);
     const checked = schema.validate
       ? await schema.validate(toolCall.args)
       : { success: true as const, value: toolCall.args };
-    if (!checked.success) return answer(checked.error.message, 'error');
+    if (!checked.success) {
+      const invalid = new InvalidToolInputError({
+        toolName: toolCall.name,
+        toolInput: JSON.stringify(toolCall.args),
+        cause: TypeValidationError.wrap({ value: toolCall.args, cause: checked.error }),
+      });
+      return answer(String(invalid), 'error');
+    }
     try {
       const result: unknown = await tool.execute(checked.value, {
         toolCallId: id,
@@ -282,7 +296,7 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
       return answer(JSON.stringify(result ?? null), 'success');
     } catch (error) {
       if (signal?.aborted) throw error;
-      return answer(error instanceof Error ? error.message : String(error), 'error');
+      return answer(String(error), 'error');
     }
   }
 }

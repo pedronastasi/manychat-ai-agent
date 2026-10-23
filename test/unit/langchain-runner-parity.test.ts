@@ -474,6 +474,28 @@ describe.each(RUNNERS)('the loop under the $name runner (specs/050 V6)', ({ Runn
   });
 });
 
+describe('a tool error answers the model and the loop goes on, as generateText does (specs/050 V6)', () => {
+  it.each([
+    { label: 'a tool it was not offered', call: toolCall('no_such_tool', {}, '1') },
+    { label: 'input that fails the schema', call: toolCall('add_tag', { tag: 'nope' }, '1') },
+  ])('sends the same error for $label under both runners', async ({ call }) => {
+    const answered = [];
+    for (const { Runner } of RUNNERS) {
+      const { model, calls } = scriptedModel(step => (step === 0 ? [call] : [answer]));
+      const result = await new Runner(options(model) as never).run({
+        text: 'hi',
+        history: [],
+        contact: asProspect(),
+      });
+      expect(result.reply.escalate).toBe(false);
+      expect(calls).toHaveLength(2);
+      answered.push(calls[1]?.prompt.at(-1));
+    }
+    expect(answered[1]).toEqual(answered[0]);
+    expect(JSON.stringify(answered[0])).toContain('error-text');
+  });
+});
+
 describe('the graph fails closed (specs/050 V6)', () => {
   it('turns GraphRecursionError into the handoff, never a raised limit', async () => {
     class Tight extends LangGraphRunner {

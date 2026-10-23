@@ -99,6 +99,11 @@ aborted turn returns no state, and `012` still records what it staged as
 `discarded`. No checkpointer is compiled into the graph; history is read from
 `turns` as now (`018`).
 
+A call to a tool the turn did not offer, input that fails a tool's schema, and
+a tool that throws each answer the model with the AI SDK's own error text
+(`NoSuchToolError`, `InvalidToolInputError`, the thrown error), and the loop
+goes on, as `generateText` does. None of them fails the turn by itself.
+
 Whatever the node, the reply's text is parsed against `AgentReplyForModel` by
 the runner, and then passes `applyGuardrails` exactly as now (C3).
 
