@@ -55,8 +55,10 @@ implementation produces the `AgentReply` through LangChain.js instead of
   phase that ends on its own.
 - Cost: no capability is added. The migration is paid for by what it settles
   for the Python implementation, and by nothing else.
-- Amends ADR-0002 for the TypeScript service. Its rule that only the registry
-  imports providers stands.
+- Amends ADR-0002, whose status line reads superseded but which ADR-0025
+  keeps holding for the TypeScript side: its choice of the AI SDK gives way
+  here. C2, as ADR-0025 words it, stands unchanged: only
+  `src/agent/registry.ts` imports a provider package.
 - Revisit if the Python implementation of ADR-0025 is frozen or archived by
   that ADR's own trigger, or abandoned before it is written. Without a Python
   implementation to rehearse for, the AI SDK's tested path wins again, and an
