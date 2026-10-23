@@ -142,9 +142,9 @@ itself.
 
 ## A plugin is written for one codebase
 
-When the Python service of ADR-0018 takes over, a tenant's plugins are ported,
-and the Python service defines its own `definePlugin` against the same rules.
-`033`'s contract survives the cutover; a plugin does not.
+The Python implementation of ADR-0025 defines its own `definePlugin` against
+the same rules. A tenant that switches implementation ports its plugins:
+`033`'s contract holds in both; a plugin does not.
 
 ## Verification
 

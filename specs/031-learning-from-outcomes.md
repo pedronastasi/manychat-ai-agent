@@ -248,9 +248,8 @@ The job runs once a week per tenant, and on demand with `pnpm insights:run`.
 Each process checks hourly whether this ISO week's run is still to claim.
 Its claim is an insert into `learning_runs` keyed on tenant and ISO week,
 under a unique index: the replica whose insert succeeds runs, and any other
-skips. The claim is atomic in the database, so it holds across replicas and
-across both services while both run (`026 § A scheduled job runs where its
-claim is atomic`). An on-demand run uses the same claim; forcing a second run
+skips. The claim is atomic in the database, so it holds across replicas. An
+on-demand run uses the same claim; forcing a second run
 in a week is a flag on the CLI, and is recorded.
 
 Every run ends in exactly one recorded status: `completed`, `insufficient`,

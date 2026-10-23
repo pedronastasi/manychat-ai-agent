@@ -71,32 +71,33 @@ agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in
 
 Every non-obvious choice is written down in [`docs/adr/`](../adr/):
 
-| ADR                                                                     | Decision                                                                                                 |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [0001](../adr/0001-hybrid-race-reply-path.md)                           | Race the model against a deadline instead of choosing sync or async                                      |
-| [0002](../adr/0002-provider-agnostic-model-layer.md)                    | One registry module may import providers; everything else uses a port (superseded)                       |
-| [0003](../adr/0003-contract-first-with-zod.md)                          | Zod schemas generate both the types and the OpenAPI document (superseded)                                |
-| [0004](../adr/0004-postgres-outbox-over-redis.md)                       | A Postgres outbox, not Redis — one datastore, transactional enqueue                                      |
-| [0005](../adr/0005-channel-port-single-adapter.md)                      | Define the channel port, ship exactly one adapter                                                        |
-| [0006](../adr/0006-manychat-auth-risk-accepted.md)                      | ManyChat does not sign webhooks; the compensating controls, written down (superseded)                    |
-| [0007](../adr/0007-generateobject-not-toolloop.md)                      | `generateObject`, not a tool loop, while there are no tools (superseded)                                 |
-| [0008](../adr/0008-classes-for-port-implementations.md)                 | Ports are implemented by classes; functions stay for pure transformation                                 |
-| [0009](../adr/0009-no-single-letter-identifiers.md)                     | Identifiers are at least two characters, enforced by lint                                                |
-| [0010](../adr/0010-bounded-tool-loop-with-staged-actions.md)            | A two-step tool loop whose tools stage actions; the server performs them after guardrails                |
-| [0011](../adr/0011-model-graded-evals-behind-calibration.md)            | A judge model grades evals only in a run where it first agrees with hand-labelled calibration            |
-| [0012](../adr/0012-contact-tokens-held-in-manychat.md)                  | Each contact has a token held by ManyChat; only a request carrying it reads that contact's history       |
-| [0013](../adr/0013-history-spans-30-days-turn-cap-resets-daily.md)      | History reaches back 30 days; the turn cap resets after 24 hours of silence                              |
-| [0014](../adr/0014-log-conversation-id-not-pseudonym.md)                | Logs identify a contact by the conversation's random ID, not a hash of the subscriber ID                 |
-| [0015](../adr/0015-the-agent-closes-the-sale.md)                        | The agent takes a lead to the payment link itself; every C6 limit on what it may claim stays             |
-| [0016](../adr/0016-reads-are-performed-inside-the-loop.md)              | Read tools are performed when called and the loop grows to four steps; writes are still staged           |
-| [0017](../adr/0017-bounded-free-text-notes.md)                          | Free text only in declared note fields no flow renders, length-capped and stripped of identifiers        |
-| [0018](../adr/0018-port-to-python-beside-typescript-on-one-database.md) | Port to Python on LangChain, LangGraph, FastAPI and Pydantic, cut over beside TypeScript on one database |
-| [0019](../adr/0019-flows-are-sent-inside-the-loop.md)                   | On an inbound turn a flow is sent when the model calls it, so the reply follows it; other writes stage   |
-| [0020](../adr/0020-learning-is-offline-and-human-approved.md)           | Learning is offline, from paid outcomes; a tactic reaches the prompt only after approval and an eval     |
-| [0021](../adr/0021-tenants-depend-on-a-package-not-a-fork.md)           | A tenant depends on one published package and starts from a scaffolder; nobody forks to deploy           |
-| [0022](../adr/0022-built-in-tools-are-not-plugins.md)                   | Built-in tools stay in the agent; plugins get only what `036` allows, never what a built-in needs        |
-| [0023](../adr/0023-turn-handler-sequences-a-factory-builds.md)          | The turn handler only sequences; `TurnScope` builds what needs the admitted turn                         |
-| [0024](../adr/0024-one-path-records-and-delivers-a-turn.md)             | However a turn ends, one recorder records it and one delivery sends it                                   |
+| ADR                                                                          | Decision                                                                                                 |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [0001](../adr/0001-hybrid-race-reply-path.md)                                | Race the model against a deadline instead of choosing sync or async                                      |
+| [0002](../adr/0002-provider-agnostic-model-layer.md)                         | One registry module may import providers; everything else uses a port (superseded)                       |
+| [0003](../adr/0003-contract-first-with-zod.md)                               | Zod schemas generate both the types and the OpenAPI document (superseded)                                |
+| [0004](../adr/0004-postgres-outbox-over-redis.md)                            | A Postgres outbox, not Redis — one datastore, transactional enqueue                                      |
+| [0005](../adr/0005-channel-port-single-adapter.md)                           | Define the channel port, ship exactly one adapter                                                        |
+| [0006](../adr/0006-manychat-auth-risk-accepted.md)                           | ManyChat does not sign webhooks; the compensating controls, written down (superseded)                    |
+| [0007](../adr/0007-generateobject-not-toolloop.md)                           | `generateObject`, not a tool loop, while there are no tools (superseded)                                 |
+| [0008](../adr/0008-classes-for-port-implementations.md)                      | Ports are implemented by classes; functions stay for pure transformation                                 |
+| [0009](../adr/0009-no-single-letter-identifiers.md)                          | Identifiers are at least two characters, enforced by lint                                                |
+| [0010](../adr/0010-bounded-tool-loop-with-staged-actions.md)                 | A two-step tool loop whose tools stage actions; the server performs them after guardrails                |
+| [0011](../adr/0011-model-graded-evals-behind-calibration.md)                 | A judge model grades evals only in a run where it first agrees with hand-labelled calibration            |
+| [0012](../adr/0012-contact-tokens-held-in-manychat.md)                       | Each contact has a token held by ManyChat; only a request carrying it reads that contact's history       |
+| [0013](../adr/0013-history-spans-30-days-turn-cap-resets-daily.md)           | History reaches back 30 days; the turn cap resets after 24 hours of silence                              |
+| [0014](../adr/0014-log-conversation-id-not-pseudonym.md)                     | Logs identify a contact by the conversation's random ID, not a hash of the subscriber ID                 |
+| [0015](../adr/0015-the-agent-closes-the-sale.md)                             | The agent takes a lead to the payment link itself; every C6 limit on what it may claim stays             |
+| [0016](../adr/0016-reads-are-performed-inside-the-loop.md)                   | Read tools are performed when called and the loop grows to four steps; writes are still staged           |
+| [0017](../adr/0017-bounded-free-text-notes.md)                               | Free text only in declared note fields no flow renders, length-capped and stripped of identifiers        |
+| [0018](../adr/0018-port-to-python-beside-typescript-on-one-database.md)      | Port to Python on LangChain, LangGraph, FastAPI and Pydantic, cut over beside TypeScript (superseded)    |
+| [0019](../adr/0019-flows-are-sent-inside-the-loop.md)                        | On an inbound turn a flow is sent when the model calls it, so the reply follows it; other writes stage   |
+| [0020](../adr/0020-learning-is-offline-and-human-approved.md)                | Learning is offline, from paid outcomes; a tactic reaches the prompt only after approval and an eval     |
+| [0021](../adr/0021-tenants-depend-on-a-package-not-a-fork.md)                | A tenant depends on one published package and starts from a scaffolder; nobody forks to deploy           |
+| [0022](../adr/0022-built-in-tools-are-not-plugins.md)                        | Built-in tools stay in the agent; plugins get only what `036` allows, never what a built-in needs        |
+| [0023](../adr/0023-turn-handler-sequences-a-factory-builds.md)               | The turn handler only sequences; `TurnScope` builds what needs the admitted turn                         |
+| [0024](../adr/0024-one-path-records-and-delivers-a-turn.md)                  | However a turn ends, one recorder records it and one delivery sends it                                   |
+| [0025](../adr/0025-python-is-a-parallel-implementation-not-a-replacement.md) | Python is a second implementation in its own repository, maintained beside TypeScript, not a replacement |
 
 Behavior is specified before it is implemented, in [`specs/`](../../specs/) —
 a [constitution](../../specs/000-constitution.md) of non-negotiables, the
