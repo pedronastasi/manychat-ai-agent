@@ -214,8 +214,7 @@ async function startWorkers(configDir: string) {
   const { manychatClientFor } = await import('../channels/manychat/client.ts');
   const { OutboxWorker } = await import('../outbox/worker.ts');
   const { NudgeWorker } = await import('../nudge/worker.ts');
-  const { GenerateTextRunner } = await import('../agent/runner.ts');
-  const { resolveModel } = await import('../agent/registry.ts');
+  const { createRunner } = await import('../agent/select-runner.ts');
   const { ConfigStore } = await import('../config/loader.ts');
   const { createLogger } = await import('../observability/logger.ts');
   const { loadPlugins } = await import('../plugins/loader.ts');
@@ -240,8 +239,7 @@ async function startWorkers(configDir: string) {
   const manychat = manychatClientFor(env);
   const playbook = playbookSource(db, env, configStore.get(), logger);
 
-  const runner = new GenerateTextRunner({
-    model: resolveModel(env.AGENT_MODEL),
+  const runner = createRunner(env.AGENT_RUNNER, {
     modelSpec: env.AGENT_MODEL,
     config: () => configStore.get(),
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,

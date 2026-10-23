@@ -208,6 +208,7 @@ type Env = {
   AGENT_MAX_OUTPUT_TOKENS: number
   AGENT_MODEL: string
   AGENT_REASONING_EFFORT?: "high" | "low" | "medium" | "minimal" | undefined
+  AGENT_RUNNER: "ai-sdk" | "langchain"
   AGENT_TEMPERATURE: number
   ANTHROPIC_API_KEY?: string | undefined
   CHANNEL: string
@@ -216,6 +217,11 @@ type Env = {
   DATABASE_URL: string
   GOOGLE_GENERATIVE_AI_API_KEY?: string | undefined
   INSIGHT_MODEL?: string | undefined
+  LANGCHAIN_TRACING?: string | undefined
+  LANGCHAIN_TRACING_V2?: string | undefined
+  LANGCHAIN_VERBOSE?: string | undefined
+  LANGSMITH_TRACING?: string | undefined
+  LANGSMITH_TRACING_V2?: string | undefined
   LOG_LEVEL: "debug" | "error" | "fatal" | "info" | "trace" | "warn"
   MANYCHAT_API_BASE: string
   MANYCHAT_API_TOKEN?: string | undefined

@@ -6,7 +6,8 @@ import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import { EXAMPLE_READ_PLUGIN, tenantProject } from '../helpers/plugins.ts';
 import type { Database } from '../../src/db/client.ts';
 import { TurnHandler } from '../../src/turn/handler.ts';
-import { GenerateTextRunner } from '../../src/agent/runner.ts';
+import { RUNNERS } from '../helpers/runners.ts';
+import type { RunnerClass } from '../helpers/runners.ts';
 import { MAX_STEPS } from '../../src/agent/tools.ts';
 import { FENCE } from '../../src/agent/prompt.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
@@ -14,6 +15,12 @@ import { NO_TOOLS } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { loadPlugins } from '../../src/plugins/loader.ts';
 import type { Plugins, HostLogger } from '../../src/plugins/plugins.ts';
+
+/**
+ * Runs under both runners (specs/050-langchain-runner-parity.md § Verification
+ * item 6): the LangChain runner is held to the same behaviour.
+ */
+let Runner: RunnerClass;
 
 /**
  * specs/039-plugin-reads-return-declared-data.md § Verification: the invented
@@ -123,7 +130,7 @@ function handler(
   logger: HostLogger,
   opts: { raceDeadlineMs?: number; modelAbortMs?: number; tokensEnforced?: boolean } = {},
 ) {
-  const runner = new GenerateTextRunner({
+  const runner = new Runner({
     model: languageModel,
     modelSpec: 'mock:demo',
     config: () => tenant,
@@ -160,73 +167,81 @@ async function waitFor(ready: () => boolean | Promise<boolean>, timeoutMs = 5000
 const promptText = (options: LanguageModelV4CallOptions) =>
   JSON.stringify(options.prompt.filter(entry => entry.role !== 'system'));
 
-describe('a plugin read on both delivery paths (specs/039 V8)', () => {
-  it('builds the deferred reply from the same read, and the reply step sees it fenced', async () => {
-    const { logger, reads } = journal();
-    const { model: languageModel, calls } = model({ [MAX_STEPS - 1]: 300 });
-    const out = await handler(languageModel, logger, { raceDeadlineMs: 50 }).handle(
-      inbound('is there room on the foundation course?'),
-    );
-    expect(out.outcome).toBe('deferred');
-    await waitFor(async () => (await db.query.outbox.findMany()).some(row => row.kind === 'reply'));
-
-    // Three steps called the read; the budget let two through, and the third
-    // made no call. The read the deadline overtook is not made again.
-    expect(calls).toHaveLength(MAX_STEPS);
-    expect(reads()).toBe(2);
-    const [row] = (await db.query.outbox.findMany()).filter(entry => entry.kind === 'reply');
-    expect(JSON.stringify(row!.payload)).toContain(ANSWER.messages[0]);
-
-    // The reply step offers no tools, so its note carries the last read, fenced.
-    const replyStep = calls[MAX_STEPS - 1]!;
-    expect(replyStep.tools ?? []).toHaveLength(0);
-    const note = promptText(replyStep);
-    expect(note).toContain('READ class_availability:');
-    expect(note).toContain('seatsLeft');
-    expect(note).toContain(FENCE);
-    expect(note).toContain('next foundation intake');
-
-    expect((await agentTurn())!.reads).toEqual([
-      expect.objectContaining({ tool: 'class_availability', available: true }),
-      expect.objectContaining({ tool: 'class_availability', available: true }),
-      expect.objectContaining({ tool: 'class_availability', available: false }),
-    ]);
+describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each }) => {
+  beforeEach(() => {
+    Runner = Each;
   });
 
-  it('answers inline from the read, and records it without the result', async () => {
-    const { logger, reads } = journal();
-    const out = await handler(model().model, logger).handle(inbound('when does it start?'));
-    expect(out.outcome).toBe('answered_inline');
-    expect(reads()).toBe(2);
-    const turn = (await agentTurn())!;
-    expect(turn.reads).toHaveLength(3);
-    expect(JSON.stringify(turn.reads)).not.toContain('next foundation intake');
-    // A read stages nothing.
-    expect(turn.actions).toEqual([]);
-  });
+  describe('a plugin read on both delivery paths (specs/039 V8)', () => {
+    it('builds the deferred reply from the same read, and the reply step sees it fenced', async () => {
+      const { logger, reads } = journal();
+      const { model: languageModel, calls } = model({ [MAX_STEPS - 1]: 300 });
+      const out = await handler(languageModel, logger, { raceDeadlineMs: 50 }).handle(
+        inbound('is there room on the foundation course?'),
+      );
+      expect(out.outcome).toBe('deferred');
+      await waitFor(async () =>
+        (await db.query.outbox.findMany()).some(row => row.kind === 'reply'),
+      );
 
-  it('keeps the record of its reads when the model call then fails', async () => {
-    const { logger, reads } = journal();
-    // The read runs on step one; MODEL_ABORT_MS ends the call on step two,
-    // before the deadline, so the turn is recorded as an error inline.
-    const out = await handler(model({ 1: 2000 }).model, logger, { modelAbortMs: 100 }).handle(
-      inbound('is there room on the foundation course?'),
-    );
-    expect(out.outcome).toBe('error');
-    expect(reads()).toBe(1);
-    const turn = (await agentTurn())!;
-    expect(turn.outcome).toBe('error');
-    expect(turn.reads).toEqual([
-      expect.objectContaining({ tool: 'class_availability', available: true }),
-    ]);
-  });
+      // Three steps called the read; the budget let two through, and the third
+      // made no call. The read the deadline overtook is not made again.
+      expect(calls).toHaveLength(MAX_STEPS);
+      expect(reads()).toBe(2);
+      const [row] = (await db.query.outbox.findMany()).filter(entry => entry.kind === 'reply');
+      expect(JSON.stringify(row!.payload)).toContain(ANSWER.messages[0]);
 
-  it('is not offered on an unbound turn, which may not read', async () => {
-    const { logger, reads } = journal();
-    const { model: languageModel, calls } = model();
-    await handler(languageModel, logger, { tokensEnforced: true }).handle(inbound('hello'));
-    expect((calls[0]!.tools ?? []).map(entry => entry.name)).not.toContain('class_availability');
-    expect(reads()).toBe(0);
-    expect((await agentTurn())!.reads).toBeNull();
+      // The reply step offers no tools, so its note carries the last read, fenced.
+      const replyStep = calls[MAX_STEPS - 1]!;
+      expect(replyStep.tools ?? []).toHaveLength(0);
+      const note = promptText(replyStep);
+      expect(note).toContain('READ class_availability:');
+      expect(note).toContain('seatsLeft');
+      expect(note).toContain(FENCE);
+      expect(note).toContain('next foundation intake');
+
+      expect((await agentTurn())!.reads).toEqual([
+        expect.objectContaining({ tool: 'class_availability', available: true }),
+        expect.objectContaining({ tool: 'class_availability', available: true }),
+        expect.objectContaining({ tool: 'class_availability', available: false }),
+      ]);
+    });
+
+    it('answers inline from the read, and records it without the result', async () => {
+      const { logger, reads } = journal();
+      const out = await handler(model().model, logger).handle(inbound('when does it start?'));
+      expect(out.outcome).toBe('answered_inline');
+      expect(reads()).toBe(2);
+      const turn = (await agentTurn())!;
+      expect(turn.reads).toHaveLength(3);
+      expect(JSON.stringify(turn.reads)).not.toContain('next foundation intake');
+      // A read stages nothing.
+      expect(turn.actions).toEqual([]);
+    });
+
+    it('keeps the record of its reads when the model call then fails', async () => {
+      const { logger, reads } = journal();
+      // The read runs on step one; MODEL_ABORT_MS ends the call on step two,
+      // before the deadline, so the turn is recorded as an error inline.
+      const out = await handler(model({ 1: 2000 }).model, logger, { modelAbortMs: 100 }).handle(
+        inbound('is there room on the foundation course?'),
+      );
+      expect(out.outcome).toBe('error');
+      expect(reads()).toBe(1);
+      const turn = (await agentTurn())!;
+      expect(turn.outcome).toBe('error');
+      expect(turn.reads).toEqual([
+        expect.objectContaining({ tool: 'class_availability', available: true }),
+      ]);
+    });
+
+    it('is not offered on an unbound turn, which may not read', async () => {
+      const { logger, reads } = journal();
+      const { model: languageModel, calls } = model();
+      await handler(languageModel, logger, { tokensEnforced: true }).handle(inbound('hello'));
+      expect((calls[0]!.tools ?? []).map(entry => entry.name)).not.toContain('class_availability');
+      expect(reads()).toBe(0);
+      expect((await agentTurn())!.reads).toBeNull();
+    });
   });
 });

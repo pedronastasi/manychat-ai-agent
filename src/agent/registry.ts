@@ -1,19 +1,25 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createProviderRegistry } from 'ai';
 import type { LanguageModel, TranscriptionModel } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { SystemMessage } from '@langchain/core/messages';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { JSONSchema7 } from '@ai-sdk/provider';
 import { createMockModel } from './mock-provider.ts';
+import { AiSdkChatModel, aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
 
 /**
  * The ONLY module permitted to import a provider package (Constitution C2).
  * Everything else depends on the AgentRunner port, so switching provider is an
  * environment change rather than a code change (ADR-0002).
  */
-const ollama = createOpenAI({
-  baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
-  apiKey: 'ollama',
-});
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
+const ollama = createOpenAI({ baseURL: OLLAMA_BASE_URL, apiKey: 'ollama' });
 const registry = createProviderRegistry({ anthropic, openai, google, ollama });
 
 /** Per-million-token prices, USD. Used for budget caps, not billing. */
@@ -178,5 +184,155 @@ export function resolveTranscriptionModel(spec: string): TranscriptionModel {
     return registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]);
   } catch (cause) {
     throw new UnknownProviderError(spec, cause, 'TRANSCRIPTION_MODEL');
+  }
+}
+
+/** What the LangChain runner is configured with, the same values `GenerateTextRunner` sends. */
+export interface ChatModelSettings {
+  maxOutputTokens: number;
+  temperature: number;
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | undefined;
+}
+
+/**
+ * A LangChain.js chat model, with what differs between providers kept here
+ * beside the only provider imports (C2): how a reply is asked for as JSON, and
+ * where the cache breakpoint goes (specs/050).
+ */
+export interface ChatModelHandle {
+  model: BaseChatModel;
+  /** Per-call options asking for the reply as JSON matching `schema`, the provider's way. */
+  replyFormat(schema: JSONSchema7): Record<string, unknown>;
+  /** The system prompt, carrying the provider's cache breakpoint. */
+  systemMessage(text: string): SystemMessage;
+}
+
+/**
+ * The retries every chat model makes, inside the abort: the AI SDK's
+ * `maxRetries` default, which `GenerateTextRunner` leaves unset. LangChain's
+ * own default is 6 (specs/050 § Defaults that change behaviour).
+ */
+export const CHAT_MODEL_MAX_RETRIES = 2;
+
+/** An AI SDK model, `mock:` or a test fake, as a LangChain chat model. */
+export function chatModelFromAiSdk(
+  model: LanguageModel,
+  modelSpec: string,
+  settings: ChatModelSettings,
+): ChatModelHandle {
+  if (typeof model === 'string' || model.specificationVersion !== 'v4') {
+    throw new Error(`the LangChain runner wraps AI SDK v4 models only, not ${modelSpec}`);
+  }
+  return {
+    model: new AiSdkChatModel(model, {
+      maxOutputTokens: settings.maxOutputTokens,
+      temperature: supportsTemperature(modelSpec) ? settings.temperature : undefined,
+      providerOptions: aiSdkProviderOptions(settings.reasoningEffort),
+    }),
+    replyFormat: schema => ({ responseFormat: { type: 'json', schema } }),
+    systemMessage: text => new SystemMessage(text),
+  };
+}
+
+/** The signal of the Gemini call in progress, for `AbortableGemini`. */
+const geminiSignal = new AsyncLocalStorage<AbortSignal | undefined>();
+
+/**
+ * `ChatGoogleGenerativeAI` whose request stops on the abort. Its `_generate`
+ * calls `completionWithRetry(request)` without the call options, so the signal
+ * never reaches the request: the call is abandoned, not cancelled, and runs on
+ * after the turn (read in 2.3.4; specs/050 § Defaults that change behaviour).
+ */
+class AbortableGemini extends ChatGoogleGenerativeAI {
+  override _generate(...args: Parameters<ChatGoogleGenerativeAI['_generate']>) {
+    return geminiSignal.run(args[1].signal, () => super._generate(...args));
+  }
+
+  override completionWithRetry(
+    ...[request, options]: Parameters<ChatGoogleGenerativeAI['completionWithRetry']>
+  ) {
+    const signal = geminiSignal.getStore();
+    return super.completionWithRetry(request, options ?? (signal ? { signal } : undefined));
+  }
+}
+
+/** OpenAI's structured output, strict as the AI SDK's `strictJsonSchema` default. */
+function openAiReplyFormat(schema: JSONSchema7): Record<string, unknown> {
+  return {
+    response_format: { type: 'json_schema', json_schema: { name: 'reply', schema, strict: true } },
+  };
+}
+
+/**
+ * Resolves `provider:model` to a LangChain.js chat model, built by its class.
+ * Never `initChatModel`: it loads a provider with a dynamic import the C2 lint
+ * cannot see, infers a provider from a bare model name, and with no model makes
+ * the model selectable at call time (specs/050 § The registry builds each chat
+ * model by its class). Called once at startup, like `resolveModel`.
+ */
+export function resolveChatModel(
+  spec: string,
+  settings: ChatModelSettings,
+  variable = 'AGENT_MODEL',
+): ChatModelHandle {
+  const separator = spec.indexOf(':');
+  const provider = separator > 0 ? spec.slice(0, separator) : '';
+  const model = spec.slice(separator + 1);
+  const temperature = supportsTemperature(spec) ? { temperature: settings.temperature } : {};
+  const plainSystem = (text: string) => new SystemMessage(text);
+  try {
+    switch (provider) {
+      case 'mock':
+        return chatModelFromAiSdk(createMockModel(model), spec, settings);
+      case 'anthropic':
+        return {
+          model: new ChatAnthropic({
+            model,
+            maxRetries: CHAT_MODEL_MAX_RETRIES,
+            maxTokens: settings.maxOutputTokens,
+            ...temperature,
+          }),
+          replyFormat: schema => ({ outputConfig: { format: { type: 'json_schema', schema } } }),
+          systemMessage: text =>
+            new SystemMessage({
+              content: [{ type: 'text', text, cache_control: { type: 'ephemeral' } }],
+            }),
+        };
+      case 'openai':
+      case 'ollama':
+        return {
+          model: new ChatOpenAI({
+            model,
+            maxRetries: CHAT_MODEL_MAX_RETRIES,
+            maxTokens: settings.maxOutputTokens,
+            // The AI SDK's `openai(model)` is the Responses API.
+            useResponsesApi: true,
+            ...temperature,
+            ...(settings.reasoningEffort
+              ? { reasoning: { effort: settings.reasoningEffort } }
+              : {}),
+            ...(provider === 'ollama'
+              ? { apiKey: 'ollama', configuration: { baseURL: OLLAMA_BASE_URL } }
+              : {}),
+          }),
+          replyFormat: openAiReplyFormat,
+          systemMessage: plainSystem,
+        };
+      case 'google':
+        return {
+          model: new AbortableGemini({
+            model,
+            maxRetries: CHAT_MODEL_MAX_RETRIES,
+            maxOutputTokens: settings.maxOutputTokens,
+            ...temperature,
+          }),
+          replyFormat: schema => ({ responseSchema: schema }),
+          systemMessage: plainSystem,
+        };
+      default:
+        throw new Error(`unknown provider '${provider}'`);
+    }
+  } catch (cause) {
+    throw new UnknownProviderError(spec, cause, variable);
   }
 }
