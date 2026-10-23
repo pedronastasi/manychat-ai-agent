@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.29.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.28.0...v0.29.0) (2026-10-23)
+
+
+### Features
+
+* answer through LangChain.js and LangGraph.js behind AGENT_RUNNER (spec 050) ([27bd181](https://github.com/pedronastasi/manychat-ai-agent/commit/27bd1815c06a662af1fcda48c950ad9c6e9bed11))
+* answer through LangChain.js and LangGraph.js behind AGENT_RUNNER (spec 050) ([2867068](https://github.com/pedronastasi/manychat-ai-agent/commit/286706860d6c0cb022d23d4ebb6444195d08f112))
+
+
+### Bug Fixes
+
+* answer a tool error with the AI SDK's error text, and go on (spec 050) ([93ed7ce](https://github.com/pedronastasi/manychat-ai-agent/commit/93ed7ce9ae95d70d5f84f226e9a85d1217234207))
+* sum usage over the steps that report it, as generateText does (spec 050) ([f28579d](https://github.com/pedronastasi/manychat-ai-agent/commit/f28579da4acdaa14f8c9ef865be886569a80c65f))
+
+
+### Specs and Docs
+
+* ADR-0025 and ADR-0026, the TypeScript service moves to LangChain.js and LangGraph.js ([d377239](https://github.com/pedronastasi/manychat-ai-agent/commit/d3772391e3ae19823cf2ef148634df1cd45b6e0b))
+* ADR-0026 says why ADR-0002 is still the one it amends ([d61b669](https://github.com/pedronastasi/manychat-ai-agent/commit/d61b669cae45d9bf247d26fd6e9cd298ada5e9b9))
+* ADR-0026, ADR-0027 and spec 050, the TypeScript service moves to LangChain.js and LangGraph.js ([82fa07e](https://github.com/pedronastasi/manychat-ai-agent/commit/82fa07e057e99abaad1686b782c629acfbc91ec9))
+* describe answering WhatsApp, Instagram and Messenger from one deployment ([1793c56](https://github.com/pedronastasi/manychat-ai-agent/commit/1793c569f8c90178535d926a5fd5db856164e157))
+* describe answering WhatsApp, Instagram and Messenger from one deployment ([ec9c4df](https://github.com/pedronastasi/manychat-ai-agent/commit/ec9c4df8c2110046a79a65d63f9e9d62c95e2b06))
+* drop references to the removed cutover sections (ADR-0025) ([7f44e34](https://github.com/pedronastasi/manychat-ai-agent/commit/7f44e34a83fa9f33b068bd07c7e62a27755b4c5a))
+* keep Python as a parallel implementation, not a cutover (ADR-0025, spec 026) ([aa18203](https://github.com/pedronastasi/manychat-ai-agent/commit/aa18203d9c9c6ac7520120f662a87b67fdd5f117))
+* keep Python as a parallel implementation, not a cutover (ADR-0025, spec 026) ([c349d12](https://github.com/pedronastasi/manychat-ai-agent/commit/c349d12a0817502ffc8988339bc48826debf82cf))
+* point 026's loop numbers at the matched TypeScript tag ([894f516](https://github.com/pedronastasi/manychat-ai-agent/commit/894f51638b16d6b4fa2510fa6e93d1498092472b))
+* record PR 263 in spec 050 ([b2cdb31](https://github.com/pedronastasi/manychat-ai-agent/commit/b2cdb31e4878365386ae96e360367f762f3b2fd8))
+* say Alembic creates the Python schema in 026's module map ([dd27b6e](https://github.com/pedronastasi/manychat-ai-agent/commit/dd27b6ee94cfb81cfd81b8826e9bf4e4f7ee4435))
+* spec 050 names C1 and C4, which its defaults table cites ([7858889](https://github.com/pedronastasi/manychat-ai-agent/commit/7858889394fb3c2048111e0c2d5e4c0a279f9543))
+* spec 050, what the TypeScript service keeps on LangChain.js ([44b2103](https://github.com/pedronastasi/manychat-ai-agent/commit/44b2103366243809c7f67c81d1e4c4a2fdf85061))
+
 ## [0.28.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.27.0...v0.28.0) (2026-10-22)
 
 
