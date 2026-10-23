@@ -31,6 +31,15 @@ export const FREE_TEXT = 'free_text';
 export const SAMPLES = 3;
 
 /**
+ * How long one judge sample may take before it is abandoned as invalid. Chosen,
+ * not measured: generous for a grader reading one reply, and finite, so a
+ * provider that accepts the connection and then stalls leaves criteria
+ * ungraded instead of hanging the run (specs/016 § A judge that errors grades
+ * nothing).
+ */
+export const JUDGE_TIMEOUT_MS = 60_000;
+
+/**
  * Agreement a group needs before its verdicts count. Unanimous until a
  * calibration run against a real judge model is recorded in specs/016, with
  * the figure, the model and the date: an unmeasured threshold errs toward
@@ -149,12 +158,14 @@ export function majority(samples: (Verdict | undefined)[]): Grade {
 export class Judge {
   readonly modelSpec: string;
   private readonly model: LanguageModel;
+  private readonly timeoutMs: number;
   /** What the judge has cost this run, apart from the agent's. */
   costUsd = 0;
 
-  constructor(opts: { model: LanguageModel; modelSpec: string }) {
+  constructor(opts: { model: LanguageModel; modelSpec: string; timeoutMs?: number }) {
     this.model = opts.model;
     this.modelSpec = opts.modelSpec;
+    this.timeoutMs = opts.timeoutMs ?? JUDGE_TIMEOUT_MS;
   }
 
   /** One sample. An error, a timeout or unparseable output is an invalid sample. */
@@ -167,6 +178,7 @@ export class Judge {
         messages: [{ role: 'user', content: judgeMessage(input) }],
         // The reply and the contact's text are material, not traces (C5).
         telemetry: { functionId: 'eval-judge', recordInputs: false, recordOutputs: false },
+        abortSignal: AbortSignal.timeout(this.timeoutMs),
       });
       this.costUsd += estimateCostUsd(this.modelSpec, {
         inputTokens: result.usage.inputTokens,

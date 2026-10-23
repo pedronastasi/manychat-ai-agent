@@ -13,6 +13,7 @@ import {
   Judge,
   judgeCase,
   judgeMessage,
+  JUDGE_TIMEOUT_MS,
   loadCalibration,
   majority,
   RUBRIC,
@@ -199,6 +200,28 @@ describe('a verdict needs two agreeing valid samples (specs/016 V2)', () => {
     });
     expect(calls).toHaveLength(SAMPLES);
     expect(grade).toMatchObject({ outcome: 'pass', split: false });
+  });
+
+  it('abandons a sample that stalls, and grades nothing rather than hang (C6)', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: (options: LanguageModelV4CallOptions) =>
+        new Promise((_resolve, reject) => {
+          options.abortSignal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          );
+        }),
+    });
+    const judge = new Judge({ model, modelSpec: 'mock:stalled', timeoutMs: 20 });
+    expect(
+      await judge.grade({
+        criterion: 'warm',
+        history: [],
+        text: 'hi',
+        reply: REPLY,
+        agentPrompt: PROMPT,
+      }),
+    ).toEqual({ outcome: 'ungraded', split: false });
+    expect(JUDGE_TIMEOUT_MS).toBe(60_000);
   });
 
   it('grades nothing when the judge errors or answers out of shape, and never passes (C6)', async () => {
