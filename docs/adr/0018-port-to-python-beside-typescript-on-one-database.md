@@ -1,6 +1,6 @@
 # ADR-0018 — The agent is ported to Python and cut over beside the TypeScript service, on one database
 
-**Status:** accepted · **Date:** 2026-10-02
+**Status:** superseded by ADR-0025 · **Date:** 2026-10-02
 
 ## Context
 

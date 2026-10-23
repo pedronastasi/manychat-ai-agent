@@ -1,14 +1,15 @@
-# ADR-0026 — The bounded tool loop is a LangGraph.js graph the service draws, not a prebuilt agent
+# ADR-0027 — The bounded tool loop is a LangGraph.js graph the service draws, not a prebuilt agent
 
 **Status:** accepted · **Date:** 2026-10-22
 
 ## Context
 
-ADR-0025 moves the TypeScript model layer to LangChain.js to rehearse the
-Python port of ADR-0018. The tool loop is the other half of that port: `026`
-draws it as a LangGraph graph in Python, and the same reasoning applies here.
-Rehearsing only the model calls would leave the graph, the part of `026` with
-the most ways to go wrong, to be built for the first time in the rewrite.
+ADR-0026 moves the TypeScript model layer to LangChain.js to rehearse the
+Python implementation of ADR-0025. The tool loop is the other half of that
+implementation: `026` draws it as a LangGraph graph in Python, and the same
+reasoning applies here. Rehearsing only the model calls would leave the graph,
+the part of `026` with the most ways to go wrong, to be built for the first
+time in the Python repository.
 
 The reflexive choice is LangGraph's prebuilt agent, `createReactAgent` with a
 `ToolNode`. Its case is real: it is the least code, it is how the framework
@@ -30,8 +31,8 @@ graph's state.
 ## Consequences
 
 - The graph `026` specifies for Python exists and is tested in TypeScript
-  first, under the same specs, so the port translates a working graph instead
-  of designing one.
+  first, under the same specs, so the Python implementation translates a
+  working graph instead of designing one.
 - The loop's shape becomes visible: the nodes and edges are declared, where
   today they are implied by `stopWhen` and the order of callbacks.
 - Cost: no checkpointer. History stays in `turns` (`018`, `019`), so LangGraph's
@@ -45,5 +46,5 @@ graph's state.
   stops when it fires.
 - Cost: `@langchain/langgraph` is another dependency whose defaults change
   between versions, and each upgrade re-reads them.
-- Revisit if ADR-0018 is abandoned, together with ADR-0025. A four-step loop
-  with one branch does not need a graph runtime for its own sake.
+- Revisit together with ADR-0026, on the same trigger. A four-step loop with
+  one branch does not need a graph runtime for its own sake.

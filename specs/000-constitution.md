@@ -23,8 +23,8 @@ never committing is the only guarantee that holds.
 In each codebase, one registry module is the only one that imports a model
 provider's package or resolves a model from its `provider:model` string:
 `src/agent/registry.ts` in TypeScript and `agent/registry.py` in the Python
-service, so the rule holds in both while both run (ADR-0018). Everything else
-depends on the `AgentRunner` port. The active model is resolved at runtime from
+implementation, so the rule holds in both (ADR-0025). Everything
+else depends on the `AgentRunner` port. The active model is resolved at runtime from
 configuration.
 
 _Enforced by:_ a lint rule in each codebase + a unit test asserting a model

@@ -1,17 +1,17 @@
 ---
 status: specified
 constitution: [C1, C2, C3, C4, C5, C6, C7, C8]
-adr: [0025, 0026, 0001, 0010, 0016, 0019]
+adr: [0026, 0027, 0025, 0001, 0010, 0016, 0019]
 ---
 
 # 050 — LangChain Runner Parity
 
-Defines what the TypeScript service keeps while ADR-0025 moves its model layer
-to LangChain.js and ADR-0026 draws its tool loop as a LangGraph.js graph: the
+Defines what the TypeScript service keeps while ADR-0026 moves its model layer
+to LangChain.js and ADR-0027 draws its tool loop as a LangGraph.js graph: the
 defaults it sets, the graph, the test seam, the public exports, and the gate
 before the AI SDK runner is deleted. It leaves out transcription (`020`) and
-the learning analyst (`031`), which stay on the AI SDK; the Python port
-(`026`); and any new feature.
+the learning analyst (`031`), which stay on the AI SDK; the Python
+implementation (`026`); and any new feature.
 
 ## The runner changes no behaviour a spec here fixes
 
@@ -51,7 +51,7 @@ Read on 2026-10-23 from the tarballs on npm: `@langchain/core` 1.3.0,
 | Anthropic's `maxTokens` defaults per model (`defaultMaxOutputTokensForModel`)                                                                                                                                                        | Parity: `maxOutputTokens` from `RunnerOptions`                                             | `maxTokens` set from `maxOutputTokens` on every provider                                                                                                                  |
 | Prompt caching is opt-in per content block (`cache_control`); `GenerateTextRunner` sets it through `providerOptions.anthropic`                                                                                                       | Cost parity; the budget counts cache reads                                                 | The system message's last block carries `cache_control: { type: 'ephemeral' }` on Anthropic. A test reads the request body                                                |
 | LangGraph's `recursionLimit` is 25 (`DEFAULT_RECURSION_LIMIT`) and counts supersteps, not model steps                                                                                                                                | `012 § The loop is bounded at four steps`                                                  | The step counter in graph state is the cap; `recursionLimit` is set on every invocation to the supersteps `MAX_STEPS` allows, and hitting it fails closed                 |
-| `ToolNode` runs one step's tool calls with `Promise.all`                                                                                                                                                                             | `012`: actions are staged in order, and the ninth is the one dropped                       | No `ToolNode` and no prebuilt agent (ADR-0026)                                                                                                                            |
+| `ToolNode` runs one step's tool calls with `Promise.all`                                                                                                                                                                             | `012`: actions are staged in order, and the ninth is the one dropped                       | No `ToolNode` and no prebuilt agent (ADR-0027)                                                                                                                            |
 
 A default observed here is a fact about one version, and Renovate (`011`)
 changes versions. Each setting is therefore a test that reads the configured

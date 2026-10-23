@@ -3,7 +3,7 @@ status: implemented
 implemented: 2026-10-06
 pr: 166
 constitution: [C1, C6, C8, C9]
-adr: [0021, 0018]
+adr: [0021, 0025]
 ---
 
 # 033 — Tenant Projects Depend on the Agent, Not Fork It
@@ -11,7 +11,7 @@ adr: [0021, 0018]
 Defines what a tenant project contains, the published package and image it
 depends on, how it upgrades and patches the agent, and when the existing
 deployment fork has finished moving over. The contract holds for the TypeScript
-package now and the Python service of ADR-0018 later. It leaves out the agent's
+package now and the Python implementation of ADR-0025 alike. It leaves out the agent's
 behaviour, which stays in the specs that already define it, and the hosting a
 tenant deploys onto. The `create` scaffolder that generates a tenant project is
 `035`, and the plugins that extend the agent without patching it are `036`.
@@ -144,22 +144,24 @@ allowlist reasoning applies to its build context.
 This is not the test-service image of `015`, which stays tagged by commit SHA
 and never by version.
 
-## The contract survives the Python cutover because the image is language-neutral
+## The contract holds in both implementations because the image is language-neutral
 
-ADR-0018 replaces the TypeScript service with a Python one. A tenant that
-deploys the image and drives it through the contract above does not notice
-which language is inside: the Python image reads the same `config/`, the same
-environment, serves the same routes and answers to the same commands.
+ADR-0025 keeps a Python implementation beside the TypeScript one, in its own
+repository. A tenant that deploys an image and drives it through the contract
+above does not notice which language is inside: the Python image reads the same
+`config/`, the same environment, serves the same routes and answers to the same
+commands.
 
-So the Python service honours this spec's contract table, the CLI's command
-names and the image's mount points before it is published as a release image.
-That joins `026`'s parity gate. Until the cutover, a change to the contract is
-made in both codebases, which is the cost ADR-0021 accepts.
+So the Python implementation honours this spec's contract table, the CLI's
+command names and the image's mount points before it is published as a release
+image. That joins `026`'s parity gate. A change to the contract is made in both
+codebases, which is the cost ADR-0021 and ADR-0025 accept.
 
 Two things do not carry over, and this spec says so rather than hiding it.
 Tenant tests that import `manychat-ai-agent/testing` are TypeScript and run
-against the TypeScript package; at the cutover they are rewritten or replaced
-by `agent config check` and evals run through the image. Plugins are code, and
+against the TypeScript package; when a tenant switches to the Python
+implementation, they are rewritten or replaced by `agent config check` and
+evals run through the image. Plugins are code, and
 a plugin is written for one codebase (`036`).
 
 ## A release is a version bump, and a breaking config change ships its migration

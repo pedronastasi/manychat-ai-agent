@@ -71,8 +71,8 @@ model call itself.
 
 Scheduling a nudge replaces any pending one for the same contact, in one
 upsert against a unique index on pending rows per conversation, so two
-processes scheduling at once cannot each insert one (`026 § A scheduled job
-runs where its claim is atomic`). A nudge turn is offered no `schedule_nudge`
+processes scheduling at once cannot each insert one: the constraint is in the
+database, not a check in code, so it holds across replicas. A nudge turn is offered no `schedule_nudge`
 tool. Together these bound the outcome: after a
 contact's last message, they receive at most one unprompted turn, and then
 nothing until they write again.
