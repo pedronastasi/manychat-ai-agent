@@ -332,7 +332,11 @@ const toolCall = (toolName: string, input: object, id: string): LanguageModelV4C
 /** A model at the provider boundary answering each step from `script`, honouring the abort. */
 function scriptedModel(
   script: (step: number) => LanguageModelV4Content[],
-  opts: { hangFrom?: number; usage?: boolean } = {},
+  opts: {
+    hangFrom?: number;
+    usage?: boolean;
+    cacheRead?: (step: number) => number | undefined;
+  } = {},
 ) {
   const calls: LanguageModelV4CallOptions[] = [];
   const model = new MockLanguageModelV4({
@@ -364,7 +368,12 @@ function scriptedModel(
                 outputTokens: { total: undefined, text: undefined, reasoning: undefined },
               }
             : {
-                inputTokens: { total: 100 + step, noCache: 90, cacheRead: 10, cacheWrite: 0 },
+                inputTokens: {
+                  total: 100 + step,
+                  noCache: 90,
+                  cacheRead: opts.cacheRead ? opts.cacheRead(step) : 10,
+                  cacheWrite: 0,
+                },
                 outputTokens: { total: 20, text: 20, reasoning: 0 },
               },
         warnings: [],
@@ -516,7 +525,26 @@ describe('usage comes out the same (specs/050 V7)', () => {
     expect(usages[1]).toEqual(usages[0]);
   });
 
-  it('leaves a count unknown, never zero, when a step reports none', async () => {
+  it('sums the steps that report a count, as generateText does, when one leaves it out', async () => {
+    const usages = [];
+    for (const { Runner } of RUNNERS) {
+      const { model } = scriptedModel(
+        step =>
+          step === 0 ? [toolCall('add_tag', { tag: 'interested_foundation' }, '1')] : [answer],
+        { cacheRead: step => (step === 0 ? 10 : undefined) },
+      );
+      const result = await new Runner(options(model) as never).run({
+        text: 'hi',
+        history: [],
+        contact: asProspect(),
+      });
+      usages.push(result.usage);
+    }
+    expect(usages[0]).toMatchObject({ inputTokens: 201, outputTokens: 40, cacheReadTokens: 10 });
+    expect(usages[1]).toEqual(usages[0]);
+  });
+
+  it('leaves a count unknown, never zero, when no step reports it', async () => {
     const { model } = scriptedModel(() => [answer], { usage: false });
     const result = await new LangGraphRunner(options(model)).run({
       text: 'hi',

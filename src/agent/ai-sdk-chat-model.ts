@@ -99,19 +99,24 @@ export class AiSdkChatModel extends BaseChatModel<AiSdkChatModelCallOptions> {
   }
 }
 
-/** The usage LangChain reads, from the provider-facing shape. Absent when the count is. */
+/**
+ * The usage LangChain reads, from the provider-facing shape. Each count is
+ * carried on its own, so one the provider left out stays out and the rest are
+ * still summed, as `generateText` sums them. Absent when no count is reported.
+ */
 function usageOf(usage: LanguageModelV4Usage): UsageMetadata | undefined {
   const input = usage.inputTokens.total;
   const output = usage.outputTokens.total;
-  if (input === undefined || output === undefined) return undefined;
+  const cacheRead = usage.inputTokens.cacheRead;
+  if (input === undefined && output === undefined && cacheRead === undefined) return undefined;
+  // A partial count: LangChain's type wants both totals, but readers take
+  // each field as optional.
   return {
-    input_tokens: input,
-    output_tokens: output,
-    total_tokens: input + output,
-    ...(usage.inputTokens.cacheRead !== undefined
-      ? { input_token_details: { cache_read: usage.inputTokens.cacheRead } }
-      : {}),
-  };
+    ...(input !== undefined ? { input_tokens: input } : {}),
+    ...(output !== undefined ? { output_tokens: output } : {}),
+    ...(input !== undefined && output !== undefined ? { total_tokens: input + output } : {}),
+    ...(cacheRead !== undefined ? { input_token_details: { cache_read: cacheRead } } : {}),
+  } as UsageMetadata;
 }
 
 function toMessage(content: LanguageModelV4Content[], usage: LanguageModelV4Usage): AIMessage {

@@ -127,16 +127,19 @@ function usageOf(message: AIMessage): UsageMetadata | undefined {
   return (message as unknown as { usage_metadata?: UsageMetadata }).usage_metadata;
 }
 
-/** Summed over the run; a step without a count makes that count unknown, never zero. */
+/**
+ * Summed over the run as `generateText` sums its steps: a step without a count
+ * adds nothing, and the count is unknown only when no step reports it
+ * (specs/050 § Usage, cost and caching come out the same).
+ */
 function sumUsage(messages: AIMessage[]): Omit<AgentUsage, 'costUsd'> {
   const total = (read: (message: AIMessage) => number | undefined) => {
-    let sum = 0;
+    let sum: number | undefined;
     for (const message of messages) {
       const value = read(message);
-      if (value === undefined) return undefined;
-      sum += value;
+      if (value !== undefined) sum = (sum ?? 0) + value;
     }
-    return messages.length > 0 ? sum : undefined;
+    return sum;
   };
   return {
     inputTokens: total(message => usageOf(message)?.input_tokens),

@@ -116,19 +116,25 @@ Token counts are read from each model message's `usage_metadata` and summed
 over the run: `input_tokens`, `output_tokens` and
 `input_token_details.cache_read`. They fill the same `AgentUsage` fields, so
 `estimateCostUsd`, the budget caps and the learning reports read the same
-numbers for the same request. A step with no `usage_metadata` makes the run's
-usage `undefined`, as a missing count does today; it is never counted as zero.
+numbers for the same request. They are summed as `generateText` sums its
+steps: a step that leaves a count out adds nothing to it, and the count is
+`undefined` only when no step reports it, never zero. A provider that reports
+a cache read on some steps only (Gemini sets it only when the cache was hit)
+still has the reads it did report counted.
 
 ## The mock answers as today's mock provider does
 
-`mock:` resolves to a LangChain.js chat model, in `src/agent/mock-provider.ts`,
-that produces the same canned replies for the same inputs as today's. The
-check is that `pnpm eval:mock` on each of CI's three suites gives the same
-outcome, case for case, under both runners.
+`mock:` resolves to today's mock provider, unchanged, wrapped in
+`AiSdkChatModel` (`src/agent/ai-sdk-chat-model.ts`): a LangChain.js chat model
+that sends an AI SDK model the request `generateText` would build from the same
+turn. It produces the same canned replies for the same inputs. The check is
+that `pnpm eval:mock` on each of CI's three suites gives the same outcome, case
+for case, under both runners.
 
-Tests still fake only the model and the ManyChat boundary (`004`). A fake chat
-model honours the contract it stands in for: it reports `usage_metadata` in
-LangChain's shape, and it stops on an abort.
+Tests still fake only the model and the ManyChat boundary (`004`), and the
+fakes stay AI SDK models: the LangChain runner wraps them in the same adapter,
+which reports their counts as `usage_metadata` and passes the abort through.
+So a fake honours the contract it stands in for under either runner.
 
 ## The public exports keep their signatures
 
