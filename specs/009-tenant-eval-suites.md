@@ -211,7 +211,7 @@ must_end_with_question # above
 Everything else is delegated, explicitly:
 
 ```
-review: string         # a criterion a person reads the printed reply against
+review: string | string[]  # criteria a person reads the printed reply against
 ```
 
 `max_lines` is per message rather than per reply, because a format rule
@@ -233,7 +233,9 @@ The objection above is to an _unvalidated_ judge, and it still stands against
 one. [`016-model-graded-evals.md`](016-model-graded-evals.md) admits a judge
 that grades a `review` criterion only in a run where it has first agreed with a
 hand-labelled calibration set, and counts its verdicts apart from asserted ones.
-Without a judge model configured, `review` behaves exactly as described here.
+Without a judge model configured, `review` behaves exactly as described here,
+whether it is one string or a list: each entry is printed, and the case is
+reviewed.
 
 ## A tenant suite covers its funnel stage by stage, or it covers nothing
 

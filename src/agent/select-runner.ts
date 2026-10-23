@@ -1,5 +1,5 @@
 import { GenerateTextRunner } from './runner.ts';
-import type { AgentRunner, RunnerOptions } from './runner.ts';
+import type { PromptedRunner, RunnerOptions } from './runner.ts';
 import { LangGraphRunner } from './langgraph-runner.ts';
 import { resolveChatModel, resolveModel } from './registry.ts';
 
@@ -11,7 +11,7 @@ import { resolveChatModel, resolveModel } from './registry.ts';
 export function createRunner(
   kind: 'ai-sdk' | 'langchain',
   opts: Omit<RunnerOptions, 'model'>,
-): AgentRunner {
+): PromptedRunner<Omit<RunnerOptions, 'model'>> {
   if (kind === 'langchain') {
     return new LangGraphRunner({ ...opts, model: resolveChatModel(opts.modelSpec, opts) });
   }

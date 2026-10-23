@@ -733,6 +733,26 @@ export function createMockModel(modelId: string): LanguageModelV4 {
     supportedUrls: {},
 
     doGenerate: async (options: LanguageModelV4CallOptions) => {
+      // `mock:judge` approves everything. It cannot demonstrate judgement and
+      // is not meant to: it proves the judged eval path runs offline, and that
+      // calibration refuses a judge that never fails (specs/016).
+      if (modelId === 'judge') {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                verdict: 'pass',
+                evidence: '',
+                reason: 'The mock judge passes every reply.',
+              }),
+            },
+          ],
+          finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+          usage: USAGE,
+          warnings: [],
+        };
+      }
       const message = lastUserMessage(options);
       const staged = stagedNote(options);
       // Only the prospect write staged: the message is answered as it would

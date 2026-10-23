@@ -63,6 +63,14 @@ export const EnvSchema = z
      */
     AGENT_RUNNER: z.enum(['ai-sdk', 'langchain']).default('ai-sdk'),
     /**
+     * The eval judge, as `provider:model` (specs/016). Read by `pnpm eval` only;
+     * unset means no judge, and the suite behaves as specs/009 defines.
+     */
+    EVAL_JUDGE_MODEL: z.preprocess(
+      emptyAsUnset,
+      z.string().regex(MODEL_SPEC, 'Expected "provider:model"').optional(),
+    ),
+    /**
      * How hard a reasoning model deliberates before answering. Unset by default
      * so non-reasoning models are sent nothing at all.
      *

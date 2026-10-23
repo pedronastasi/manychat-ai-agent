@@ -319,6 +319,16 @@ export abstract class PromptedRunner<
     this.opts = opts;
   }
 
+  /**
+   * The system prompt a turn is generated under, overrides and catalogue
+   * included: what the eval judge reads a criterion against (specs/016 § A
+   * criterion is read against the tenant's effective policy).
+   */
+  systemPrompt(builtInTools = true): string {
+    const { staticPrefix, catalogBlock } = this.current(builtInTools);
+    return `${staticPrefix}\n\n${catalogBlock}`;
+  }
+
   /** Calls the model, looping over tools when the turn offers them. Throws on any failure. */
   protected abstract generate(turn: PreparedTurn): Promise<Generated>;
 

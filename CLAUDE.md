@@ -44,6 +44,9 @@ Runs with no API key and no database (mock model + embedded PGlite).
 tenant it runs against — see `specs/009-tenant-eval-suites.md`. `PLAYBOOK_VERSION`
 runs it with a playbook version that is not live yet, which `insights:activate`
 needs a real-model record of — see `specs/031-learning-from-outcomes.md`.
+`EVAL_JUDGE_MODEL` names a judge that grades `review` criteria and the rubric,
+only in the groups that pass calibration on that run — see
+`specs/016-model-graded-evals.md`.
 
 ## Tech stack
 
