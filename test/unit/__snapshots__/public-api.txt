@@ -215,6 +215,7 @@ type Env = {
   CHANNELS?: string[] | undefined
   CONTACT_TOKENS_ENFORCED: false | true
   DATABASE_URL: string
+  EVAL_JUDGE_MODEL?: string | undefined
   GOOGLE_GENERATIVE_AI_API_KEY?: string | undefined
   INSIGHT_MODEL?: string | undefined
   LANGCHAIN_TRACING?: string | undefined

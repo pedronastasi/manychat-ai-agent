@@ -50,6 +50,20 @@ jobs:
           DATABASE_URL: pglite
           CONFIG_DIR: test/fixtures/config
 
+      # The judged path, offline. The mock judge passes every reply, so
+      # calibration must refuse it: the run exits 0 with every group
+      # uncalibrated and no judged-pass (specs/016). The output is asserted
+      # by test/integration/model-graded-evals-cli.test.ts.
+      - name: Eval (mock judge, refused by calibration)
+        run: pnpm eval:mock
+        env:
+          AGENT_MODEL: mock:demo
+          EVAL_JUDGE_MODEL: mock:judge
+          PUBLIC_BASE_URL: https://ci.example.com
+          MANYCHAT_SHARED_SECRET: ci-secret-ci-secret-ci-secret-xx
+          DATABASE_URL: pglite
+          CONFIG_DIR: test/fixtures/config
+
       # A second tenant that is not a school, so a word the scaffolding
       # borrows from the first one fails here (specs/042).
       - name: Eval (mock, repair tenant)

@@ -5,7 +5,10 @@ import { loadPlugins } from '../plugins/loader.ts';
 import { PluginReads } from '../plugins/reads.ts';
 import type { HostLogger } from '../plugins/plugins.ts';
 import { ActionStage, describeAction } from '../agent/tools.ts';
-import { checkCase, classify, evalDir, loadCases, suiteHash } from './cases.ts';
+import { checkCase, classify, evalDir, loadCases, reviewCriteria, suiteHash } from './cases.ts';
+import { calibrate, judgeCase, Judge, loadCalibration, sameModelWarning } from './judge.ts';
+import type { Grade, GroupCalibration } from './judge.ts';
+import { resolveModel } from '../agent/registry.ts';
 import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
 import type { ActivePlaybook } from '../learning/playbook.ts';
 import type { Status } from './cases.ts';
@@ -30,8 +33,19 @@ const RESET = '\x1b[0m';
 const MARKS: Record<Status, string> = {
   passed: `${GREEN}pass${RESET}`,
   failed: `${RED}FAIL${RESET}`,
+  'judged-fail': `${RED}JUDGED FAIL${RESET}`,
+  'judged-pass': `${GREEN}judged pass${RESET}`,
   reviewed: `${YELLOW}read${RESET}`,
 };
+
+/** A criterion's verdict as printed under its case. */
+function describeGrade(criterion: string, grade: Grade): string {
+  if (grade.outcome === 'ungraded') return `${YELLOW}${criterion}: ungraded${RESET}`;
+  const colour = grade.outcome === 'fail' ? RED : GREEN;
+  const split = grade.split ? ' (split)' : '';
+  const evidence = grade.outcome === 'fail' && grade.evidence ? ` "${grade.evidence}"` : '';
+  return `${colour}${criterion}: ${grade.outcome}${split}${RESET} ${DIM}${grade.reason ?? ''}${evidence}${RESET}`;
+}
 
 /** The subscriber a plugin read is given in a suite: no contact's. */
 const EVAL_SUBSCRIBER = 'eval';
@@ -69,11 +83,38 @@ export async function runEval(): Promise<void> {
     playbook: { current: () => playbook },
   });
 
+  // The judge, when one is named: calibrated first on every run, and only the
+  // groups that pass calibration grade anything (specs/016).
+  const judgeSpec = env.EVAL_JUDGE_MODEL;
+  const judge = judgeSpec
+    ? new Judge({ model: resolveModel(judgeSpec, 'EVAL_JUDGE_MODEL'), modelSpec: judgeSpec })
+    : undefined;
+  let groups: Map<string, GroupCalibration> | undefined;
+
   const playbookLabel = playbook ? `   playbook: ${playbook.id}` : '';
   console.log(
     `\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   cases: ${cases.length}${playbookLabel}\n`,
   );
 
+  if (judge) {
+    // A model grading its own output tends to favour it: flagged, not refused,
+    // so a tenant with one provider key can still judge (specs/016).
+    const warning = sameModelWarning(judge.modelSpec, env.AGENT_MODEL);
+    if (warning) console.log(`  ${YELLOW}warning: ${warning}${RESET}\n`);
+    groups = await calibrate(judge, loadCalibration(suiteDir), runner.systemPrompt());
+    console.log(`  judge: ${judge.modelSpec}   calibration:`);
+    for (const group of groups.values()) {
+      const state = group.calibrated
+        ? `${GREEN}calibrated${RESET}`
+        : `${YELLOW}uncalibrated (${group.refused ?? ''})${RESET}`;
+      console.log(
+        `    ${group.group.padEnd(22)} ${group.items} items   agreement ${group.agreement.toFixed(2)}   ${state}`,
+      );
+    }
+    console.log('');
+  }
+
+  let ungraded = 0;
   const outcomes: Outcome[] = [];
   for (const testCase of cases) {
     // Nothing staged here is performed: the suite reads the choice, and no
@@ -112,7 +153,24 @@ export async function runEval(): Promise<void> {
       interventions: result.interventions,
     });
 
-    const status = classify(failures, testCase.review);
+    // The judge is consulted only once every assertion has held: an asserted
+    // failure is already red, and grading it would restate the fact (specs/016).
+    const criteria = reviewCriteria(testCase.review);
+    const judgement =
+      judge && groups
+        ? await judgeCase({
+            judge,
+            groups,
+            testCase,
+            failures,
+            reply: result.reply.messages,
+            agentPrompt: runner.systemPrompt(),
+          })
+        : undefined;
+    const judged = judgement?.judged;
+    const grades = judgement?.grades ?? [];
+    ungraded += grades.filter(entry => entry.grade.outcome === 'ungraded').length;
+    const status = classify(failures, testCase.review, judged);
 
     outcomes.push({
       id: testCase.id,
@@ -132,8 +190,14 @@ export async function runEval(): Promise<void> {
       console.log(`        ${DIM}actions: ${actions.join(', ')}${RESET}`);
     // The criterion is printed next to the reply so the person already reading
     // the output is told what to look for, rather than left to notice drift.
-    if (testCase.review !== undefined)
-      console.log(`        ${YELLOW}review: ${testCase.review}${RESET}`);
+    if (judged) {
+      for (const { criterion, grade } of grades) {
+        console.log(`        ${describeGrade(criterion, grade)}`);
+      }
+    } else {
+      for (const criterion of criteria)
+        console.log(`        ${YELLOW}review: ${criterion}${RESET}`);
+    }
     // Replies are printed so a human reads them; a green suite whose tone has
     // drifted is still a failure, and only a person can see that.
     for (const text of result.reply.messages) console.log(`        ${DIM}${text}${RESET}`);
@@ -150,16 +214,29 @@ export async function runEval(): Promise<void> {
   const cost = outcomes.reduce((total, outcome) => total + outcome.costUsd, 0);
 
   // Three counts, not two: a suite of nothing but `review` cases must not be
-  // able to report itself green (specs/009 § Verification).
-  const summary = `${count('passed')} passed   ${failed} failed   ${reviewed} to review`;
-  console.log(`\n  ${summary}   p95 ${p95}ms   cost $${cost.toFixed(4)}\n`);
+  // able to report itself green (specs/009 § Verification). A judged run adds
+  // its two statuses, the criteria that went ungraded and the judge's own cost,
+  // so a run whose judge was down cannot pass itself off as a judged one
+  // (specs/016).
+  const judgedFail = count('judged-fail');
+  if (judge) {
+    const summary =
+      `${count('passed')} passed   ${failed} failed   ${judgedFail} judged-fail   ` +
+      `${count('judged-pass')} judged-pass   ${reviewed} to review   ${ungraded} ungraded`;
+    console.log(
+      `\n  ${summary}   p95 ${p95}ms   cost $${cost.toFixed(4)}   judge $${judge.costUsd.toFixed(4)}\n`,
+    );
+  } else {
+    const summary = `${count('passed')} passed   ${failed} failed   ${reviewed} to review`;
+    console.log(`\n  ${summary}   p95 ${p95}ms   cost $${cost.toFixed(4)}\n`);
+  }
   await recordEval(env, {
     playbookHash: playbook?.contentHash ?? NO_PLAYBOOK,
     suiteHash: suiteHash(suiteDir),
     model: env.AGENT_MODEL,
     outcomes: Object.fromEntries(outcomes.map(outcome => [outcome.id, outcome.status])),
   });
-  process.exit(failed === 0 ? 0 : 1);
+  process.exit(failed + judgedFail === 0 ? 0 : 1);
 }
 
 /** The version `PLAYBOOK_VERSION` names, read from the database; none when it is unset. */

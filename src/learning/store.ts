@@ -9,7 +9,11 @@ import { insightRefusal } from './proposals.ts';
 /** How many rejected proposals the analyst is told not to propose again. */
 export const REJECTED_SHOWN = 20;
 
-export type CaseStatus = 'passed' | 'failed' | 'reviewed';
+/**
+ * A case's eval status (specs/009, specs/016). The gate reads only `failed`, an
+ * asserted failure: a judged one is weaker evidence and never blocks a version.
+ */
+export type CaseStatus = 'passed' | 'failed' | 'judged-fail' | 'judged-pass' | 'reviewed';
 
 export interface PlaybookVersion extends ActivePlaybook {
   active: boolean;

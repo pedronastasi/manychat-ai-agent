@@ -330,7 +330,9 @@ export const evalRecords = pgTable(
     playbookHash: text('playbook_hash').notNull(),
     suiteHash: text('suite_hash').notNull(),
     model: text('model').notNull(),
-    outcomes: jsonb('outcomes').$type<Record<string, 'passed' | 'failed' | 'reviewed'>>().notNull(),
+    outcomes: jsonb('outcomes')
+      .$type<Record<string, 'passed' | 'failed' | 'judged-fail' | 'judged-pass' | 'reviewed'>>()
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   table => [

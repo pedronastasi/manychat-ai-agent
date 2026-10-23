@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-23
 constitution: [C1, C2, C3, C4, C6, C8, C9]
 adr: [0011]
 ---
@@ -274,10 +275,19 @@ calibration set catches a judge that approves everything.
 
 A tenant that replaces a conversational section (`044`) is judged against its
 replacement, never the displaced default. The judge sees the same prompt the
-reply was generated with. A criterion that asks for the displaced default is an
-obsolete expectation, counted apart from model failures and corrected in the
-suite. Mandatory rules — security, grounding, the output schema, tool rules —
-stay graded whatever an override says.
+reply was generated with: the runner's effective system prompt, overrides and
+catalogue included, as reference material outside the fence. Mandatory rules —
+security, grounding, the output schema, tool rules — stay graded whatever an
+override says.
+
+A criterion that asks for the displaced default is an obsolete expectation,
+and should be counted apart from model failures and corrected in the suite.
+That count is **deferred**. The verdict is binary, and the status table has no
+slot for "the criterion, not the reply, is wrong"; counting it needs a third
+verdict value, a status of its own, and calibration items that can carry that
+label. Until then such a criterion is graded like any other, against the
+effective prompt the judge is shown, and a person reading a `judged-fail`
+decides whether the criterion is the one to fix.
 
 ## Verification
 
@@ -293,7 +303,9 @@ stay graded whatever an override says.
   list is graded and reported separately.
 - CI runs `pnpm eval:mock` without a judge and asserts the output is unchanged,
   then with `mock:judge` and asserts exit 0, every group uncalibrated, and zero
-  `judged-pass`.
+  `judged-pass`. The assertions live in
+  `test/integration/model-graded-evals-cli.test.ts`, which spawns the eval both
+  ways, so they also run locally; CI's mock-judge step proves the exit code.
 - The golden calibration set holds a reply that addresses the judge.
 
 **What this does not prove.** Calibration measures agreement with these labels

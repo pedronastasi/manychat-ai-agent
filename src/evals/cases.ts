@@ -72,11 +72,13 @@ export const Case = z.object({
   must_not_contain: z.array(z.string()).optional(),
   max_lines: z.number().int().positive().optional(),
   /**
-   * A criterion a person reads the reply against. Asserts nothing: it is
-   * printed with the reply, and the case is counted as reviewed rather than
-   * passed (specs/009 § Register is the assertion that cannot be one).
+   * Criteria the reply is read against. Without a judge, each is printed with
+   * the reply and the case is counted as reviewed rather than passed
+   * (specs/009 § Register is the assertion that cannot be one). With a
+   * calibrated judge, each is its own verdict (specs/016 § One criterion per
+   * verdict). A string is a one-entry list.
    */
-  review: z.string().optional(),
+  review: z.union([z.string(), z.array(z.string()).min(1)]).optional(),
 });
 export type Case = z.infer<typeof Case>;
 
@@ -108,16 +110,44 @@ export function loadCases(dir: string): Case[] {
  */
 export { endsWithQuestion };
 
-export type Status = 'passed' | 'failed' | 'reviewed';
+export type Status = 'passed' | 'failed' | 'judged-fail' | 'judged-pass' | 'reviewed';
+
+/** A case's `review` criteria as a list: a string is a one-entry list (specs/016). */
+export function reviewCriteria(review: Case['review']): string[] {
+  if (review === undefined) return [];
+  return typeof review === 'string' ? [review] : review;
+}
+
+/** What the judge made of one criterion; `ungraded` when its verdict cannot count. */
+export type Graded = 'pass' | 'fail' | 'ungraded';
+
+/** The judge's outcomes for a case: one per `review` entry, in order, and the rubric's. */
+export interface Judged {
+  review: Graded[];
+  rubric: Graded[];
+}
 
 /**
- * A `review` case is never green on its own account and never red on it either.
- * A real assertion failure still fails it: `review` delegates judgement, it does
- * not excuse a case (specs/009 § Register is the assertion that cannot be one).
+ * A case's status. Assertions decide first and the judge never overrides them.
+ * Without a judge, a `review` case is never green on its own account and never
+ * red on it either (specs/009 § Register is the assertion that cannot be one).
+ * With one, outcomes take the most severe of `failed`, `judged-fail` and
+ * `reviewed`; `judged-pass` needs every `review` entry to have passed, and a
+ * case without `review` stays `passed` (specs/016 § A judged failure is counted
+ * apart from an asserted one).
  */
-export function classify(failures: string[], review: string | undefined): Status {
+export function classify(failures: string[], review: Case['review'], judged?: Judged): Status {
   if (failures.length > 0) return 'failed';
-  return review === undefined ? 'passed' : 'reviewed';
+  const criteria = reviewCriteria(review);
+  if (judged && [...judged.review, ...judged.rubric].includes('fail')) return 'judged-fail';
+  if (criteria.length === 0) return 'passed';
+  if (
+    judged &&
+    judged.review.length === criteria.length &&
+    judged.review.every(outcome => outcome === 'pass')
+  )
+    return 'judged-pass';
+  return 'reviewed';
 }
 
 export interface CheckInput {
