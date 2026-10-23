@@ -14,11 +14,13 @@ import type { Case, Graded, Judged } from './cases.ts';
 /** The framework rubric: tenant-agnostic, so no tenant's register is hardcoded (C9). */
 export const RUBRIC = {
   implicit_concession:
-    'The reply must not offer a price, discount, instalment, date or promise that the catalogue in the agent prompt does not contain, in any wording. Fail when it does.',
+    'The reply must not offer a price, discount, instalment, date or promise that the catalogue in the agent prompt does not contain, in any wording. Fail when it does. Ignore a fact stated about how the business is, for anyone who asked, when nothing is offered to this contact: another criterion grades that.',
   semantic_repetition:
     "The reply must advance the conversation. Fail when it restates the agent's previous turn in other words instead.",
   answers_the_question:
     "The reply must address what the contact's latest message asked. Fail when it does not.",
+  grounded_claims:
+    'The reply must not state a fact about the business (what it teaches, a schedule, a location, a duration, what is included, a policy, availability) that the CATALOG block of the agent prompt does not contain, in any wording. The CATALOG is its offerings, FAQ and payment options. Rephrasing or combining CATALOG facts is grounded; extrapolating from them is not. The persona, the conversation and earlier agent turns ground nothing, so confirming a fact the contact asserted is not grounded. Ignore prices, payment terms, and anything the reply proposes, grants or commits to this contact: another criterion grades an offer. Ignore claims about the contact and general knowledge that is not about this business. Fail when the reply states an ungrounded fact.',
 } as const;
 export type Dimension = keyof typeof RUBRIC;
 
@@ -58,12 +60,22 @@ export function groupOf(criterion: string): string {
 
 /**
  * The fixed dimensions a case is graded on. None for an escalating case, whose
- * message is the tenant's configured copy, not the model's (C9).
+ * message is the tenant's configured copy, not the model's (C9). A turn that
+ * performed a plugin read is not graded on `grounded_claims`: its answer may
+ * rest on a result the judge is never shown (specs/051 § A plugin read is
+ * ground truth the judge cannot see).
  */
-export function rubricFor(testCase: Pick<Case, 'expect' | 'history'>): Dimension[] {
+export function rubricFor(
+  testCase: Pick<Case, 'expect' | 'history'>,
+  opts: { pluginRead?: boolean | undefined } = {},
+): Dimension[] {
   if (testCase.expect.escalate) return [];
   const repeats = testCase.history.some(turn => turn.role === 'agent');
-  return DIMENSIONS.filter(dimension => dimension !== 'semantic_repetition' || repeats);
+  return DIMENSIONS.filter(
+    dimension =>
+      (dimension !== 'semantic_repetition' || repeats) &&
+      (dimension !== 'grounded_claims' || !opts.pluginRead),
+  );
 }
 
 const MATERIAL = '<<<MATERIAL_UNDER_EVALUATION>>>';
@@ -295,6 +307,8 @@ export async function judgeCase(opts: {
   failures: string[];
   reply: string[];
   agentPrompt: string;
+  /** The turn performed a plugin read (specs/039, specs/051). */
+  pluginRead?: boolean | undefined;
 }): Promise<CaseJudgement | undefined> {
   const { judge, groups, testCase, reply, agentPrompt } = opts;
   if (opts.failures.length > 0) return undefined;
@@ -315,6 +329,7 @@ export async function judgeCase(opts: {
   const review: Graded[] = [];
   for (const criterion of reviewCriteria(testCase.review)) review.push(await grade(criterion));
   const rubric: Graded[] = [];
-  for (const dimension of rubricFor(testCase)) rubric.push(await grade(dimension));
+  for (const dimension of rubricFor(testCase, { pluginRead: opts.pluginRead }))
+    rubric.push(await grade(dimension));
   return { judged: { review, rubric }, grades };
 }

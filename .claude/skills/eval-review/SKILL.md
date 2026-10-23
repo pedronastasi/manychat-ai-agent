@@ -1,6 +1,6 @@
 ---
 name: eval-review
-description: Grade the replies printed by `pnpm eval` against each case's `review` criteria and the three rubric dimensions of specs/016, with a pass/fail verdict that quotes the reply verbatim. Use when the user says "review the eval", "grade these replies", "read the eval output", pastes `pnpm eval` output, or asks whether replies drifted in tone, conceded a price, or repeated themselves.
+description: Grade the replies printed by `pnpm eval` against each case's `review` criteria and the four rubric dimensions of specs/016 and specs/051, with a pass/fail verdict that quotes the reply verbatim. Use when the user says "review the eval", "grade these replies", "read the eval output", pastes `pnpm eval` output, or asks whether replies drifted in tone, conceded a price, or repeated themselves.
 ---
 
 # Reviewing eval output
@@ -34,8 +34,8 @@ Do not use it for:
 2. **Load what the runner does not print.** The suite is `$EVAL_DIR/cases.jsonl`
    (default `evals/golden`), the tenant is `$CONFIG_DIR` (default `config`). For
    each case read `text`, `history`, `expect.escalate` and `review` from the
-   suite, and read `$CONFIG_DIR/catalog.json` once: `implicit_concession` cannot
-   be graded without the catalogue. Read `$CONFIG_DIR/prompt-overrides.json` too
+   suite, and read `$CONFIG_DIR/catalog.json` once: `implicit_concession` and
+   `grounded_claims` cannot be graded without the catalogue. Read `$CONFIG_DIR/prompt-overrides.json` too
    when it exists: a section it replaces is the policy in force, not the
    framework default (`044 § Evaluations judge the effective tenant policy`).
 
@@ -49,7 +49,11 @@ Do not use it for:
    - when `expect.escalate` is `false`, the rubric in
      [`016 § The judge grades what substrings cannot`](../../../specs/016-model-graded-evals.md):
      `implicit_concession` and `answers_the_question` always,
-     `semantic_repetition` only when `history` holds an `agent` turn.
+     `semantic_repetition` only when `history` holds an `agent` turn, and
+     `grounded_claims` ([`051`](../../../specs/051-grounded-claims.md)) unless
+     the turn performed a plugin read. It fails a fact about the business the
+     catalogue does not hold; prices, payment terms and offers to the contact
+     are graded elsewhere, never under it.
 
 5. **Grade each criterion on its own.** One criterion, one verdict — never
    combine two into one call (`016 § One criterion per verdict`).
