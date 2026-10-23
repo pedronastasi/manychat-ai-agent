@@ -6,7 +6,8 @@ import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import type { Database } from '../../src/db/client.ts';
 import { TurnHandler } from '../../src/turn/handler.ts';
 import type { TurnLogger } from '../../src/turn/handler.ts';
-import { GenerateTextRunner } from '../../src/agent/runner.ts';
+import { RUNNERS } from '../helpers/runners.ts';
+import type { RunnerClass } from '../helpers/runners.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { ContactReads, MAX_READS_PER_TURN, READ_TIMEOUT_MS } from '../../src/agent/contact.ts';
 import type { ContactReader, ManyChatClient } from '../../src/channels/manychat/client.ts';
@@ -23,7 +24,14 @@ import { OutboxWorker } from '../../src/outbox/worker.ts';
  * the real ones.
  *
  * Every name, number and note here is invented (C1).
+ *
+ * Each item runs under both runners: specs/050-langchain-runner-parity.md
+ * § Verification item 6 (the graph) runs the existing 024 tests under
+ * `AGENT_RUNNER=langchain`.
  */
+
+/** The runner under test, set by the `describe.each` below. */
+let Runner: RunnerClass;
 
 const tenant = loadTenantConfig('test/fixtures/config');
 
@@ -162,7 +170,7 @@ function handler(
     modelAbortMs?: number;
   } = {},
 ) {
-  const runner = new GenerateTextRunner({
+  const runner = new Runner({
     model,
     modelSpec: 'mock:demo',
     config: () => tenant,
@@ -203,326 +211,336 @@ const sawResult = (options: LanguageModelV4CallOptions, output: string) =>
 /* V3 — a read that fails is not an escalation, and a turn reads twice          */
 /* -------------------------------------------------------------------------- */
 
-describe('a failed read is not an escalation (specs/024 V3)', () => {
-  it(`returns { available: false } after ${READ_TIMEOUT_MS} ms and the turn still replies`, async () => {
-    const { model, calls } = scriptedModel(step =>
-      step === 0 ? [toolCall('get_contact', {})] : [replyText(ANSWER)],
-    );
-    const { logger, lines } = capturingLogger();
-    const contacts = new FakeContactReader('never');
-
-    const started = Date.now();
-    const out = await handler(model, { logger, contacts }).handle(inbound('which days is it?'));
-    const elapsed = Date.now() - started;
-
-    expect(out.outcome).toBe('answered_inline');
-    expect(out.reply.escalate).toBe(false);
-    expect(out.reply.messages[0]).toBe(ANSWER.messages[0]);
-    expect(elapsed).toBeGreaterThanOrEqual(READ_TIMEOUT_MS - 50);
-    expect(elapsed).toBeLessThan(READ_TIMEOUT_MS + 2000);
-    expect(sawResult(calls[1]!, '{"available":false}')).toBe(true);
-    // Logged at warn, without the subscriber (C5).
-    const warning = lines.find(line => line.message === 'contact read failed');
-    expect(warning?.level).toBe('warn');
-    expect(JSON.stringify(lines)).not.toContain('5550001234987');
+describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each }) => {
+  beforeEach(() => {
+    Runner = Each;
   });
 
-  it(`makes no request for a read past ${MAX_READS_PER_TURN}`, async () => {
-    const contacts = new FakeContactReader();
-    const reads = new ContactReads({
-      reader: contacts,
-      subscriberId: 's1',
-      logger: { warn: () => {} },
+  describe('a failed read is not an escalation (specs/024 V3)', () => {
+    it(`returns { available: false } after ${READ_TIMEOUT_MS} ms and the turn still replies`, async () => {
+      const { model, calls } = scriptedModel(step =>
+        step === 0 ? [toolCall('get_contact', {})] : [replyText(ANSWER)],
+      );
+      const { logger, lines } = capturingLogger();
+      const contacts = new FakeContactReader('never');
+
+      const started = Date.now();
+      const out = await handler(model, { logger, contacts }).handle(inbound('which days is it?'));
+      const elapsed = Date.now() - started;
+
+      expect(out.outcome).toBe('answered_inline');
+      expect(out.reply.escalate).toBe(false);
+      expect(out.reply.messages[0]).toBe(ANSWER.messages[0]);
+      expect(elapsed).toBeGreaterThanOrEqual(READ_TIMEOUT_MS - 50);
+      expect(elapsed).toBeLessThan(READ_TIMEOUT_MS + 2000);
+      expect(sawResult(calls[1]!, '{"available":false}')).toBe(true);
+      // Logged at warn, without the subscriber (C5).
+      const warning = lines.find(line => line.message === 'contact read failed');
+      expect(warning?.level).toBe('warn');
+      expect(JSON.stringify(lines)).not.toContain('5550001234987');
     });
-    const results = [];
-    for (let index = 0; index <= MAX_READS_PER_TURN; index++) {
-      results.push(await reads.read(tenant.tools!));
-    }
-    expect(contacts.requests).toBe(MAX_READS_PER_TURN);
-    expect(results[MAX_READS_PER_TURN]).toEqual({ available: false });
-  });
 
-  it('a model that keeps reading gets two requests in a whole turn', async () => {
-    const { model } = scriptedModel((step, options) =>
-      (options.tools ?? []).length > 0
-        ? [toolCall('get_contact', {}, `read-${step}`)]
-        : [replyText(ANSWER)],
-    );
-    const contacts = new FakeContactReader();
-    const out = await handler(model, { contacts }).handle(inbound('what do you have on me?'));
-    expect(out.outcome).toBe('answered_inline');
-    expect(contacts.requests).toBe(MAX_READS_PER_TURN);
-  });
-
-  it('is not offered on an unbound turn, which may not read the contact', async () => {
-    const { model, calls } = scriptedModel(() => [replyText(ANSWER)]);
-    const runner = new GenerateTextRunner({
-      model,
-      modelSpec: 'mock:demo',
-      config: () => tenant,
-      maxOutputTokens: 400,
-      temperature: 0.3,
+    it(`makes no request for a read past ${MAX_READS_PER_TURN}`, async () => {
+      const contacts = new FakeContactReader();
+      const reads = new ContactReads({
+        reader: contacts,
+        subscriberId: 's1',
+        logger: { warn: () => {} },
+      });
+      const results = [];
+      for (let index = 0; index <= MAX_READS_PER_TURN; index++) {
+        results.push(await reads.read(tenant.tools!));
+      }
+      expect(contacts.requests).toBe(MAX_READS_PER_TURN);
+      expect(results[MAX_READS_PER_TURN]).toEqual({ available: false });
     });
-    const contacts = new FakeContactReader();
-    await new TurnHandler({
-      db,
-      runner,
-      rules: tenant.rules,
-      tools: tenant.tools,
-      raceDeadlineMs: 8000,
-      modelAbortMs: 30_000,
-      logger: capturingLogger().logger,
-      tokenWriter: new FakeContactFields(),
-      tokensEnforced: true,
-      actions: new FakeActions(),
-      contacts,
-    }).handle(inbound('hello'));
 
-    const offered = (calls[0]!.tools ?? []).map(entry => entry.name);
-    expect(offered).toContain('write_note');
-    expect(offered).not.toContain('get_contact');
+    it('a model that keeps reading gets two requests in a whole turn', async () => {
+      const { model } = scriptedModel((step, options) =>
+        (options.tools ?? []).length > 0
+          ? [toolCall('get_contact', {}, `read-${step}`)]
+          : [replyText(ANSWER)],
+      );
+      const contacts = new FakeContactReader();
+      const out = await handler(model, { contacts }).handle(inbound('what do you have on me?'));
+      expect(out.outcome).toBe('answered_inline');
+      expect(contacts.requests).toBe(MAX_READS_PER_TURN);
+    });
+
+    it('is not offered on an unbound turn, which may not read the contact', async () => {
+      const { model, calls } = scriptedModel(() => [replyText(ANSWER)]);
+      const runner = new Runner({
+        model,
+        modelSpec: 'mock:demo',
+        config: () => tenant,
+        maxOutputTokens: 400,
+        temperature: 0.3,
+      });
+      const contacts = new FakeContactReader();
+      await new TurnHandler({
+        db,
+        runner,
+        rules: tenant.rules,
+        tools: tenant.tools,
+        raceDeadlineMs: 8000,
+        modelAbortMs: 30_000,
+        logger: capturingLogger().logger,
+        tokenWriter: new FakeContactFields(),
+        tokensEnforced: true,
+        actions: new FakeActions(),
+        contacts,
+      }).handle(inbound('hello'));
+
+      const offered = (calls[0]!.tools ?? []).map(entry => entry.name);
+      expect(offered).toContain('write_note');
+      expect(offered).not.toContain('get_contact');
+    });
   });
-});
 
-/* -------------------------------------------------------------------------- */
-/* V4 — the fourth step offers no tools                                         */
-/* -------------------------------------------------------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /* V4 — the fourth step offers no tools                                         */
+  /* -------------------------------------------------------------------------- */
 
-describe('the loop is bounded at four steps (specs/024 V4)', () => {
-  it('offers tools on steps one to three and none on step four', async () => {
-    const { model, calls } = scriptedModel((step, options) =>
-      (options.tools ?? []).length > 0
-        ? [toolCall('get_contact', {}, `read-${step}`)]
-        : [replyText(ANSWER)],
+  describe('the loop is bounded at four steps (specs/024 V4)', () => {
+    it('offers tools on steps one to three and none on step four', async () => {
+      const { model, calls } = scriptedModel((step, options) =>
+        (options.tools ?? []).length > 0
+          ? [toolCall('get_contact', {}, `read-${step}`)]
+          : [replyText(ANSWER)],
+      );
+      const out = await handler(model).handle(inbound('what do you have on me?'));
+
+      expect(MAX_STEPS).toBe(4);
+      expect(calls).toHaveLength(4);
+      for (const call of calls.slice(0, 3)) expect((call.tools ?? []).length).toBeGreaterThan(0);
+      expect(calls[3]!.tools ?? []).toHaveLength(0);
+      expect(out.reply.messages[0]).toBe(ANSWER.messages[0]);
+
+      // The reply step sees the last read in place of its tool results, with the
+      // notes still fenced (specs/024 V2).
+      const notice = JSON.stringify(calls[3]!.prompt.at(-1));
+      expect(notice).toContain('CONTACT:');
+      expect(notice).toContain('came_from_ad');
+      expect(notice).toContain(JSON.stringify(FENCE).slice(1, -1));
+      expect(notice).toContain(JSON.stringify(FENCE_END).slice(1, -1));
+    });
+  });
+
+  /* -------------------------------------------------------------------------- */
+  /* V7 — a handoff summary survives the escalation it describes                 */
+  /* -------------------------------------------------------------------------- */
+
+  const HANDOFF_NOTE = 'Asked twice about a payment plan the catalog does not list.';
+  const GOAL_NOTE = 'Wants weekend work.';
+
+  /**
+   * Step one stages the prospect write, a tag, a goal note and a handoff summary; step two ends the
+   * turn. A tag, not a flow: an inbound turn sends a flow when it is called
+   * (specs/029), and these tests are about what stays staged.
+   */
+  const stagingModel = (
+    ending: LanguageModelV4Content[] | Error,
+    delays: Record<number, number> = {},
+  ) =>
+    scriptedModel(
+      step =>
+        step === 0
+          ? [
+              // Recorded first, so the tag clears the gate of specs/034.
+              toolCall('set_field', { field: 'intent', value: 'prospect' }, 'intent'),
+              toolCall('add_tag', { tag: 'interested_foundation' }),
+              toolCall('write_note', { note: 'goal', text: GOAL_NOTE }, 'goal'),
+              toolCall('write_note', { note: 'handoff_summary', text: HANDOFF_NOTE }, 'handoff'),
+            ]
+          : ending,
+      delays,
     );
-    const out = await handler(model).handle(inbound('what do you have on me?'));
 
-    expect(MAX_STEPS).toBe(4);
-    expect(calls).toHaveLength(4);
-    for (const call of calls.slice(0, 3)) expect((call.tools ?? []).length).toBeGreaterThan(0);
-    expect(calls[3]!.tools ?? []).toHaveLength(0);
-    expect(out.reply.messages[0]).toBe(ANSWER.messages[0]);
+  const statuses = (actions: ActionRecord[] | null | undefined) =>
+    Object.fromEntries((actions ?? []).map(entry => [`${entry.tool} ${entry.id}`, entry.status]));
 
-    // The reply step sees the last read in place of its tool results, with the
-    // notes still fenced (specs/024 V2).
-    const notice = JSON.stringify(calls[3]!.prompt.at(-1));
-    expect(notice).toContain('CONTACT:');
-    expect(notice).toContain('came_from_ad');
-    expect(notice).toContain(JSON.stringify(FENCE).slice(1, -1));
-    expect(notice).toContain(JSON.stringify(FENCE_END).slice(1, -1));
+  const performedNotes = (actions: FakeActions) =>
+    actions.performed.map(({ action }) => (action.tool === 'write_note' ? action.id : action.tool));
+
+  describe('an onEscalation note survives model and confidence escalations (specs/024 V7)', () => {
+    it.each([
+      ['the model', replyText(HANDOFF), 'escalated_model'],
+      ['the confidence threshold', replyText({ ...ANSWER, confidence: 0.1 }), 'escalated_model'],
+    ])(
+      'performs it after the escalation message when %s escalates',
+      async (_cause, ending, outcome) => {
+        const { model } = stagingModel([ending]);
+        const actions = new FakeActions();
+        const out = await handler(model, { actions }).handle(inbound('can I pay over a year?'));
+
+        expect(out.reply.escalate).toBe(true);
+        expect(out.outcome).toBe(outcome);
+        // Nothing yet: the escalation message goes first.
+        expect(actions.performed).toHaveLength(0);
+        expect(statuses((await agentTurn())!.actions)).toEqual({
+          'set_field intent': 'discarded',
+          'add_tag interested_foundation': 'discarded',
+          'write_note goal': 'discarded',
+          'write_note handoff_summary': 'staged',
+        });
+
+        await out.afterResponse!();
+        expect(performedNotes(actions)).toEqual(['handoff_summary']);
+        expect(statuses((await agentTurn())!.actions)['write_note handoff_summary']).toBe(
+          'performed',
+        );
+      },
+    );
+
+    it('performs it after the deferred escalation message is delivered', async () => {
+      const { model } = stagingModel([replyText(HANDOFF)], { 1: 300 });
+      const out = await handler(model, { raceDeadlineMs: 50 }).handle(
+        inbound('can I pay over a year?'),
+      );
+      expect(out.outcome).toBe('deferred');
+      await waitFor(async () => (await agentTurn()) !== undefined);
+      await waitFor(async () => (await replyRows()).length > 0);
+
+      const order: string[] = [];
+      const client: ManyChatClient = {
+        sendText: (_subscriber, messages) => {
+          order.push(`text: ${messages.join(' ')}`);
+          return Promise.resolve();
+        },
+        writeToken: () => Promise.resolve(),
+        performAction: (_subscriber: string, action: StagedAction) => {
+          order.push(`${action.tool} ${action.id}`);
+          return Promise.resolve();
+        },
+      };
+      const log = { info: () => {}, warn: () => {}, error: () => {} };
+      await new OutboxWorker({ db, client, logger: log }).drainOnce();
+
+      expect(order).toEqual([`text: ${HANDOFF.messages[0]}`, 'write_note handoff_summary']);
+      expect(statuses((await agentTurn())!.actions)).toEqual({
+        'set_field intent': 'discarded',
+        'add_tag interested_foundation': 'discarded',
+        'write_note goal': 'discarded',
+        'write_note handoff_summary': 'performed',
+      });
+    });
   });
-});
 
-/* -------------------------------------------------------------------------- */
-/* V7 — a handoff summary survives the escalation it describes                 */
-/* -------------------------------------------------------------------------- */
-
-const HANDOFF_NOTE = 'Asked twice about a payment plan the catalog does not list.';
-const GOAL_NOTE = 'Wants weekend work.';
-
-/**
- * Step one stages the prospect write, a tag, a goal note and a handoff summary; step two ends the
- * turn. A tag, not a flow: an inbound turn sends a flow when it is called
- * (specs/029), and these tests are about what stays staged.
- */
-const stagingModel = (
-  ending: LanguageModelV4Content[] | Error,
-  delays: Record<number, number> = {},
-) =>
-  scriptedModel(
-    step =>
-      step === 0
-        ? [
-            // Recorded first, so the tag clears the gate of specs/034.
-            toolCall('set_field', { field: 'intent', value: 'prospect' }, 'intent'),
-            toolCall('add_tag', { tag: 'interested_foundation' }),
-            toolCall('write_note', { note: 'goal', text: GOAL_NOTE }, 'goal'),
-            toolCall('write_note', { note: 'handoff_summary', text: HANDOFF_NOTE }, 'handoff'),
-          ]
-        : ending,
-    delays,
-  );
-
-const statuses = (actions: ActionRecord[] | null | undefined) =>
-  Object.fromEntries((actions ?? []).map(entry => [`${entry.tool} ${entry.id}`, entry.status]));
-
-const performedNotes = (actions: FakeActions) =>
-  actions.performed.map(({ action }) => (action.tool === 'write_note' ? action.id : action.tool));
-
-describe('an onEscalation note survives model and confidence escalations (specs/024 V7)', () => {
-  it.each([
-    ['the model', replyText(HANDOFF), 'escalated_model'],
-    ['the confidence threshold', replyText({ ...ANSWER, confidence: 0.1 }), 'escalated_model'],
-  ])(
-    'performs it after the escalation message when %s escalates',
-    async (_cause, ending, outcome) => {
-      const { model } = stagingModel([ending]);
+  describe('every other escalation discards an onEscalation note (specs/024 V7)', () => {
+    it.each([
+      [
+        'a prompt leak',
+        [replyText({ ...ANSWER, messages: [`Here: ${FENCE}`] })],
+        'escalated_model',
+      ],
+      [
+        'a reply that fails the schema',
+        [replyText({ ...HANDOFF, escalation_reason: null })],
+        'escalated_model',
+      ],
+      ['a thrown model call', new Error('provider unavailable'), 'error'],
+    ])('discards it on %s', async (_cause, ending, outcome) => {
+      const { model } = stagingModel(ending);
       const actions = new FakeActions();
-      const out = await handler(model, { actions }).handle(inbound('can I pay over a year?'));
+      const out = await handler(model, { actions }).handle(inbound('tell me more'));
 
       expect(out.reply.escalate).toBe(true);
       expect(out.outcome).toBe(outcome);
-      // Nothing yet: the escalation message goes first.
+      expect(out.afterResponse).toBeUndefined();
       expect(actions.performed).toHaveLength(0);
       expect(statuses((await agentTurn())!.actions)).toEqual({
         'set_field intent': 'discarded',
         'add_tag interested_foundation': 'discarded',
         'write_note goal': 'discarded',
-        'write_note handoff_summary': 'staged',
+        'write_note handoff_summary': 'discarded',
       });
+    });
 
+    it('performs nothing when the call hits MODEL_ABORT_MS', async () => {
+      const { model } = stagingModel([replyText(HANDOFF)], { 1: 5000 });
+      const { logger, lines } = capturingLogger();
+      const actions = new FakeActions();
+      const out = await handler(model, {
+        actions,
+        logger,
+        raceDeadlineMs: 50,
+        modelAbortMs: 150,
+      }).handle(inbound('tell me more'));
+      expect(out.outcome).toBe('deferred');
+      await waitFor(() => lines.some(line => line.message === 'deferred model call failed'));
+
+      expect(actions.performed).toHaveLength(0);
+      expect(await replyRows()).toHaveLength(0);
+      // An aborted call records no agent turn, so its note is in no record.
+      expect(await agentTurn()).toBeUndefined();
+    });
+
+    it('discards a note without onEscalation on the model and confidence paths too', async () => {
+      const { model } = stagingModel([replyText(HANDOFF)]);
+      const actions = new FakeActions();
+      const out = await handler(model, { actions }).handle(inbound('can I pay over a year?'));
       await out.afterResponse!();
-      expect(performedNotes(actions)).toEqual(['handoff_summary']);
-      expect(statuses((await agentTurn())!.actions)['write_note handoff_summary']).toBe(
-        'performed',
-      );
-    },
-  );
-
-  it('performs it after the deferred escalation message is delivered', async () => {
-    const { model } = stagingModel([replyText(HANDOFF)], { 1: 300 });
-    const out = await handler(model, { raceDeadlineMs: 50 }).handle(
-      inbound('can I pay over a year?'),
-    );
-    expect(out.outcome).toBe('deferred');
-    await waitFor(async () => (await agentTurn()) !== undefined);
-    await waitFor(async () => (await replyRows()).length > 0);
-
-    const order: string[] = [];
-    const client: ManyChatClient = {
-      sendText: (_subscriber, messages) => {
-        order.push(`text: ${messages.join(' ')}`);
-        return Promise.resolve();
-      },
-      writeToken: () => Promise.resolve(),
-      performAction: (_subscriber: string, action: StagedAction) => {
-        order.push(`${action.tool} ${action.id}`);
-        return Promise.resolve();
-      },
-    };
-    const log = { info: () => {}, warn: () => {}, error: () => {} };
-    await new OutboxWorker({ db, client, logger: log }).drainOnce();
-
-    expect(order).toEqual([`text: ${HANDOFF.messages[0]}`, 'write_note handoff_summary']);
-    expect(statuses((await agentTurn())!.actions)).toEqual({
-      'set_field intent': 'discarded',
-      'add_tag interested_foundation': 'discarded',
-      'write_note goal': 'discarded',
-      'write_note handoff_summary': 'performed',
-    });
-  });
-});
-
-describe('every other escalation discards an onEscalation note (specs/024 V7)', () => {
-  it.each([
-    ['a prompt leak', [replyText({ ...ANSWER, messages: [`Here: ${FENCE}`] })], 'escalated_model'],
-    [
-      'a reply that fails the schema',
-      [replyText({ ...HANDOFF, escalation_reason: null })],
-      'escalated_model',
-    ],
-    ['a thrown model call', new Error('provider unavailable'), 'error'],
-  ])('discards it on %s', async (_cause, ending, outcome) => {
-    const { model } = stagingModel(ending);
-    const actions = new FakeActions();
-    const out = await handler(model, { actions }).handle(inbound('tell me more'));
-
-    expect(out.reply.escalate).toBe(true);
-    expect(out.outcome).toBe(outcome);
-    expect(out.afterResponse).toBeUndefined();
-    expect(actions.performed).toHaveLength(0);
-    expect(statuses((await agentTurn())!.actions)).toEqual({
-      'set_field intent': 'discarded',
-      'add_tag interested_foundation': 'discarded',
-      'write_note goal': 'discarded',
-      'write_note handoff_summary': 'discarded',
+      expect(performedNotes(actions)).not.toContain('goal');
     });
   });
 
-  it('performs nothing when the call hits MODEL_ABORT_MS', async () => {
-    const { model } = stagingModel([replyText(HANDOFF)], { 1: 5000 });
-    const { logger, lines } = capturingLogger();
-    const actions = new FakeActions();
-    const out = await handler(model, {
-      actions,
-      logger,
-      raceDeadlineMs: 50,
-      modelAbortMs: 150,
-    }).handle(inbound('tell me more'));
-    expect(out.outcome).toBe('deferred');
-    await waitFor(() => lines.some(line => line.message === 'deferred model call failed'));
+  /* -------------------------------------------------------------------------- */
+  /* V8 — note text never reaches the record or the logs                          */
+  /* -------------------------------------------------------------------------- */
 
-    expect(actions.performed).toHaveLength(0);
-    expect(await replyRows()).toHaveLength(0);
-    // An aborted call records no agent turn, so its note is in no record.
-    expect(await agentTurn()).toBeUndefined();
-  });
+  describe('note text never reaches the record or the logs (specs/024 V8)', () => {
+    const NOTE = 'Wants to retrain for weekend work near the old harbour.';
 
-  it('discards a note without onEscalation on the model and confidence paths too', async () => {
-    const { model } = stagingModel([replyText(HANDOFF)]);
-    const actions = new FakeActions();
-    const out = await handler(model, { actions }).handle(inbound('can I pay over a year?'));
-    await out.afterResponse!();
-    expect(performedNotes(actions)).not.toContain('goal');
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/* V8 — note text never reaches the record or the logs                          */
-/* -------------------------------------------------------------------------- */
-
-describe('note text never reaches the record or the logs (specs/024 V8)', () => {
-  const NOTE = 'Wants to retrain for weekend work near the old harbour.';
-
-  const noteModel = () =>
-    scriptedModel(step =>
-      step === 0
-        ? [toolCall('write_note', { note: 'goal', text: NOTE })]
-        : [replyText({ ...ANSWER, messages: ['Noted - happy to help.'] })],
-    );
-
-  it('records the note by id and length, with no text', async () => {
-    const { model } = noteModel();
-    const out = await handler(model).handle(inbound('I want to retrain'));
-    await out.afterResponse!();
-
-    const { actions } = (await agentTurn())!;
-    expect(actions).toEqual([
-      { tool: 'write_note', id: 'goal', length: NOTE.length, status: 'performed' },
-    ]);
-    expect(JSON.stringify(actions)).not.toContain('harbour');
-    // The history note names it as the record does.
-    expect(actionsNote(actions)).toBe('[actions performed: write_note goal]');
-  });
-
-  it('keeps the text out of every log line, a failed write included', async () => {
-    const { model } = noteModel();
-    const { logger, lines, text } = capturingLogger();
-    // ManyChat's refusal quoting the value it was sent, and the contact.
-    const actions = new FakeActions();
-    actions.performAction = (subscriberId: string, action: StagedAction) =>
-      Promise.reject(
-        new Error(
-          `field rejected for ${subscriberId}: "${action.tool === 'write_note' ? action.text : ''}"`,
-        ),
+    const noteModel = () =>
+      scriptedModel(step =>
+        step === 0
+          ? [toolCall('write_note', { note: 'goal', text: NOTE })]
+          : [replyText({ ...ANSWER, messages: ['Noted - happy to help.'] })],
       );
-    const out = await handler(model, { logger, actions }).handle(inbound('I want to retrain'));
-    await out.afterResponse!();
 
-    expect(lines.some(line => line.message === 'action failed')).toBe(true);
-    expect(text()).not.toContain('harbour');
-    expect(text()).not.toContain('5550001234987');
-    const { actions: recorded } = (await agentTurn())!;
-    expect(recorded![0]).toMatchObject({ tool: 'write_note', id: 'goal', status: 'failed' });
-    expect(JSON.stringify(recorded)).not.toContain('harbour');
+    it('records the note by id and length, with no text', async () => {
+      const { model } = noteModel();
+      const out = await handler(model).handle(inbound('I want to retrain'));
+      await out.afterResponse!();
+
+      const { actions } = (await agentTurn())!;
+      expect(actions).toEqual([
+        { tool: 'write_note', id: 'goal', length: NOTE.length, status: 'performed' },
+      ]);
+      expect(JSON.stringify(actions)).not.toContain('harbour');
+      // The history note names it as the record does.
+      expect(actionsNote(actions)).toBe('[actions performed: write_note goal]');
+    });
+
+    it('keeps the text out of every log line, a failed write included', async () => {
+      const { model } = noteModel();
+      const { logger, lines, text } = capturingLogger();
+      // ManyChat's refusal quoting the value it was sent, and the contact.
+      const actions = new FakeActions();
+      actions.performAction = (subscriberId: string, action: StagedAction) =>
+        Promise.reject(
+          new Error(
+            `field rejected for ${subscriberId}: "${action.tool === 'write_note' ? action.text : ''}"`,
+          ),
+        );
+      const out = await handler(model, { logger, actions }).handle(inbound('I want to retrain'));
+      await out.afterResponse!();
+
+      expect(lines.some(line => line.message === 'action failed')).toBe(true);
+      expect(text()).not.toContain('harbour');
+      expect(text()).not.toContain('5550001234987');
+      const { actions: recorded } = (await agentTurn())!;
+      expect(recorded![0]).toMatchObject({ tool: 'write_note', id: 'goal', status: 'failed' });
+      expect(JSON.stringify(recorded)).not.toContain('harbour');
+    });
   });
-});
 
-/** Polls until `ready` holds, for work the turn hands to the background. */
-async function waitFor(ready: () => boolean | Promise<boolean>, timeoutMs = 5000) {
-  const until = Date.now() + timeoutMs;
-  while (!(await ready())) {
-    if (Date.now() > until) throw new Error('timed out waiting');
-    await new Promise(resolve => setTimeout(resolve, 20));
+  /** Polls until `ready` holds, for work the turn hands to the background. */
+  async function waitFor(ready: () => boolean | Promise<boolean>, timeoutMs = 5000) {
+    const until = Date.now() + timeoutMs;
+    while (!(await ready())) {
+      if (Date.now() > until) throw new Error('timed out waiting');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
   }
-}
+});

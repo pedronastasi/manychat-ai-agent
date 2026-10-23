@@ -60,7 +60,7 @@ needs a real-model record of — see `specs/031-learning-from-outcomes.md`.
 
 Ports-and-adapters (hexagonal). Key boundaries:
 
-- **AgentRunner** (`src/agent/runner.ts`) — port for LLM calls. Impl: `GenerateTextRunner`.
+- **AgentRunner** (`src/agent/runner.ts`) — port for LLM calls. Impls: `GenerateTextRunner` (AI SDK) and `LangGraphRunner` (`src/agent/langgraph-runner.ts`, LangChain.js + LangGraph.js), chosen by `AGENT_RUNNER` (specs/050). Both extend `PromptedRunner`, which owns the prompt, tools and guardrails.
 - **ChannelAdapter** (`src/channels/port.ts`) — port for chat platforms. Impl: `ManyChatAdapter`.
 - **ManyChatClient** (`src/channels/manychat/client.ts`) — port for outbound delivery. Impl: `ManyChatHttpClient`, the ONLY file that imports `manychat-sdk`; one instance per process (specs/022).
 - **ContactReader** (`src/channels/manychat/client.ts`) — port for `get_contact` (specs/024). `ManyChatHttpClient` implements it; `ContactReads` (`src/agent/contact.ts`) bounds it to two reads a turn, 1.5 s each.
@@ -165,6 +165,7 @@ All env vars documented in `.env.example`. Key variables:
 - `DATABASE_URL` — Postgres connection string or `pglite` for embedded
 - `MANYCHAT_SHARED_SECRET` — min 16 chars, comma-separated for rotation
 - `RACE_DEADLINE_MS` — race timeout (default: 8000)
+- `AGENT_RUNNER` — `ai-sdk` (default) or `langchain` (specs/050)
 - `CONTACT_TOKENS_ENFORCED` — `false` only during the specs/019 rollout (default: `true`)
 - `TRANSCRIPTION_MODEL` — `provider:model` for voice notes and video soundtracks
   (specs/020); unset sends them to `rules.messages.mediaFallback`

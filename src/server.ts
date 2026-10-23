@@ -17,8 +17,8 @@ import type { Env } from './contracts/config.ts';
 import type { AgentReply, InboundMessage } from './contracts/agent.ts';
 import type { TranscriptionModel } from 'ai';
 import type { Database } from './db/client.ts';
-import { acceptsImages, resolveModel, resolveTranscriptionModel } from './agent/registry.ts';
-import { GenerateTextRunner } from './agent/runner.ts';
+import { acceptsImages, resolveTranscriptionModel } from './agent/registry.ts';
+import { createRunner } from './agent/select-runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
 import { SdkTranscriber } from './agent/transcriber.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
@@ -137,8 +137,7 @@ export async function buildServer(opts: BuildOptions) {
 
   const runner =
     opts.runner ??
-    new GenerateTextRunner({
-      model: resolveModel(env.AGENT_MODEL),
+    createRunner(env.AGENT_RUNNER, {
       modelSpec: env.AGENT_MODEL,
       // The accessor, not its result: the runner re-reads it so SIGHUP reaches
       // the persona and catalog, not just the rules turn.ts reads per request.

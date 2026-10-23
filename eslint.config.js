@@ -1,6 +1,22 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
+/**
+ * Constitution C2: only the registry imports a model provider's package. The
+ * universal chat model is listed too, because `initChatModel` loads a provider
+ * with a dynamic `import()` that this rule could not otherwise see
+ * (specs/050 § The registry builds each chat model by its class).
+ */
+export const PROVIDER_PACKAGES = [
+  '@ai-sdk/anthropic',
+  '@ai-sdk/openai',
+  '@ai-sdk/google',
+  '@langchain/anthropic',
+  '@langchain/openai',
+  '@langchain/google-genai',
+  'langchain/chat_models/universal',
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -34,6 +50,22 @@ export default tseslint.config(
       // ADR-0009: the name is the documentation, at the point of use. No
       // exception list, deliberately - that is where this kind of rule dies.
       'id-length': ['error', { min: 2 }],
+    },
+  },
+
+  {
+    files: ['**/*.ts'],
+    ignores: ['src/agent/registry.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: PROVIDER_PACKAGES.map(name => ({
+            name,
+            message: 'Only src/agent/registry.ts imports a provider package (Constitution C2).',
+          })),
+        },
+      ],
     },
   },
 

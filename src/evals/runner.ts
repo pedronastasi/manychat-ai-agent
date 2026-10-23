@@ -1,7 +1,6 @@
 import { loadEnv, loadTenantConfig } from '../config/loader.ts';
 import type { Env } from '../contracts/config.ts';
-import { resolveModel } from '../agent/registry.ts';
-import { GenerateTextRunner } from '../agent/runner.ts';
+import { createRunner } from '../agent/select-runner.ts';
 import { loadPlugins } from '../plugins/loader.ts';
 import { PluginReads } from '../plugins/reads.ts';
 import type { HostLogger } from '../plugins/plugins.ts';
@@ -60,8 +59,7 @@ export async function runEval(): Promise<void> {
   // RACE_DEADLINE_MS, which the live request path depends on.
   const latencyBudgetMs = Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS);
 
-  const runner = new GenerateTextRunner({
-    model: resolveModel(env.AGENT_MODEL),
+  const runner = createRunner(env.AGENT_RUNNER, {
     modelSpec: env.AGENT_MODEL,
     config: () => tenant,
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,

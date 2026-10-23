@@ -20,6 +20,7 @@ import type { ContactReads } from './contact.ts';
 import type { PluginReads } from '../plugins/reads.ts';
 import type { FlowSends } from './flows.ts';
 import { estimateCostUsd, supportsTemperature } from './registry.ts';
+import { aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
 import {
   ActionStage,
   buildTools,
@@ -226,9 +227,10 @@ function nudgeMessage(since: Date, contactNotices: string[]): ModelMessage {
 }
 
 /**
- * The port every caller depends on. Implemented with `generateText`: a single
- * step when the tenant configures no tools, and a loop of at most four when it
- * does (ADR-0010, ADR-0016).
+ * The port every caller depends on: a single step when the tenant configures
+ * no tools, and a loop of at most four when it does (ADR-0010, ADR-0016).
+ * `GenerateTextRunner` implements it with the AI SDK, and `LangGraphRunner`
+ * with LangChain.js and LangGraph.js (specs/050).
  */
 export interface AgentRunner {
   run(input: AgentTurnInput): Promise<AgentResult>;
@@ -265,8 +267,38 @@ export interface RunnerOptions {
   defaultChannel?: string | undefined;
 }
 
-export class GenerateTextRunner implements AgentRunner {
-  private readonly opts: RunnerOptions;
+/**
+ * A turn as both runners send it: the same system prompt, messages and tools,
+ * and the note the reply step sees. Built once per turn by `PromptedRunner`
+ * (specs/050 § The runner changes no behaviour a spec here fixes).
+ */
+export interface PreparedTurn {
+  config: TenantConfig;
+  /** `staticPrefix` and the catalog, as one system prompt. */
+  system: string;
+  messages: ModelMessage[];
+  /** Absent when the turn offers no tools: one model call. */
+  tools: ReturnType<typeof buildTools> | undefined;
+  /** The reply step's note of what was staged, read when that step starts. */
+  replyNotice(): ModelMessage;
+  signal: AbortSignal | undefined;
+}
+
+/** What a runner's model call produced: the reply before guardrails, and its tokens. */
+export interface Generated {
+  output: unknown;
+  usage: Omit<AgentUsage, 'costUsd'>;
+}
+
+/**
+ * Everything around the model call that both runners share: the prompt, the
+ * tools, the guardrails and the fail-closed handoff. A runner supplies only
+ * `generate` (specs/050).
+ */
+export abstract class PromptedRunner<
+  TOptions extends Omit<RunnerOptions, 'model'> = RunnerOptions,
+> implements AgentRunner {
+  protected readonly opts: TOptions;
   /** One per kind of turn: with `tools.json`'s tools, and without them (specs/038). */
   private readonly cached = new Map<
     boolean,
@@ -283,9 +315,12 @@ export class GenerateTextRunner implements AgentRunner {
     }
   >();
 
-  constructor(opts: RunnerOptions) {
+  constructor(opts: TOptions) {
     this.opts = opts;
   }
+
+  /** Calls the model, looping over tools when the turn offers them. Throws on any failure. */
+  protected abstract generate(turn: PreparedTurn): Promise<Generated>;
 
   /**
    * Rebuilds only when ConfigStore swaps in a new object, so the prefix stays
@@ -383,74 +418,31 @@ export class GenerateTextRunner implements AgentRunner {
         : currentMessage(text, media, contactNotices),
     ];
 
-    // The last step offers no tools, so it must produce the reply. It sees a
-    // note of what was staged, and of the last contact read, in place of its
-    // own tool calls: a provider that drops its tools when told to use none
-    // would otherwise receive tool calls with no tools to match them
-    // (specs/024 § The loop grows to four steps and eight actions).
-    const loop = tools
-      ? {
-          tools,
-          stopWhen: isStepCount(MAX_STEPS),
-          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-            stepNumber === MAX_STEPS - 1
-              ? {
-                  activeTools: [],
-                  messages: [
-                    ...messages,
-                    {
-                      role: 'user' as const,
-                      content: stagedNotice(
-                        stage,
-                        reads?.latest,
-                        opening && stagesProspect(stage, tenantTools) ? opening : undefined,
-                        pluginReads?.latest,
-                        tenantTools.flows,
-                      ),
-                    },
-                  ],
-                }
-              : undefined,
-        }
-      : {};
+    const turn: PreparedTurn = {
+      config,
+      system: `${staticPrefix}\n\n${catalogBlock}`,
+      messages,
+      tools,
+      replyNotice: () => ({
+        role: 'user',
+        content: stagedNotice(
+          stage,
+          reads?.latest,
+          opening && stagesProspect(stage, tenantTools) ? opening : undefined,
+          pluginReads?.latest,
+          tenantTools.flows,
+        ),
+      }),
+      signal,
+    };
 
-    const outputSpec = Output.object({ schema: AgentReplyForModel });
     let output: unknown;
     let usage: Omit<AgentUsage, 'costUsd'>;
     try {
-      const result = await generateText({
-        model: this.opts.model,
-        output: outputSpec,
-        system: `${staticPrefix}\n\n${catalogBlock}`,
-        messages,
-        maxOutputTokens: this.opts.maxOutputTokens,
-        ...(supportsTemperature(this.opts.modelSpec) ? { temperature: this.opts.temperature } : {}),
-        telemetry: {
-          functionId: 'agent-turn',
-          recordInputs: this.opts.recordPromptsInTraces ?? false,
-          recordOutputs: this.opts.recordPromptsInTraces ?? false,
-        },
-        ...(signal ? { abortSignal: signal } : {}),
-        providerOptions: {
-          anthropic: { cacheControl: { type: 'ephemeral' } },
-          ...(this.opts.reasoningEffort
-            ? { openai: { reasoningEffort: this.opts.reasoningEffort } }
-            : {}),
-        },
-        ...loop,
-      });
-      // Read inside the try: a loop whose last step produced no reply throws
-      // here, and fails closed exactly as a schema failure does.
-      output = result.output;
-      usage = {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
-      };
+      ({ output, usage } = await this.generate(turn));
     } catch (error) {
-      // generateText validates against the output schema and throws when the
-      // model does not comply, so this is the common failure, not an exotic one.
-      // An abort (race deadline) is rethrown so the caller can tell "too slow"
+      // A reply that does not match the output schema throws, so this is the
+      // common failure, not an exotic one. An abort (race deadline) is rethrown so the caller can tell "too slow"
       // apart from "model misbehaved"; everything else fails closed to a human
       // (Constitution C6).
       if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -501,6 +493,58 @@ export class GenerateTextRunner implements AgentRunner {
       model: this.opts.modelSpec,
       toolsOffered: tools !== undefined,
       usage: { ...usage, costUsd: estimateCostUsd(this.opts.modelSpec, usage) },
+    };
+  }
+}
+
+/**
+ * The AI SDK runner: `generateText` with a structured output, looping over
+ * tools for at most `MAX_STEPS` steps (ADR-0010, ADR-0016).
+ */
+export class GenerateTextRunner extends PromptedRunner<RunnerOptions> {
+  protected async generate(turn: PreparedTurn): Promise<Generated> {
+    const { messages, tools } = turn;
+    // The last step offers no tools, so it must produce the reply. It sees a
+    // note of what was staged, and of the last contact read, in place of its
+    // own tool calls: a provider that drops its tools when told to use none
+    // would otherwise receive tool calls with no tools to match them
+    // (specs/024 § The loop grows to four steps and eight actions).
+    const loop = tools
+      ? {
+          tools,
+          stopWhen: isStepCount(MAX_STEPS),
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber === MAX_STEPS - 1
+              ? { activeTools: [], messages: [...messages, turn.replyNotice()] }
+              : undefined,
+        }
+      : {};
+
+    const result = await generateText({
+      model: this.opts.model,
+      output: Output.object({ schema: AgentReplyForModel }),
+      system: turn.system,
+      messages,
+      maxOutputTokens: this.opts.maxOutputTokens,
+      ...(supportsTemperature(this.opts.modelSpec) ? { temperature: this.opts.temperature } : {}),
+      telemetry: {
+        functionId: 'agent-turn',
+        recordInputs: this.opts.recordPromptsInTraces ?? false,
+        recordOutputs: this.opts.recordPromptsInTraces ?? false,
+      },
+      ...(turn.signal ? { abortSignal: turn.signal } : {}),
+      providerOptions: aiSdkProviderOptions(this.opts.reasoningEffort),
+      ...loop,
+    });
+    // Read inside the caller's try: a loop whose last step produced no reply
+    // throws here, and fails closed exactly as a schema failure does.
+    return {
+      output: result.output,
+      usage: {
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
+      },
     };
   }
 }

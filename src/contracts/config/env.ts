@@ -37,6 +37,15 @@ function isProxyAddress(entry: string): boolean {
   return /^\d+$/.test(prefix) && bits <= (family === 4 ? 32 : 128);
 }
 
+/** LangChain's switches that send a run's inputs past the redacting logger. */
+export const LANGCHAIN_OUTPUTS = [
+  'LANGSMITH_TRACING_V2',
+  'LANGCHAIN_TRACING_V2',
+  'LANGSMITH_TRACING',
+  'LANGCHAIN_TRACING',
+  'LANGCHAIN_VERBOSE',
+] as const;
+
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -47,6 +56,12 @@ export const EnvSchema = z
     AGENT_MODEL: z.string().regex(MODEL_SPEC, 'Expected "provider:model"'),
     AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(400),
     AGENT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
+    /**
+     * Which runner answers: the AI SDK's, or LangChain.js and LangGraph.js
+     * (ADR-0026). The default moves only through the gate in
+     * specs/050 § Two runners ship side by side.
+     */
+    AGENT_RUNNER: z.enum(['ai-sdk', 'langchain']).default('ai-sdk'),
     /**
      * How hard a reasoning model deliberates before answering. Unset by default
      * so non-reasoning models are sent nothing at all.
@@ -151,6 +166,28 @@ export const EnvSchema = z
     ANTHROPIC_API_KEY: optionalString,
     OPENAI_API_KEY: optionalString,
     GOOGLE_GENERATIVE_AI_API_KEY: optionalString,
+
+    // Read only to be refused: see the refine below.
+    LANGSMITH_TRACING_V2: optionalString,
+    LANGCHAIN_TRACING_V2: optionalString,
+    LANGSMITH_TRACING: optionalString,
+    LANGCHAIN_TRACING: optionalString,
+    LANGCHAIN_VERBOSE: optionalString,
+  })
+  // LangChain sends every run's inputs and outputs to LangSmith when any of
+  // these is "true", and LANGCHAIN_VERBOSE prints each run to stdout past the
+  // logger: the tenant's prompt and the contact's messages would leave the
+  // process (C1, C5; specs/050 § Defaults that change behaviour).
+  .superRefine((env, context) => {
+    for (const name of LANGCHAIN_OUTPUTS) {
+      if (env[name] === 'true') {
+        context.addIssue({
+          code: 'custom',
+          message: `${name} sends prompts and messages out of the process (C5); unset it`,
+          path: [name],
+        });
+      }
+    }
   })
   // Losing the race must not cancel the model call - it continues and delivers
   // through the outbox (ADR-0001). If the abort fired first it would kill every
