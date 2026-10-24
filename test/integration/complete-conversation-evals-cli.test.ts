@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from '../../src/cli/run.ts';
@@ -45,8 +45,44 @@ function conversations(args: string[], extra: Record<string, string> = {}) {
 describe('the conversation command runs offline (specs/043 V11)', () => {
   it('validates the golden suite without running a turn', () => {
     const { status, output } = conversations(['--validate']);
-    expect(output).toContain('conversation suite evals/golden is valid: 3 scenarios, 6 steps');
+    expect(output).toContain(
+      'conversation suite evals/golden is valid: 4 scenarios, 9 steps, 7 branches',
+    );
     expect(status).toBe(0);
+  });
+
+  // specs/043 V7: a changed source leaves the inventory stale until it is
+  // reconciled, and the command says which and what it hashes to now.
+  it('exits nonzero on a stale inventory and names the changed source (specs/043 V7)', () => {
+    const config = mkdtempSync(join(tmpdir(), 'tenant-'));
+    cpSync('test/fixtures/config', config, { recursive: true });
+    writeFileSync(
+      join(config, 'prompt.md'),
+      `${readFileSync(join(config, 'prompt.md'), 'utf8')}\nOne new invented instruction.\n`,
+    );
+    const { status, output } = conversations(['--validate'], { CONFIG_DIR: config });
+    expect(output).toMatch(
+      /stale: prompt\.md was reconciled at [0-9a-f]{64}; it is now [0-9a-f]{64}/,
+    );
+    expect(status).toBe(1);
+  });
+
+  it('exits nonzero when the suite has no branch inventory (specs/043 V7)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'conversations-'));
+    cpSync('evals/golden/conversations.jsonl', join(dir, 'conversations.jsonl'));
+    // Witnesses need an inventory to point at; strip them.
+    const lines = readFileSync(join(dir, 'conversations.jsonl'), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map(line =>
+        JSON.stringify(JSON.parse(line), (key, value: unknown) =>
+          key === 'witnesses' ? undefined : value,
+        ),
+      );
+    writeFileSync(join(dir, 'conversations.jsonl'), `${lines.join('\n')}\n`);
+    const { status, output } = conversations(['--validate'], { EVAL_DIR: dir });
+    expect(output).toContain('no branches.json: branch coverage cannot be complete');
+    expect(status).toBe(1);
   });
 
   it('fails validation, and runs nothing, on a suite that does not hold', () => {
@@ -82,17 +118,19 @@ describe('the conversation command runs offline (specs/043 V11)', () => {
     });
     const status = await run(['node', 'agent', 'eval', 'conversations']);
     const output = lines.join('\n');
-    expect(output).toContain('agent turns: up to 12 (2 repetitions)');
+    expect(output).toContain('agent turns: up to 18 (2 repetitions)');
     expect(output).toMatch(
-      /3 passed {3}0 failed {3}0 pending review {3}0 unstable {3}0 execution errors/,
+      /4 passed {3}0 failed {3}0 pending review {3}0 unstable {3}0 execution errors/,
     );
+    expect(output).toContain('coverage: 7 of 7 branches verified, 0 stale sources, 0 conflicted');
     expect(status).toBe(0);
 
     const files = readdirSync(artifacts);
     const json = files.find(name => name.endsWith('.json'));
     expect(files.some(name => name.endsWith('.md'))).toBe(true);
     const report = JSON.parse(readFileSync(join(artifacts, json!), 'utf8')) as {
-      hashes: { config: string; scenarios: string };
+      hashes: { config: string; scenarios: string; branches: string };
+      coverage: { complete: boolean };
       agent: { model: string };
       judge: null;
       scenarios: { repetitions: unknown[] }[];
@@ -101,6 +139,8 @@ describe('the conversation command runs offline (specs/043 V11)', () => {
     expect(report.hashes.scenarios).toMatch(/^[0-9a-f]{64}$/);
     expect(report.agent.model).toBe('mock:demo');
     expect(report.judge).toBeNull();
-    expect(report.scenarios.map(scenario => scenario.repetitions.length)).toEqual([2, 2, 2]);
+    expect(report.hashes.branches).toMatch(/^[0-9a-f]{64}$/);
+    expect(report.coverage.complete).toBe(true);
+    expect(report.scenarios.map(scenario => scenario.repetitions.length)).toEqual([2, 2, 2, 2]);
   }, 240_000);
 });

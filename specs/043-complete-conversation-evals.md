@@ -75,10 +75,25 @@ Every step has a unique `id`, an `input`, `expect`, and optional `review`:
   kind. Text or a deterministic transcription fixture can accompany it.
   Media fixtures travel through the production media boundary; a receipt
   scenario is identified separately from a text-only payment report.
-- `input.kind: silence` supplies `advance_minutes`. It advances an isolated
-  clock and drains any due scheduled nudges. It does not manufacture a nudge
-  when no eligible job exists. `expect` includes the number of delivered
-  replies or suppression, and may cover a named pending nudge.
+  ManyChat delivers a file as its URL alone, with no caption, so the step
+  names `media` (`audio`, `image` or `video`), `file` (relative to the
+  suite, never outside it), `content_type`, and an optional `transcript`;
+  text the contact types with it is its own `message` step. The simulated
+  media host serves the file, and transcription answers with the step's
+  `transcript`, at no cost. What the deployment can read follows its
+  settings as production's does: images only when the agent model accepts
+  them, speech only when `TRANSCRIPTION_MODEL` is set, video only when
+  ffmpeg is installed; otherwise the turn takes the production fallback.
+- `input.kind: silence` supplies `advance_minutes`, a week at most. It
+  advances an isolated clock and drains any due scheduled nudges. It does
+  not manufacture a nudge when no eligible job exists. `expect` includes the
+  number of delivered replies or suppression, and may cover a named pending
+  nudge: `replies` counts the replies the contact received in the step;
+  `nudge` is `sent`, `suppressed` (the nudge ran and the model declined),
+  `cancelled` (a check cancelled it at due time) or `none`; and
+  `state.pending_nudge` names the pending nudge by its `tools.json` delay
+  id, or `null`. The clock moves to each nudge as it comes due, so a nudge
+  inside a long silence runs at its own time and not at the silence's end.
 
 Contact messages are fixed. Their text never depends on a judge or a second
 model. The agent's own answer is always generated. Within a scenario steps
@@ -120,6 +135,15 @@ reply, and eligible staged actions have settled. Virtual flow durations and
 nudge delays advance the test clock rather than requiring wall-clock sleeps.
 Model deadlines use actual elapsed time; virtual time never makes an
 unfinished model call appear to finish within its budget.
+
+The repetition's clock moves by moving its own database's stored times back:
+production compares the current time with times it stored, in code and in
+SQL, so every stored time moving back by a minute is, to all of it, a minute
+passing. Production takes no clock it could be handed, and needs none. A
+`date` column moves only when the total advance crosses a day. A reply held
+inline for a flow that ends before the race deadline waits in real time,
+because that wait is inside the turn's own response and bounded by the
+deadline; a reply held past it is queued, and the clock moves to it.
 
 The channel fake implements the production action and contact-read contracts.
 It updates fields, tags, and notes only after successful execution. It
@@ -211,6 +235,25 @@ referenced deterministic assertions and semantic criteria pass in both
 repetitions. Listing a branch on a scenario, seeding it in `initial`, or
 skipping the relevant step earns no coverage. A criterion left ungraded also
 leaves its dependent witness unverified.
+
+`branches.json` holds `sources` and `branches`. A tenant source is
+`{ "path", "sha256" }`, its path relative to `CONFIG_DIR`, the tenant's own
+config directory, and never outside it. A framework source is
+`{ "framework", "sha256" }`: `operating-rules` hashes the prompt's framework
+text as this tenant's configuration renders it, without the persona and
+without section overrides, and `tool-descriptions` hashes the tool
+descriptions the model is offered. A persona edit leaves the framework
+current; a framework upgrade that rewords either makes the inventory stale.
+A branch has `id`, `source` (`file`, a manifest source such as `prompt.md`
+or `framework:operating-rules`, and `clause`), `description`,
+`prerequisite`, `condition`, `outcome`, `scenarios`, and an optional
+`conflict` naming the competing sources. A step's `expect.witnesses` names
+a branch, the step's assertions that prove it by their keys, and its
+`review` criteria by position; a witness names at least one. A criterion is
+ungraded until the judge of part 3 exists, so a branch proved only by one
+stays unreviewed. A source's hash is its file's SHA-256; a stale report
+prints both hashes, so a person reconciling the inventory copies the new
+one.
 
 Coverage reports separately show declared, attempted, verified, failed,
 unreviewed, not reached, and stale branches. Percentages name their
@@ -314,6 +357,10 @@ The package exposes `agent eval conversations --validate` for schema,
 reference, source-inventory, and fixture validation without provider calls,
 and `agent eval conversations` for the two-repetition execution. Both use
 the existing `CONFIG_DIR` and `EVAL_DIR` selection rules.
+Validation exits nonzero on a suite with no `branches.json`, a stale source
+or a conflicted branch, as a run does: none of them can become gate
+evidence. The framework's golden suite pins its manifest to CI's fixture
+tenant, `test/fixtures/config`.
 
 Real runs explicitly select the agent and judge models. CI runs validation
 and meaningful harness tests with mock providers. A mock result proves the

@@ -60,6 +60,8 @@ export const StateAssertion = z
       .strict()
       .optional(),
     offering: z.string().nullable().optional(),
+    /** The contact's pending nudge after the step, by its `tools.json` delay id, or none. */
+    pending_nudge: Id.nullable().optional(),
   })
   .strict();
 export type StateAssertion = z.infer<typeof StateAssertion>;
@@ -70,6 +72,52 @@ export const DeliveryMatcher = z.union([
   z.object({ reply: z.string() }).strict(),
 ]);
 export type DeliveryMatcher = z.infer<typeof DeliveryMatcher>;
+
+/**
+ * The step's own assertions, by the key it declares them under. A witness
+ * names which of them prove the step reached its branch.
+ */
+export const ASSERTION_KEYS = [
+  'escalate',
+  'reason',
+  'must_contain',
+  'must_not_contain',
+  'must_not_invent_prices',
+  'must_end_with_question',
+  'max_lines',
+  'state',
+  'actions',
+  'delivery',
+  'closing_question',
+  'replies',
+  'nudge',
+] as const;
+export type AssertionKey = (typeof ASSERTION_KEYS)[number];
+
+/**
+ * A branch of the inventory this step reaches, and what proves it: assertions
+ * of the step by key, and its review criteria by position (specs/043 § Branch
+ * coverage requires an executed witness).
+ */
+export const Witness = z
+  .object({
+    branch: Id,
+    assertions: z.array(z.enum(ASSERTION_KEYS)).default([]),
+    criteria: z.array(z.number().int().nonnegative()).default([]),
+  })
+  .strict()
+  .refine(witness => witness.assertions.length + witness.criteria.length > 0, {
+    message: 'a witness names at least one assertion or criterion',
+  });
+export type Witness = z.infer<typeof Witness>;
+
+/**
+ * What became of the contact's nudge over a silence step: it ran and sent a
+ * message, it ran and the model declined (suppressed), a check cancelled it
+ * at due time, or none came due.
+ */
+export const NUDGE_OUTCOMES = ['sent', 'suppressed', 'cancelled', 'none'] as const;
+export type NudgeOutcome = (typeof NUDGE_OUTCOMES)[number];
 
 export const StepExpect = z
   .object({
@@ -89,14 +137,20 @@ export const StepExpect = z
     closing_question: z
       .union([z.enum(['required', 'absent']), z.object({ exact: z.string() }).strict()])
       .optional(),
+    /** How many replies reached the contact during the step, inline or queued. */
+    replies: z.number().int().nonnegative().optional(),
+    /** Silence steps only: what became of the nudge. */
+    nudge: z.enum(NUDGE_OUTCOMES).optional(),
+    witnesses: z.array(Witness).optional(),
   })
   .strict();
 export type StepExpect = z.infer<typeof StepExpect>;
 
 /**
  * What the contact does at a step. `message` is ordinary contact input;
- * `opening` is the channel flow's opening-trigger keyword, a trusted event.
- * Media and silence steps are specified and not run yet.
+ * `opening` is the channel flow's opening-trigger keyword, a trusted event;
+ * `media` is a file the contact sends; `silence` is the contact saying nothing
+ * while the repetition's clock moves on.
  */
 export const StepInput = z.discriminatedUnion('kind', [
   z
@@ -108,6 +162,25 @@ export const StepInput = z.discriminatedUnion('kind', [
     })
     .strict(),
   z.object({ kind: z.literal('opening'), text: z.string().min(1) }).strict(),
+  z
+    .object({
+      kind: z.literal('media'),
+      media: z.enum(['audio', 'image', 'video']),
+      /** An invented local file, relative to the suite's directory. */
+      file: z.string().min(1),
+      /** What the channel serves the file as, such as `audio/ogg`. */
+      content_type: z.string().regex(/^[a-z]+\/[a-z0-9.+-]+$/i),
+      /** What the transcription returns for the file's speech; absent means none. */
+      transcript: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('silence'),
+      /** How far the clock moves, in minutes. A week at most. */
+      advance_minutes: z.number().int().positive().max(10_080),
+    })
+    .strict(),
 ]);
 export type StepInput = z.infer<typeof StepInput>;
 
@@ -202,3 +275,55 @@ export const ChannelFixtures = z
   .object({ flows: z.record(z.string(), FlowFixture).default({}) })
   .strict();
 export type ChannelFixtures = z.infer<typeof ChannelFixtures>;
+
+const Sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 hex digest');
+
+/** What the framework itself contributes to the agent's behaviour, hashed as this tenant renders it. */
+export const FRAMEWORK_SOURCES = ['operating-rules', 'tool-descriptions'] as const;
+export type FrameworkSource = (typeof FRAMEWORK_SOURCES)[number];
+
+/**
+ * One behaviour-defining source and the hash the inventory was reconciled
+ * against: a tenant file, by its path relative to `CONFIG_DIR`, or a part of
+ * the framework, kept apart from the tenant's own rules.
+ */
+export const ManifestSource = z.union([
+  z.object({ path: Id, sha256: Sha256 }).strict(),
+  z.object({ framework: z.enum(FRAMEWORK_SOURCES), sha256: Sha256 }).strict(),
+]);
+export type ManifestSource = z.infer<typeof ManifestSource>;
+
+/** Where a branch is written: a manifest source (`prompt.md`, `framework:operating-rules`) and its clause. */
+export const SourceRef = z.object({ file: Id, clause: z.string().min(1) }).strict();
+export type SourceRef = z.infer<typeof SourceRef>;
+
+/** One branch of the authored inventory (specs/043 § Branch coverage requires an executed witness). */
+export const Branch = z
+  .object({
+    id: Id,
+    source: SourceRef,
+    description: z.string().min(1),
+    prerequisite: z.string().min(1),
+    condition: z.string().min(1),
+    outcome: z.string().min(1),
+    /** The scenarios that may witness it. Listing one earns nothing by itself. */
+    scenarios: z.array(Id).min(1),
+    /**
+     * Instructions that contradict this branch. A conflicted branch is a
+     * blocker: it is never verified, whatever its witnesses do.
+     */
+    conflict: z
+      .object({ sources: z.array(SourceRef).min(1), note: z.string().min(1) })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type Branch = z.infer<typeof Branch>;
+
+export const BranchInventory = z
+  .object({
+    sources: z.array(ManifestSource).min(1),
+    branches: z.array(Branch).min(1),
+  })
+  .strict();
+export type BranchInventory = z.infer<typeof BranchInventory>;

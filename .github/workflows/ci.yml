@@ -64,8 +64,9 @@ jobs:
           DATABASE_URL: pglite
           CONFIG_DIR: test/fixtures/config
 
-      # The conversation suite, checked against the tenant without running a
-      # turn (specs/043). Its runs are asserted by
+      # The conversation suite and its branch inventory, checked against the
+      # tenant without running a turn; a changed prompt or tool description
+      # leaves the inventory stale and fails here (specs/043). Its runs are asserted by
       # test/integration/complete-conversation-evals-cli.test.ts.
       - name: Validate conversation suite
         run: pnpm eval:conversations:validate

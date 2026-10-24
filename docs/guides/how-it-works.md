@@ -48,7 +48,9 @@ latency — then prints every reply, because a green suite whose tone has drifte
 is still a failure and only a person can see that. `agent eval conversations`
 scripts the contact's side of whole conversations and runs them twice through
 the production turn path, so a stage the agent cannot reach in a real
-conversation fails there.
+conversation fails there. Silence moves a test clock, so follow-ups and
+playing flows take moments, and a branch inventory counts only the branches a
+passing step reached, against the prompt as it is now.
 
 ## Model agnosticism
 

@@ -1,0 +1,93 @@
+{
+  "sources": [
+    {
+      "path": "prompt.md",
+      "sha256": "fbffa2f26c5763887786ccacb1a1cb8958833361b4d63449817d9fb6debbf926"
+    },
+    {
+      "path": "catalog.json",
+      "sha256": "3c9b204ad3d288e67248c867742c2077e7e8a610fd565c0811f7993a8f891c96"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "2f0732d12bde8c264a049da3492e069c990185dc340f394f46269844fc9efb8e"
+    },
+    {
+      "path": "tools.json",
+      "sha256": "a8145872c51c757e94bc4d31799535a712e1ca8b402b05c3121c3656101a9536"
+    },
+    {
+      "framework": "operating-rules",
+      "sha256": "fc9e8d37f5ee9de4c296bdfa667d6617c7dbb23e873e600ef61c277d7d284815"
+    },
+    {
+      "framework": "tool-descriptions",
+      "sha256": "923100b53eb6f72dd4c2a0c30a44aed6ada745c45b892d4b121699c0052fa3fb"
+    }
+  ],
+  "branches": [
+    {
+      "id": "closing-question",
+      "source": { "file": "framework:operating-rules", "clause": "CLOSING QUESTION" },
+      "description": "An answer that leaves the next step open ends with one closing question.",
+      "prerequisite": "A new contact greets the agent.",
+      "condition": "The reply does not escalate.",
+      "outcome": "The structured reply carries a closing question.",
+      "scenarios": ["price-then-link"]
+    },
+    {
+      "id": "price-from-catalog",
+      "source": { "file": "prompt.md", "clause": "WHAT YOU DO" },
+      "description": "Prices come from the catalog and nowhere else.",
+      "prerequisite": "The contact asks what a course costs.",
+      "condition": "The course is in the catalog.",
+      "outcome": "Every price in the reply is a catalog price.",
+      "scenarios": ["price-then-link", "quiet-after-price"]
+    },
+    {
+      "id": "prospect-on-price",
+      "source": { "file": "tools.json", "clause": "fields.intent" },
+      "description": "Asking a price makes the contact a prospect.",
+      "prerequisite": "The contact's intent is not recorded yet.",
+      "condition": "The contact asks about price, schedule or enrolment.",
+      "outcome": "intent is written as prospect, and performed.",
+      "scenarios": ["price-then-link"]
+    },
+    {
+      "id": "link-before-reply",
+      "source": { "file": "tools.json", "clause": "flows.enrolment_link" },
+      "description": "Asked for the link, the agent sends the enrolment flow, and its reply follows the flow.",
+      "prerequisite": "The contact is a prospect with a chosen offering.",
+      "condition": "The contact asks to enrol.",
+      "outcome": "The enrolment flow plays before the reply, and the stage is link_sent.",
+      "scenarios": ["price-then-link"]
+    },
+    {
+      "id": "handoff-on-request",
+      "source": { "file": "framework:operating-rules", "clause": "OPERATING RULES" },
+      "description": "A contact who asks for a person is handed to one.",
+      "prerequisite": "Any point in the conversation.",
+      "condition": "The contact explicitly asks for a human.",
+      "outcome": "The reply escalates with reason explicit_request.",
+      "scenarios": ["asks-for-a-person"]
+    },
+    {
+      "id": "returning-prospect-link",
+      "source": { "file": "tools.json", "clause": "flows.enrolment_link" },
+      "description": "A returning prospect who asks for the link gets it without being asked about intent again.",
+      "prerequisite": "The contact was recorded as a prospect on an earlier turn.",
+      "condition": "The contact asks to enrol.",
+      "outcome": "The enrolment flow is performed and intent is not written again.",
+      "scenarios": ["returning-prospect-asks-link"]
+    },
+    {
+      "id": "no-made-up-follow-up",
+      "source": { "file": "framework:operating-rules", "clause": "FOLLOW-UPS" },
+      "description": "Silence alone sends nothing: only a nudge the agent scheduled runs.",
+      "prerequisite": "No nudge is pending.",
+      "condition": "The contact stays quiet for hours.",
+      "outcome": "No message reaches the contact.",
+      "scenarios": ["quiet-after-price"]
+    }
+  ]
+}

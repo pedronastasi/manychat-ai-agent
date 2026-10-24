@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { ChannelFixtures, Scenario } from '../../contracts/conversations.ts';
+import { isAbsolute, join, normalize } from 'node:path';
+import { BranchInventory, ChannelFixtures, Scenario } from '../../contracts/conversations.ts';
 import type {
   ActionMatcher,
   ArtifactSelector,
@@ -12,10 +12,12 @@ import type { Catalog, Rules, Tools } from '../../contracts/config.ts';
 import { NO_TOOLS } from '../../contracts/config.ts';
 import { formatMoney } from '../../agent/prompt.ts';
 import { offeringField } from '../../agent/tools/lookups.ts';
+import { BRANCHES_FILE, validateInventory } from './coverage.ts';
 
 /**
- * Loading and validating a conversation suite: `conversations.jsonl` and an
- * optional `fixtures.json` beside a suite's `cases.jsonl` (specs/043 §
+ * Loading and validating a conversation suite: `conversations.jsonl`, its
+ * branch inventory `branches.json` and an optional `fixtures.json` beside a
+ * suite's `cases.jsonl` (specs/043 §
  * Scripts supply contact messages and never supply the agent's answers).
  * Everything here runs before any provider call.
  */
@@ -27,8 +29,10 @@ export interface Suite {
   dir: string;
   scenarios: Scenario[];
   fixtures: ChannelFixtures;
-  /** Identifies the scripts and fixtures, so a report says what it ran (specs/043). */
-  hashes: { scenarios: string; fixtures: string | null };
+  /** Absent when the suite has no `branches.json`: then coverage cannot be complete. */
+  inventory?: BranchInventory | undefined;
+  /** Identifies the scripts, fixtures and inventory, so a report says what it ran (specs/043). */
+  hashes: { scenarios: string; fixtures: string | null; branches: string | null };
 }
 
 const sha256 = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -82,9 +86,34 @@ export function loadSuite(dir: string): { suite?: Suite; errors: string[] } {
     }
   }
 
+  const branchesFile = join(dir, BRANCHES_FILE);
+  let inventory: BranchInventory | undefined;
+  let branchesHash: string | null = null;
+  if (existsSync(branchesFile)) {
+    const rawBranches = readFileSync(branchesFile, 'utf8');
+    branchesHash = sha256(rawBranches);
+    try {
+      const parsed = BranchInventory.safeParse(JSON.parse(rawBranches));
+      if (parsed.success) inventory = parsed.data;
+      else {
+        for (const issue of parsed.error.issues) {
+          errors.push(`${BRANCHES_FILE}: ${issue.path.join('.') || '(file)'}: ${issue.message}`);
+        }
+      }
+    } catch {
+      errors.push(`${BRANCHES_FILE}: not valid JSON`);
+    }
+  }
+
   if (errors.length > 0) return { errors };
   return {
-    suite: { dir, scenarios, fixtures, hashes: { scenarios: sha256(raw), fixtures: fixturesHash } },
+    suite: {
+      dir,
+      scenarios,
+      fixtures,
+      inventory,
+      hashes: { scenarios: sha256(raw), fixtures: fixturesHash, branches: branchesHash },
+    },
     errors,
   };
 }
@@ -140,7 +169,7 @@ function configuredIds(tools: Tools, tool: ActionMatcher['tool']): string[] | un
 export function validateSuite(
   suite: Suite,
   tenant: SuiteTenant,
-  opts: { plugins: string[] },
+  opts: { plugins: string[]; configDir?: string | undefined },
 ): string[] {
   const tools = tenant.tools ?? NO_TOOLS;
   const { catalog, rules } = tenant;
@@ -201,6 +230,10 @@ export function validateSuite(
     if (typeof state.offering === 'string' && !offeringIds.has(state.offering)) {
       errors.push(`${where}: offering ${state.offering} is not in the catalog`);
     }
+    const delay = state.pending_nudge;
+    if (typeof delay === 'string' && !tools.nudge?.delays.some(entry => entry.id === delay)) {
+      errors.push(`${where}: nudge delay ${delay} is not configured in tools.json`);
+    }
   };
 
   const seen = new Set<string>();
@@ -222,6 +255,18 @@ export function validateSuite(
       // script says which it means (specs/043 § Scripts supply contact messages).
       if (input.kind === 'message' && isKeyword(input.text)) {
         errors.push(`${where}: a message that is an opening trigger must use input.kind "opening"`);
+      }
+      if (input.kind === 'media') {
+        // An invented file inside the suite, never the tenant's live media.
+        const relative = normalize(input.file);
+        if (isAbsolute(relative) || relative.startsWith('..')) {
+          errors.push(`${where}: media file ${input.file} is outside the suite`);
+        } else if (!existsSync(join(suite.dir, relative))) {
+          errors.push(`${where}: media file ${input.file} does not exist`);
+        }
+      }
+      if (expect.nudge !== undefined && input.kind !== 'silence') {
+        errors.push(`${where}: a nudge expectation needs a silence step`);
       }
       if (input.kind === 'message' && input.advert_offering !== undefined) {
         if (!offeringIds.has(input.advert_offering)) {
@@ -308,6 +353,17 @@ export function validateSuite(
         errors.push(`${seed}: a seeded set_field needs a value`);
       }
     }
+  }
+
+  if (suite.inventory) {
+    errors.push(
+      ...validateInventory(suite.inventory, suite.scenarios, {
+        ...tenant,
+        configDir: opts.configDir ?? 'config',
+      }),
+    );
+  } else if (suite.scenarios.some(scenario => scenario.steps.some(step => step.expect.witnesses))) {
+    errors.push(`a step names a witness, but the suite has no ${BRANCHES_FILE}`);
   }
 
   // A criterion about what the contact saw needs to know what each flow
