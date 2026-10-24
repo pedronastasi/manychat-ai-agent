@@ -345,6 +345,7 @@ type Rules = {
   rateLimit: {
     turnsPerSubscriberPerHour: number
   }
+  workingNoteMarkers: string[]
 }
 
 RulesSchema: zod schema of Rules

@@ -2,7 +2,7 @@
 status: implemented
 implemented: 2026-09-14
 pr: 1
-constitution: [C4, C6]
+constitution: [C4, C5, C6, C7]
 adr: [0010, 0015]
 ---
 
@@ -107,6 +107,7 @@ the system escalates without consulting the model (Constitution C6).
   escalation_reason: EscalationReason | null   // non-null iff escalate
   confidence: number        // 0..1
   closing_question: string | null
+  notes: string | null      // ≤ 500 chars asked; read by nobody, discarded
 }
 ```
 
@@ -138,6 +139,49 @@ followed most of the time rather than every time. So the guardrails remove it:
 A line of ordinary prose that starts with a field name and a colon would be
 removed too. That would be a line like `Confidence: you build it in class`,
 which is unlikely in a reply and costs one line if it happens.
+
+## Working notes never reach the contact
+
+A reasoning model weighs the rules privately before it answers, and once in a
+while it goes on weighing them inside the answer. A reply on the devtest
+deployment on 2026-10-24 carried, mid-message, a bracketed `[Correction?`
+aside in which the model argued with itself about whether to give a start date,
+ending in the word `JSON.`. It was valid JSON, so the schema passed it, and
+the draft around it had dropped one of the offerings it was listing.
+
+Two reflexive fixes fail. A prompt line ("never think aloud") is followed most
+of the time, not every time, which is what `§ Reply fields never reach the
+contact` already found. Cutting the aside out, as a field echo is cut, sends
+the rest of a draft written while the model was still deciding, and that
+draft was wrong. So:
+
+- **Notes have a field.** `notes` is required and nullable in the schema the
+  model is given, and the prompt and the field description say the same
+  thing: it is private, discarded, a line or two, or null. It is never sent,
+  stored or logged, since it can quote the contact (C5). A reply read back
+  without it parses, and its length is asked for but not enforced: a long note
+  must not turn a good answer into a handoff.
+- **Working notes in a message are recognised by markers**, never by
+  language: the demo tenant answers in English, so English in a reply proves
+  nothing. The built-in markers are the format named in capitals (`JSON`) and
+  a bracketed aside (`[Correction`, `[Note`, `[Draft`, `[Thinking`,
+  `[Reasoning`, `[TODO`). A tenant adds phrases its own replies never contain
+  in `rules.json` `workingNoteMarkers`, matched as `escalationKeywords` are:
+  case-insensitive substrings. `messages` and `closing_question` are read;
+  `notes` never is.
+- **A draft carrying them is written again, once.** The rewrite is one model
+  call with no tools, shown the staged note the reply step sees, so what the
+  turn already did stands and nothing is staged or sent twice. It is told why,
+  and is shown nothing from the draft to copy. A clean rewrite goes through
+  the guardrails as any reply does, recorded as `working_notes_detected` and
+  `working_notes_rewritten`, its tokens added to the turn's.
+- **A rewrite that carries them too, or fails, hands off** (C6), recorded as
+  `working_notes_handed_off` with `escalatedBy: 'leak'`. An abort is rethrown,
+  as it is from the draft (C7).
+
+A built-in marker could match a real reply: one naming JSON to a technical
+contact, or opening a bracketed note. That costs one rewrite, which is the
+point of rewriting first rather than handing off.
 
 ## Register
 
@@ -175,4 +219,6 @@ complaints, and questions the catalog cannot answer.
 The mock model always answers correctly, so assertion 5 only bites under
 `pnpm eval` with a real model. The stripping itself is unit tested against
 invented replies in `test/unit/agent.test.ts`, which cites § Reply fields never
-reach the contact.
+reach the contact. § Working notes never reach the contact is unit tested in
+`test/unit/working-notes.test.ts`: the markers, the rewrite with no tools after
+a turn that staged an action, and the handoff when the rewrite fails or leaks.

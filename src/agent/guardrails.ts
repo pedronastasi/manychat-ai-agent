@@ -87,6 +87,33 @@ function stripFieldEchoes(text: string): string {
 }
 
 /**
+ * Text no reply to a contact contains in any language, and the model's working
+ * notes do: the output format named, or a bracketed aside to itself
+ * (specs/001 § Working notes never reach the contact).
+ */
+const WORKING_NOTE_PATTERNS = [
+  /\bJSON\b/,
+  /\[\s*(?:correction|note|draft|thinking|reasoning|todo)\b/i,
+];
+
+/**
+ * Whether a model reply carries its working notes in what the contact reads.
+ * `notes` is never read: that field is where they belong. An output that is
+ * not a reply is left to the schema check.
+ */
+export function carriesWorkingNotes(raw: unknown, markers: readonly string[] = []): boolean {
+  const parsed = AgentReply.safeParse(raw);
+  if (!parsed.success) return false;
+  const { messages, closing_question } = parsed.data;
+  const lowered = markers.map(marker => marker.toLowerCase());
+  return [...messages, ...(closing_question === null ? [] : [closing_question])].some(
+    text =>
+      WORKING_NOTE_PATTERNS.some(pattern => pattern.test(text)) ||
+      lowered.some(marker => text.toLowerCase().includes(marker)),
+  );
+}
+
+/**
  * Emoji anywhere in a message, with the joiners and modifiers that compose them.
  * Digits stay for the reason given on TRAILING_DECORATION.
  */

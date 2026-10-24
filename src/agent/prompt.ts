@@ -1,7 +1,7 @@
 import { NO_TOOLS, offersTools } from '../contracts/config.ts';
 import { FENCE, FENCE_END, fenceUserText } from './fence.ts';
 import type { Catalog, PromptOverrides, PromptSection, Rules, Tools } from '../contracts/config.ts';
-import { MAX_MESSAGES_PER_REPLY } from '../contracts/agent.ts';
+import { MAX_MESSAGES_PER_REPLY, NOTES_DESCRIPTION } from '../contracts/agent.ts';
 import type { ActionRecord, StagedAction } from '../contracts/agent.ts';
 import {
   MAX_ACTIONS_PER_TURN,
@@ -275,6 +275,9 @@ function output(rules: Rules): string[] {
     'closing_question carries the question that ends the turn. Put it there and',
     'nowhere else: it is appended as the final message, so do not repeat it at the',
     'end of `messages`. Null is a decision, not a way to skip the field.',
+    '',
+    `notes: ${NOTES_DESCRIPTION}`,
+    'Never deliberate inside `messages`: a message is sent exactly as you write it.',
   ];
 }
 
