@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.33.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.32.0...v0.33.0) (2026-10-24)
+
+
+### Features
+
+* judge conversations, bind reviews to runs, and gate on them (spec 043, part 3) ([26eff66](https://github.com/pedronastasi/manychat-ai-agent/commit/26eff668a2baa74b8bda3dc62aa0c0cb0f8efe1c))
+* judge conversations, bind reviews to runs, and gate on them (spec 043, part 3) ([de902bc](https://github.com/pedronastasi/manychat-ai-agent/commit/de902bcba82531ff4174c3e8f5030f219096947a))
+
+
+### Specs and Docs
+
+* record PR 273 in spec 043 ([ab66092](https://github.com/pedronastasi/manychat-ai-agent/commit/ab660922537488cc0ce9baa61227053b685d902a))
+
 ## [0.32.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.31.0...v0.32.0) (2026-10-24)
 
 
