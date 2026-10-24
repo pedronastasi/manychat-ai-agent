@@ -278,11 +278,21 @@ describe('the report names the evaluated version and the first deviation (specs/
   const report: RunReport = {
     suite: 'evals/test',
     startedAt: '2026-01-15T10:00:00.000Z',
+    runId: 'r'.repeat(12),
+    evaluated: 'e'.repeat(64),
     frameworkVersion: '0.0.0-test',
-    hashes: { config: 'c'.repeat(64), scenarios: 's'.repeat(64), fixtures: null, branches: null },
+    hashes: {
+      config: 'c'.repeat(64),
+      framework: 'f'.repeat(64),
+      scenarios: 's'.repeat(64),
+      fixtures: null,
+      branches: null,
+      calibration: null,
+    },
     agent: { model: 'mock:demo', runner: 'langchain', temperature: 0.3 },
     judge: null,
     playbook: null,
+    calibration: null,
     coverage: {
       inventory: false,
       stale: [],
@@ -304,9 +314,20 @@ describe('the report names the evaluated version and the first deviation (specs/
         id: 'flaky',
         start: 'fresh',
         status: 'failed',
+        judgedFail: false,
         unstable: true,
         executionError: false,
-        pendingCriteria: 1,
+        failures: 2,
+        criteria: [
+          {
+            key: 'review[0]',
+            text: 'Answers what was asked.',
+            repetition: 1,
+            outcome: 'ungraded',
+            by: 'none',
+          },
+        ],
+        transcripts: [],
         repetitions: [
           { run: run(), failures: [] },
           {
@@ -322,11 +343,15 @@ describe('the report names the evaluated version and the first deviation (specs/
     totals: {
       passed: 0,
       failed: 1,
+      judgedFail: 0,
       pendingReview: 0,
       unstable: 1,
       executionErrors: 0,
+      criteria: { judgedPass: 0, judgedFail: 0, ungraded: 1 },
       agentCostUsd: 0.002,
       judgeCostUsd: null,
+      totalCostUsd: 0.002,
+      judgeLatencyMs: null,
     },
   };
 
@@ -335,11 +360,11 @@ describe('the report names the evaluated version and the first deviation (specs/
     expect(markdown).toContain('- Framework: 0.0.0-test');
     expect(markdown).toContain(`- Config: ${'c'.repeat(64)}`);
     expect(markdown).toContain('## flaky: failed (unstable)');
-    expect(markdown).toContain('1 criteria pending review.');
+    expect(markdown).toContain('- review[0] (Answers what was asked.): ungraded by none');
     expect(markdown).toContain('- FIRST: one: missing required text: link');
     expect(markdown).toContain('- (downstream) terminal expected completed, got handoff');
     expect(markdown).toContain('Not reached: three');
-    expect(markdown).toContain('judge cost not applicable');
+    expect(markdown).toContain('Cost: agent $0.0020, judge not applicable, total $0.0020.');
   });
 
   it('keeps an unknown judge cost unknown, never zero', () => {

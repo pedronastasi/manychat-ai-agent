@@ -20,6 +20,7 @@ import { FlowSends } from '../../agent/flows.ts';
 import type { RepetitionRun } from './harness.ts';
 import type { AssertContext } from './assert.ts';
 import { checkStepKeys } from './assert.ts';
+import { stepCriterionKey } from './judge.ts';
 
 /**
  * Branch coverage of an authored inventory (specs/043 § Branch coverage
@@ -205,14 +206,35 @@ export function validateInventory(
 export type BranchStatus =
   'verified' | 'failed' | 'unreviewed' | 'not_reached' | 'stale' | 'conflicted';
 
-type WitnessVerdict = 'passed' | 'failed' | 'unreviewed' | 'not_reached';
+export type WitnessVerdict = 'passed' | 'failed' | 'unreviewed' | 'not_reached';
+
+/** A criterion's outcome in one repetition: graded by the judge or a person, or not. */
+export type CriterionOutcome = 'pass' | 'fail' | 'ungraded' | 'not_reached';
+
+/** Looks up a criterion's outcome by scenario, repetition and key. */
+export type OutcomeOf = (scenario: string, repetition: number, key: string) => CriterionOutcome;
+
+const UNGRADED: OutcomeOf = () => 'ungraded';
+
+export interface WitnessCoverage {
+  scenario: string;
+  step: string;
+  /** The criteria it cites, by key. */
+  criteria: string[];
+  /** Per repetition, its cited assertions alone: what a later review cannot change. */
+  assertions: WitnessVerdict[];
+  /** Per repetition, assertions and criteria together. */
+  repetitions: WitnessVerdict[];
+}
 
 export interface BranchCoverage {
   id: string;
+  /** The manifest source the branch is written in. */
+  source: string;
   status: BranchStatus;
   /** A witness step ran in at least one repetition. */
   attempted: boolean;
-  witnesses: { scenario: string; step: string; repetitions: WitnessVerdict[] }[];
+  witnesses: WitnessCoverage[];
   /** A conflicted branch's competing sources, and the scenarios it affects. */
   conflict?: { sources: SourceRef[]; note: string; scenarios: string[] } | undefined;
 }
@@ -228,8 +250,8 @@ export interface Coverage {
   complete: boolean;
 }
 
-/** One repetition's verdict on one witness. */
-function witnessVerdict(
+/** One repetition's verdict on a witness's cited assertions. */
+function assertionVerdict(
   scenario: Scenario,
   stepId: string,
   witness: Witness,
@@ -241,9 +263,7 @@ function witnessVerdict(
   if (!record || !step) return 'not_reached';
   if (record.executionError !== undefined) return 'failed';
   const keys = checkStepKeys(step, record, run.deliveries, ctx);
-  if (witness.assertions.some(key => (keys.get(key) ?? []).length > 0)) return 'failed';
-  // No judge grades a criterion yet, so one cited leaves the witness unreviewed.
-  return witness.criteria.length > 0 ? 'unreviewed' : 'passed';
+  return witness.assertions.some(key => (keys.get(key) ?? []).length > 0) ? 'failed' : 'passed';
 }
 
 const RANK: Record<WitnessVerdict, number> = {
@@ -252,6 +272,73 @@ const RANK: Record<WitnessVerdict, number> = {
   failed: 2,
   not_reached: 3,
 };
+
+const worst = (verdicts: readonly WitnessVerdict[]) =>
+  verdicts.reduce<WitnessVerdict>(
+    (at, verdict) => (RANK[verdict] > RANK[at] ? verdict : at),
+    'passed',
+  );
+
+const emptyCounts = (): Coverage['counts'] => ({
+  declared: 0,
+  attempted: 0,
+  verified: 0,
+  failed: 0,
+  unreviewed: 0,
+  not_reached: 0,
+  stale: 0,
+  conflicted: 0,
+});
+
+/**
+ * Settles every branch from what its witnesses' assertions did and what
+ * became of their criteria. The run calls it with the judge's outcomes; the
+ * gate calls it again with a person's reviews applied, and nothing else
+ * changes.
+ */
+export function settleCoverage(
+  branches: readonly BranchCoverage[],
+  stale: readonly StaleSource[],
+  outcomeOf: OutcomeOf,
+): Coverage {
+  const staleNames = new Set(stale.map(entry => entry.source));
+  const settled = branches.map((branch): BranchCoverage => {
+    const witnesses = branch.witnesses.map(witness => ({
+      ...witness,
+      repetitions: witness.assertions.map((verdict, index): WitnessVerdict => {
+        if (verdict !== 'passed' || witness.criteria.length === 0) return verdict;
+        const outcomes = witness.criteria.map(key => outcomeOf(witness.scenario, index + 1, key));
+        if (outcomes.includes('fail')) return 'failed';
+        return outcomes.every(outcome => outcome === 'pass') ? 'passed' : 'unreviewed';
+      }),
+    }));
+    // A witness counts only when it ran in two repetitions and passed in both.
+    const verdicts = witnesses.map(witness =>
+      witness.repetitions.length < 2 ? 'not_reached' : worst(witness.repetitions),
+    );
+    let status: BranchStatus;
+    if (branch.conflict) status = 'conflicted';
+    else if (staleNames.has(branch.source)) status = 'stale';
+    else if (verdicts.includes('passed')) status = 'verified';
+    else if (verdicts.includes('failed')) status = 'failed';
+    else if (verdicts.includes('unreviewed')) status = 'unreviewed';
+    else status = 'not_reached';
+    return { ...branch, witnesses, status };
+  });
+  const counts = emptyCounts();
+  for (const branch of settled) {
+    counts.declared++;
+    if (branch.attempted) counts.attempted++;
+    counts[branch.status]++;
+  }
+  return {
+    inventory: true,
+    stale: [...stale],
+    branches: settled,
+    counts,
+    complete: stale.length === 0 && settled.every(branch => branch.status === 'verified'),
+  };
+}
 
 /**
  * Coverage of the inventory by a run. `runs` holds each scenario's
@@ -264,75 +351,40 @@ export function coverageOf(
   runs: ReadonlyMap<string, readonly RepetitionRun[]>,
   stale: readonly StaleSource[],
   ctx: AssertContext,
+  outcomeOf: OutcomeOf = UNGRADED,
 ): Coverage {
-  const counts: Coverage['counts'] = {
-    declared: 0,
-    attempted: 0,
-    verified: 0,
-    failed: 0,
-    unreviewed: 0,
-    not_reached: 0,
-    stale: 0,
-    conflicted: 0,
-  };
-  if (!inventory) return { inventory: false, stale: [], branches: [], counts, complete: false };
-  const staleNames = new Set(stale.map(entry => entry.source));
-
+  if (!inventory) {
+    return { inventory: false, stale: [], branches: [], counts: emptyCounts(), complete: false };
+  }
   const branches = inventory.branches.map((branch): BranchCoverage => {
-    const witnesses: BranchCoverage['witnesses'] = [];
+    const witnesses: WitnessCoverage[] = [];
     for (const scenario of scenarios) {
       if (!branch.scenarios.includes(scenario.id)) continue;
       for (const step of scenario.steps) {
         for (const witness of step.expect.witnesses ?? []) {
           if (witness.branch !== branch.id) continue;
-          const repetitions = (runs.get(scenario.id) ?? []).map(run =>
-            witnessVerdict(scenario, step.id, witness, run, ctx),
-          );
-          witnesses.push({ scenario: scenario.id, step: step.id, repetitions });
+          witnesses.push({
+            scenario: scenario.id,
+            step: step.id,
+            criteria: witness.criteria.map(index => stepCriterionKey(step.id, index)),
+            assertions: (runs.get(scenario.id) ?? []).map(run =>
+              assertionVerdict(scenario, step.id, witness, run, ctx),
+            ),
+            repetitions: [],
+          });
         }
       }
     }
-    // A witness counts only when it ran in two repetitions and passed in both.
-    const verdicts = witnesses.map(witness =>
-      witness.repetitions.length < 2
-        ? 'not_reached'
-        : witness.repetitions.reduce<WitnessVerdict>(
-            (worst, verdict) => (RANK[verdict] > RANK[worst] ? verdict : worst),
-            'passed',
-          ),
-    );
-    const attempted = witnesses.some(witness =>
-      witness.repetitions.some(verdict => verdict !== 'not_reached'),
-    );
-    let status: BranchStatus;
-    if (branch.conflict) status = 'conflicted';
-    else if (staleNames.has(branch.source.file)) status = 'stale';
-    else if (verdicts.includes('passed')) status = 'verified';
-    else if (verdicts.includes('failed')) status = 'failed';
-    else if (verdicts.includes('unreviewed')) status = 'unreviewed';
-    else status = 'not_reached';
     return {
       id: branch.id,
-      status,
-      attempted,
+      source: branch.source.file,
+      status: 'not_reached',
+      attempted: witnesses.some(witness =>
+        witness.assertions.some(verdict => verdict !== 'not_reached'),
+      ),
       witnesses,
-      conflict: branch.conflict && {
-        ...branch.conflict,
-        scenarios: branch.scenarios,
-      },
+      conflict: branch.conflict && { ...branch.conflict, scenarios: branch.scenarios },
     };
   });
-
-  for (const branch of branches) {
-    counts.declared++;
-    if (branch.attempted) counts.attempted++;
-    counts[branch.status]++;
-  }
-  return {
-    inventory: true,
-    stale: [...stale],
-    branches,
-    counts,
-    complete: stale.length === 0 && branches.every(branch => branch.status === 'verified'),
-  };
+  return settleCoverage(branches, stale, outcomeOf);
 }

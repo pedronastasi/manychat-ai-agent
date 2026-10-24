@@ -46,7 +46,7 @@ describe('the conversation command runs offline (specs/043 V11)', () => {
   it('validates the golden suite without running a turn', () => {
     const { status, output } = conversations(['--validate']);
     expect(output).toContain(
-      'conversation suite evals/golden is valid: 4 scenarios, 9 steps, 7 branches',
+      'conversation suite evals/golden is valid: 4 scenarios, 9 steps, 7 branches, 4 calibration conversations',
     );
     expect(status).toBe(0);
   });
@@ -120,7 +120,7 @@ describe('the conversation command runs offline (specs/043 V11)', () => {
     const output = lines.join('\n');
     expect(output).toContain('agent turns: up to 18 (2 repetitions)');
     expect(output).toMatch(
-      /4 passed {3}0 failed {3}0 pending review {3}0 unstable {3}0 execution errors/,
+      /4 passed {3}0 failed {3}0 judged-fail {3}0 pending review {3}0 unstable {3}0 execution errors/,
     );
     expect(output).toContain('coverage: 7 of 7 branches verified, 0 stale sources, 0 conflicted');
     expect(status).toBe(0);
@@ -142,5 +142,33 @@ describe('the conversation command runs offline (specs/043 V11)', () => {
     expect(report.hashes.branches).toMatch(/^[0-9a-f]{64}$/);
     expect(report.coverage.complete).toBe(true);
     expect(report.scenarios.map(scenario => scenario.repetitions.length)).toEqual([2, 2, 2, 2]);
+
+    // specs/043 V10: the gate reads the written run and decides beside it,
+    // without rewriting it. The golden suite has no criteria to review.
+    lines.length = 0;
+    const before = readFileSync(join(artifacts, json!), 'utf8');
+    expect(
+      await run(['node', 'agent', 'eval', 'conversations', '--gate', join(artifacts, json!)]),
+    ).toBe(0);
+    expect(lines.join('\n')).toContain('passes the gate');
+    expect(readFileSync(join(artifacts, json!), 'utf8')).toBe(before);
+    const decision = JSON.parse(
+      readFileSync(join(artifacts, json!.replace(/\.json$/, '.gate.json')), 'utf8'),
+    ) as { passed: boolean; stale: boolean };
+    expect(decision).toMatchObject({ passed: true, stale: false });
+
+    // The same run, judged against an edited tenant, is stale.
+    const config = mkdtempSync(join(tmpdir(), 'tenant-'));
+    cpSync('test/fixtures/config', config, { recursive: true });
+    writeFileSync(
+      join(config, 'catalog.json'),
+      readFileSync(join(config, 'catalog.json'), 'utf8').replace('450', '451'),
+    );
+    vi.stubEnv('CONFIG_DIR', config);
+    lines.length = 0;
+    expect(
+      await run(['node', 'agent', 'eval', 'conversations', '--gate', join(artifacts, json!)]),
+    ).toBe(1);
+    expect(lines.join('\n')).toMatch(/the run is stale/);
   }, 240_000);
 });
