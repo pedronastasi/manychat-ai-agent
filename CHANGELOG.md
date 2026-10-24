@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.32.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.31.0...v0.32.0) (2026-10-24)
+
+
+### Features
+
+* run silence and media steps and gate on branch coverage (spec 043, part 2) ([235b387](https://github.com/pedronastasi/manychat-ai-agent/commit/235b387738ac6dc320e8dc41a180ff8da79b7655))
+* run silence and media steps and gate on branch coverage (spec 043, part 2) ([8395ddb](https://github.com/pedronastasi/manychat-ai-agent/commit/8395ddbe7cd169fec586c1461900a5d6eef4b429))
+
+
+### Bug Fixes
+
+* hash the tools an inbound turn offers, and report a broken nudge as an error (spec 043) ([fbb2102](https://github.com/pedronastasi/manychat-ai-agent/commit/fbb2102f7f062765f9173fdf5b2b95b74edec246))
+* require every behaviour-defining source in the branch manifest (spec 043) ([0f9ac65](https://github.com/pedronastasi/manychat-ai-agent/commit/0f9ac65011375b3a40620140b02e9a46ff19bd21))
+
+
+### Specs and Docs
+
+* align docs, comments and fixtures with the single runner and conversation evals ([19e41dd](https://github.com/pedronastasi/manychat-ai-agent/commit/19e41dd3e2122e79a1def0252471f315e729f90f))
+* align docs, comments and fixtures with the single runner and conversation evals ([437b3af](https://github.com/pedronastasi/manychat-ai-agent/commit/437b3afa3400605704c2899089718ae9fa32dfec))
+
 ## [0.31.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.30.0...v0.31.0) (2026-10-24)
 
 
