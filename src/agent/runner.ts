@@ -248,12 +248,6 @@ export interface RunnerOptions {
   temperature: number;
   /** Reasoning models only; omitted from the request when unset. */
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | undefined;
-  /**
-   * Records prompts and completions in telemetry spans. Off by default: spans
-   * would otherwise carry the contact's message text verbatim, which is exactly
-   * what Constitution C5 forbids. Enable only against a trusted collector.
-   */
-  recordPromptsInTraces?: boolean;
   /** The tenant's plugin tools, loaded once at boot (specs/036). */
   plugins?: Plugins | undefined;
   /**
