@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { RulesSchema, ToolsSchema } from '../../src/contracts/config.ts';
 import { runRepetition } from '../../src/evals/conversations/harness.ts';
 import { failuresOf } from '../../src/evals/conversations/assert.ts';
-import { reportJson, runScenario, runSuite } from '../../src/evals/conversations/run.ts';
+import {
+  identityOf,
+  reportJson,
+  runScenario,
+  runSuite,
+} from '../../src/evals/conversations/run.ts';
 import { fixtureTenant, promptText, runOptions, say, scenario } from '../helpers/conversations.ts';
 import type { TurnScript } from '../helpers/conversations.ts';
 import type { SimulatedChannel } from '../../src/evals/conversations/channel.ts';
@@ -373,15 +378,24 @@ describe('escalation, failed sends and lost races settle as in production (specs
         fixtures: { flows: {} },
         hashes: { scenarios: 'x', fixtures: null, branches: null },
       },
-      {
-        suite: 'test',
-        startedAt: '2026-01-15T10:00:00.000Z',
-        frameworkVersion: 'test',
-        hashes: { config: 'x', scenarios: 'x', fixtures: null, branches: null },
-        agent: { model: 'mock:demo', runner: 'langchain', temperature: 0.3 },
-        judge: null,
-        playbook: null,
-      },
+      identityOf(
+        {
+          frameworkVersion: 'test',
+          hashes: {
+            config: 'x',
+            framework: 'x',
+            scenarios: 'x',
+            fixtures: null,
+            branches: null,
+            calibration: null,
+          },
+          agent: { model: 'mock:demo', runner: 'langchain', temperature: 0.3 },
+          judge: null,
+          playbook: null,
+        },
+        'test',
+        '2026-01-15T10:00:00.000Z',
+      ),
       opts,
     );
     expect(report.scenarios[0]!.repetitions.map(entry => entry.failures)).toEqual([[], []]);

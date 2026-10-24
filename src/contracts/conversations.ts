@@ -327,3 +327,75 @@ export const BranchInventory = z
   })
   .strict();
 export type BranchInventory = z.infer<typeof BranchInventory>;
+
+/**
+ * What the conversation judge returns for one criterion (specs/043 § The
+ * judge sees the conversation and quotes its evidence). `step` names the
+ * step whose transcript `evidence` is copied from; `absent` names an event
+ * that should have happened and did not, with `evidence` quoting the exchange
+ * around it. Output that does not parse, or whose quote is not in that step,
+ * is an invalid sample, never a pass (C3, C6).
+ */
+export const ConversationVerdict = z.object({
+  verdict: z.enum(['pass', 'fail']),
+  step: z.string(),
+  evidence: z.string(),
+  absent: z.string(),
+  reason: z.string(),
+});
+export type ConversationVerdict = z.infer<typeof ConversationVerdict>;
+
+/** One step of a hand-written transcript, as the judge is shown a run's. */
+export const TranscriptStep = z
+  .object({
+    step: Id,
+    contact: z.string(),
+    agent: z.array(z.string()).default([]),
+    /** What the contact saw from flows: authored content or a labelled summary. */
+    flows: z.array(z.string()).default([]),
+    /** What the step changed on the contact and which actions it performed. */
+    changes: z.array(z.string()).default([]),
+  })
+  .strict();
+export type TranscriptStep = z.infer<typeof TranscriptStep>;
+
+/**
+ * A hand-labelled conversation the judge must agree with before its
+ * conversation verdicts count. Written by hand, never generated, so what it is
+ * measured against does not move between runs.
+ */
+export const ConversationCalibrationItem = z
+  .object({
+    id: Id,
+    /** A fixed rubric dimension's name, or a free-text criterion. */
+    criterion: z.string().min(1),
+    transcript: z.array(TranscriptStep).min(1),
+    label: z.enum(['pass', 'fail']),
+  })
+  .strict();
+export type ConversationCalibrationItem = z.infer<typeof ConversationCalibrationItem>;
+
+/**
+ * A person's verdict on one criterion of one repetition of a run. It names
+ * the run it was made against, so an edit to anything the run evaluated makes
+ * it stale rather than reusable. It resolves an ungraded criterion; beside a
+ * judge's verdict it is a recorded disagreement, and it never erases a
+ * failure (specs/043 § The judge sees the conversation).
+ */
+export const ReviewRecord = z
+  .object({
+    run: Id,
+    scenario: Id,
+    repetition: z.number().int().min(1),
+    /** `review[0]` for a scenario's criterion, `<step>.review[0]` for a step's. */
+    criterion: Id,
+    verdict: z.enum(['pass', 'fail']),
+    step: Id,
+    /** Copied from that step's transcript. */
+    evidence: z.string().min(1),
+    /** Who reviewed: a handle or initials, never a contact. */
+    reviewer: z.string().min(1),
+    note: z.string().optional(),
+  })
+  .strict();
+export type ReviewRecord = z.infer<typeof ReviewRecord>;

@@ -50,7 +50,10 @@ scripts the contact's side of whole conversations and runs them twice through
 the production turn path, so a stage the agent cannot reach in a real
 conversation fails there. Silence moves a test clock, so follow-ups and
 playing flows take moments, and a branch inventory counts only the branches a
-passing step reached, against the prompt as it is now.
+passing step reached, against the prompt as it is now. A calibrated judge grades what a
+conversation's assertions cannot, quoting the step its evidence comes from,
+and a person's review resolves what it leaves; `--gate` decides whether a run
+and its reviews are evidence a change may ship.
 
 ## Model agnosticism
 
