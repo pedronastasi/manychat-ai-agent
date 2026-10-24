@@ -11,8 +11,8 @@ import type { AgentUsage, Generated, PreparedTurn, RunnerOptions } from './runne
 import { MAX_STEPS } from './tools.ts';
 
 /**
- * The LangChain.js runner (ADR-0026, ADR-0027): the same prompt, tools and
- * guardrails as `GenerateTextRunner`, with the loop drawn as a LangGraph.js
+ * The LangChain.js runner (ADR-0026, ADR-0027): the prompt, tools and
+ * guardrails `PromptedRunner` owns, with the loop drawn as a LangGraph.js
  * graph of three nodes the service owns, never a prebuilt agent
  * (specs/050 § The graph has three nodes and a step counter).
  */
@@ -33,7 +33,8 @@ export const RECURSION_LIMIT = 2 * (MAX_STEPS - 1) + 2;
 
 /**
  * The reply did not match the schema, or never came. Named as the AI SDK names
- * the same failure, so a turn records the same `modelError` under either runner.
+ * the same failure, so `modelError` reads as it did before the AI SDK runner
+ * was removed.
  */
 export class ReplyNotGeneratedError extends Error {
   constructor(message: string, options?: { cause: unknown }) {
@@ -217,7 +218,7 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
       })
       .addNode('reply', async () => {
         // The reply step sees the staged note in place of its own tool calls,
-        // as `GenerateTextRunner`'s last step does (specs/024).
+        // as the AI SDK runner's last step did (specs/024).
         const notice = tools ? toLangChainMessages([turn.replyNotice()]) : [];
         const response = await call(handle.model.withConfig(handle.replyFormat(schema)), [
           system,

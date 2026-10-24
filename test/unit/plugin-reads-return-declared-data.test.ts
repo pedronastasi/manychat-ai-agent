@@ -593,7 +593,7 @@ describe('a read is not gated, and the prompt changes only for read tools (specs
 describe('eval cases cover a read answered, unavailable and answered, and unavailable and escalated (specs/039 V9)', () => {
   it('passes every case in evals/plugin-reads with the mock model', async () => {
     const { loadCases, checkCase } = await import('../../evals/cases.ts');
-    const { GenerateTextRunner } = await import('../../src/agent/runner.ts');
+    const { LangGraphRunner } = await import('../../src/agent/langgraph-runner.ts');
     const { createMockModel } = await import('../../src/agent/mock-provider.ts');
     const { configDir } = project([EXAMPLE_READ_PLUGIN], {
       [EXAMPLE_READ_PLUGIN]: EXAMPLE_READ_PLUGIN,
@@ -601,7 +601,7 @@ describe('eval cases cover a read answered, unavailable and answered, and unavai
     const loaded = await loadPlugins(configDir);
     // The fixture tenant without its tools.json: only the plugin offers a tool.
     const config = { ...tenant, tools: NO_TOOLS };
-    const runner = new GenerateTextRunner({
+    const runner = new LangGraphRunner({
       model: createMockModel('demo'),
       modelSpec: 'mock:demo',
       config: () => config,

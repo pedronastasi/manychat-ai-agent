@@ -1,5 +1,5 @@
-import { generateText, isStepCount, Output, type LanguageModel, type ModelMessage } from 'ai';
-import { AgentReplyForModel, type ActionRecord, type AgentReply } from '../contracts/agent.ts';
+import type { LanguageModel, ModelMessage } from 'ai';
+import type { ActionRecord, AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import { NO_TOOLS, offersTools, type Tools } from '../contracts/config.ts';
 import type { MediaImage } from '../media/port.ts';
@@ -19,15 +19,13 @@ import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
 import type { PluginReads } from '../plugins/reads.ts';
 import type { FlowSends } from './flows.ts';
-import { estimateCostUsd, supportsTemperature } from './registry.ts';
-import { aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
+import { estimateCostUsd } from './registry.ts';
 import {
   ActionStage,
   buildTools,
   offeringField,
   funnelField,
   intentField,
-  MAX_STEPS,
   openingFlow,
   silentPaymentLink,
   stagesProspect,
@@ -229,8 +227,8 @@ function nudgeMessage(since: Date, contactNotices: string[]): ModelMessage {
 /**
  * The port every caller depends on: a single step when the tenant configures
  * no tools, and a loop of at most four when it does (ADR-0010, ADR-0016).
- * `GenerateTextRunner` implements it with the AI SDK, and `LangGraphRunner`
- * with LangChain.js and LangGraph.js (specs/050).
+ * `LangGraphRunner` implements it with LangChain.js and LangGraph.js
+ * (specs/050).
  */
 export interface AgentRunner {
   run(input: AgentTurnInput): Promise<AgentResult>;
@@ -268,8 +266,8 @@ export interface RunnerOptions {
 }
 
 /**
- * A turn as both runners send it: the same system prompt, messages and tools,
- * and the note the reply step sees. Built once per turn by `PromptedRunner`
+ * A turn as the runner sends it: the system prompt, messages and tools, and
+ * the note the reply step sees. Built once per turn by `PromptedRunner`
  * (specs/050 § The runner changes no behaviour a spec here fixes).
  */
 export interface PreparedTurn {
@@ -291,9 +289,8 @@ export interface Generated {
 }
 
 /**
- * Everything around the model call that both runners share: the prompt, the
- * tools, the guardrails and the fail-closed handoff. A runner supplies only
- * `generate` (specs/050).
+ * Everything around the model call: the prompt, the tools, the guardrails and
+ * the fail-closed handoff. A runner supplies only `generate` (specs/050).
  */
 export abstract class PromptedRunner<
   TOptions extends Omit<RunnerOptions, 'model'> = RunnerOptions,
@@ -503,58 +500,6 @@ export abstract class PromptedRunner<
       model: this.opts.modelSpec,
       toolsOffered: tools !== undefined,
       usage: { ...usage, costUsd: estimateCostUsd(this.opts.modelSpec, usage) },
-    };
-  }
-}
-
-/**
- * The AI SDK runner: `generateText` with a structured output, looping over
- * tools for at most `MAX_STEPS` steps (ADR-0010, ADR-0016).
- */
-export class GenerateTextRunner extends PromptedRunner<RunnerOptions> {
-  protected async generate(turn: PreparedTurn): Promise<Generated> {
-    const { messages, tools } = turn;
-    // The last step offers no tools, so it must produce the reply. It sees a
-    // note of what was staged, and of the last contact read, in place of its
-    // own tool calls: a provider that drops its tools when told to use none
-    // would otherwise receive tool calls with no tools to match them
-    // (specs/024 § The loop grows to four steps and eight actions).
-    const loop = tools
-      ? {
-          tools,
-          stopWhen: isStepCount(MAX_STEPS),
-          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-            stepNumber === MAX_STEPS - 1
-              ? { activeTools: [], messages: [...messages, turn.replyNotice()] }
-              : undefined,
-        }
-      : {};
-
-    const result = await generateText({
-      model: this.opts.model,
-      output: Output.object({ schema: AgentReplyForModel }),
-      system: turn.system,
-      messages,
-      maxOutputTokens: this.opts.maxOutputTokens,
-      ...(supportsTemperature(this.opts.modelSpec) ? { temperature: this.opts.temperature } : {}),
-      telemetry: {
-        functionId: 'agent-turn',
-        recordInputs: this.opts.recordPromptsInTraces ?? false,
-        recordOutputs: this.opts.recordPromptsInTraces ?? false,
-      },
-      ...(turn.signal ? { abortSignal: turn.signal } : {}),
-      providerOptions: aiSdkProviderOptions(this.opts.reasoningEffort),
-      ...loop,
-    });
-    // Read inside the caller's try: a loop whose last step produced no reply
-    // throws here, and fails closed exactly as a schema failure does.
-    return {
-      output: result.output,
-      usage: {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
-      },
     };
   }
 }

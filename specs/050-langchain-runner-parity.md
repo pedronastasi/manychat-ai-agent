@@ -169,10 +169,43 @@ deleted in a later pull request than the one that moves the default, and only
 once that week is read. If it fails, the default moves back, an environment
 change and a restart.
 
+Superseded on 2026-10-24 by § The AI SDK runner is removed.
+
 These thresholds were chosen, not measured. "No fewer" and "no higher" carry no
 margin because a real-model eval run once is noisy, and a margin would let a
 regression through on noise. A disagreement is read by a person before
 anything moves.
+
+## The AI SDK runner is removed
+
+On 2026-10-24 the owner removed `GenerateTextRunner` before the gate closed,
+while running `AGENT_RUNNER=langchain` on their own deployment. The gate stood
+at:
+
+1. Mock parity: met, in #263.
+2. Real-model eval on `evals/golden` under both runners: not run.
+3. A week of the production deferred share with `langchain` as the default: not
+   read.
+
+So nothing here measured that the LangChain runner passes as many real-model
+cases, or loses the race no more often. That deployment is the evidence, and a
+regression found there has no runner to switch back to: the fix is a patch to
+`LangGraphRunner`, or pinning the release before this one.
+
+What changes:
+
+- `LangGraphRunner` is the only runner, and `createRunner` takes no kind.
+- `AGENT_RUNNER` is read only to refuse `ai-sdk`, or any value but
+  `langchain`. A deploy that still names the old runner fails boot rather than
+  switching runner unannounced (C6). Unset and `langchain` both boot.
+- Tests that ran under both runners run under `langchain`. The ones that
+  compared the two now assert the LangChain runner's values directly.
+
+What stays on the AI SDK: transcription (`020`), the learning analyst (`031`),
+the eval judge (`016`), the mock provider and every test fake, which
+`AiSdkChatModel` wraps, and the AI SDK types on the public exports. Removing
+those types is still the separate breaking change § The public exports keep
+their signatures describes.
 
 ## Verification
 
@@ -192,8 +225,10 @@ anything moves.
   `029` tests under `AGENT_RUNNER=langchain`.
 - **Usage**: the same faked request gives the same `AgentUsage` under both
   runners, and a missing `usage_metadata` gives `undefined`.
-- **The gate**: its three numbers, dated, in the pull request that moves the
-  default.
+- **The gate**: superseded; § The AI SDK runner is removed records where it
+  stood.
+- **The removal**: `AGENT_RUNNER=ai-sdk` and any value but `langchain` stop
+  boot with a message naming this spec; unset, empty and `langchain` boot.
 
 What this misses:
 
