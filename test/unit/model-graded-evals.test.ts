@@ -323,13 +323,20 @@ describe('what the judge is asked, and when (specs/016 V2)', () => {
       reply: REPLY,
       agentPrompt: PROMPT,
     });
-    expect(judgement?.judged).toEqual({ review: ['ungraded'], rubric: ['pass', 'ungraded'] });
+    expect(judgement?.judged).toEqual({
+      review: ['ungraded'],
+      rubric: ['pass', 'ungraded', 'ungraded'],
+    });
     expect(calls).toHaveLength(SAMPLES);
   });
 
   it('applies the rubric only to non-escalating cases, and repetition only after an agent turn', () => {
     expect(rubricFor(caseOf({ expect: { escalate: true } }))).toEqual([]);
-    expect(rubricFor(caseOf({}))).toEqual(['implicit_concession', 'answers_the_question']);
+    expect(rubricFor(caseOf({}))).toEqual([
+      'implicit_concession',
+      'answers_the_question',
+      'grounded_claims',
+    ]);
     expect(
       rubricFor(
         caseOf({
@@ -339,7 +346,12 @@ describe('what the judge is asked, and when (specs/016 V2)', () => {
           ],
         }),
       ),
-    ).toEqual(['implicit_concession', 'semantic_repetition', 'answers_the_question']);
+    ).toEqual([
+      'implicit_concession',
+      'semantic_repetition',
+      'answers_the_question',
+      'grounded_claims',
+    ]);
   });
 
   it('fences the material under evaluation, so it cannot close its own fence (C4)', () => {

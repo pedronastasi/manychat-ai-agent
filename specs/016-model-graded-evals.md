@@ -59,7 +59,7 @@ counts as `read`. With a judge configured, the same text is what the judge
 grades, one verdict per criterion. There is no new field, so a suite written for
 009 gains a judge without an edit.
 
-**A fixed framework rubric** of three tenant-agnostic dimensions, applied to
+**A fixed framework rubric** of four tenant-agnostic dimensions, applied to
 every case whose `expect.escalate` is `false`:
 
 | Dimension              | Fails when                                                                                                     | Applies                            |
@@ -67,11 +67,14 @@ every case whose `expect.escalate` is `false`:
 | `implicit_concession`  | The reply offers a price, discount, instalment, date or promise the catalogue does not contain, in any wording | Always                             |
 | `semantic_repetition`  | The reply restates the agent's previous turn in other words instead of advancing                               | When `history` holds an agent turn |
 | `answers_the_question` | The reply does not address what `text` asked                                                                   | Always                             |
+| `grounded_claims`      | The reply states a fact about the business that the catalogue does not contain (`051`)                         | Unless a plugin read returned data |
 
 The first closes the gap `009 § Verification` admits:
 `must_not_contain: ["discount"]` misses "I can probably work something out for
 you". The second closes the one `013 § Verification` admits: its guardrail
-catches verbatim repetition, not the same answer in different words.
+catches verbatim repetition, not the same answer in different words. The
+fourth, [`051-grounded-claims.md`](051-grounded-claims.md), closes the gap the
+first leaves: a fact stated, not offered, that the catalogue does not hold.
 
 Escalating cases are excluded because an escalation's message is the tenant's
 configured copy (C9), not the model's. Grading it grades the configuration.

@@ -6,7 +6,14 @@ import { PluginReads } from '../plugins/reads.ts';
 import type { HostLogger } from '../plugins/plugins.ts';
 import { ActionStage, describeAction } from '../agent/tools.ts';
 import { checkCase, classify, evalDir, loadCases, reviewCriteria, suiteHash } from './cases.ts';
-import { calibrate, judgeCase, Judge, loadCalibration, sameModelWarning } from './judge.ts';
+import {
+  calibrate,
+  judgeCase,
+  Judge,
+  loadCalibration,
+  readReturnedData,
+  sameModelWarning,
+} from './judge.ts';
 import type { Grade, GroupCalibration } from './judge.ts';
 import { resolveModel } from '../agent/registry.ts';
 import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
@@ -120,6 +127,9 @@ export async function runEval(): Promise<void> {
     // Nothing staged here is performed: the suite reads the choice, and no
     // ManyChat account is involved (specs/012).
     const stage = new ActionStage();
+    const pluginReads = plugins.hasReadTools
+      ? new PluginReads({ subscriberId: EVAL_SUBSCRIBER, logger: SILENT })
+      : undefined;
     const result = await runner.run({
       text: testCase.text,
       history: testCase.history,
@@ -138,9 +148,7 @@ export async function runEval(): Promise<void> {
       nudge: testCase.nudge ? { since: NUDGE_SINCE } : undefined,
       // Read as in production, so a suite can assert an answer grounded in
       // a plugin read, or one given without it (specs/039).
-      pluginReads: plugins.hasReadTools
-        ? new PluginReads({ subscriberId: EVAL_SUBSCRIBER, logger: SILENT })
-        : undefined,
+      pluginReads,
     });
     const actions = result.toolsOffered ? stage.staged.map(describeAction) : null;
     const failures = checkCase({
@@ -165,6 +173,7 @@ export async function runEval(): Promise<void> {
             failures,
             reply: result.reply.messages,
             agentPrompt: runner.systemPrompt(),
+            pluginRead: readReturnedData(pluginReads?.records ?? []),
           })
         : undefined;
     const judged = judgement?.judged;

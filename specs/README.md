@@ -63,6 +63,7 @@ test fails the suite.
 | [048 — One Deployment Answers Every Meta Channel](048-one-deployment-every-meta-channel.md)                                | implemented | 2026-10-21  | #254 | 5     | C3, C5, C6, C7                     | [0005]                                                                                 |
 | [049 — A Flow Is Authored per Channel](049-a-flow-is-authored-per-channel.md)                                              | implemented | 2026-10-22  | #258 | 2     | C3, C6                             | —                                                                                      |
 | [050 — LangChain Runner Parity](050-langchain-runner-parity.md)                                                            | implemented | 2026-10-23  | #263 | 17    | C1, C2, C3, C4, C5, C6, C7, C8     | [0026], [0027], [0025], [0001], [0010], [0016], [0019]                                 |
+| [051 — Grounded Claims](051-grounded-claims.md)                                                                            | implemented | 2026-10-23  | #266 | 2     | C1, C3, C6, C8, C9                 | [0011]                                                                                 |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md

@@ -47,6 +47,8 @@ describe('the golden suite with and without the mock judge (specs/016 V4)', () =
       'implicit_concession',
       'semantic_repetition',
       'answers_the_question',
+      // specs/051 V5: the new group is refused like the others.
+      'grounded_claims',
       'free_text',
     ]) {
       expect(output).toMatch(new RegExp(`${group} +\\d+ items .*uncalibrated`));
