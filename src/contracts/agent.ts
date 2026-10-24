@@ -37,6 +37,14 @@ export const CLOSING_QUESTION_DESCRIPTION =
   'here. Written on its own, without prices, list items or explanations — it is ' +
   'appended as the final message, so it must read as a complete question by itself.';
 
+/** Asked of the model, not enforced on the way back (see `AgentReplyFromModel`). */
+export const MAX_NOTES_CHARS = 500;
+
+/** Guidance shown to the model for `notes`, and repeated in the system prompt. */
+export const NOTES_DESCRIPTION =
+  'Private working notes: the contact never sees them and the system discards them. ' +
+  'Weigh a rule or check a fact here, in a line or two, or send null.';
+
 /**
  * The agent's structured output. Every field is validated before anything
  * reaches a customer (Constitution C3) — model output is untrusted input.
@@ -95,6 +103,21 @@ export const AgentReplyForModel = z.object({
     .max(MAX_MESSAGE_CHARS)
     .nullable()
     .describe(CLOSING_QUESTION_DESCRIPTION),
+  /**
+   * Somewhere to weigh a rule that is not a message (specs/001 § Working notes
+   * never reach the contact). Required and nullable for the same reason as
+   * `closing_question`, and because strict structured output lists every field.
+   */
+  notes: z.string().max(MAX_NOTES_CHARS).nullable().describe(NOTES_DESCRIPTION),
+});
+
+/**
+ * How a model reply is read back. `notes` defaults to null so a reply written
+ * without it still parses, and it has no length cap here: notes are discarded,
+ * so an overlong one must not turn a good answer into a handoff.
+ */
+export const AgentReplyFromModel = AgentReplyForModel.extend({
+  notes: z.string().nullable().default(null),
 });
 
 /** What a contact sent when it was not text (specs/020). */

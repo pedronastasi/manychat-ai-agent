@@ -3,7 +3,7 @@ import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage, MessageContent, UsageMetadata } from '@langchain/core/messages';
-import { AgentReplyForModel } from '../contracts/agent.ts';
+import { AgentReplyForModel, AgentReplyFromModel } from '../contracts/agent.ts';
 import { chatModelFromAiSdk } from './registry.ts';
 import type { ChatModelHandle } from './registry.ts';
 import { PromptedRunner } from './runner.ts';
@@ -108,6 +108,24 @@ function textOf(content: MessageContent): string {
   if (typeof content === 'string') return content;
   return content.flatMap(block => (block.type === 'text' ? [String(block.text)] : [])).join('');
 }
+
+/** The reply's text read against the schema: anything else is a failed generation (C3). */
+function parseReply(reply: AIMessage): unknown {
+  try {
+    return AgentReplyFromModel.parse(JSON.parse(textOf(reply.content)));
+  } catch (cause) {
+    throw new ReplyNotGeneratedError('the reply does not match the schema', { cause });
+  }
+}
+
+/**
+ * Why the reply is asked for again. It names no marker and quotes nothing from
+ * the draft, so the rewrite has nothing to copy (specs/001).
+ */
+export const REWRITE_NOTE =
+  'Your draft of this reply put your working notes in a message the contact reads. ' +
+  'Write the reply again. Messages hold only what you say to the contact; anything ' +
+  'you need to weigh goes in notes.';
 
 /** The tools as the model sees them: the names, descriptions and schemas `buildTools` produces. */
 async function toolDefinitions(tools: ToolSet) {
@@ -243,13 +261,31 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
     );
     const reply = state.answer;
     if (!reply) throw new ReplyNotGeneratedError('the graph ended without a reply');
-    let output: unknown;
-    try {
-      output = AgentReplyForModel.parse(JSON.parse(textOf(reply.content)));
-    } catch (cause) {
-      throw new ReplyNotGeneratedError('the reply does not match the schema', { cause });
-    }
-    return { output, usage: sumUsage(responses) };
+    return { output: parseReply(reply), usage: sumUsage(responses) };
+  }
+
+  protected async rewrite(turn: PreparedTurn): Promise<Generated> {
+    const { handle } = this;
+    const { signal } = turn;
+    const schema = await asSchema(AgentReplyForModel).jsonSchema;
+    // The staged note, as the reply node sees it, so the rewrite knows what
+    // already went out and does not offer it again.
+    const notice = turn.tools ? toLangChainMessages([turn.replyNotice()]) : [];
+    const response = (await raceAbort(
+      handle.model
+        .withConfig(handle.replyFormat(schema))
+        .invoke(
+          [
+            handle.systemMessage(turn.system),
+            ...toLangChainMessages(turn.messages),
+            ...notice,
+            new HumanMessage(REWRITE_NOTE),
+          ],
+          signal ? { signal } : {},
+        ),
+      signal,
+    )) as AIMessage;
+    return { output: parseReply(response), usage: sumUsage([response]) };
   }
 
   /**

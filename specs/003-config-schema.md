@@ -56,6 +56,9 @@ JSON edit and a restart — no prompt editing, no deploy.
 - `max_turns_per_conversation` — after which every turn escalates, counted since
   the contact's last gap of `idleResetHours` (`018`)
 - `escalation_keywords` — immediate handoff, checked before the model runs
+- `workingNoteMarkers` — phrases only the model's working notes contain, matched
+  as case-insensitive substrings; a reply carrying one is written again once,
+  then handed off; default none (`001`)
 - `budget` — daily token and cost caps per tenant
 - `rate_limit` — per-subscriber turns per window
 - `historyDays` — how far back the model's history reaches, default 30

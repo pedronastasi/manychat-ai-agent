@@ -14,7 +14,7 @@ import {
   nudgeNotice,
   stagedNotice,
 } from './prompt.ts';
-import { applyGuardrails, escalationReply } from './guardrails.ts';
+import { applyGuardrails, carriesWorkingNotes, escalationReply } from './guardrails.ts';
 import type { EscalationCause } from './guardrails.ts';
 import type { ContactReads } from './contact.ts';
 import type { PluginReads } from '../plugins/reads.ts';
@@ -40,6 +40,19 @@ export interface AgentUsage {
   outputTokens: number | undefined;
   cacheReadTokens: number | undefined;
   costUsd: number;
+}
+
+type CallUsage = Omit<AgentUsage, 'costUsd'>;
+
+/** Two calls' tokens: a count either call left unknown stays counted from the other. */
+function addUsage(left: CallUsage, right: CallUsage): CallUsage {
+  const add = (first: number | undefined, second: number | undefined) =>
+    first === undefined && second === undefined ? undefined : (first ?? 0) + (second ?? 0);
+  return {
+    inputTokens: add(left.inputTokens, right.inputTokens),
+    outputTokens: add(left.outputTokens, right.outputTokens),
+    cacheReadTokens: add(left.cacheReadTokens, right.cacheReadTokens),
+  };
 }
 
 export interface AgentResult {
@@ -324,6 +337,13 @@ export abstract class PromptedRunner<
   protected abstract generate(turn: PreparedTurn): Promise<Generated>;
 
   /**
+   * Writes the reply again with no tools offered, after a draft carried the
+   * model's working notes: what the turn did stands, and only the words are
+   * redone (specs/001 § Working notes never reach the contact). Throws on any failure.
+   */
+  protected abstract rewrite(turn: PreparedTurn): Promise<Generated>;
+
+  /**
    * Rebuilds only when ConfigStore swaps in a new object, so the prefix stays
    * byte-identical between reloads and remains cacheable (see prompt.ts). A
    * failed reload keeps the previous object, so it correctly rebuilds nothing.
@@ -468,11 +488,44 @@ export abstract class PromptedRunner<
       };
     }
 
+    // Working notes in the reply are not cut out: the draft they sit in was
+    // written while the model was still deciding, so the rest of it cannot be
+    // trusted either. One rewrite, then a person (specs/001, C6).
+    const notes: string[] = [];
+    const markers = config.rules.workingNoteMarkers;
+    if (carriesWorkingNotes(output, markers)) {
+      notes.push('working_notes_detected');
+      let rewritten: Generated | undefined;
+      try {
+        rewritten = await this.rewrite(turn);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        if (signal?.aborted) throw error;
+      }
+      if (rewritten) usage = addUsage(usage, rewritten.usage);
+      if (!rewritten || carriesWorkingNotes(rewritten.output, markers)) {
+        return {
+          reply: escalationReply('low_confidence', config.rules.messages.escalation),
+          interventions: [...notes, 'working_notes_handed_off'],
+          escalatedBy: 'leak',
+          playbookVersion,
+          latencyMs: Date.now() - started,
+          model: this.opts.modelSpec,
+          toolsOffered: tools !== undefined,
+          usage: { ...usage, costUsd: estimateCostUsd(this.opts.modelSpec, usage) },
+        };
+      }
+      output = rewritten.output;
+      notes.push('working_notes_rewritten');
+    }
+
     const earlierReplies = history.filter(turn => turn.role === 'agent').map(turn => turn.text);
     const paymentLink = silentPaymentLink(tenantTools, config.catalog, stage, contact);
     let guarded = applyGuardrails(output, config.rules, earlierReplies, {
       paymentLink: paymentLink ?? undefined,
     });
+    if (notes.length > 0)
+      guarded = { ...guarded, interventions: [...notes, ...guarded.interventions] };
     // Sent, with no link to put in the reply: the loader's checks leave only a
     // contact with no offering recorded. A reply without the link would leave
     // them at link_sent with no way to pay, so a person finishes the turn
