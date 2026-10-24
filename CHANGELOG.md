@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.31.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.30.0...v0.31.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* AGENT_RUNNER=ai-sdk now stops boot. Unset AGENT_RUNNER. createRunner no longer takes a runner kind, and GenerateTextRunner is gone.
+
+### Features
+
+* remove the AI SDK runner; the turn runs on LangGraphRunner only ([d01e2b4](https://github.com/pedronastasi/manychat-ai-agent/commit/d01e2b45b9d7facd77518455504a006b737051ef))
+* run scripted conversations through the production turn path (spec 043, part 1) ([c15e6d9](https://github.com/pedronastasi/manychat-ai-agent/commit/c15e6d93f99265b06b6c373f4f160de0788e2284))
+* run scripted conversations through the production turn path (spec 043, part 1) ([cd341a1](https://github.com/pedronastasi/manychat-ai-agent/commit/cd341a1def41594e0fd9e36afe7323a43e399f9c))
+
+
+### Bug Fixes
+
+* build the conversation eval's runner without a runner kind ([fe5b8b1](https://github.com/pedronastasi/manychat-ai-agent/commit/fe5b8b151bd9aa65170a9a19576aa83737e89bd9))
+* count an aborted deferred turn as an execution error, and pass the channel ([8508c55](https://github.com/pedronastasi/manychat-ai-agent/commit/8508c558f5f05a51ffd83d9987152f23f413882b))
+* delete recordPromptsInTraces, which only the removed runner read ([87495d3](https://github.com/pedronastasi/manychat-ai-agent/commit/87495d3f6c6a78134c51bf90272e23f176f539e2))
+
+
+### Specs and Docs
+
+* say the runner-level tests run under the LangChain runner only ([3c09dec](https://github.com/pedronastasi/manychat-ai-agent/commit/3c09deca287906ecc689159027b46236743413c3))
+* state spec 050's graph and usage checks for one runner ([f0cddde](https://github.com/pedronastasi/manychat-ai-agent/commit/f0cddde2597ae8524f74c438bbb802336a0f6eb0))
+
 ## [0.30.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.29.0...v0.30.0) (2026-10-24)
 
 
