@@ -57,11 +57,18 @@ export const EnvSchema = z
     AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(400),
     AGENT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
     /**
-     * Which runner answers: the AI SDK's, or LangChain.js and LangGraph.js
-     * (ADR-0026). The default moves only through the gate in
-     * specs/050 § Two runners ship side by side.
+     * Read only to refuse `ai-sdk`: that runner was removed, and a deploy that
+     * still names it must fail rather than switch runner unannounced
+     * (specs/050 § The AI SDK runner is removed). `langchain` is accepted.
      */
-    AGENT_RUNNER: z.enum(['ai-sdk', 'langchain']).default('ai-sdk'),
+    AGENT_RUNNER: z.preprocess(
+      emptyAsUnset,
+      z
+        .literal('langchain', {
+          error: 'the AI SDK runner was removed (specs/050); unset AGENT_RUNNER',
+        })
+        .optional(),
+    ),
     /**
      * The eval judge, as `provider:model` (specs/016). Read by `pnpm eval` only;
      * unset means no judge, and the suite behaves as specs/009 defines.

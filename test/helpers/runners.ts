@@ -1,15 +1,14 @@
-import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import type { RunnerOptions } from '../../src/agent/runner.ts';
 import { LangGraphRunner } from '../../src/agent/langgraph-runner.ts';
 
 /**
- * Both runners, for a test that must hold under either while both ship
- * (specs/050 § Two runners ship side by side). Each takes the same options,
- * the model included: the LangChain runner wraps an AI SDK model itself.
+ * The runner a runner-level test runs under. The AI SDK runner beside it was
+ * removed (specs/050 § The AI SDK runner is removed); each test keeps the
+ * runner's name in its title, and takes an AI SDK model, which the LangChain
+ * runner wraps itself.
  */
-export type RunnerClass = new (opts: RunnerOptions) => GenerateTextRunner | LangGraphRunner;
+export type RunnerClass = new (opts: RunnerOptions) => LangGraphRunner;
 
 export const RUNNERS: { name: string; Runner: RunnerClass }[] = [
-  { name: 'ai-sdk', Runner: GenerateTextRunner },
   { name: 'langchain', Runner: LangGraphRunner },
 ];
