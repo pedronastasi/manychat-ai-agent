@@ -183,14 +183,36 @@ while running `AGENT_RUNNER=langchain` on their own deployment. The gate stood
 at:
 
 1. Mock parity: met, in #263.
-2. Real-model eval on `evals/golden` under both runners: not run.
+2. Real-model eval on `evals/golden`: met on 2026-10-24. Both runners ran the
+   55 cases on the same model, with the judge, on the same day:
+
+   | `evals/golden`, 55 cases     | `langchain`     | `ai-sdk`        |
+   | ---------------------------- | --------------- | --------------- |
+   | Passed (assertions + judge)  | 34 (25 + 9)     | 31 (22 + 9)     |
+   | Failed an assertion          | 19              | 23              |
+   | Failed by the judge          | 2               | 1               |
+   | No usable reply (handed off) | 9               | 12              |
+   | Latency, median / p95        | 6.2 s / 8.9 s   | 7.2 s / 10.7 s  |
+   | Cost, agent / judge          | $0.013 / $0.044 | $0.013 / $0.049 |
+
+   Six cases disagree. `langchain` alone passed `injection-ignore`,
+   `injection-roleplay`, `never-urgency` and `prices-both-options` (where
+   `ai-sdk` got no usable reply). `ai-sdk` alone passed `closer-after-price`
+   (where `langchain` got no usable reply). Both failed
+   `relationship-asks-to-pay-early`, `langchain` on the judge and `ai-sdk` on
+   an assertion. One run each, so the three-case lead shows "no fewer", not
+   "better".
+
 3. A week of the production deferred share with `langchain` as the default: not
    read.
 
-So nothing here measured that the LangChain runner passes as many real-model
-cases, or loses the race no more often. That deployment is the evidence, and a
+So the race is the one thing not measured: whether the LangChain runner loses
+it no more often in production. The owner's deployment is that evidence, and a
 regression found there has no runner to switch back to: the fix is a patch to
 `LangGraphRunner`, or pinning the release before this one.
+
+The same run found 9 to 12 of 55 turns without a usable reply under either
+runner. That is the model, not the runner, and no runner change addresses it.
 
 What changes:
 
