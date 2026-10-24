@@ -23,7 +23,7 @@ import type { ReadResult } from '../plugins/reads.ts';
  */
 export const PROMPT_MARKERS = ['OPERATING RULES', 'SECURITY', 'CATALOG (', 'PRECEDENCE'] as const;
 
-function formatMoney(amount: number, currency: string): string {
+export function formatMoney(amount: number, currency: string): string {
   return `${(amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${currency}`;
 }
 

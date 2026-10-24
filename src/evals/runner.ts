@@ -249,7 +249,10 @@ export async function runEval(): Promise<void> {
 }
 
 /** The version `PLAYBOOK_VERSION` names, read from the database; none when it is unset. */
-async function playbookFor(env: Env, learning: boolean): Promise<ActivePlaybook | undefined> {
+export async function playbookFor(
+  env: Env,
+  learning: boolean,
+): Promise<ActivePlaybook | undefined> {
   const ref = process.env.PLAYBOOK_VERSION;
   if (!ref) return undefined;
   if (!learning) throw new Error('PLAYBOOK_VERSION needs a "learning" block in rules.json');

@@ -34,10 +34,11 @@ cases remain supported by `009`; their counts and coverage stay separate.
 
 ## Scripts supply contact messages and never supply the agent's answers
 
-A suite adds `conversations.jsonl` and `branches.json` beside its existing
-files. Each JSONL line is one scenario. All inputs are schema-validated before
-any model call; duplicate IDs, unresolved references, empty scripts, and
-invalid configured tool or offering IDs fail validation.
+A suite adds `conversations.jsonl`, `branches.json` and an optional
+`fixtures.json` beside its existing files. Each JSONL line is one scenario.
+All inputs are schema-validated before any model call; duplicate IDs,
+unresolved references, empty scripts, and invalid configured tool or
+offering IDs fail validation.
 
 The v1 scenario contract is:
 
@@ -54,7 +55,9 @@ The v1 scenario contract is:
 and preceding history for a returning-contact scenario. Fixtures use
 configured IDs and values. They are validated for consistency: a performed
 offering write and the stored offering, for example, cannot disagree.
-Coverage labels distinguish a complete fresh conversation from a seeded
+Seeded actions belong to the last agent turn of the seeded history, so a
+scenario that seeds actions also seeds an agent turn; seeding never invents
+one. Coverage labels distinguish a complete fresh conversation from a seeded
 returning-contact scenario. An initial fixture never earns traversal coverage.
 
 Every step has a unique `id`, an `input`, `expect`, and optional `review`:
@@ -62,9 +65,12 @@ Every step has a unique `id`, an `input`, `expect`, and optional `review`:
 - `input.kind: message` supplies `text`, optionally a configured advertising
   offering context. An empty string is allowed to exercise opening behavior.
 - `input.kind: opening` supplies a configured opening-trigger keyword as a
-  trusted channel event. The harness uses a valid isolated contact binding;
-  the same text through `message` remains ordinary contact input. Scripts
-  cannot inject system instructions or bypass the opening-trigger checks.
+  trusted channel event. The harness uses a valid isolated contact binding.
+  Production matches the trigger on the whole message and cannot tell a
+  typed keyword from the flow's event, so validation rejects a `message`
+  whose text is an opening-trigger keyword: a script names which it means.
+  Scripts cannot inject system instructions or bypass the opening-trigger
+  checks.
 - `input.kind: media` supplies an invented local fixture with its declared
   kind. Text or a deterministic transcription fixture can accompany it.
   Media fixtures travel through the production media boundary; a receipt
@@ -136,14 +142,18 @@ upstream and is exposed through the package's supported surface (`033`).
 
 Declared channel fixtures map customer-visible flows to authored content or
 a labeled content summary for semantic review. Silent flows have no content.
-Missing fixtures for flows whose content a criterion depends on fail suite
-validation. The trace labels summaries as fixtures; it does not claim to have
-downloaded or verified the tenant's live ManyChat media.
+Which flow a criterion depends on cannot be known before the run, so a
+suite with any `review` criterion needs a fixture for every customer-visible
+flow its tenant configures, and a fixture for a flow that is not configured
+fails validation. The trace labels summaries as fixtures; it does not claim
+to have downloaded or verified the tenant's live ManyChat media.
 
 Simulated channel, contact, transcription, and media resolution make no
 external requests. Paid network traffic is limited to explicitly selected
 agent and judge providers. Live plugins with external reads or actions must
 have fixture adapters for this mode; otherwise validation rejects the suite.
+No adapter contract exists yet, so a tenant that loads any plugin is rejected
+until one does.
 
 ## Assertions cover steps, transitions, and terminal outcomes
 
@@ -168,7 +178,10 @@ events and openings are included in the trace and can be matched explicitly.
 
 Whole-conversation assertions support final state, action counts, ordering,
 required or forbidden artifacts, and terminal kind: `completed`, `handoff`,
-`declined`, or `error`. Artifact selectors use catalog paths and declared
+`declined`, or `error`. A run ends `error` on an execution error and
+`handoff` on an escalation; otherwise it is `declined` when the contact's
+final recorded intent is `not_prospect` (`034`), and `completed`. Artifact
+selectors use catalog paths and declared
 formatting, so a suite can check the selected offering's price or URL without
 copying a price into every script. Unresolved selectors are validation errors.
 
@@ -271,7 +284,8 @@ not-reached steps, incomplete transcripts, and failure categories explicitly.
 ## Reports identify the evaluated version and the first deviation
 
 A run emits machine-readable JSON and a readable Markdown transcript in a
-configurable, gitignored artifact directory. Its record contains:
+configurable, gitignored artifact directory: `EVAL_ARTIFACTS_DIR`, by default
+`.eval-artifacts/`. Its record contains:
 
 - Suite, scenario, and repetition IDs; start time; framework version; config,
   source-manifest, script, fixture, and calibration hashes; agent and judge
