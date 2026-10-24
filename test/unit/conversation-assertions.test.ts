@@ -273,7 +273,7 @@ describe('the report names the evaluated version and the first deviation (specs/
     startedAt: '2026-01-15T10:00:00.000Z',
     frameworkVersion: '0.0.0-test',
     hashes: { config: 'c'.repeat(64), scenarios: 's'.repeat(64), fixtures: null },
-    agent: { model: 'mock:demo', runner: 'ai-sdk', temperature: 0.3 },
+    agent: { model: 'mock:demo', runner: 'langchain', temperature: 0.3 },
     judge: null,
     playbook: null,
     scenarios: [

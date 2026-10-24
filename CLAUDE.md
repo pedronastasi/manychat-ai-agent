@@ -90,6 +90,7 @@ src/
   contracts/           # Zod schemas (agent, config, manychat)
   conversation/        # Budget enforcement, conversation/turn persistence
   db/                  # DB client factory, migrations, Drizzle schema
+  evals/               # Eval runner, judge (specs/016) and conversation harness (specs/043)
   learning/            # Learning from outcomes: weekly job, playbook, insights CLI (specs/031)
   media/               # Inbound voice notes, images, videos: resolver, ffmpeg splitter
   nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
@@ -105,8 +106,8 @@ test/
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
 docs/adr/              # Architecture Decision Records (0001–0027)
-specs/                 # Specification documents (000–032)
-evals/golden/          # Golden eval cases (cases.jsonl)
+specs/                 # Specification documents (000–051)
+evals/golden/          # Golden eval cases (cases.jsonl) and conversations (conversations.jsonl)
 packages/create/       # create-manychat-ai-agent: scaffolds a tenant project (specs/035)
 ```
 

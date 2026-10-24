@@ -83,7 +83,7 @@ export const EnvSchema = z
      *
      * It matters because reasoning is charged and capped as OUTPUT: a model that
      * deliberates past AGENT_MAX_OUTPUT_TOKENS never emits the structured reply,
-     * generateText throws, and the turn fails closed to a human. A front desk
+     * the runner finds no reply to parse, and the turn fails closed to a human. A front desk
      * answering from a fixed catalog gains little from deliberation, so 'low' or
      * 'minimal' buys latency and cost back.
      */
