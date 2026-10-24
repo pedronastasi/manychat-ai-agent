@@ -290,7 +290,7 @@ function runGate(
     `\n  run ${result.run}: ${result.passed ? 'passes the gate' : 'does not pass the gate'}`,
   );
   console.log(
-    `  reviews: ${result.reviews.applied} applied, ${result.reviews.otherRuns} for other runs, ${result.reviews.invalid.length} invalid; ${result.disagreements.length} disagreements with the judge`,
+    `  reviews: ${result.reviews.applied} applied, ${result.reviews.otherRuns} for other runs, ${result.reviews.invalid.length} invalid; ${result.disagreements.length} disagreements`,
   );
   for (const reason of result.reasons) console.log(`  - ${reason}`);
   for (const problem of result.reviews.invalid) console.log(`  - invalid review: ${problem}`);
