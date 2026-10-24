@@ -1,6 +1,6 @@
 import { MockLanguageModelV4 } from 'ai/test';
 import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
-import { GenerateTextRunner } from '../../src/agent/runner.ts';
+import { LangGraphRunner } from '../../src/agent/langgraph-runner.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import type { TenantConfig } from '../../src/config/loader.ts';
 import { Scenario } from '../../src/contracts/conversations.ts';
@@ -120,7 +120,7 @@ export function runOptions(
     runner: () => {
       const scripted = scriptedTurns(script(models.length + 1));
       models.push(scripted);
-      return new GenerateTextRunner({
+      return new LangGraphRunner({
         model: scripted.model,
         modelSpec: 'mock:demo',
         config: () => tenant,

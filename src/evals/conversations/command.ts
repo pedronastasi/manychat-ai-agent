@@ -62,7 +62,8 @@ export async function runConversations(args: string[]): Promise<number> {
       hashes: { config: configHash(configDir), ...suite.hashes },
       agent: {
         model: env.AGENT_MODEL,
-        runner: env.AGENT_RUNNER,
+        // The only runner since specs/050 § The AI SDK runner is removed.
+        runner: 'langchain',
         temperature: env.AGENT_TEMPERATURE,
       },
       judge: null,
@@ -70,7 +71,7 @@ export async function runConversations(args: string[]): Promise<number> {
     },
     {
       runner: () =>
-        createRunner(env.AGENT_RUNNER, {
+        createRunner({
           modelSpec: env.AGENT_MODEL,
           config: () => tenant,
           maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
