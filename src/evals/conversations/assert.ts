@@ -2,6 +2,7 @@ import type { Catalog, Tools } from '../../contracts/config.ts';
 import { NO_TOOLS } from '../../contracts/config.ts';
 import type {
   ActionMatcher,
+  AssertionKey,
   ConversationExpect,
   DeliveryMatcher,
   Scenario,
@@ -11,6 +12,7 @@ import type {
 } from '../../contracts/conversations.ts';
 import { checkCase } from '../cases.ts';
 import type { Delivery } from './channel.ts';
+import { inputText } from './harness.ts';
 import type { ContactState, RepetitionRun, StepRecord, TraceAction } from './harness.ts';
 import { resolveArtifact } from './suite.ts';
 
@@ -123,6 +125,9 @@ function checkState(expected: StateAssertion | undefined, state: ContactState): 
   if (expected.offering !== undefined && expected.offering !== state.offering) {
     failures.push(`offering expected ${expected.offering}, got ${state.offering}`);
   }
+  if (expected.pending_nudge !== undefined && expected.pending_nudge !== state.pendingNudge) {
+    failures.push(`pending nudge expected ${expected.pending_nudge}, got ${state.pendingNudge}`);
+  }
   return failures;
 }
 
@@ -147,7 +152,7 @@ export function checkStep(
     testCase: {
       id: step.id,
       history: [],
-      text: step.input.text,
+      text: inputText(step.input),
       expect: { escalate: expect.escalate ?? reply.escalate, reason: expect.reason },
       must_not_invent_prices: expect.must_not_invent_prices,
       must_end_with_question: expect.must_end_with_question,
@@ -179,6 +184,13 @@ export function checkStep(
     }
   }
 
+  if (expect.replies !== undefined && record.replies !== expect.replies) {
+    failures.push(`replies expected ${expect.replies}, got ${record.replies}`);
+  }
+  if (expect.nudge !== undefined && record.nudge?.outcome !== expect.nudge) {
+    failures.push(`nudge expected ${expect.nudge}, got ${record.nudge?.outcome ?? 'no silence'}`);
+  }
+
   const closing = expect.closing_question;
   if (closing !== undefined) {
     const asked = record.reply.closing_question;
@@ -189,6 +201,26 @@ export function checkStep(
     }
   }
   return failures;
+}
+
+/**
+ * Each of the step's declared assertions on its own, by key: what a witness
+ * cites (specs/043 § Branch coverage requires an executed witness). A key the
+ * step does not declare is absent.
+ */
+export function checkStepKeys(
+  step: Step,
+  record: StepRecord,
+  deliveries: readonly Delivery[],
+  ctx: AssertContext,
+): Map<AssertionKey, string[]> {
+  const out = new Map<AssertionKey, string[]>();
+  for (const [key, value] of Object.entries(step.expect)) {
+    if (key === 'witnesses' || value === undefined) continue;
+    const only: Step = { ...step, expect: { [key]: value } };
+    out.set(key as AssertionKey, checkStep(only, record, deliveries, ctx));
+  }
+  return out;
 }
 
 /** Where a reference first and last occurs on the run's timeline, or undefined. */

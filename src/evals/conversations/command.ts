@@ -12,6 +12,9 @@ import {
   writeReport,
 } from './run.ts';
 import { loadSuite, validateSuite } from './suite.ts';
+import { BRANCHES_FILE, staleSources } from './coverage.ts';
+import { acceptsImages } from '../../agent/registry.ts';
+import { detectFfmpeg, FfmpegVideoSplitter } from '../../media/ffmpeg.ts';
 
 /** Where reports go unless `EVAL_ARTIFACTS_DIR` says otherwise. Gitignored. */
 export const DEFAULT_ARTIFACTS_DIR = '.eval-artifacts';
@@ -32,7 +35,10 @@ export async function runConversations(args: string[]): Promise<number> {
 
   const { suite, errors } = loadSuite(suiteDir);
   const problems = suite
-    ? validateSuite(suite, tenant, { plugins: plugins.summary().map(entry => entry.plugin) })
+    ? validateSuite(suite, tenant, {
+        plugins: plugins.summary().map(entry => entry.plugin),
+        configDir,
+      })
     : errors;
   if (!suite || problems.length > 0) {
     console.error(`conversation suite ${suiteDir} is invalid:`);
@@ -40,11 +46,27 @@ export async function runConversations(args: string[]): Promise<number> {
     return 1;
   }
   const steps = suite.scenarios.reduce((sum, scenario) => sum + scenario.steps.length, 0);
+  // A changed source leaves the inventory stale until a person reconciles
+  // it; an old script still passing does not cover a changed prompt.
+  const stale = suite.inventory ? staleSources(suite.inventory, { ...tenant, configDir }) : [];
   if (validateOnly) {
     console.log(
-      `conversation suite ${suiteDir} is valid: ${suite.scenarios.length} scenarios, ${steps} steps`,
+      `conversation suite ${suiteDir} is valid: ${suite.scenarios.length} scenarios, ${steps} steps, ${suite.inventory?.branches.length ?? 0} branches`,
     );
-    return 0;
+    if (!suite.inventory) {
+      console.error(`  no ${BRANCHES_FILE}: branch coverage cannot be complete`);
+      return 1;
+    }
+    for (const entry of stale) {
+      console.error(
+        `  stale: ${entry.source} was reconciled at ${entry.recorded}; it is now ${entry.current ?? 'missing'}`,
+      );
+    }
+    const conflicted = suite.inventory.branches.filter(branch => branch.conflict);
+    for (const branch of conflicted) {
+      console.error(`  conflict: branch ${branch.id}: ${branch.conflict?.note}`);
+    }
+    return stale.length + conflicted.length > 0 ? 1 : 0;
   }
 
   const playbook = await playbookFor(env, tenant.rules.learning !== undefined);
@@ -88,6 +110,14 @@ export async function runConversations(args: string[]): Promise<number> {
       modelAbortMs: env.MODEL_ABORT_MS,
       tokensEnforced: env.CONTACT_TOKENS_ENFORCED,
       defaultChannel: env.CHANNEL,
+      suiteDir,
+      // What this deployment could read; transcription answers from fixtures.
+      media: {
+        acceptsImages: acceptsImages(env.AGENT_MODEL),
+        transcription: env.TRANSCRIPTION_MODEL !== undefined,
+        splitter: (await detectFfmpeg()) ? new FfmpegVideoSplitter() : null,
+      },
+      stale,
       latencyBudgetMs: Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS),
     },
     result => {
@@ -105,10 +135,15 @@ export async function runConversations(args: string[]): Promise<number> {
     },
   );
 
-  const { totals } = report;
+  const { totals, coverage } = report;
   const paths = writeReport(report, process.env.EVAL_ARTIFACTS_DIR ?? DEFAULT_ARTIFACTS_DIR);
   console.log(
     `\n  ${totals.passed} passed   ${totals.failed} failed   ${totals.pendingReview} pending review   ${totals.unstable} unstable   ${totals.executionErrors} execution errors   cost $${totals.agentCostUsd.toFixed(4)}`,
+  );
+  console.log(
+    coverage.inventory
+      ? `  coverage: ${coverage.counts.verified} of ${coverage.counts.declared} branches verified, ${coverage.stale.length} stale sources, ${coverage.counts.conflicted} conflicted${coverage.complete ? '' : ' (incomplete)'}`
+      : `  coverage: no ${BRANCHES_FILE} (incomplete)`,
   );
   console.log(`  report: ${paths.markdown}\n`);
   return exitCode(report);

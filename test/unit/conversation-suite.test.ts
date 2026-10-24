@@ -189,3 +189,48 @@ describe('a suite is rejected before any provider call (specs/043 V1)', () => {
     );
   });
 });
+
+describe('media and silence steps are checked before any provider call (specs/043 V1)', () => {
+  const at = (step: object) => problems([{ ...base, steps: [step] }]);
+
+  it('rejects a media file that is missing or outside the suite', () => {
+    const media = (file: string) => ({
+      id: 'one',
+      input: { kind: 'media', media: 'audio', file, content_type: 'audio/ogg' },
+    });
+    expect(at(media('voice.ogg'))).toEqual([
+      'scenario base step one: media file voice.ogg does not exist',
+    ]);
+    expect(at(media('../voice.ogg'))).toEqual([
+      'scenario base step one: media file ../voice.ogg is outside the suite',
+    ]);
+  });
+
+  it('keeps nudge expectations to silence steps, and pending nudges to configured delays', () => {
+    expect(
+      at({ id: 'one', input: { kind: 'message', text: 'hi' }, expect: { nudge: 'sent' } }),
+    ).toEqual(['scenario base step one: a nudge expectation needs a silence step']);
+    expect(
+      at({
+        id: 'one',
+        input: { kind: 'silence', advance_minutes: 120 },
+        expect: { nudge: 'sent', state: { pending_nudge: 'next_week' } },
+      }),
+    ).toEqual(['scenario base step one: nudge delay next_week is not configured in tools.json']);
+  });
+
+  it('rejects a silence with no length or longer than a week', () => {
+    expect(at({ id: 'one', input: { kind: 'silence', advance_minutes: 0 } })).not.toEqual([]);
+    expect(at({ id: 'one', input: { kind: 'silence', advance_minutes: 20_000 } })).not.toEqual([]);
+  });
+
+  it('rejects a witness when the suite has no branch inventory', () => {
+    expect(
+      at({
+        id: 'one',
+        input: { kind: 'message', text: 'hi' },
+        expect: { escalate: false, witnesses: [{ branch: 'a', assertions: ['escalate'] }] },
+      }),
+    ).toEqual(['a step names a witness, but the suite has no branches.json']);
+  });
+});

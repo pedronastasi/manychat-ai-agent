@@ -1,14 +1,27 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { and, asc, eq, gt, min, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.ts';
 import { createEmbeddedDatabase } from '../../db/client.ts';
 import { runMigrations } from '../../db/migrate.ts';
-import { conversations, outbox, turns } from '../../db/schema.ts';
+import { conversations, nudges, outbox, turns } from '../../db/schema.ts';
 import { TurnHandler } from '../../turn/handler.ts';
 import type { TurnLogger } from '../../turn/logger.ts';
 import { TurnLanes } from '../../conversation/turns.ts';
 import { ConversationStore } from '../../conversation/store.ts';
 import { ContactTokens } from '../../conversation/tokens.ts';
 import { OutboxWorker } from '../../outbox/worker.ts';
+import { NudgeWorker } from '../../nudge/worker.ts';
+import type { NudgeResult } from '../../nudge/worker.ts';
+import { MediaResolver } from '../../media/resolver.ts';
+import type {
+  MediaDownload,
+  MediaFetcher,
+  Transcriber,
+  Transcript,
+  VideoSplitter,
+} from '../../media/port.ts';
+import { plainReply } from '../../turn/replies.ts';
 import type { AgentResult, AgentRunner, AgentTurnInput } from '../../agent/runner.ts';
 import type {
   ActionRecord,
@@ -17,12 +30,19 @@ import type {
   PerformableAction,
   TurnOutcome,
 } from '../../contracts/agent.ts';
-import type { Rules, Tools } from '../../contracts/config.ts';
+import type { Catalog, Rules, Tools } from '../../contracts/config.ts';
 import { NO_TOOLS } from '../../contracts/config.ts';
-import type { InitialState, Scenario, Step, Terminal } from '../../contracts/conversations.ts';
+import type {
+  InitialState,
+  NudgeOutcome,
+  Scenario,
+  Step,
+  Terminal,
+} from '../../contracts/conversations.ts';
 import { intentField, offeringField } from '../../agent/tools/lookups.ts';
 import { SimulatedChannel } from './channel.ts';
 import type { Delivery } from './channel.ts';
+import { VirtualClock } from './clock.ts';
 
 /**
  * Runs one repetition of a scenario through the production turn path: the
@@ -36,8 +56,14 @@ import type { Delivery } from './channel.ts';
 export const EVAL_TENANT = 'eval';
 export const EVAL_SUBSCRIBER = 'contact-1';
 
-/** How long a step's deferred reply, flow wait and outbox may take to settle. */
+/** How long a step's deferred reply and outbox may take to settle, in real time. */
 const SETTLE_LIMIT_MS = 120_000;
+
+/** How many nudges one silence step may run: one comes due, and may schedule the next. */
+const MAX_NUDGES_PER_SILENCE = 20;
+
+/** Where a media step's file is said to be. Never fetched: the fixture fetcher answers it. */
+const MEDIA_HOST = 'https://media.eval.invalid';
 
 const SILENT: TurnLogger = { info: () => {}, warn: () => {}, error: () => {} };
 
@@ -52,16 +78,25 @@ export interface ContactState {
   /** Tag ids the contact carries. */
   tags: string[];
   offering: string | null;
+  /** The pending nudge, by its `tools.json` delay id (or its minutes when none matches). */
+  pendingNudge: string | null;
 }
 
 export interface StepRecord {
   id: string;
   input: Step['input'];
-  outcome: TurnOutcome;
+  /** The turn's outcome; `no_turn` for a silence step in which no model ran. */
+  outcome: TurnOutcome | 'no_turn';
   /** The reply the step ended with: the deferred one when the race was lost. */
   reply: AgentReply;
   /** The step's reply messages as delivered, without a holding line. */
   messages: string[];
+  /** How many replies reached the contact in the step, without a holding line. */
+  replies: number;
+  /** Silence steps: what became of the nudge, and what the worker reported. */
+  nudge?: { outcome: NudgeOutcome; results: NudgeResult[] } | undefined;
+  /** How far the repetition's clock had moved past real time when the step settled. */
+  clockMs: number;
   actions: TraceAction[];
   state: ContactState;
   /** The agent's own latency, from the model call; absent when the model never ran. */
@@ -88,12 +123,22 @@ export interface HarnessOptions {
   runner: AgentRunner;
   rules: Rules;
   tools?: Tools | undefined;
+  catalog: Catalog;
   raceDeadlineMs: number;
   modelAbortMs: number;
   tokensEnforced: boolean;
   defaultChannel: string;
   /** Configures the channel before the first step, such as a refused flow in a test. */
   prepare?: ((channel: SimulatedChannel) => void) | undefined;
+  /** Where a media step's file is read from: the suite's directory. */
+  suiteDir?: string | undefined;
+  /**
+   * What the deployment can read (specs/020): whether the agent model takes
+   * images, whether a transcription model is set, and the video splitter, if
+   * ffmpeg is installed. Transcription answers from the step's fixture, never
+   * a provider. Defaults: no images, transcription, no splitter.
+   */
+  media?: { acceptsImages: boolean; transcription: boolean; splitter: VideoSplitter | null };
   /** A database for the repetition; defaults to a fresh embedded one. */
   database?: (() => Promise<{ db: Database; close: () => Promise<void> }>) | undefined;
 }
@@ -137,7 +182,53 @@ async function freshDatabase(): Promise<{ db: Database; close: () => Promise<voi
 
 const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
-/** Runs one repetition from a fresh state: database, contact, channel and ledger. */
+/**
+ * The ManyChat media host, for a conversation run: a step's media URL answers
+ * with the step's own invented file, as the channel would serve it (specs/004,
+ * specs/043). It makes no request.
+ */
+class FixtureFetcher implements MediaFetcher {
+  private readonly files = new Map<string, MediaDownload>();
+
+  serve(url: string, download: MediaDownload): void {
+    this.files.set(url, download);
+  }
+
+  fetch(media: { url: string }): Promise<MediaDownload> {
+    const file = this.files.get(media.url);
+    return file ? Promise.resolve(file) : Promise.reject(new Error('no fixture for this media'));
+  }
+}
+
+/** Transcription at the model boundary: the step's declared transcript, at no cost. */
+class FixtureTranscriber implements Transcriber {
+  current = '';
+
+  transcribe(): Promise<Transcript> {
+    return Promise.resolve({ text: this.current, model: 'fixture', costUsd: 0 });
+  }
+}
+
+/** A step's input as the transcript shows it. A media file is named, never read out. */
+export function inputText(input: Step['input']): string {
+  switch (input.kind) {
+    case 'media':
+      return `[${input.media}: ${input.file}]${input.transcript === undefined ? '' : ` "${input.transcript}"`}`;
+    case 'silence':
+      return `[silence: ${input.advance_minutes} minutes]`;
+    default:
+      return input.text;
+  }
+}
+
+/** One outcome for the step from everything the nudge worker reported over it. */
+function nudgeOutcome(results: readonly NudgeResult[]): NudgeOutcome {
+  if (results.includes('sent')) return 'sent';
+  if (results.includes('skipped')) return 'suppressed';
+  return results.length > 0 ? 'cancelled' : 'none';
+}
+
+/** Runs one repetition from a fresh state: database, contact, clock, channel and ledger. */
 export async function runRepetition(
   scenario: Scenario,
   repetition: number,
@@ -145,12 +236,28 @@ export async function runRepetition(
 ): Promise<RepetitionRun> {
   const tools = opts.tools ?? NO_TOOLS;
   const { db, close } = await (opts.database ?? freshDatabase)();
+  const clock = new VirtualClock(db);
   const channel = new SimulatedChannel();
   opts.prepare?.(channel);
   const runner = new RecordingRunner(opts.runner);
   const lanes = new TurnLanes(opts.modelAbortMs + opts.raceDeadlineMs);
   const store = new ConversationStore(db);
   const worker = new OutboxWorker({ db, client: channel, logger: SILENT });
+  // A nudge that fails anywhere but the model is reported by the worker as
+  // skipped, which would read as suppressed: its error log is how the step
+  // knows it was an infrastructure failure instead (specs/043).
+  const nudgeFailures: string[] = [];
+  const nudger = new NudgeWorker({
+    db,
+    runner,
+    config: () => ({ persona: '', catalog: opts.catalog, rules: opts.rules, tools }),
+    contacts: channel,
+    logger: { ...SILENT, error: (_fields, message) => nudgeFailures.push(message) },
+    modelAbortMs: opts.modelAbortMs,
+  });
+  const fetcher = new FixtureFetcher();
+  const transcriber = new FixtureTranscriber();
+  const capabilities = opts.media ?? { acceptsImages: false, transcription: true, splitter: null };
   const handler = new TurnHandler({
     db,
     runner,
@@ -165,7 +272,14 @@ export async function runRepetition(
     contacts: channel,
     lanes,
     defaultChannel: opts.defaultChannel,
+    media: new MediaResolver({
+      fetcher,
+      transcriber: capabilities.transcription ? transcriber : null,
+      splitter: capabilities.splitter,
+      acceptsImages: capabilities.acceptsImages,
+    }),
   });
+  const settled = () => settle({ lanes, worker, db, clock });
 
   const run: RepetitionRun = {
     repetition,
@@ -185,37 +299,75 @@ export async function runRepetition(
     for (const [index, step] of scenario.steps.entries()) {
       channel.step = step.id;
       runner.step = step.id;
-      const inbound: InboundMessage = {
-        tenantId: EVAL_TENANT,
-        subscriberId: EVAL_SUBSCRIBER,
-        text: step.input.text,
-        channel: opts.defaultChannel,
-        contactName: null,
-        locale: null,
-        contactToken: channel.tokenOf(EVAL_SUBSCRIBER),
-        offering: step.input.kind === 'message' ? (step.input.advert_offering ?? null) : null,
-        receivedAt: new Date(),
-      };
+      const { input } = step;
 
-      const turn = await handler.handle(inbound);
-      // The response goes out first; the actions it staged follow it
-      // (specs/012 § Actions follow the text).
-      if (!turn.silent) channel.deliverInline(turn.reply.messages);
-      await turn.afterResponse?.();
-      await settle({ lanes, worker, db });
+      let outcome: StepRecord['outcome'];
+      let turnReply: AgentReply | undefined;
+      let nudge: StepRecord['nudge'];
+      if (input.kind === 'silence') {
+        nudgeFailures.length = 0;
+        const results = await silence(input.advance_minutes * 60_000, {
+          db,
+          clock,
+          nudger,
+          settled,
+        });
+        const ran = results.includes('sent') || results.includes('skipped');
+        outcome = results.includes('sent') ? 'nudge_sent' : ran ? 'nudge_skipped' : 'no_turn';
+        nudge = { outcome: nudgeOutcome(results), results };
+      } else {
+        let text = input.kind === 'media' ? '' : input.text;
+        let media: InboundMessage['media'];
+        if (input.kind === 'media') {
+          // A file arrives as its URL alone, with no caption (specs/020).
+          text = `${MEDIA_HOST}/${encodeURIComponent(scenario.id)}/${encodeURIComponent(step.id)}`;
+          media = { kind: input.media, url: text };
+          fetcher.serve(text, {
+            bytes: new Uint8Array(readFileSync(join(opts.suiteDir ?? '.', input.file))),
+            contentType: input.content_type,
+          });
+          transcriber.current = input.transcript ?? '';
+        }
+        const inbound: InboundMessage = {
+          tenantId: EVAL_TENANT,
+          subscriberId: EVAL_SUBSCRIBER,
+          text,
+          channel: opts.defaultChannel,
+          contactName: null,
+          locale: null,
+          contactToken: channel.tokenOf(EVAL_SUBSCRIBER),
+          ...(media ? { media } : {}),
+          offering: input.kind === 'message' ? (input.advert_offering ?? null) : null,
+          receivedAt: new Date(),
+        };
+
+        const turn = await handler.handle(inbound);
+        // The response goes out first; the actions it staged follow it
+        // (specs/012 § Actions follow the text).
+        if (!turn.silent) channel.deliverInline(turn.reply.messages);
+        await turn.afterResponse?.();
+        await settled();
+        outcome = turn.outcome;
+        turnReply = turn.reply;
+      }
 
       const results = runner.results.get(step.id) ?? [];
       const last = results.at(-1);
       // A lost race delivers the model's reply later; the turn's own reply was
-      // the holding line (ADR-0001).
-      const reply = turn.outcome === 'deferred' && last ? last.reply : turn.reply;
+      // the holding line (ADR-0001). A silence step's reply is the nudge's.
+      const reply =
+        turnReply === undefined
+          ? (last?.reply ?? plainReply([]))
+          : outcome === 'deferred' && last
+            ? last.reply
+            : turnReply;
       const delivered = channel.deliveries.filter(
         (entry): entry is Extract<Delivery, { kind: 'reply' }> =>
-          entry.kind === 'reply' && entry.step === step.id,
+          entry.kind === 'reply' &&
+          entry.step === step.id &&
+          (outcome !== 'deferred' || entry.via === 'outbox'),
       );
-      const messages = delivered
-        .filter(entry => turn.outcome !== 'deferred' || entry.via === 'outbox')
-        .flatMap(entry => entry.messages);
+      const messages = delivered.flatMap(entry => entry.messages);
 
       const actions = (await actionsSince(db, seq)).map(action => ({ ...action, step: step.id }));
       seq = await lastSeq(db);
@@ -226,21 +378,27 @@ export async function runRepetition(
       const executionError =
         modelError !== undefined
           ? `model error: ${modelError}`
-          : turn.outcome === 'error'
-            ? 'the turn failed and escalated'
-            : turn.outcome === 'deferred' && last === undefined
-              ? 'the deferred model call did not complete'
-              : undefined;
+          : input.kind === 'silence' && nudgeFailures.length > 0
+            ? `nudge error: ${nudgeFailures.join(', ')}`
+            : outcome === 'error'
+              ? 'the turn failed and escalated'
+              : outcome === 'deferred' && last === undefined
+                ? 'the deferred model call did not complete'
+                : undefined;
 
       run.steps.push({
         id: step.id,
-        input: step.input,
-        outcome: turn.outcome,
+        input,
+        outcome,
         reply,
         messages,
+        replies: delivered.length,
+        nudge,
+        clockMs: clock.elapsedMs,
         actions,
         state: await stateOf(db, channel, tools),
-        latencyMs: last?.latencyMs,
+        // A nudge has no race, so no latency to hold against the deadline.
+        latencyMs: input.kind === 'silence' ? undefined : last?.latencyMs,
         costUsd: results.reduce((sum, result) => sum + result.usage.costUsd, 0),
         interventions: results.flatMap(result => result.interventions),
         executionError,
@@ -248,11 +406,12 @@ export async function runRepetition(
 
       // An infrastructure failure never passes a behaviour test, even when its
       // fallback escalation looks like an expected handoff (specs/043 § A
-      // failed conversation continues until a terminal event).
+      // failed conversation continues until a terminal event). A nudge that
+      // escalates is suppressed, not handed off: the script goes on.
       if (executionError !== undefined) {
         run.terminal = 'error';
         run.executionError = `${step.id}: ${executionError}`;
-      } else if (reply.escalate) {
+      } else if (input.kind !== 'silence' && reply.escalate) {
         run.terminal = 'handoff';
       }
       if (run.terminal !== 'completed') {
@@ -278,17 +437,59 @@ export async function runRepetition(
 }
 
 /**
- * Waits for everything the turn left running: its deferred reply recorded,
- * then every queued reply delivered, flow waits included. The next step
- * starts only after this (specs/043).
+ * The contact says nothing for `ms`. The clock moves to each nudge as it
+ * comes due, the worker runs it and its reply settles, and then the rest of
+ * the silence passes. No nudge is made up: with none pending, nothing runs
+ * (specs/043 § Scripts supply contact messages).
  */
-async function settle(deps: { lanes: TurnLanes; worker: OutboxWorker; db: Database }) {
+async function silence(
+  ms: number,
+  deps: {
+    db: Database;
+    clock: VirtualClock;
+    nudger: NudgeWorker;
+    settled: () => Promise<number>;
+  },
+): Promise<NudgeResult[]> {
+  const results: NudgeResult[] = [];
+  let remaining = ms;
+  for (let ran = 0; ran < MAX_NUDGES_PER_SILENCE; ran++) {
+    const [next] = await deps.db
+      .select({ due: min(nudges.dueAt) })
+      .from(nudges)
+      .where(eq(nudges.status, 'pending'));
+    const due = next?.due ? new Date(next.due).getTime() : undefined;
+    if (due === undefined) break;
+    const wait = Math.max(due - Date.now(), 0) + 1;
+    if (wait > remaining) break;
+    await deps.clock.advance(wait);
+    remaining -= wait;
+    results.push(...(await deps.nudger.drainOnce()));
+    remaining -= await deps.settled();
+  }
+  await deps.clock.advance(Math.max(remaining, 0));
+  return results;
+}
+
+/**
+ * Waits for everything the turn left running: its deferred reply recorded,
+ * then every queued reply delivered. A reply held for a playing flow is due
+ * later; the clock moves to it rather than waiting (specs/043). Resolves to
+ * how far it moved the clock.
+ */
+async function settle(deps: {
+  lanes: TurnLanes;
+  worker: OutboxWorker;
+  db: Database;
+  clock: VirtualClock;
+}): Promise<number> {
   // The contact's lane frees once the turn's background work has settled.
   const slot = deps.lanes.enter(`${EVAL_TENANT}:${EVAL_SUBSCRIBER}`);
   const ready = await slot.ready;
   slot.leave();
   if (ready === 'expired') throw new Error('the turn did not settle within the model abort bound');
 
+  let moved = 0;
   const deadline = Date.now() + SETTLE_LIMIT_MS;
   for (;;) {
     const drained = await deps.worker.drainOnce();
@@ -297,12 +498,16 @@ async function settle(deps: { lanes: TurnLanes; worker: OutboxWorker; db: Databa
       .select({ due: min(outbox.nextAttemptAt), count: sql<number>`count(*)::int` })
       .from(outbox)
       .where(and(eq(outbox.status, 'pending'), eq(outbox.kind, 'reply')));
-    if (!pending || pending.count === 0) return;
+    if (!pending || pending.count === 0) return moved;
     if (Date.now() > deadline) throw new Error('queued replies did not drain');
-    // A reply waits for a playing flow in real time until a virtual clock
-    // replaces it (specs/043 § The production turn path).
-    const due = pending.due ? new Date(pending.due).getTime() : Date.now();
-    await pause(Math.min(Math.max(due - Date.now(), 25), 1000));
+    const wait = pending.due ? new Date(pending.due).getTime() - Date.now() : 0;
+    if (wait > 0) {
+      await deps.clock.advance(wait + 1);
+      moved += wait + 1;
+    } else {
+      // Due, and claimed by nothing yet: the row is still being written.
+      await pause(25);
+    }
   }
 }
 
@@ -339,7 +544,19 @@ async function stateOf(
     .where(
       and(eq(conversations.tenantId, EVAL_TENANT), eq(conversations.subscriberId, EVAL_SUBSCRIBER)),
     );
-  return { fields, tags, offering: row?.offering ?? null };
+  const [pending] = await db
+    .select({ dueAt: nudges.dueAt, scheduledAt: nudges.scheduledAt })
+    .from(nudges)
+    .where(eq(nudges.status, 'pending'));
+  let pendingNudge: string | null = null;
+  if (pending) {
+    const minutes = Math.round(
+      (new Date(pending.dueAt).getTime() - new Date(pending.scheduledAt).getTime()) / 60_000,
+    );
+    pendingNudge =
+      tools.nudge?.delays.find(delay => delay.minutes === minutes)?.id ?? `${minutes}m`;
+  }
+  return { fields, tags, offering: row?.offering ?? null, pendingNudge };
 }
 
 /**
