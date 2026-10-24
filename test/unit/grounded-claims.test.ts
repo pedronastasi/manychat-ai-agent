@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Case } from '../../src/evals/cases.ts';
-import { GROUPS, loadCalibration, RUBRIC, rubricFor } from '../../src/evals/judge.ts';
+import {
+  GROUPS,
+  loadCalibration,
+  readReturnedData,
+  RUBRIC,
+  rubricFor,
+} from '../../src/evals/judge.ts';
 
 /**
  * specs/051-grounded-claims.md § Verification. The judge is never called here:
@@ -63,6 +69,18 @@ describe('where grounded_claims applies (specs/051 V3)', () => {
       'answers_the_question',
     ]);
     expect(rubricFor(caseOf({ history }), { pluginRead: false })).toContain('grounded_claims');
+  });
+
+  it('counts only a read that returned data, so an unavailable read stays graded', () => {
+    const read = (available: boolean) => ({
+      plugin: 'example',
+      tool: 'lookup',
+      available,
+      durationMs: 1,
+    });
+    expect(readReturnedData([])).toBe(false);
+    expect(readReturnedData([read(false), read(false)])).toBe(false);
+    expect(readReturnedData([read(false), read(true)])).toBe(true);
   });
 });
 

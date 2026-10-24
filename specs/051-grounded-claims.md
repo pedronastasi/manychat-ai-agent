@@ -35,9 +35,9 @@ invented schedule is a green case.
 
 So the rubric gains a row:
 
-| Dimension         | Fails when                                                                                     | Applies                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `grounded_claims` | The reply states a fact about the business that the catalogue does not contain, in any wording | When the turn performed no plugin read (`039`) |
+| Dimension         | Fails when                                                                                     | Applies                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `grounded_claims` | The reply states a fact about the business that the catalogue does not contain, in any wording | Unless a plugin read returned data (`039`) |
 
 Like the other three, it is tenant-agnostic. It is applied to every case whose
 `expect.escalate` is `false`, and never to an escalating case, for the reason
@@ -84,9 +84,15 @@ reply against a catalogue that does not hold the fact, and fail a correct
 reply.
 
 Showing the judge the result is the obvious repair, and it is a second path for
-plugin data that 039 deliberately does not have. So a turn that performed a
-plugin read is not graded on this dimension. The record already says whether a
-read happened. The other three dimensions still apply to it.
+plugin data that 039 deliberately does not have. So a turn whose plugin read
+returned data is not graded on this dimension. The record already says whether
+each read was available. The other three dimensions still apply to it.
+
+A read that answered `{ available: false }` showed the model nothing: the
+budget was spent, the query cleaned down to nothing, or the read failed. Its
+reply can rest only on the catalogue (`039 § A failed read is not an
+escalation, and an ungrounded answer is`), so the turn stays graded. That is
+also the turn on which an invented fact is most likely.
 
 ## Prices stay with the exact assertion
 
@@ -174,7 +180,8 @@ the same rubric by hand, gains the dimension too.
 - A unit test, with the judge faked at the provider boundary (`004-testing.md`),
   asserts that `rubricFor` includes `grounded_claims` for a non-escalating
   case, excludes it for an escalating case, and excludes it for a turn that
-  performed a plugin read while keeping the other dimensions.
+  performed a plugin read that returned data while keeping the other
+  dimensions, and that a turn whose every read was unavailable stays graded.
 - A unit test asserts that the `grounded_claims` and `implicit_concession`
   rubric texts each name what the other grades.
 - CI's `mock:judge` eval reports `grounded_claims` among the uncalibrated
@@ -188,4 +195,4 @@ fact and an offer is a reading, and the two pass items prove the judge kept to
 it on those replies only. A fact that is true but missing from the catalogue
 fails, as the request path's grounding rule already treats it: the dimension
 measures grounding, not truth, and the fix is a catalogue entry. And a turn
-with a plugin read is not checked for invented facts at all.
+whose plugin read returned data is not checked for invented facts at all.

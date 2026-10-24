@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { generateText, Output } from 'ai';
 import type { LanguageModel } from 'ai';
+import type { ReadRecord } from '../contracts/agent.ts';
 import { CalibrationItem, Verdict } from '../contracts/judge.ts';
 import { estimateCostUsd } from '../agent/registry.ts';
 import { reviewCriteria } from './cases.ts';
@@ -49,6 +50,16 @@ export const JUDGE_TIMEOUT_MS = 60_000;
  */
 export const AGREEMENT_THRESHOLD = 1.0;
 
+/**
+ * Whether a plugin read of the turn returned data. An unavailable read (no
+ * budget left, an empty query, a failure) showed the model nothing, so its
+ * reply can rest only on the CATALOG and stays graded (specs/051 § A plugin
+ * read is ground truth the judge cannot see).
+ */
+export function readReturnedData(records: readonly ReadRecord[]): boolean {
+  return records.some(read => read.available);
+}
+
 export function isDimension(criterion: string): criterion is Dimension {
   return criterion in RUBRIC;
 }
@@ -60,8 +71,8 @@ export function groupOf(criterion: string): string {
 
 /**
  * The fixed dimensions a case is graded on. None for an escalating case, whose
- * message is the tenant's configured copy, not the model's (C9). A turn that
- * performed a plugin read is not graded on `grounded_claims`: its answer may
+ * message is the tenant's configured copy, not the model's (C9). A turn whose
+ * plugin read returned data is not graded on `grounded_claims`: its answer may
  * rest on a result the judge is never shown (specs/051 § A plugin read is
  * ground truth the judge cannot see).
  */
@@ -307,7 +318,7 @@ export async function judgeCase(opts: {
   failures: string[];
   reply: string[];
   agentPrompt: string;
-  /** The turn performed a plugin read (specs/039, specs/051). */
+  /** A plugin read of the turn returned data (specs/039, specs/051). */
   pluginRead?: boolean | undefined;
 }): Promise<CaseJudgement | undefined> {
   const { judge, groups, testCase, reply, agentPrompt } = opts;

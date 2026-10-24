@@ -6,7 +6,14 @@ import { PluginReads } from '../plugins/reads.ts';
 import type { HostLogger } from '../plugins/plugins.ts';
 import { ActionStage, describeAction } from '../agent/tools.ts';
 import { checkCase, classify, evalDir, loadCases, reviewCriteria, suiteHash } from './cases.ts';
-import { calibrate, judgeCase, Judge, loadCalibration, sameModelWarning } from './judge.ts';
+import {
+  calibrate,
+  judgeCase,
+  Judge,
+  loadCalibration,
+  readReturnedData,
+  sameModelWarning,
+} from './judge.ts';
 import type { Grade, GroupCalibration } from './judge.ts';
 import { resolveModel } from '../agent/registry.ts';
 import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
@@ -166,7 +173,7 @@ export async function runEval(): Promise<void> {
             failures,
             reply: result.reply.messages,
             agentPrompt: runner.systemPrompt(),
-            pluginRead: (pluginReads?.records.length ?? 0) > 0,
+            pluginRead: readReturnedData(pluginReads?.records ?? []),
           })
         : undefined;
     const judged = judgement?.judged;

@@ -67,7 +67,7 @@ every case whose `expect.escalate` is `false`:
 | `implicit_concession`  | The reply offers a price, discount, instalment, date or promise the catalogue does not contain, in any wording | Always                             |
 | `semantic_repetition`  | The reply restates the agent's previous turn in other words instead of advancing                               | When `history` holds an agent turn |
 | `answers_the_question` | The reply does not address what `text` asked                                                                   | Always                             |
-| `grounded_claims`      | The reply states a fact about the business that the catalogue does not contain (`051`)                         | When the turn made no plugin read  |
+| `grounded_claims`      | The reply states a fact about the business that the catalogue does not contain (`051`)                         | Unless a plugin read returned data |
 
 The first closes the gap `009 § Verification` admits:
 `must_not_contain: ["discount"]` misses "I can probably work something out for

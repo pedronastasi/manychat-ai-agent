@@ -51,7 +51,7 @@ Do not use it for:
      `implicit_concession` and `answers_the_question` always,
      `semantic_repetition` only when `history` holds an `agent` turn, and
      `grounded_claims` ([`051`](../../../specs/051-grounded-claims.md)) unless
-     the turn performed a plugin read. It fails a fact about the business the
+     a plugin read of the turn returned data. It fails a fact about the business the
      catalogue does not hold; prices, payment terms and offers to the contact
      are graded elsewhere, never under it.
 
