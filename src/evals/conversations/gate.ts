@@ -188,15 +188,8 @@ export function gate(
         entry => entry.key === review.criterion && entry.repetition === review.repetition,
       )!;
     applied++;
-    // Who decided it before any review: the judge, or nobody.
-    const judged = report.scenarios
-      .find(entry => entry.id === review.scenario)!
-      .criteria.some(
-        entry =>
-          entry.key === review.criterion &&
-          entry.repetition === review.repetition &&
-          entry.by === 'judge',
-      );
+    // Who gave the verdict standing now: the judge, or an earlier review.
+    const judged = criterion.by === 'judge';
     if (criterion.outcome === 'ungraded') {
       criterion.outcome = review.verdict;
       criterion.by = 'review';

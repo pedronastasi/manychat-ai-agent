@@ -320,6 +320,23 @@ describe('the gate applies reviews made against this run, and only it (specs/043
     expect(result.scenarios).toEqual([{ id: 'scenario', status: 'failed' }]);
   });
 
+  it('names the reviewer, not the judge, when a person disputes another person over a judged verdict', async () => {
+    const report = await run({ judge: scriptedJudge([pass]) });
+    const result = gate(
+      written(report),
+      [
+        review(report, { verdict: 'fail', reviewer: 'reviewer-1' }),
+        review(report, { verdict: 'pass', reviewer: 'reviewer-2' }),
+      ],
+      current,
+    );
+    expect(result.disagreements.map(entry => [entry.with, entry.earlier, entry.review])).toEqual([
+      ['judge', 'pass', 'fail'],
+      ['reviewer', 'fail', 'pass'],
+    ]);
+    expect(result.scenarios).toEqual([{ id: 'scenario', status: 'failed' }]);
+  });
+
   it('binds the run to everything it evaluated: any edit is a different run', () => {
     const base = evaluatedOf(evaluated);
     const edits: Evaluated[] = [
