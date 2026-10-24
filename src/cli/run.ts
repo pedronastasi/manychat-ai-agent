@@ -239,7 +239,7 @@ async function startWorkers(configDir: string) {
   const manychat = manychatClientFor(env);
   const playbook = playbookSource(db, env, configStore.get(), logger);
 
-  const runner = createRunner(env.AGENT_RUNNER, {
+  const runner = createRunner({
     modelSpec: env.AGENT_MODEL,
     config: () => configStore.get(),
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,

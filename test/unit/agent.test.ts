@@ -21,8 +21,8 @@ import { CatalogSchema, RulesSchema } from '../../src/contracts/config.ts';
 import { mockModel } from '../helpers/model.ts';
 
 /**
- * Every test here runs under both runners: specs/050-langchain-runner-parity.md
- * § Verification item 6 holds the LangChain runner to the same behaviour.
+ * Every test here runs under the LangChain runner, the only one since the AI SDK
+ * runner was removed (specs/050-langchain-runner-parity.md § Verification item 6).
  */
 let Runner: RunnerClass;
 

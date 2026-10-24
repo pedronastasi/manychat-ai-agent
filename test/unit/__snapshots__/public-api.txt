@@ -208,7 +208,7 @@ type Env = {
   AGENT_MAX_OUTPUT_TOKENS: number
   AGENT_MODEL: string
   AGENT_REASONING_EFFORT?: "high" | "low" | "medium" | "minimal" | undefined
-  AGENT_RUNNER: "ai-sdk" | "langchain"
+  AGENT_RUNNER?: "langchain" | undefined
   AGENT_TEMPERATURE: number
   ANTHROPIC_API_KEY?: string | undefined
   CHANNEL: string

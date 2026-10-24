@@ -28,7 +28,7 @@ import type {
  * It sends the request `generateText` would: the same prompt parts, the tools
  * as `function` tools, `toolChoice: auto`, the reply schema as a JSON response
  * format and the same provider options. A fake that records its calls sees
- * the same thing from both runners, which is how parity is tested.
+ * what the removed AI SDK runner sent it, which is how parity was tested.
  *
  * It never retries: the AI SDK's own retries live in `generateText`, which
  * this does not call, and every model it wraps is a fake.

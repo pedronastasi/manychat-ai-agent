@@ -80,7 +80,7 @@ export async function runEval(): Promise<void> {
   // RACE_DEADLINE_MS, which the live request path depends on.
   const latencyBudgetMs = Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS);
 
-  const runner = createRunner(env.AGENT_RUNNER, {
+  const runner = createRunner({
     modelSpec: env.AGENT_MODEL,
     config: () => tenant,
     maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
