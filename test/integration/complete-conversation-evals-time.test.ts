@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { sql } from 'drizzle-orm';
 import { runRepetition } from '../../src/evals/conversations/harness.ts';
+import type { AgentRunner } from '../../src/agent/runner.ts';
+import type { Database } from '../../src/db/client.ts';
+import { createTestDatabase } from '../helpers/db.ts';
 import { failuresOf } from '../../src/evals/conversations/assert.ts';
 import { runScenario } from '../../src/evals/conversations/run.ts';
 import type { TenantConfig } from '../../src/config/loader.ts';
@@ -131,6 +135,60 @@ describe('a fake clock runs scheduled silence (specs/043 V5)', () => {
     expect(run.notReached).toEqual([]);
     expect(run.deliveries.flatMap(entry => (entry.kind === 'reply' ? entry.messages : []))).toEqual(
       ['Tuesday and Thursday evenings.', 'Tuesday it is.'],
+    );
+  });
+
+  it('reports a nudge that broke outside the model as an execution error, never suppressed', async () => {
+    let db: Database | undefined;
+    const { opts } = runOptions(
+      () => [
+        { tools: [PROSPECT, NUDGE], reply: { messages: ['Tuesday and Thursday evenings.'] } },
+        { reply: { messages: ['Just checking in.'] } },
+      ],
+      {
+        database: async () => {
+          const database = await createTestDatabase();
+          db = database.db;
+          return database;
+        },
+      },
+    );
+    const inner = opts.runner();
+    let calls = 0;
+    // Just before the nudge's own turn, the database refuses the next queued
+    // reply once: a sequence is not rolled back, so the retry after succeeds.
+    const runner: AgentRunner = {
+      run: async input => {
+        if (++calls === 2) {
+          for (const statement of [
+            'CREATE SEQUENCE refuse_once',
+            `CREATE FUNCTION refuse_once() RETURNS trigger LANGUAGE plpgsql AS $$
+              BEGIN
+                IF nextval('refuse_once') = 1 THEN RAISE EXCEPTION 'invented outage'; END IF;
+                RETURN NEW;
+              END $$`,
+            `CREATE TRIGGER refuse_once BEFORE INSERT ON outbox
+              FOR EACH ROW EXECUTE FUNCTION refuse_once()`,
+          ]) {
+            await db!.execute(sql.raw(statement));
+          }
+        }
+        return inner.run(input);
+      },
+    };
+    const parsed = scenario({
+      steps: [
+        say('asks', 'what days are the classes?'),
+        quiet('due', 150, { nudge: 'suppressed' }),
+      ],
+      expect: { terminal: 'completed' },
+    });
+    const run = await runRepetition(parsed, 1, { ...opts, runner });
+    expect(calls).toBe(2);
+    expect(run.steps[1]!.executionError).toBe('nudge error: nudge failed');
+    expect(run.terminal).toBe('error');
+    expect(failuresOf(parsed, run, ctx).map(failure => failure.message)).toContain(
+      'execution error: due: nudge error: nudge failed',
     );
   });
 

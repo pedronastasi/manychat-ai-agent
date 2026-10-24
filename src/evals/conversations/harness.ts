@@ -243,12 +243,16 @@ export async function runRepetition(
   const lanes = new TurnLanes(opts.modelAbortMs + opts.raceDeadlineMs);
   const store = new ConversationStore(db);
   const worker = new OutboxWorker({ db, client: channel, logger: SILENT });
+  // A nudge that fails anywhere but the model is reported by the worker as
+  // skipped, which would read as suppressed: its error log is how the step
+  // knows it was an infrastructure failure instead (specs/043).
+  const nudgeFailures: string[] = [];
   const nudger = new NudgeWorker({
     db,
     runner,
     config: () => ({ persona: '', catalog: opts.catalog, rules: opts.rules, tools }),
     contacts: channel,
-    logger: SILENT,
+    logger: { ...SILENT, error: (_fields, message) => nudgeFailures.push(message) },
     modelAbortMs: opts.modelAbortMs,
   });
   const fetcher = new FixtureFetcher();
@@ -301,6 +305,7 @@ export async function runRepetition(
       let turnReply: AgentReply | undefined;
       let nudge: StepRecord['nudge'];
       if (input.kind === 'silence') {
+        nudgeFailures.length = 0;
         const results = await silence(input.advance_minutes * 60_000, {
           db,
           clock,
@@ -373,11 +378,13 @@ export async function runRepetition(
       const executionError =
         modelError !== undefined
           ? `model error: ${modelError}`
-          : outcome === 'error'
-            ? 'the turn failed and escalated'
-            : outcome === 'deferred' && last === undefined
-              ? 'the deferred model call did not complete'
-              : undefined;
+          : input.kind === 'silence' && nudgeFailures.length > 0
+            ? `nudge error: ${nudgeFailures.join(', ')}`
+            : outcome === 'error'
+              ? 'the turn failed and escalated'
+              : outcome === 'deferred' && last === undefined
+                ? 'the deferred model call did not complete'
+                : undefined;
 
       run.steps.push({
         id: step.id,

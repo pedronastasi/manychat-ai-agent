@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   coverageOf,
   currentHash,
+  frameworkText,
   staleSources,
   validateInventory,
 } from '../../src/evals/conversations/coverage.ts';
@@ -12,6 +13,7 @@ import type { RepetitionRun, StepRecord } from '../../src/evals/conversations/ha
 import { BranchInventory, Scenario } from '../../src/contracts/conversations.ts';
 import type { ManifestSource } from '../../src/contracts/conversations.ts';
 import { fixtureTenant } from '../helpers/conversations.ts';
+import { SENT_NOW, STAGED } from '../../src/agent/tools/copy.ts';
 
 /**
  * specs/043-complete-conversation-evals.md § Verification item 7: a branch
@@ -216,6 +218,15 @@ describe('the source manifest notices a changed source (specs/043 V7)', () => {
       ['prompt.md', false],
       ['gone.md', true],
     ]);
+  });
+
+  it('hashes the tool text an inbound turn is offered, get_contact and sent-now wording included', () => {
+    const text = frameworkText('tool-descriptions', tenant);
+    // The fixture tenant has readable tags and fields, so production offers get_contact.
+    expect(text).toContain("get_contact\nRead this contact's tags");
+    const sendFlow = text.slice(text.indexOf('send_flow\n'));
+    expect(sendFlow).toContain(SENT_NOW);
+    expect(sendFlow.slice(0, sendFlow.indexOf('\n\n'))).not.toContain(STAGED);
   });
 
   it('hashes the framework apart from the tenant: a persona change leaves it current', () => {

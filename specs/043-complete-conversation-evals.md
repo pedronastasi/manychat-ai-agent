@@ -242,7 +242,8 @@ config directory, and never outside it. A framework source is
 `{ "framework", "sha256" }`: `operating-rules` hashes the prompt's framework
 text as this tenant's configuration renders it, without the persona and
 without section overrides, and `tool-descriptions` hashes the tool
-descriptions the model is offered. A persona edit leaves the framework
+descriptions the model is offered on an inbound turn, with `get_contact` and
+flows sent when called. A persona edit leaves the framework
 current; a framework upgrade that rewords either makes the inventory stale.
 A branch has `id`, `source` (`file`, a manifest source such as `prompt.md`
 or `framework:operating-rules`, and `clause`), `description`,

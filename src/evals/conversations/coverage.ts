@@ -14,6 +14,8 @@ import type {
 import { buildSystemPrompt } from '../../agent/prompt.ts';
 import { buildTools } from '../../agent/tools/build.ts';
 import { ActionStage } from '../../agent/tools/stage.ts';
+import { ContactReads } from '../../agent/contact.ts';
+import { FlowSends } from '../../agent/flows.ts';
 import type { RepetitionRun } from './harness.ts';
 import type { AssertContext } from './assert.ts';
 import { checkStepKeys } from './assert.ts';
@@ -52,15 +54,31 @@ function tenantFile(configDir: string, path: string): string | undefined {
 /**
  * The framework's part as this tenant renders it, without the tenant's own
  * words: the prompt's rules with no persona and no section overrides, and
- * the tool descriptions the model is offered. A framework upgrade that
+ * the tool descriptions the model is offered on an inbound turn. A framework upgrade that
  * rewords either makes the inventory stale.
  */
-function frameworkText(source: FrameworkSource, tenant: SourceTenant): string {
+export function frameworkText(source: FrameworkSource, tenant: SourceTenant): string {
   const tools = tenant.tools ?? NO_TOOLS;
   if (source === 'operating-rules') {
     return buildSystemPrompt('', tenant.catalog, tenant.rules, tools).staticPrefix;
   }
-  const built = buildTools(tools, new ActionStage()) ?? {};
+  // Built as an inbound turn builds them (src/agent/runner.ts): with contact
+  // reads, which add `get_contact`, and with flow sends, which word
+  // `send_flow` as sent now. Only their presence changes the text, so
+  // neither is ever called. A loaded plugin is refused before a run.
+  const quiet = { warn: () => {} };
+  const reads = new ContactReads({
+    reader: { readContact: () => Promise.reject(new Error('never read')) },
+    subscriberId: 'eval',
+    logger: quiet,
+  });
+  const flows = new FlowSends({
+    performer: { performAction: () => Promise.resolve() },
+    subscriberId: 'eval',
+    logger: quiet,
+    tools,
+  });
+  const built = buildTools(tools, new ActionStage(), undefined, reads, { flows }) ?? {};
   return Object.entries(built)
     .map(
       ([name, tool]) => `${name}\n${typeof tool.description === 'string' ? tool.description : ''}`,
