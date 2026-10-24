@@ -38,13 +38,17 @@ request from the channel it names, never fixed at boot
 ([spec 048](../../specs/048-one-deployment-every-meta-channel.md)).
 
 **No PII in logs.** Redaction is configured at the logger, so a new log statement
-cannot opt out. Telemetry spans omit prompts by default. Log lines name a
+cannot opt out. The turn emits no telemetry span, and boot refuses LangSmith
+tracing, which would send prompts out of the process. Log lines name a
 conversation by its random ID, never by anything derived from the subscriber.
 
 **An eval harness.** `pnpm eval` replays a labelled golden set through the current
 prompt and asserts escalation behavior, price grounding, prompt leakage, and
 latency — then prints every reply, because a green suite whose tone has drifted
-is still a failure and only a person can see that.
+is still a failure and only a person can see that. `agent eval conversations`
+scripts the contact's side of whole conversations and runs them twice through
+the production turn path, so a stage the agent cannot reach in a real
+conversation fails there.
 
 ## Model agnosticism
 
@@ -59,8 +63,9 @@ AGENT_MODEL=ollama:llama3.1:8b           # local, free — see running-locally.m
 AGENT_MODEL=mock:demo                    # offline, deterministic, free
 ```
 
-Callers depend on an `AgentRunner` port, not on the AI SDK, so replacing even the
-SDK is contained to one file.
+Callers depend on an `AgentRunner` port, not on a model library, so replacing the
+library is contained behind it: the turn moved from the Vercel AI SDK to
+LangChain.js and LangGraph.js without a caller changing (ADR-0026).
 
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in

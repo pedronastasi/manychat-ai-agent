@@ -12,6 +12,7 @@ pnpm dev           # offline by default: mock model, embedded Postgres
 pnpm simulate "…"  # send a Dynamic Block request as ManyChat would
 pnpm test          # unit + integration
 pnpm eval:mock     # golden set, offline and free
+pnpm eval:conversations:validate  # check the scripted conversations, no model call
 pnpm lint && pnpm typecheck
 ```
 

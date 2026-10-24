@@ -378,7 +378,7 @@ describe('escalation, failed sends and lost races settle as in production (specs
         startedAt: '2026-01-15T10:00:00.000Z',
         frameworkVersion: 'test',
         hashes: { config: 'x', scenarios: 'x', fixtures: null },
-        agent: { model: 'mock:demo', runner: 'ai-sdk', temperature: 0.3 },
+        agent: { model: 'mock:demo', runner: 'langchain', temperature: 0.3 },
         judge: null,
         playbook: null,
       },
