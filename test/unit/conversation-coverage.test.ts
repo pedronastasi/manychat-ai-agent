@@ -42,8 +42,22 @@ const branch = (id: string, fields: object = {}) => ({
   ...fields,
 });
 
-const inventory = (...branches: object[]) =>
-  BranchInventory.parse({ sources: [source('prompt.md')], branches });
+const framework = (name: 'operating-rules' | 'tool-descriptions'): ManifestSource => ({
+  framework: name,
+  sha256: currentHash({ framework: name, sha256: ZERO }, tenant)!,
+});
+
+/** Every behaviour-defining source of the fixture tenant, as reconciled now. */
+const SOURCES = [
+  source('prompt.md'),
+  source('catalog.json'),
+  source('rules.json'),
+  source('tools.json'),
+  framework('operating-rules'),
+  framework('tool-descriptions'),
+];
+
+const inventory = (...branches: object[]) => BranchInventory.parse({ sources: SOURCES, branches });
 
 /** A scenario, `s`, whose step `ask` witnesses `a` by its escalate assertion and `b` by its criterion. */
 const quiz = Scenario.parse({
@@ -262,21 +276,36 @@ describe('the inventory is checked against the suite before any run (specs/043 V
       ],
     });
     const inv = BranchInventory.parse({
-      sources: [source('prompt.md'), { path: '../outside.md', sha256: ZERO }],
+      sources: [...SOURCES, { path: '../outside.md', sha256: ZERO }],
       branches: [
-        branch('a', { source: { file: 'framework:operating-rules', clause: 'OPERATING RULES' } }),
+        branch('a', { source: { file: 'notes.md', clause: 'FAQ' } }),
         branch('b', { scenarios: ['other'] }),
         branch('b'),
       ],
     });
     expect(validateInventory(inv, [bad], tenant)).toEqual([
       'branches.json: source ../outside.md is outside CONFIG_DIR',
-      'branches.json: branch a: source framework:operating-rules is not in the manifest',
+      'branches.json: branch a: source notes.md is not in the manifest',
       'branches.json: branch b: scenario other is not in the suite',
       'branches.json: branch b: duplicate branch id',
       'scenario s step ask witness a: the step declares no state assertion',
       'scenario s step ask witness b: the step has no review criterion 3',
       'scenario s step ask witness nowhere: no such branch in branches.json',
+    ]);
+  });
+
+  it('rejects a manifest that leaves out a source defining behaviour', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tenant-'));
+    cpSync('test/fixtures/config', dir, { recursive: true });
+    // A tenant's section overrides change the prompt as much as prompt.md does (specs/044).
+    writeFileSync(join(dir, 'prompt-overrides.json'), '{}');
+    const inv = BranchInventory.parse({
+      sources: SOURCES.filter(entry => !('path' in entry) || entry.path !== 'rules.json'),
+      branches: [branch('a'), branch('b')],
+    });
+    expect(validateInventory(inv, [quiz], { ...tenant, configDir: dir })).toEqual([
+      'branches.json: source rules.json defines behaviour and is not in the manifest',
+      'branches.json: source prompt-overrides.json defines behaviour and is not in the manifest',
     ]);
   });
 

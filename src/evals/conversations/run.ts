@@ -10,7 +10,7 @@ import type { Failure } from './assert.ts';
 import { inputText, runRepetition } from './harness.ts';
 import type { HarnessOptions, RepetitionRun } from './harness.ts';
 import type { Suite } from './suite.ts';
-import { coverageOf } from './coverage.ts';
+import { coverageOf, TENANT_SOURCES } from './coverage.ts';
 import type { Coverage, StaleSource } from './coverage.ts';
 
 /**
@@ -131,13 +131,7 @@ export function frameworkVersion(): string {
 /** Identifies the tenant config a run was made against, file by file. */
 export function configHash(configDir: string): string {
   const hash = createHash('sha256');
-  for (const name of [
-    'prompt.md',
-    'catalog.json',
-    'rules.json',
-    'tools.json',
-    'prompt-overrides.json',
-  ]) {
+  for (const name of TENANT_SOURCES) {
     const file = join(configDir, name);
     hash.update(`${name}\0`);
     hash.update(existsSync(file) ? readFileSync(file) : '(absent)');

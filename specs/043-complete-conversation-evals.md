@@ -245,6 +245,10 @@ without section overrides, and `tool-descriptions` hashes the tool
 descriptions the model is offered on an inbound turn, with `get_contact` and
 flows sent when called. A persona edit leaves the framework
 current; a framework upgrade that rewords either makes the inventory stale.
+The manifest lists every behaviour-defining tenant file present in
+`CONFIG_DIR` (`prompt.md`, `catalog.json`, `rules.json`, `tools.json`,
+`prompt-overrides.json`) and both framework sources; one left out is a
+validation error, since it could change while the inventory reads current.
 A branch has `id`, `source` (`file`, a manifest source such as `prompt.md`
 or `framework:operating-rules`, and `clause`), `description`,
 `prerequisite`, `condition`, `outcome`, `scenarios`, and an optional

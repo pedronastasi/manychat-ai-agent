@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, normalize } from 'node:path';
 import type { Catalog, Rules, Tools } from '../../contracts/config.ts';
 import { NO_TOOLS } from '../../contracts/config.ts';
+import { FRAMEWORK_SOURCES } from '../../contracts/conversations.ts';
 import type {
   BranchInventory,
   FrameworkSource,
@@ -28,6 +29,19 @@ import { checkStepKeys } from './assert.ts';
  */
 
 export const BRANCHES_FILE = 'branches.json';
+
+/**
+ * The tenant files that define the agent's behaviour. Each one present in
+ * `CONFIG_DIR` must be in the manifest, as must both framework sources: a
+ * source left out could change while the inventory still reads current.
+ */
+export const TENANT_SOURCES = [
+  'prompt.md',
+  'catalog.json',
+  'rules.json',
+  'tools.json',
+  'prompt-overrides.json',
+] as const;
 
 const sha256 = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
 
@@ -127,6 +141,15 @@ export function validateInventory(
     names.add(name);
     if ('path' in source && !tenantFile(tenant.configDir, source.path)) {
       errors.push(`${BRANCHES_FILE}: source ${name} is outside CONFIG_DIR`);
+    }
+  }
+  const required = [
+    ...TENANT_SOURCES.filter(path => existsSync(join(tenant.configDir, path))),
+    ...FRAMEWORK_SOURCES.map(source => `framework:${source}`),
+  ];
+  for (const name of required) {
+    if (!names.has(name)) {
+      errors.push(`${BRANCHES_FILE}: source ${name} defines behaviour and is not in the manifest`);
     }
   }
   const checkRef = (where: string, ref: SourceRef) => {
