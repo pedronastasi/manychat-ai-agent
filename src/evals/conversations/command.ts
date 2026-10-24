@@ -78,6 +78,7 @@ export async function runConversations(args: string[]): Promise<number> {
           reasoningEffort: env.AGENT_REASONING_EFFORT,
           plugins,
           playbook: { current: () => playbook },
+          defaultChannel: env.CHANNEL,
         }),
       rules: tenant.rules,
       tools: tenant.tools,

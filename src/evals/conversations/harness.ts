@@ -101,6 +101,8 @@ export interface HarnessOptions {
 /** Records every result the model boundary returns, per step, without changing any. */
 class RecordingRunner implements AgentRunner {
   readonly results = new Map<string, AgentResult[]>();
+  /** What a call threw, by step: an abort past `MODEL_ABORT_MS` returns no result. */
+  readonly thrown = new Map<string, string>();
   step = '';
   private readonly inner: AgentRunner;
 
@@ -110,7 +112,15 @@ class RecordingRunner implements AgentRunner {
 
   async run(input: AgentTurnInput): Promise<AgentResult> {
     const step = this.step;
-    const result = await this.inner.run(input);
+    let result: AgentResult;
+    try {
+      result = await this.inner.run(input);
+    } catch (error) {
+      // Rethrown, so the turn settles as in production; the step still
+      // records that its model call never finished.
+      this.thrown.set(step, error instanceof Error ? error.name : String(error));
+      throw error;
+    }
     const list = this.results.get(step) ?? [];
     list.push(result);
     this.results.set(step, list);
@@ -211,13 +221,16 @@ export async function runRepetition(
       seq = await lastSeq(db);
       run.actions.push(...actions);
 
-      const modelError = results.find(result => result.modelError)?.modelError;
+      const modelError =
+        results.find(result => result.modelError)?.modelError ?? runner.thrown.get(step.id);
       const executionError =
         modelError !== undefined
           ? `model error: ${modelError}`
           : turn.outcome === 'error'
             ? 'the turn failed and escalated'
-            : undefined;
+            : turn.outcome === 'deferred' && last === undefined
+              ? 'the deferred model call did not complete'
+              : undefined;
 
       run.steps.push({
         id: step.id,

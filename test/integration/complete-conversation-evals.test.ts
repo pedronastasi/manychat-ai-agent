@@ -415,6 +415,27 @@ describe('escalation, failed sends and lost races settle as in production (specs
     ]);
     expect(promptText(model.firsts[1])).toContain('DEFERRED-REPLY-4410');
   });
+
+  it('ends the run as an execution error when a lost race is then aborted, never a pass', async () => {
+    const { run, failures } = await once(
+      {
+        steps: [say('slow', 'tell me about the courses', { escalate: false }), say('next', 'ok')],
+        expect: { terminal: 'completed' },
+      },
+      [{ delayMs: 5000 }],
+      { raceDeadlineMs: 50, modelAbortMs: 150 },
+    );
+    // Production sent the holding line, which does not escalate...
+    expect(run.steps[0]!.outcome).toBe('deferred');
+    expect(run.steps[0]!.reply.escalate).toBe(false);
+    // ...and the run still names the abort and stops there.
+    expect(run.steps[0]!.executionError).toBe('model error: AbortError');
+    expect(run.terminal).toBe('error');
+    expect(run.notReached).toEqual(['next']);
+    expect(failures.map(failure => failure.message)).toContain(
+      'terminal expected completed, got error',
+    );
+  });
 });
 
 describe('each scenario runs twice from fresh state, and a split is unstable (specs/043 V6)', () => {
