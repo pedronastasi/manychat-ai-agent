@@ -6,6 +6,7 @@ import type { TenantConfig } from '../../src/config/loader.ts';
 import { Scenario } from '../../src/contracts/conversations.ts';
 import type { RunOptions } from '../../src/evals/conversations/run.ts';
 import { createTestDatabase } from './db.ts';
+import { ConversationJudge } from '../../src/evals/conversations/judge.ts';
 
 /**
  * A conversation run's fakes: a model at the provider boundary scripted turn
@@ -152,3 +153,24 @@ export const say = (id: string, text: string, expect: object = {}) => ({
   input: { kind: 'message', text },
   expect,
 });
+
+/**
+ * A conversation judge answering `outputs` in turn, or throwing for an Error:
+ * the judge model faked at the provider boundary (specs/004).
+ */
+export function scriptedJudge(outputs: (object | Error)[]) {
+  let call = 0;
+  const model = new MockLanguageModelV4({
+    doGenerate: () => {
+      const output = outputs[Math.min(call++, outputs.length - 1)];
+      if (output instanceof Error) return Promise.reject(output);
+      return Promise.resolve({
+        content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+        finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+        usage: USAGE,
+        warnings: [],
+      });
+    },
+  });
+  return new ConversationJudge({ model, modelSpec: 'mock:judge', timeoutMs: 1000 });
+}

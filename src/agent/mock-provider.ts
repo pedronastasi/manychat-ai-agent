@@ -771,6 +771,10 @@ export function createMockModel(modelId: string): LanguageModelV4 {
               text: JSON.stringify({
                 verdict: 'pass',
                 evidence: '',
+                // The conversation judge's fields (specs/043); the reply
+                // judge ignores them.
+                step: '',
+                absent: '',
                 reason: 'The mock judge passes every reply.',
               }),
             },

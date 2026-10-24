@@ -1,5 +1,7 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-24
+pr: 273
 constitution: [C1, C2, C3, C4, C5, C6, C8, C9]
 adr: [0011]
 ---
@@ -13,8 +15,7 @@ tenant-specific scripts to their existing owners.
 
 This is a contract spec. The runner and schemas belong to the framework;
 private tenant projects own their branch inventories, scripts, and criteria.
-All behavior introduced here is specified, not implemented. In particular,
-the calibrated judge in `016` remains an implementation dependency.
+The judge reuses `016`'s calibrated judge, extended to conversations.
 
 ## A supplied history cannot prove the agent reached it
 
@@ -295,6 +296,20 @@ judge must quote exact transcript evidence with scenario, repetition, and
 step IDs. A missing-event failure quotes the relevant surrounding exchange
 and names the absent event. Invalid evidence makes the sample ungraded.
 
+A verdict carries `verdict`, `step`, `evidence`, `absent` and `reason`. The
+judge names the step and the run supplies the scenario and repetition, so
+the quote is checked against that step's transcript: what the contact sent,
+what a flow showed by its fixture, and every reply message. The transcript's
+recorded changes (field, tag, offering, pending nudge and action outcomes)
+are shown to the judge and cannot be quoted. A step criterion is graded on
+the whole conversation, told which step it is about. The judge is consulted
+only when no deterministic assertion failed in either repetition, as for a
+case under `016`, and a step the script did not reach has nothing to grade.
+The calibration set is `conversation-calibration.jsonl` beside the suite:
+hand-written transcripts, each with a criterion and a label. Only the groups
+the suite's criteria use are calibrated, so a suite pays for the groups it
+grades. `EVAL_JUDGE_MODEL` names the judge, as for `016`.
+
 The report keeps deterministic failures, judged failures, judged passes,
 pending human review, and execution errors distinct. Calibration failure,
 judge outage, or an absent judge leaves semantic criteria pending review;
@@ -306,6 +321,15 @@ the immutable run identifier. A human can resolve an ungraded criterion.
 Disagreement with a judge is recorded alongside its verdict for investigation;
 it does not erase failures or rewrite the original run. Required review work
 must be resolved for a conversation to earn full verification.
+
+Review records live in `reviews.jsonl` beside the suite, one per criterion
+and repetition: `run`, `scenario`, `repetition`, `criterion` (`review[0]`
+for a scenario's, `<step>.review[0]` for a step's), `verdict`, `step`,
+`evidence` copied from that step, `reviewer`, and an optional `note`. Beside
+a judge's verdict the stricter stands: a person's failure fails the
+criterion, and a person's pass does not erase the judge's failure. A review
+whose evidence is not in the step it names cannot be applied, and fails the
+gate until it is corrected.
 
 ## A failed conversation continues until a terminal event
 
@@ -354,7 +378,13 @@ must not appear in those artifacts or CI output.
 
 Human-review records bind to the immutable evaluated hashes. An edit to the
 prompt, catalog, tools, rules, scenarios, fixtures, calibration, or playbook
-requires a new run rather than reusing a previous approval.
+requires a new run rather than reusing a previous approval. A run's
+`evaluated` hash covers the framework version, the tenant config, the
+framework's rendered rules and tool descriptions, the scenarios, fixtures,
+inventory and calibration, the agent and judge models, the temperature and
+the playbook; its `runId` is that hash's prefix and the start time, so no
+two runs share one. Costs are reported as agent, judge and total; with no
+judge the judge's cost is null, not zero.
 
 ## Offline validation and paid conversation runs are separate commands
 
@@ -387,6 +417,14 @@ repetitions, criteria, and calibration; provider-dependent token costs remain
 estimates. This spec introduces no unmeasured spend or latency threshold.
 Existing agent deadlines apply, with `EVAL_MAX_LATENCY_MS` used for the agent
 latency assertion. Judge latency is reported separately.
+
+`agent eval conversations --gate <report.json>` is the gate: it reads a
+written run, applies the reviews recorded against its `runId`, and writes
+its decision beside the report, as `<report>.gate.json`, without changing
+the run. It passes only when the run is not stale (its `evaluated` hash
+still matches what the suite would evaluate now), the inventory is current,
+every scenario passes once reviews are applied, and coverage is complete.
+A review made against another run is counted and never applied.
 
 ## Verification
 
