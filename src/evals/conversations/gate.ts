@@ -74,12 +74,17 @@ export const GateReport = z.looseObject({
 });
 export type GateReport = z.infer<typeof GateReport>;
 
-/** A person's verdict that differs from the judge's, kept for investigation. */
+/**
+ * A person's verdict that differs from an earlier one on the same criterion,
+ * kept for investigation: the judge's, or another person's.
+ */
 export interface Disagreement {
   scenario: string;
   repetition: number;
   criterion: string;
-  judge: 'pass' | 'fail';
+  /** Who gave the earlier verdict. */
+  with: 'judge' | 'reviewer';
+  earlier: 'pass' | 'fail';
   review: 'pass' | 'fail';
   reviewer: string;
 }
@@ -152,6 +157,8 @@ export function gate(
   report: GateReport,
   reviews: readonly ReviewRecord[],
   current: { evaluated: string; stale: readonly StaleSource[] },
+  /** Review lines that did not parse: each might be a person's failure. */
+  unreadable: readonly string[] = [],
 ): GateResult {
   const reasons: string[] = [];
   const stale = report.evaluated !== current.evaluated;
@@ -161,7 +168,7 @@ export function gate(
     );
   }
 
-  const invalid: string[] = [];
+  const invalid: string[] = [...unreadable];
   const disagreements: Disagreement[] = [];
   const mine = reviews.filter(review => review.run === report.runId);
   const scenarios = report.scenarios.map(scenario => ({
@@ -181,6 +188,8 @@ export function gate(
         entry => entry.key === review.criterion && entry.repetition === review.repetition,
       )!;
     applied++;
+    // Who gave the verdict standing now: the judge, or an earlier review.
+    const judged = criterion.by === 'judge';
     if (criterion.outcome === 'ungraded') {
       criterion.outcome = review.verdict;
       criterion.by = 'review';
@@ -192,12 +201,13 @@ export function gate(
         scenario: review.scenario,
         repetition: review.repetition,
         criterion: review.criterion,
-        judge: criterion.outcome,
+        with: judged ? 'judge' : 'reviewer',
+        earlier: criterion.outcome,
         review: review.verdict,
         reviewer: review.reviewer,
       });
-      // The stricter stands: a person's failure is a failure, and a person's
-      // pass does not erase the judge's.
+      // The stricter stands: a person's failure is a failure, and a pass
+      // does not erase an earlier failure, the judge's or another person's.
       if (review.verdict === 'fail') {
         criterion.outcome = 'fail';
         criterion.by = 'review';
