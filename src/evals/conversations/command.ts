@@ -282,8 +282,8 @@ function runGate(
     return 1;
   }
   const { reviews, errors } = loadReviews(suiteDir);
-  for (const error of errors) console.error(`  ${error}`);
-  const result = gate(report, reviews, { evaluated, stale });
+  // A line that does not parse is in the decision, not only on stderr.
+  const result = gate(report, reviews, { evaluated, stale }, errors);
   const out = path.replace(/\.json$/, '') + '.gate.json';
   writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`);
   console.log(
@@ -295,5 +295,5 @@ function runGate(
   for (const reason of result.reasons) console.log(`  - ${reason}`);
   for (const problem of result.reviews.invalid) console.log(`  - invalid review: ${problem}`);
   console.log(`  decision: ${out}\n`);
-  return result.passed && errors.length === 0 ? 0 : 1;
+  return result.passed ? 0 : 1;
 }

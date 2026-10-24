@@ -152,6 +152,8 @@ export function gate(
   report: GateReport,
   reviews: readonly ReviewRecord[],
   current: { evaluated: string; stale: readonly StaleSource[] },
+  /** Review lines that did not parse: each might be a person's failure. */
+  unreadable: readonly string[] = [],
 ): GateResult {
   const reasons: string[] = [];
   const stale = report.evaluated !== current.evaluated;
@@ -161,7 +163,7 @@ export function gate(
     );
   }
 
-  const invalid: string[] = [];
+  const invalid: string[] = [...unreadable];
   const disagreements: Disagreement[] = [];
   const mine = reviews.filter(review => review.run === report.runId);
   const scenarios = report.scenarios.map(scenario => ({

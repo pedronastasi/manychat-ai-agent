@@ -260,6 +260,19 @@ describe('the gate applies reviews made against this run, and only it (specs/043
     expect(result.passed).toBe(false);
   });
 
+  it('fails, in the decision itself, on a review line that does not parse', async () => {
+    const report = await run({});
+    const result = gate(
+      written(report),
+      [review(report), review(report, { repetition: 2 })],
+      current,
+      ['reviews.jsonl:3: not valid JSON'],
+    );
+    expect(result.passed).toBe(false);
+    expect(result.reviews.invalid).toEqual(['reviews.jsonl:3: not valid JSON']);
+    expect(result.reasons).toContain('1 reviews could not be applied');
+  });
+
   it('records a disagreement with the judge and keeps the stricter verdict', async () => {
     const failed = await run({ judge: scriptedJudge([fail]) });
     const overruled = gate(
