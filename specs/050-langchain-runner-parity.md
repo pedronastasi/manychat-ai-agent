@@ -46,7 +46,7 @@ Read on 2026-10-23 from the tarballs on npm: `@langchain/core` 1.3.0,
 | A 429 whose `Retry-After` is at most 60 000 ms is waited out and retried (`RETRY_AFTER_AUTO_RETRY_THRESHOLD_MS`). The Anthropic wrapper calls the caller with `maxRetries` only, so that wait does not listen to the abort signal                                                                                                                      | C7, `002 § Latency budget`: the abort fires at 30 000 ms and the turn settles then         | The runner races the graph against its own abort signal, so a pending backoff never holds the turn open. A test answers 429 with `Retry-After: 30` and asserts it settles                                              |
 | The Anthropic SDK times a request out after 600 000 ms (`DEFAULT_TIMEOUT`). `ChatOpenAI.timeout` is `undefined`, leaving its SDK's default, not read here. No Google timeout was found                                                                                                                                                                 | C7                                                                                         | The whole run is under one signal at `MODEL_ABORT_MS`, passed to every graph invocation and from there to every model call. No per-provider timeout is relied on                                                       |
 | The Anthropic and OpenAI wrappers pass `options.signal` to their SDK request. The Google wrapper's `completionWithRetry` passes it to `generateContent`, but its `_generate` calls `completionWithRetry(request)` without the call options, so a Gemini request is abandoned on the abort, not cancelled (found by this spec's abort test, 2026-10-23) | ADR-0001: an aborted call stops                                                            | Kept for Anthropic and OpenAI. The registry's Gemini model hands the call's signal to `completionWithRetry` itself. Asserted per provider: a test aborts mid-request and checks the fetch's own signal reads `aborted` |
-| Tracing turns on when any of `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING_V2`, `LANGSMITH_TRACING` or `LANGCHAIN_TRACING` is `"true"`, and sends each run's inputs and outputs                                                                                                                                                                           | C5; C1's tenant prompt and catalog would reach a vendor                                    | Boot refuses to start while any of the four is `"true"`. `GenerateTextRunner` records no inputs unless `recordPromptsInTraces` is set                                                                                  |
+| Tracing turns on when any of `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING_V2`, `LANGSMITH_TRACING` or `LANGCHAIN_TRACING` is `"true"`, and sends each run's inputs and outputs                                                                                                                                                                           | C5; C1's tenant prompt and catalog would reach a vendor                                    | Boot refuses to start while any of the four is `"true"`. The turn emits no telemetry span of its own                                                                                                                   |
 | `LANGCHAIN_VERBOSE="true"` attaches a handler that prints every run to stdout, past the logger                                                                                                                                                                                                                                                         | C5                                                                                         | Boot refuses to start while it is `"true"`                                                                                                                                                                             |
 | `initChatModel` loads the provider package with a dynamic `import()`; knows `google-genai`, not `google`; infers `google-vertexai` from a bare `gemini…`; with no model, makes `model` and `modelProvider` configurable at call time                                                                                                                   | C2 (a dynamic import escapes an import lint); C4 (no inbound field alters model selection) | Never used. See § The registry builds each chat model by its class                                                                                                                                                     |
 | `withStructuredOutput` picks its method per provider: `functionCalling` on Anthropic, a per-model choice on OpenAI, unset on Google                                                                                                                                                                                                                    | C3: one schema, validated the same way whatever the provider                               | The reply is validated by the runner against `AgentReplyForModel` (§ The graph has three nodes), not trusted to the method; the method, where used, is set per provider                                                |
@@ -169,10 +169,46 @@ deleted in a later pull request than the one that moves the default, and only
 once that week is read. If it fails, the default moves back, an environment
 change and a restart.
 
+Superseded on 2026-10-24 by § The AI SDK runner is removed.
+
 These thresholds were chosen, not measured. "No fewer" and "no higher" carry no
 margin because a real-model eval run once is noisy, and a margin would let a
 regression through on noise. A disagreement is read by a person before
 anything moves.
+
+## The AI SDK runner is removed
+
+On 2026-10-24 the owner removed `GenerateTextRunner` before the gate closed,
+while running `AGENT_RUNNER=langchain` on their own deployment. The gate stood
+at:
+
+1. Mock parity: met, in #263.
+2. Real-model eval on `evals/golden` under both runners: not run.
+3. A week of the production deferred share with `langchain` as the default: not
+   read.
+
+So nothing here measured that the LangChain runner passes as many real-model
+cases, or loses the race no more often. That deployment is the evidence, and a
+regression found there has no runner to switch back to: the fix is a patch to
+`LangGraphRunner`, or pinning the release before this one.
+
+What changes:
+
+- `LangGraphRunner` is the only runner, and `createRunner` takes no kind.
+- `AGENT_RUNNER` is read only to refuse `ai-sdk`, or any value but
+  `langchain`. A deploy that still names the old runner fails boot rather than
+  switching runner unannounced (C6). Unset and `langchain` both boot.
+- The turn's `agent-turn` telemetry span went with `generateText`, and
+  `RunnerOptions.recordPromptsInTraces`, which only that span read, is
+  deleted. With no span, no prompt reaches a collector (C5).
+- Tests that ran under both runners run under `langchain`. The ones that
+  compared the two now assert the LangChain runner's values directly.
+
+What stays on the AI SDK: transcription (`020`), the learning analyst (`031`),
+the eval judge (`016`), the mock provider and every test fake, which
+`AiSdkChatModel` wraps, and the AI SDK types on the public exports. Removing
+those types is still the separate breaking change § The public exports keep
+their signatures describes.
 
 ## Verification
 
@@ -188,12 +224,15 @@ anything moves.
   `"true"` stops boot.
 - **The graph**: ordered staging, the action cap, the read cap, the last step
   offering no tools, `GraphRecursionError` failing closed, and an aborted turn
-  recording its stage `discarded`. These run the existing `012`, `024` and
-  `029` tests under `AGENT_RUNNER=langchain`.
-- **Usage**: the same faked request gives the same `AgentUsage` under both
-  runners, and a missing `usage_metadata` gives `undefined`.
-- **The gate**: its three numbers, dated, in the pull request that moves the
-  default.
+  recording its stage `discarded`. The existing `012`, `024` and `029` tests
+  run against `LangGraphRunner`.
+- **Usage**: a faked turn whose steps report counts gives their sum, a step
+  that leaves one out does not zero it, and a missing `usage_metadata` gives
+  `undefined`.
+- **The gate**: superseded; § The AI SDK runner is removed records where it
+  stood.
+- **The removal**: `AGENT_RUNNER=ai-sdk` and any value but `langchain` stop
+  boot with a message naming this spec; unset, empty and `langchain` boot.
 
 What this misses:
 

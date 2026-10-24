@@ -14,7 +14,6 @@ import { ActionStage, MAX_ACTIONS_PER_TURN, MAX_STEPS } from '../../src/agent/to
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { EnvSchema, LANGCHAIN_OUTPUTS } from '../../src/contracts/config/env.ts';
 import { createRunner } from '../../src/agent/select-runner.ts';
-import { GenerateTextRunner } from '../../src/agent/runner.ts';
 import { RUNNERS } from '../helpers/runners.ts';
 import { asProspect } from '../helpers/intent.ts';
 
@@ -285,40 +284,55 @@ describe('an aborted turn cancels the provider request (specs/050 V3)', () => {
   });
 });
 
-describe('boot refuses what sends prompts out of the process (specs/050 V5)', () => {
-  const base = {
-    AGENT_MODEL: 'anthropic:claude-haiku-4-5',
-    PUBLIC_BASE_URL: 'https://agent.example.com',
-    MANYCHAT_SHARED_SECRET: 'a'.repeat(32),
-    DATABASE_URL: 'pglite',
-  };
+/** The variables boot requires, all invented. */
+const base = {
+  AGENT_MODEL: 'anthropic:claude-haiku-4-5',
+  PUBLIC_BASE_URL: 'https://agent.example.com',
+  MANYCHAT_SHARED_SECRET: 'a'.repeat(32),
+  DATABASE_URL: 'pglite',
+};
 
+describe('boot refuses what sends prompts out of the process (specs/050 V5)', () => {
   it.each(LANGCHAIN_OUTPUTS)('refuses %s="true"', name => {
     const parsed = EnvSchema.safeParse({ ...base, [name]: 'true' });
     expect(parsed.success).toBe(false);
     expect(parsed.error?.issues.map(issue => issue.path.join('.'))).toContain(name);
   });
 
-  it('boots with them unset or false, and defaults to the AI SDK runner', () => {
+  it('boots with them unset or false', () => {
     const parsed = EnvSchema.safeParse({ ...base, LANGSMITH_TRACING: 'false' });
     expect(parsed.success).toBe(true);
-    expect(parsed.data?.AGENT_RUNNER).toBe('ai-sdk');
   });
+});
 
-  it('builds the runner AGENT_RUNNER names', () => {
-    const shared = {
+describe('the AI SDK runner is removed (specs/050)', () => {
+  it('builds the LangChain runner', () => {
+    const runner = createRunner({
       modelSpec: 'mock:demo',
       config: () => tenant,
       maxOutputTokens: 400,
       temperature: 0.3,
-    };
-    expect(createRunner('langchain', shared)).toBeInstanceOf(LangGraphRunner);
-    expect(createRunner('ai-sdk', shared)).toBeInstanceOf(GenerateTextRunner);
+    });
+    expect(runner).toBeInstanceOf(LangGraphRunner);
   });
 
-  it('accepts the two runners and refuses anything else', () => {
-    expect(EnvSchema.safeParse({ ...base, AGENT_RUNNER: 'langchain' }).success).toBe(true);
-    expect(EnvSchema.safeParse({ ...base, AGENT_RUNNER: 'langgraph' }).success).toBe(false);
+  it('boots with AGENT_RUNNER unset, empty or langchain', () => {
+    for (const value of [undefined, '', 'langchain']) {
+      expect(EnvSchema.safeParse({ ...base, AGENT_RUNNER: value }).success, String(value)).toBe(
+        true,
+      );
+    }
+  });
+
+  it('refuses a deploy that still names ai-sdk, or any other runner', () => {
+    for (const value of ['ai-sdk', 'langgraph']) {
+      const parsed = EnvSchema.safeParse({ ...base, AGENT_RUNNER: value });
+      expect(parsed.success, value).toBe(false);
+      expect(parsed.error?.issues[0]).toMatchObject({
+        path: ['AGENT_RUNNER'],
+        message: 'the AI SDK runner was removed (specs/050); unset AGENT_RUNNER',
+      });
+    }
   });
 });
 
@@ -478,21 +492,16 @@ describe('a tool error answers the model and the loop goes on, as generateText d
   it.each([
     { label: 'a tool it was not offered', call: toolCall('no_such_tool', {}, '1') },
     { label: 'input that fails the schema', call: toolCall('add_tag', { tag: 'nope' }, '1') },
-  ])('sends the same error for $label under both runners', async ({ call }) => {
-    const answered = [];
-    for (const { Runner } of RUNNERS) {
-      const { model, calls } = scriptedModel(step => (step === 0 ? [call] : [answer]));
-      const result = await new Runner(options(model) as never).run({
-        text: 'hi',
-        history: [],
-        contact: asProspect(),
-      });
-      expect(result.reply.escalate).toBe(false);
-      expect(calls).toHaveLength(2);
-      answered.push(calls[1]?.prompt.at(-1));
-    }
-    expect(answered[1]).toEqual(answered[0]);
-    expect(JSON.stringify(answered[0])).toContain('error-text');
+  ])('answers the model with the error for $label', async ({ call }) => {
+    const { model, calls } = scriptedModel(step => (step === 0 ? [call] : [answer]));
+    const result = await new LangGraphRunner(options(model)).run({
+      text: 'hi',
+      history: [],
+      contact: asProspect(),
+    });
+    expect(result.reply.escalate).toBe(false);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[1]?.prompt.at(-1))).toContain('error-text');
   });
 });
 
@@ -531,39 +540,22 @@ describe('the graph fails closed (specs/050 V6)', () => {
 });
 
 describe('usage comes out the same (specs/050 V7)', () => {
-  it('gives the same AgentUsage under both runners for the same faked turn', async () => {
-    const usages = [];
-    for (const { Runner } of RUNNERS) {
-      const { model } = scriptedModel(step =>
-        step === 0 ? [toolCall('add_tag', { tag: 'interested_foundation' }, '1')] : [answer],
-      );
-      const result = await new Runner(options(model) as never).run({
-        text: 'hi',
-        history: [],
-        contact: asProspect(),
-      });
-      usages.push(result.usage);
-    }
-    expect(usages[1]).toEqual(usages[0]);
-  });
-
   it('sums the steps that report a count, as generateText does, when one leaves it out', async () => {
-    const usages = [];
-    for (const { Runner } of RUNNERS) {
-      const { model } = scriptedModel(
-        step =>
-          step === 0 ? [toolCall('add_tag', { tag: 'interested_foundation' }, '1')] : [answer],
-        { cacheRead: step => (step === 0 ? 10 : undefined) },
-      );
-      const result = await new Runner(options(model) as never).run({
-        text: 'hi',
-        history: [],
-        contact: asProspect(),
-      });
-      usages.push(result.usage);
-    }
-    expect(usages[0]).toMatchObject({ inputTokens: 201, outputTokens: 40, cacheReadTokens: 10 });
-    expect(usages[1]).toEqual(usages[0]);
+    const { model } = scriptedModel(
+      step =>
+        step === 0 ? [toolCall('add_tag', { tag: 'interested_foundation' }, '1')] : [answer],
+      { cacheRead: step => (step === 0 ? 10 : undefined) },
+    );
+    const result = await new LangGraphRunner(options(model)).run({
+      text: 'hi',
+      history: [],
+      contact: asProspect(),
+    });
+    expect(result.usage).toMatchObject({
+      inputTokens: 201,
+      outputTokens: 40,
+      cacheReadTokens: 10,
+    });
   });
 
   it('leaves a count unknown, never zero, when no step reports it', async () => {

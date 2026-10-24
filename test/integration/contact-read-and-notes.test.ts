@@ -25,9 +25,9 @@ import { OutboxWorker } from '../../src/outbox/worker.ts';
  *
  * Every name, number and note here is invented (C1).
  *
- * Each item runs under both runners: specs/050-langchain-runner-parity.md
- * § Verification item 6 (the graph) runs the existing 024 tests under
- * `AGENT_RUNNER=langchain`.
+ * Each item runs under the LangChain runner: specs/050-langchain-runner-parity.md
+ * § Verification item 6 (the graph) runs the existing 024 tests against
+ * `LangGraphRunner`.
  */
 
 /** The runner under test, set by the `describe.each` below. */

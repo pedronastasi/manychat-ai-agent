@@ -137,7 +137,7 @@ export async function buildServer(opts: BuildOptions) {
 
   const runner =
     opts.runner ??
-    createRunner(env.AGENT_RUNNER, {
+    createRunner({
       modelSpec: env.AGENT_MODEL,
       // The accessor, not its result: the runner re-reads it so SIGHUP reaches
       // the persona and catalog, not just the rules turn.ts reads per request.

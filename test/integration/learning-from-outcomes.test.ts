@@ -36,8 +36,8 @@ import type { ReviewIo } from '../../src/learning/cli.ts';
 import { NO_PLAYBOOK } from '../../src/learning/gate.ts';
 
 /**
- * Runs under both runners (specs/050-langchain-runner-parity.md § Verification
- * item 6): the LangChain runner is held to the same behaviour.
+ * Runs under the LangChain runner, the only one since the AI SDK runner was
+ * removed (specs/050-langchain-runner-parity.md § Verification item 6).
  */
 let Runner: RunnerClass;
 

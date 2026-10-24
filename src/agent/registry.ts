@@ -187,7 +187,7 @@ export function resolveTranscriptionModel(spec: string): TranscriptionModel {
   }
 }
 
-/** What the LangChain runner is configured with, the same values `GenerateTextRunner` sends. */
+/** What the LangChain runner is configured with (specs/050). */
 export interface ChatModelSettings {
   maxOutputTokens: number;
   temperature: number;
@@ -209,7 +209,7 @@ export interface ChatModelHandle {
 
 /**
  * The retries every chat model makes, inside the abort: the AI SDK's
- * `maxRetries` default, which `GenerateTextRunner` leaves unset. LangChain's
+ * `maxRetries` default, kept from the removed AI SDK runner. LangChain's
  * own default is 6 (specs/050 § Defaults that change behaviour).
  */
 export const CHAT_MODEL_MAX_RETRIES = 2;
