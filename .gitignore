@@ -24,6 +24,8 @@ packages/create/agent/
 
 # --- Test / tooling ----------------------------------------------------------
 coverage/
+# Conversation run reports: private transcripts, never committed (specs/043).
+.eval-artifacts/
 .vitest/
 *.log
 npm-debug.log*

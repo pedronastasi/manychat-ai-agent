@@ -220,6 +220,7 @@ describe('CLI commands exist and reject invalid config (specs/033 V4)', () => {
       'serve',
       'worker',
       'eval',
+      'eval conversations',
       'simulate',
       'config check',
       'upgrade',

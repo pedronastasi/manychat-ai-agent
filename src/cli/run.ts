@@ -7,6 +7,7 @@ export const COMMANDS: Record<string, string> = {
   serve: 'Start the server (applies migrations at boot)',
   worker: 'Run the outbox and nudge workers',
   eval: 'Run the eval suite at EVAL_DIR against CONFIG_DIR',
+  'eval conversations': 'Run the scripted conversations at EVAL_DIR twice (--validate: check only)',
   simulate: 'Send a Dynamic Block request to a running server',
   'config check': 'Validate config/ and environment, then exit',
   upgrade: 'Migrate config/ and eval suites to the installed version',
@@ -98,6 +99,11 @@ export async function run(argv: string[]): Promise<number | undefined> {
       const { runEval } = await import('../evals/runner.ts');
       await runEval();
       return undefined;
+    }
+
+    case 'eval conversations': {
+      const { runConversations } = await import('../evals/conversations/command.ts');
+      return runConversations(rest);
     }
 
     case 'simulate': {

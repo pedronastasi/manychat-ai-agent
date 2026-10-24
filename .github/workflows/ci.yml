@@ -64,6 +64,18 @@ jobs:
           DATABASE_URL: pglite
           CONFIG_DIR: test/fixtures/config
 
+      # The conversation suite, checked against the tenant without running a
+      # turn (specs/043). Its runs are asserted by
+      # test/integration/complete-conversation-evals-cli.test.ts.
+      - name: Validate conversation suite
+        run: pnpm eval:conversations:validate
+        env:
+          AGENT_MODEL: mock:demo
+          PUBLIC_BASE_URL: https://ci.example.com
+          MANYCHAT_SHARED_SECRET: ci-secret-ci-secret-ci-secret-xx
+          DATABASE_URL: pglite
+          CONFIG_DIR: test/fixtures/config
+
       # A second tenant that is not a school, so a word the scaffolding
       # borrows from the first one fails here (specs/042).
       - name: Eval (mock, repair tenant)

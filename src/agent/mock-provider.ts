@@ -64,7 +64,7 @@ function respondTo(text: string, catalog: MockCatalog): string {
   }
   if (/(ignore|system prompt|no rules|you are now|forget your)/.test(lower)) {
     return reply(
-      ["I can'lower do that. Would you like me to pass you to someone on the team?"],
+      ["I can't do that. Would you like me to pass you to someone on the team?"],
       true,
       'out_of_scope',
       0.9,
@@ -195,7 +195,7 @@ function respondTo(text: string, catalog: MockCatalog): string {
     return reply(['Hi! Thanks for writing.'], false, null, 0.92, 'How can I help you today?');
   }
   return reply(
-    ["I don'lower have that to hand - let me pass you to someone on the team."],
+    ["I don't have that to hand - let me pass you to someone on the team."],
     true,
     'out_of_scope',
     0.8,
@@ -584,7 +584,14 @@ function stagedNote(options: LanguageModelV4CallOptions): string | undefined {
   for (const entry of options.prompt) {
     if (entry.role !== 'user') continue;
     for (const part of entry.content) {
-      if (part.type === 'text' && part.text.startsWith('ACTIONS: Staged')) return part.text;
+      // A flow the turn already sent arrives as SENT: in production it is
+      // performed inside the tool loop, not staged (specs/029).
+      if (
+        part.type === 'text' &&
+        (part.text.startsWith('ACTIONS: Staged') || part.text.startsWith('SENT: '))
+      ) {
+        return part.text;
+      }
     }
   }
   return undefined;
@@ -623,12 +630,28 @@ function stagedReply(note: string, link: string | undefined): string {
       'Have you studied this before, or would you be starting from zero?',
     );
   }
+  // Already in front of the contact: the reply follows it, never announces it.
+  const sent = note.startsWith('SENT: ');
   if (link !== undefined && note.includes(`send_flow ${link}`)) {
-    return reply(["I'm sending you the payment link now."], false, null, 0.9, null);
+    return reply(
+      [
+        sent
+          ? 'That is the payment link for your course.'
+          : "I'm sending you the payment link now.",
+      ],
+      false,
+      null,
+      0.9,
+      null,
+    );
   }
   if (note.includes('fitting_it_in') || note.includes('student_results')) {
     return reply(
-      ["That's a common worry. I'm sending you something from a past student about it."],
+      [
+        sent
+          ? "That's a common worry, and that's from a past student about it."
+          : "That's a common worry. I'm sending you something from a past student about it.",
+      ],
       false,
       null,
       0.9,
@@ -636,13 +659,17 @@ function stagedReply(note: string, link: string | undefined): string {
   }
   if (note.includes('brochure')) {
     return reply(
-      ["I'm sending you the brochure now - it has the full syllabus."],
+      [
+        sent
+          ? 'That brochure has the full syllabus.'
+          : "I'm sending you the brochure now - it has the full syllabus.",
+      ],
       false,
       null,
       0.9,
     );
   }
-  return reply(["I'm sending that to you now."], false, null, 0.9);
+  return reply([sent ? 'That should help.' : "I'm sending that to you now."], false, null, 0.9);
 }
 
 /**
