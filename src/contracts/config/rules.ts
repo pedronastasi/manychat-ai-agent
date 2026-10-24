@@ -61,6 +61,12 @@ export const RulesSchema = z.object({
   /** Checked before the model runs — an instant, free handoff. */
   escalationKeywords: z.array(z.string()).default([]),
   /**
+   * Phrases that only the model's working notes contain, matched in a reply as
+   * escalationKeywords are: case-insensitive substrings. Added to the built-in
+   * markers (specs/001 § Working notes never reach the contact).
+   */
+  workingNoteMarkers: z.array(z.string().min(1)).default([]),
+  /**
    * A sentinel the channel flow sends to open a conversation, and the scripted
    * reply it produces. Fully determined, so the model never sees it.
    *
