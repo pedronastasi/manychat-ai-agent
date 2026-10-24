@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.30.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.29.0...v0.30.0) (2026-10-24)
+
+
+### Features
+
+* grade eval replies with a calibrated judge (spec 016) ([c2c2624](https://github.com/pedronastasi/manychat-ai-agent/commit/c2c2624f79daa6ce18024c16497f1c32ba89f959))
+* grade grounded claims as a fourth rubric dimension (spec 051) ([92e659a](https://github.com/pedronastasi/manychat-ai-agent/commit/92e659ad5412e82db795df244405bd27c9013a7a))
+* grade grounded claims as a fourth rubric dimension (spec 051) ([0454c30](https://github.com/pedronastasi/manychat-ai-agent/commit/0454c30c58631b7af09f5cf175a5cce91d4e1786))
+
+
+### Bug Fixes
+
+* abandon a stalled judge sample after a timeout (spec 016) ([85eccb0](https://github.com/pedronastasi/manychat-ai-agent/commit/85eccb014f71f9f7ffe6723364d3e1203588dd74))
+* keep grounded_claims on a turn whose plugin reads were unavailable ([8063f9f](https://github.com/pedronastasi/manychat-ai-agent/commit/8063f9f32a5b765e29f266ef15a09f1ce00f18d5))
+* make the invented instalment plan unambiguous in the calibration set (spec 016) ([46f4124](https://github.com/pedronastasi/manychat-ai-agent/commit/46f41244660446e2966aba6ad6f2a4682e678423))
+
+
+### Specs and Docs
+
+* record PR 264 in spec 016 ([9f9c2e8](https://github.com/pedronastasi/manychat-ai-agent/commit/9f9c2e829c8d61b7c77d24d9e30488d66631645e))
+* record PR 266 in spec 051 ([19d761f](https://github.com/pedronastasi/manychat-ai-agent/commit/19d761ff6a91c4ce406cd05bcd81c14f78739834))
+* spec 051, grounded claims as a fourth rubric dimension ([54a6cd8](https://github.com/pedronastasi/manychat-ai-agent/commit/54a6cd853c76aa1f98abc16fff7440b8ceaabf94))
+
 ## [0.29.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.28.0...v0.29.0) (2026-10-23)
 
 
