@@ -224,10 +224,11 @@ their signatures describes.
   `"true"` stops boot.
 - **The graph**: ordered staging, the action cap, the read cap, the last step
   offering no tools, `GraphRecursionError` failing closed, and an aborted turn
-  recording its stage `discarded`. These run the existing `012`, `024` and
-  `029` tests under `AGENT_RUNNER=langchain`.
-- **Usage**: the same faked request gives the same `AgentUsage` under both
-  runners, and a missing `usage_metadata` gives `undefined`.
+  recording its stage `discarded`. The existing `012`, `024` and `029` tests
+  run against `LangGraphRunner`.
+- **Usage**: a faked turn whose steps report counts gives their sum, a step
+  that leaves one out does not zero it, and a missing `usage_metadata` gives
+  `undefined`.
 - **The gate**: superseded; § The AI SDK runner is removed records where it
   stood.
 - **The removal**: `AGENT_RUNNER=ai-sdk` and any value but `langchain` stop
