@@ -260,6 +260,19 @@ describe('the gate applies reviews made against this run, and only it (specs/043
     expect(result.passed).toBe(false);
   });
 
+  it('fails, in the decision itself, on a review line that does not parse', async () => {
+    const report = await run({});
+    const result = gate(
+      written(report),
+      [review(report), review(report, { repetition: 2 })],
+      current,
+      ['reviews.jsonl:3: not valid JSON'],
+    );
+    expect(result.passed).toBe(false);
+    expect(result.reviews.invalid).toEqual(['reviews.jsonl:3: not valid JSON']);
+    expect(result.reasons).toContain('1 reviews could not be applied');
+  });
+
   it('records a disagreement with the judge and keeps the stricter verdict', async () => {
     const failed = await run({ judge: scriptedJudge([fail]) });
     const overruled = gate(
@@ -269,12 +282,59 @@ describe('the gate applies reviews made against this run, and only it (specs/043
     );
     expect(overruled.passed).toBe(false);
     expect(overruled.disagreements).toHaveLength(2);
-    expect(overruled.disagreements[0]).toMatchObject({ judge: 'fail', review: 'pass' });
+    expect(overruled.disagreements[0]).toMatchObject({
+      with: 'judge',
+      earlier: 'fail',
+      review: 'pass',
+    });
 
     const passed = await run({ judge: scriptedJudge([pass]) });
     const caught = gate(written(passed), [review(passed, { verdict: 'fail' })], current);
     expect(caught.passed).toBe(false);
     expect(caught.scenarios).toEqual([{ id: 'scenario', status: 'failed' }]);
+  });
+
+  it('records two people who disagree as reviewers, never as the judge', async () => {
+    const report = await run({});
+    const result = gate(
+      written(report),
+      [
+        review(report, { verdict: 'fail', reviewer: 'reviewer-1' }),
+        review(report, { verdict: 'pass', reviewer: 'reviewer-2' }),
+        review(report, { repetition: 2 }),
+      ],
+      current,
+    );
+    expect(result.disagreements).toEqual([
+      {
+        scenario: 'scenario',
+        repetition: 1,
+        criterion: 'asks.review[0]',
+        with: 'reviewer',
+        earlier: 'fail',
+        review: 'pass',
+        reviewer: 'reviewer-2',
+      },
+    ]);
+    // The earlier failure stands.
+    expect(result.scenarios).toEqual([{ id: 'scenario', status: 'failed' }]);
+  });
+
+  it('names the reviewer, not the judge, when a person disputes another person over a judged verdict', async () => {
+    const report = await run({ judge: scriptedJudge([pass]) });
+    const result = gate(
+      written(report),
+      [
+        review(report, { verdict: 'fail', reviewer: 'reviewer-1' }),
+        review(report, { verdict: 'pass', reviewer: 'reviewer-2' }),
+      ],
+      current,
+    );
+    expect(result.disagreements.map(entry => [entry.with, entry.earlier, entry.review])).toEqual([
+      ['judge', 'pass', 'fail'],
+      ['reviewer', 'fail', 'pass'],
+    ]);
+    expect(result.scenarios).toEqual([{ id: 'scenario', status: 'failed' }]);
   });
 
   it('binds the run to everything it evaluated: any edit is a different run', () => {
