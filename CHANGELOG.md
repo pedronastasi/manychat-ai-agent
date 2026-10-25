@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.33.0...v0.33.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* make the conversation gate's decision match its exit code, and name who disagreed (spec 043) ([a525c92](https://github.com/pedronastasi/manychat-ai-agent/commit/a525c927eacbe93ec9c068b58b9298162589aa24))
+
 ## [0.33.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.32.0...v0.33.0) (2026-10-24)
 
 
