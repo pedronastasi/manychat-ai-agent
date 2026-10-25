@@ -224,7 +224,7 @@ describe('opening trigger', () => {
   const OPENING = 'Welcome! Would you like the course prices?';
   const withTrigger = RulesSchema.parse({
     ...rules,
-    openingTrigger: { keywords: ['start workflow', 'iniciar'], message: OPENING },
+    openingTrigger: { keywords: ['start workflow', 'begin demo'], message: OPENING },
   });
   const triggerDeps = (runner: AgentRunner) => ({ ...deps(runner), rules: withTrigger });
 
@@ -272,7 +272,7 @@ describe('opening trigger', () => {
   });
 
   it('records the scripted turn so history stays complete', async () => {
-    await new TurnHandler(triggerDeps(fast)).handle(inbound('iniciar', 'scripted'));
+    await new TurnHandler(triggerDeps(fast)).handle(inbound('begin demo', 'scripted'));
     const turns = await db.query.turns.findMany();
     expect(turns.map(turn => turn.role)).toEqual(['user', 'agent']);
     const agentTurn = turns.find(turn => turn.role === 'agent')!;
