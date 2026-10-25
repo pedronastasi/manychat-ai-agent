@@ -23,6 +23,9 @@ A reader cannot tell those two apart. The cost is not confusion, it is misplaced
 trust: someone who believes `007` is live will debug the wrong layer for an hour
 before thinking to check `src/`.
 
+(That was the state when this spec was written. `007` was built on 2026-10-25,
+and its frontmatter now says so, which is the point.)
+
 ## A hand-maintained status field is not the fix
 
 The reflexive answer is a `status: implemented` line, edited by whoever

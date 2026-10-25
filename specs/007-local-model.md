@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-25
 constitution: [C2, C3, C6, C7]
 adr: [0001, 0025]
 ---
@@ -68,6 +69,14 @@ const registry = createProviderRegistry({ anthropic, openai, google, ollama });
 `ollama` with the same change, or a typo will be reported against a list that no
 longer matches the registry.
 
+Since the LangChain runner (specs/050), the answering model is built by
+`resolveChatModel`, also in `registry.ts`: an `ollama:` spec is a `ChatOpenAI`
+with `configuration.baseURL` set to `OLLAMA_BASE_URL` and the same placeholder
+key. Like the hosted OpenAI path it uses the Responses API (`/v1/responses`),
+which Ollama serves (checked on Ollama 0.40.11, 2026-10-25). The AI SDK
+registry above still resolves `ollama:` for the eval judge and anywhere else an
+AI SDK model is wanted. Both read `OLLAMA_BASE_URL` when `registry.ts` loads.
+
 `AGENT_MODEL=ollama:llama3.1:8b` therefore works unchanged. The registry splits
 on the **first** separator only — `ProviderRegistry.splitId` uses
 `indexOf(separator)` (verified in `ai@7.0.100`) — so a model tag containing its
@@ -115,13 +124,15 @@ paid one.
 
 ## Structured output is what will actually break
 
-`runner.ts` calls `generateObject` against `AgentReplyForModel`. Hosted models
-honour a JSON schema reliably; small local models frequently wrap the JSON in
-prose or drop a required field.
+The runner asks for the reply as JSON matching `AgentReplyForModel`, by the
+provider's structured-output option (specs/050). Hosted models honour a JSON
+schema reliably; small local models frequently wrap the JSON in prose or drop a
+required field.
 
-The failure is already handled — `applyGuardrails` records `schema_invalid` and
-escalates rather than repairing the reply (C3, C6) — so the agent degrades safely
-while appearing useless.
+The failure is already handled: a reply that does not match ends the turn with
+`ReplyNotGeneratedError`, and `applyGuardrails` records `schema_invalid` for one
+that parses but breaks the contract. Either escalates rather than repairing the
+reply (C3, C6), so the agent degrades safely while appearing useless.
 
 That makes `interventions` the diagnostic that matters, not the pass rate. A run
 dominated by `schema_invalid` is a statement about the model's schema adherence,
@@ -133,18 +144,23 @@ small model is not: the contract is what the hosted path depends on.
 A contributor who wants Postgres must not be made to pull several gigabytes of
 model weights, so the service starts only when asked for by name.
 
-| Property    | Value                                                         |
-| ----------- | ------------------------------------------------------------- |
-| Service     | `ollama`                                                      |
-| Profile     | `local-model` — started only with `--profile local-model`     |
-| Image       | `ollama/ollama`                                               |
-| Port        | `11434`                                                       |
-| Volume      | named volume on `/root/.ollama`, so weights survive `down`    |
-| Healthcheck | `GET /api/tags` — ready means _serving_, not merely _started_ |
+| Property    | Value                                                                        |
+| ----------- | ---------------------------------------------------------------------------- |
+| Service     | `ollama`                                                                     |
+| Profile     | `local-model` — started only with `--profile local-model`                    |
+| Image       | `ollama/ollama`                                                              |
+| Port        | `11434`                                                                      |
+| Volume      | named volume on `/root/.ollama`, so weights survive `down`                   |
+| Healthcheck | `ollama show <model>`: ready means _serving the model_, not merely _started_ |
+| Pull        | `ollama-pull`, same profile: pulls `LOCAL_MODEL` once, then exits            |
 
 The recommended model is **`llama3.1:8b`, approximately 4.7 GB** at the default
-Q4 quantisation. It is pulled on first use and cached in the volume, so the cost
-is paid once per machine rather than once per `up`.
+Q4 quantisation. Ollama does not pull a model because a request names one, so
+the `ollama-pull` service pulls `LOCAL_MODEL` (default `llama3.1:8b`) on the
+first `up` and exits; the weights stay in the volume, so the cost is paid once
+per machine rather than once per `up`. The image ships no curl or wget, so the
+healthcheck asks the same local API through the CLI: `ollama show` fails until
+the model is there.
 
 That number is stated here because a multi-gigabyte download must never be a
 surprise a contributor discovers halfway through it. Any other 7-8B model works;
@@ -159,8 +175,8 @@ alongside the existing providers (spec 003).
 
 - `docker compose --profile local-model up` reaches `/health` 200, and the
   `ollama` service reports the model in `GET /api/tags`. A container that is up
-  but has not finished pulling is not ready, which is why the healthcheck is on
-  `/api/tags` rather than the port.
+  but has not finished pulling is not ready, which is why the healthcheck asks
+  for the model rather than the port.
 - `AGENT_MODEL=ollama:llama3.1:8b pnpm simulate "<a question from the demo catalog>"`
   returns a valid Dynamic Block v2 body. Expect the acknowledgement rather than an
   answer — that is the race behaving as specified above, not a failure.
@@ -168,10 +184,12 @@ alongside the existing providers (spec 003).
 - `AGENT_MODEL=ollama:llama3.1:8b pnpm eval` runs. Report the pass rate **and**
   the `schema_invalid` count, and label both as local-model figures.
 - A unit test asserts `estimateCostUsd` returns exactly `0` for an `ollama:` spec.
-  This is the only part of this spec that CI can enforce.
-- `AGENT_MODEL=ollama:llama3.1:8b` resolves, proving the first-colon split.
+- `AGENT_MODEL=ollama:llama3.1:8b` resolves, proving the first-colon split, and
+  a request sent through it reaches `OLLAMA_BASE_URL` with the tag intact.
 
-**What this verification misses:** all of it except the pricing test is manual.
+**What this verification misses:** CI enforces the pricing, the tag split, the
+request's destination and the compose wiring; everything that needs a running
+model is manual.
 CI cannot pull multi-gigabyte weights or run a model at usable speed on a hosted
 runner, so CI stays on `mock:demo` and nothing here is protected from regression
 by a job. A contributor running through this list is the enforcement, which is

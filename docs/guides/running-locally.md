@@ -31,13 +31,18 @@ docker compose --profile local-model up        # starts Ollama alongside Postgre
 AGENT_MODEL=ollama:llama3.1:8b pnpm simulate "hello"
 ```
 
-The first run pulls ~4.7 GB of weights; they persist in a named Docker volume so
-subsequent starts are instant. Any Ollama-supported model works — just use the
-tag from `ollama list`:
+On the first `up`, the `ollama-pull` service pulls `llama3.1:8b`, about 4.7 GB,
+into a named Docker volume, so later starts are instant. `ollama` reports
+healthy only once the model is there. Another model works the same way: set
+`LOCAL_MODEL` to its tag before `up`, and use the same tag in `AGENT_MODEL`:
 
 ```bash
+LOCAL_MODEL=gemma3:4b docker compose --profile local-model up
 AGENT_MODEL=ollama:gemma3:4b pnpm simulate "how much does the course cost?"
 ```
+
+A local model's eval results are facts about that model. They are not this
+project's eval numbers, and are never quoted as them (specs/007).
 
 Inside Compose the agent reaches Ollama at `http://ollama:11434/v1`. Running
 locally (outside Docker), it defaults to `http://localhost:11434/v1`; override
@@ -175,8 +180,8 @@ docker compose --profile local-model up --build
 ```
 
 Then set `AGENT_MODEL=ollama:llama3.1:8b` in `.env` and restart the agent
-container (`docker compose up --build agent`). The first run pulls ~4.7 GB;
-subsequent starts are instant.
+container (`docker compose up --build agent`). The first `up` pulls ~4.7 GB
+through the `ollama-pull` service; later starts are instant.
 
 With a local model, responses typically take 9–120 s, so the **deferred path**
 fires on most turns: the agent sends an acknowledgement within 8 s, and the full

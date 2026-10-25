@@ -27,18 +27,36 @@ services:
     ports: ['3000:3000']
     restart: unless-stopped
 
+  # A local model (specs/007): started only with `--profile local-model`.
+  # LOCAL_MODEL picks the model; it is pulled once into the volume.
   ollama:
     image: ollama/ollama
     profiles: [local-model]
     ports: ['11434:11434']
     volumes: ['ollama:/root/.ollama']
     healthcheck:
-      # The image ships no curl or wget; `ollama list` queries the same local
-      # API and is the only probe guaranteed to exist here.
-      test: ['CMD-SHELL', 'ollama list || exit 1']
+      # Ready means serving the model, not merely started: `ollama show`
+      # fails until the pull below has finished. The image ships no curl or
+      # wget, so the probe is the CLI, which asks the same local API.
+      test: ['CMD-SHELL', 'ollama show ${LOCAL_MODEL:-llama3.1:8b} >/dev/null || exit 1']
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 360
+      start_period: 10s
+
+  # Pulls LOCAL_MODEL into the shared volume once, then exits. A later `up`
+  # finds it cached and finishes at once.
+  ollama-pull:
+    image: ollama/ollama
+    profiles: [local-model]
+    depends_on: [ollama]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint:
+      - /bin/sh
+      - -c
+      - until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull ${LOCAL_MODEL:-llama3.1:8b}
+    restart: 'no'
 
 volumes:
   pgdata:

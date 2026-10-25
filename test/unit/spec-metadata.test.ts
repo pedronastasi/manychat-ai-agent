@@ -118,7 +118,8 @@ describe('the generated index', () => {
     expect(readFileSync(INDEX_PATH, 'utf8')).toBe(renderIndex());
   });
 
-  it('marks 007 as not yet built, so the table is not uniformly green', () => {
-    expect(readFileSync(INDEX_PATH, 'utf8')).toMatch(/007-local-model\.md\)\s*\|\s*specified/);
+  // 007 played this part until it was built (2026-10-25); 015 is still unbuilt.
+  it('marks 015 as not yet built, so the table is not uniformly green', () => {
+    expect(readFileSync(INDEX_PATH, 'utf8')).toMatch(/015-test-service\.md\)\s*\|\s*specified/);
   });
 });
