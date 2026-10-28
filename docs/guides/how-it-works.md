@@ -110,6 +110,7 @@ Every non-obvious choice is written down in [`docs/adr/`](../adr/):
 | [0025](../adr/0025-python-is-a-parallel-implementation-not-a-replacement.md)      | Python is a second implementation in its own repository, maintained beside TypeScript, not a replacement         |
 | [0026](../adr/0026-the-typescript-model-layer-moves-to-langchain.md)              | The TypeScript model layer moves to LangChain.js behind the same registry, to rehearse the Python implementation |
 | [0027](../adr/0027-the-bounded-loop-is-a-langgraph-graph-not-a-prebuilt-agent.md) | The bounded tool loop is a LangGraph.js graph the service draws, never a prebuilt agent                          |
+| [0028](../adr/0028-langsmith-traces-the-shape-of-a-turn-never-its-text.md)        | LangSmith traces the shape of a live turn, never its text; full text only for fixture evals                      |
 
 Behavior is specified before it is implemented, in [`specs/`](../../specs/) —
 a [constitution](../../specs/000-constitution.md) of non-negotiables, the
