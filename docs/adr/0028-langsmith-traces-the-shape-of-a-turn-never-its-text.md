@@ -30,8 +30,10 @@ the invented fixture tenant.
 ## Consequences
 
 - Per-step timings, token counts, the model, tool names, step count and how the
-  turn ended become visible for live turns. Eval runs, including the judge,
-  are traced in full, because their data is invented.
+  turn ended become visible for live turns. Eval runs against the invented
+  fixture tenant are traced in full, because their data is invented; an eval
+  run against a tenant's own config or suite (specs/009) is traced like a live
+  turn, with no text.
 - Nothing a contact wrote or the model replied leaves the process. Neither does
   the tenant's prompt or catalog. C1 and C5 stand unchanged.
 - A trace identifies a turn by the conversation's random ID (ADR-0014) and
