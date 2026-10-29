@@ -73,7 +73,6 @@ The metadata allowlist:
 | --------------------------------- | -------------------------------------------------------------------------- |
 | `conversation`                    | The conversation's random UUID (ADR-0014)                                  |
 | `turn_kind`                       | `inbound` or `nudge`                                                       |
-| `outcome`                         | How the turn ended, as `TurnRecorder` names it                             |
 | `step`                            | The graph's step counter (`012`)                                           |
 | `tools`                           | The names of the tools the step called, as declared, never their arguments |
 | `ls_provider`, `ls_model_name`    | As LangChain sets them                                                     |
@@ -105,6 +104,29 @@ pointed at a tenant's `config/`, is traced with the live projection above. The
 check is on resolved paths, not on a flag, so no variable can mark a tenant's
 config as invented. The server never traces with text, whatever its config.
 
+## How the turn ended is feedback added after the graph returns
+
+The outcome cannot be metadata on the graph's runs. `TurnRecorder` names it
+(`TurnOutcome` in `src/contracts/agent.ts`) only after the runner returns, and
+for `deferred` and `superseded` later still, while the root run is uploaded
+when the graph ends.
+
+So the service gives the graph's root run an ID of its own, a random UUID, in
+the invocation's `runId`. When `TurnRecorder` records an outcome for a turn
+whose graph ran, the service sends LangSmith one feedback on that run: key
+`outcome`, value the `TurnOutcome` value, and nothing else: no score, comment
+or correction. It is sent in the background and dropped on failure, exactly as
+§ The uploader never holds a turn requires. A turn that is recorded twice, such
+as a reply later `superseded`, gets a second feedback, and the later one is how
+the turn ended.
+
+Feedback does not pass through the client's hide functions, so this call is
+the one upload the projection does not cover. Its value is drawn from the
+`TurnOutcome` enum, which holds no text from a contact or a tenant.
+
+A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
+`media_fallback`, `folded`) has no trace and no feedback.
+
 ## The uploader never holds a turn
 
 - The tracer runs as a background callback. Nothing in `TurnHandler`,
@@ -132,6 +154,11 @@ config as invented. The server never traces with text, whatever its config.
   set to `"false"` stops it while tracing is on.
 - **Identity**: a test asserts the subscriber ID and `TENANT_ID` appear nowhere
   in the upload, and `conversation` matches the turn's row.
+- **Outcome**: an inbound turn that answers inline sends one feedback, key
+  `outcome`, value `answered_inline`, on the run ID the service set; a turn
+  that loses the race sends `deferred`; a precheck escalation sends no trace
+  and no feedback. The feedback body carries no field but the key, the value
+  and the run ID.
 - **Errors**: a turn whose model throws an error with a sentence in its message
   uploads the class name and not the sentence.
 - **Eval scope**: the fixture tenant on the golden set uploads full inputs; the
@@ -151,7 +178,8 @@ What this misses:
   shared one. Deployment documentation says it; nothing checks it.
 - **New library fields.** An allowlist drops a field a new version adds, but a
   new path that uploads without going through the client's functions, such as
-  a feedback or attachment call, would not be caught. Reading the changelog of
+  an attachment call, would not be caught. The service's own outcome feedback
+  is the one such path, and its test pins the body. Reading the changelog of
   each `langsmith` and `@langchain/core` update is the check.
 - **Run names.** The test checks the names a turn produces today. A future
   node named from tenant config would leak through `name`; review is the
