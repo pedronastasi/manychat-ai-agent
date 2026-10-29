@@ -58,31 +58,39 @@ tenant owns (ADR-0028). No key or project is committed (C1).
 
 For a live turn, an inbound turn or a nudge, the client's functions are:
 
-| Field    | What is uploaded                                                                                                |
-| -------- | --------------------------------------------------------------------------------------------------------------- |
-| inputs   | `{}`                                                                                                            |
-| outputs  | The run's input, output and total token counts, as numbers, when the run reports them; otherwise `{}`           |
-| metadata | Only the keys in the allowlist below                                                                            |
-| error    | The error's class name, such as `AbortError`                                                                    |
-| events   | None                                                                                                            |
-| name     | The run's name as the graph or LangChain sets it: a node name, a model class. Never a string from tenant config |
+| Field    | What is uploaded                                                                                                      |
+| -------- | --------------------------------------------------------------------------------------------------------------------- |
+| inputs   | `{}`                                                                                                                  |
+| outputs  | A model run's input, output and total token counts, as numbers; the `tools` node's tool names (below); otherwise `{}` |
+| metadata | Only the keys in the allowlist below                                                                                  |
+| error    | The error's class name, such as `AbortError`                                                                          |
+| events   | None                                                                                                                  |
+| name     | The run's name as the graph or LangChain sets it: a node name, a model class. Never a string from tenant config       |
 
 The metadata allowlist:
 
-| Key                               | Value                                                                      |
-| --------------------------------- | -------------------------------------------------------------------------- |
-| `conversation`                    | The conversation's random UUID (ADR-0014)                                  |
-| `turn_kind`                       | `inbound` or `nudge`                                                       |
-| `step`                            | The graph's step counter (`012`)                                           |
-| `tools`                           | The names of the tools the step called, as declared, never their arguments |
-| `ls_provider`, `ls_model_name`    | As LangChain sets them                                                     |
-| `ls_max_tokens`, `ls_temperature` | As LangChain sets them                                                     |
+| Key                                | Value                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| `conversation`                     | The conversation's random UUID (ADR-0014)                                    |
+| `turn_kind`                        | `inbound` or `nudge`                                                         |
+| `langgraph_step`, `langgraph_node` | As LangGraph sets them on each node's run: the superstep and the node's name |
+| `ls_provider`, `ls_model_name`     | As LangChain sets them                                                       |
+| `ls_max_tokens`, `ls_temperature`  | As LangChain sets them                                                       |
 
 `TENANT_ID` is not on the list. It is a deployment's own string and can be a
 business name; the workspace already says whose traces these are.
 
 Timings come from the run's own start and end times, which are not fields the
 projection touches.
+
+Tool names are the one exception to empty outputs. The tools node does not run
+tools as LangChain runs (`050`, ADR-0027), so no run is named after a tool, and
+a model run's metadata is fixed before it calls any. Instead, the `tools`
+node's run output is projected to `{ tools: [...] }`: the `name` of each tool
+call it handled, in order, never its arguments or result. A name is kept only
+when it is a key of the tool set offered that turn, built-in or from a plugin
+(`036`); any other name the model produced becomes `unknown_tool`, because a
+name the model made up is model output and can carry text.
 
 ## A trace names a turn by its conversation ID and an error by its class
 
@@ -147,6 +155,11 @@ A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
   message, the reply and a tool argument appear nowhere in the uploaded bytes.
 - **Token counts survive**: in the same upload, a model run's output holds the
   counts the faked model reported.
+- **Step and tools**: a turn whose faked model calls two tools, then answers,
+  uploads node runs whose `langgraph_step` rises and whose `langgraph_node` is
+  `model`, `tools`, `model`; the `tools` run's output is exactly the two names
+  in order. A tool call whose name is not in the offered set uploads
+  `unknown_tool`.
 - **The opt-in**: `TRACE_TURNS=langsmith` without a key or project stops boot;
   `TRACE_TURNS` unset makes no request to the endpoint during a turn.
 - **The refusals stand**: each LangChain tracing variable set to `"true"` stops
