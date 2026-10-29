@@ -112,16 +112,29 @@ pointed at a tenant's `config/`, is traced with the live projection above. The
 check is on resolved paths, not on a flag, so no variable can mark a tenant's
 config as invented. The server never traces with text, whatever its config.
 
+## One traced turn is one root run
+
+A turn can call the model outside the graph: when a draft carries working
+notes, `PromptedRunner` asks for one rewrite (`001`, C6), and
+`LangGraphRunner.rewrite` invokes the model directly. Traced as it stands, that
+call would be a second root run with no turn around it; left untraced, its
+tokens and time would be missing from the turn's cost.
+
+So the service opens one root run per traced turn, named `turn`, with an ID of
+its own, a random UUID, and with `conversation` and `turn_kind` as its
+metadata. The graph invocation and the rewrite, when there is one, run inside
+it as children, so they inherit that metadata and their token counts and times
+sit under the same turn. Nothing the runner does is traced outside it.
+
 ## How the turn ended is feedback added after the graph returns
 
-The outcome cannot be metadata on the graph's runs. `TurnRecorder` names it
-(`TurnOutcome` in `src/contracts/agent.ts`) with one `settle` call once the
-graph's result is in, on the inline path and on the deferred one alike, while
-the root run's metadata is fixed when the graph is invoked.
+The outcome cannot be metadata on any of the turn's runs. `TurnRecorder` names
+it (`TurnOutcome` in `src/contracts/agent.ts`) with one `settle` call once the
+runner's result is in, on the inline path and on the deferred one alike, while
+a run's metadata is fixed when the run starts.
 
-So the service gives the graph's root run an ID of its own, a random UUID, in
-the invocation's `runId`. When `TurnRecorder` records an outcome for a turn
-whose graph ran, the service sends LangSmith one feedback on that run: key
+When `TurnRecorder` records an outcome for a turn whose graph ran, the service
+sends LangSmith one feedback on the turn's root run: key
 `outcome`, value the `TurnOutcome` value, and nothing else: no score, comment
 or correction. It is sent in the background and dropped on failure, exactly as
 § The uploader never holds a turn requires. Every turn whose graph ran gets
@@ -167,12 +180,16 @@ A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
   set to `"false"` stops it while tracing is on.
 - **Identity**: a test asserts the subscriber ID and `TENANT_ID` appear nowhere
   in the upload, and `conversation` matches the turn's row.
+- **One root run**: a turn whose faked model's first draft carries working
+  notes uploads exactly one root run, named `turn`; the rewrite's model run is
+  its descendant, carries the same `conversation`, and its output holds the
+  rewrite's token counts.
 - **Outcome**: an inbound turn that answers inline sends one feedback, key
-  `outcome`, value `answered_inline`, on the run ID the service set; a turn
-  that loses the race sends `deferred` once the graph has finished; a reply
-  dropped because the contact kept writing sends `superseded` and nothing
-  else; a precheck escalation sends no trace and no feedback. The feedback
-  body carries no field but the key, the value and the run ID.
+  `outcome`, value `answered_inline`, on the root run's ID the service set; a
+  turn that loses the race sends `deferred` once the graph has finished; a reply
+  dropped because the contact kept writing sends `superseded` and nothing else;
+  a precheck escalation sends no trace and no feedback. The feedback body
+  carries no field but the key, the value and the run ID.
 - **Errors**: a turn whose model throws an error with a sentence in its message
   uploads the class name and not the sentence.
 - **Eval scope**: the fixture tenant on the golden set uploads full inputs; the
