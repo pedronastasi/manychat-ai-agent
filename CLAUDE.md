@@ -105,7 +105,7 @@ test/
   fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
-docs/adr/              # Architecture Decision Records (0001–0027)
+docs/adr/              # Architecture Decision Records (0001–0028)
 specs/                 # Specification documents (000–051)
 evals/golden/          # Golden eval cases (cases.jsonl), conversations (conversations.jsonl, branches.json, conversation-calibration.jsonl)
 packages/create/       # create-manychat-ai-agent: scaffolds a tenant project (specs/035)
