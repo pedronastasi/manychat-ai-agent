@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.33.2](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.33.1...v0.33.2) (2026-10-30)
+
+
+### Specs and Docs
+
+* ADR-0028 LangSmith traces the shape of a live turn, never its text ([bd0d947](https://github.com/pedronastasi/manychat-ai-agent/commit/bd0d947e0e4056db60bb43e7ef22ed0e54afcac9))
+* ADR-0028 LangSmith traces the shape of a live turn, never its text ([0928993](https://github.com/pedronastasi/manychat-ai-agent/commit/09289930829fb5268f8f5f1fdd0e341b80172646))
+* count ADR-0028 in CLAUDE.md's code layout ([2f7b263](https://github.com/pedronastasi/manychat-ai-agent/commit/2f7b263f4cdb0e421e22b02db55ea9ebdd4cfb1f))
+* limit ADR-0028 full-text traces to fixture-tenant evals ([fc732b9](https://github.com/pedronastasi/manychat-ai-agent/commit/fc732b95f47ea08b04c4a7e53f8e5f9dfa7075e6))
+* spec 052 records the turn's outcome as feedback after the graph ([ce33630](https://github.com/pedronastasi/manychat-ai-agent/commit/ce3363032daadf5b5fe35fab1330d3645c2330c4))
+* spec 052 sends one outcome feedback per traced turn ([87c059c](https://github.com/pedronastasi/manychat-ai-agent/commit/87c059c9cc4c5c0a0c9dd6e58b77603aee3ce339))
+* spec 052 takes step and tool names from where the graph puts them ([8f66569](https://github.com/pedronastasi/manychat-ai-agent/commit/8f66569bcdce8b3da92d76608fd5dead95cd9f5f))
+* spec 052 traces a turn as one root run, rewrite included ([3fb78d0](https://github.com/pedronastasi/manychat-ai-agent/commit/3fb78d0aa4af01b0d5701e267b29d95480b7ac54))
+* spec 052 traces carry shape, not text ([e6640af](https://github.com/pedronastasi/manychat-ai-agent/commit/e6640afcb744edab32d9a45837a9799b6f5a630e))
+* spec 052 traces carry shape, not text ([b390771](https://github.com/pedronastasi/manychat-ai-agent/commit/b3907715504b320bf541ef986a26f8231e195137))
+
 ## [0.33.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.33.0...v0.33.1) (2026-10-25)
 
 
