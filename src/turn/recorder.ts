@@ -5,6 +5,7 @@ import type { BudgetGuard } from '../conversation/budget.ts';
 import type { ConversationStore, TurnUsage } from '../conversation/store.ts';
 import type { NudgeStore } from '../nudge/store.ts';
 import type { PluginReads } from '../plugins/reads.ts';
+import type { TurnTrace } from '../observability/tracing.ts';
 import type { TurnLogger } from './logger.ts';
 
 export interface TurnRecorderDeps {
@@ -24,6 +25,8 @@ export interface RecordedTurn {
   stage: ActionStage;
   /** The turn's plugin reads. Absent when no read tool is offered (specs/039). */
   pluginReads?: PluginReads | undefined;
+  /** The turn's trace, told how the turn ended once it is recorded (specs/052). */
+  trace?: TurnTrace | undefined;
 }
 
 /**
@@ -93,6 +96,7 @@ export class TurnRecorder {
       actions,
       reads: this.reads(),
     });
+    this.turn.trace?.outcome('error');
   }
 
   /**
@@ -124,7 +128,7 @@ export class TurnRecorder {
    * read, and nothing else: no spend and no escalation. Returns its id.
    */
   async recordReply(result: AgentResult, outcome: TurnOutcome): Promise<string> {
-    return this.deps.store.recordAgentReply(
+    const turnId = await this.deps.store.recordAgentReply(
       this.turn.conversationId,
       result.reply.messages.join('\n'),
       outcome,
@@ -135,6 +139,10 @@ export class TurnRecorder {
         reads: this.reads(),
       },
     );
+    // One per turn whose model ran, in the background (specs/052 § How the
+    // turn ended is feedback added after the graph returns).
+    this.turn.trace?.outcome(outcome);
+    return turnId;
   }
 
   /** Counts a model call's tokens and cost against the tenant's daily cap. */
@@ -161,6 +169,7 @@ export class TurnRecorder {
         reads: this.reads(),
       },
     );
+    this.turn.trace?.outcome('nudge_skipped');
   }
 
   /**

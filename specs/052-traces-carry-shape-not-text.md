@@ -1,7 +1,8 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-10-30
 constitution: [C1, C5, C6, C7]
-adr: [0014, 0028]
+adr: [0014, 0028, 0029]
 ---
 
 # 052 — Traces Carry Shape, Not Text
@@ -23,14 +24,15 @@ tenant data and C5's PII, sent to a vendor by one environment variable.
 The library's own switches do not repair it. Read on 2026-10-29 from the
 installed `langsmith` 0.11.0 and `@langchain/core` 1.3.0:
 
-| Default, as read                                                                                                                        | Breaks                                         | Required                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `hideInputs`, `hideOutputs` and `hideMetadata` are off unless `LANGSMITH_HIDE_INPUTS`, `_OUTPUTS` or `_METADATA` is `"true"`            | C1, C5                                         | Each is set on the client as a function, never left to the environment (§ A live trace …) |
-| `hideOutputs: true` drops the whole output, token counts with it                                                                        | The reason to trace: cost per step             | The output function keeps the token counts and nothing else                               |
-| A run's `error` is a plain string, uploaded as-is unless an `anonymizer` is set; a provider's error can echo the request                | C5                                             | The error is replaced by the error's class name (§ A trace names a turn …)                |
-| `omitTracedRuntimeInfo` is `false`, so each run carries the SDK, the platform and LangChain's environment variables as metadata         | The metadata allowlist below                   | Set to `true`                                                                             |
-| `@langchain/core` awaits its callback handlers when `LANGCHAIN_CALLBACKS_BACKGROUND` is `"false"`; otherwise they run in the background | C7: the upload would sit inside the race       | Boot refuses `LANGCHAIN_CALLBACKS_BACKGROUND="false"` while tracing is on                 |
-| `maxIngestMemoryBytes` defaults to 1 GB; past it, runs are dropped                                                                      | A trace queue can grow to a container's memory | Set explicitly; the value is chosen and recorded here when this spec is implemented       |
+| Default, as read                                                                                                                                            | Breaks                                                                | Required                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `hideInputs`, `hideOutputs` and `hideMetadata` are off unless `LANGSMITH_HIDE_INPUTS`, `_OUTPUTS` or `_METADATA` is `"true"`                                | C1, C5                                                                | No client and no hide flag: the service projects each run itself and uploads only the projection (§ A live trace …, ADR-0029) |
+| `hideOutputs: true` drops the whole output, token counts with it                                                                                            | The reason to trace: cost per step                                    | The projection keeps a model run's token counts and nothing else                                                              |
+| A run's `error` is a plain string, uploaded as-is unless an `anonymizer` is set; a provider's error can echo the request                                    | C5                                                                    | The error is replaced by its class name, read before LangChain turns it into a string (§ A trace names a turn …)              |
+| `omitTracedRuntimeInfo` is `false`, so each run carries the SDK, the platform and LangChain's environment variables as metadata                             | The metadata allowlist below                                          | Not sent: the projection names no runtime field                                                                               |
+| `@langchain/core` awaits its callback handlers when `LANGCHAIN_CALLBACKS_BACKGROUND` is `"false"`; otherwise they run in the background                     | C7: the upload would sit inside the race                              | Boot refuses `LANGCHAIN_CALLBACKS_BACKGROUND="false"` while tracing is on                                                     |
+| `maxIngestMemoryBytes` defaults to 1 GB; past it, runs are dropped                                                                                          | A trace queue can grow to a container's memory                        | The uploader's own queue holds at most 1,000 entries (`TRACE_QUEUE_LIMIT`, chosen 2026-10-30) and drops the oldest past it    |
+| The client reports an upload failure with `console.error` and `console.warn`; with `LANGSMITH_FAILED_TRACES_DIR` set it writes the batch to disk for replay | C5: past the logger; § The uploader never holds a turn: never retried | The official client is not used (ADR-0029). A failure is logged through the redacting logger and dropped                      |
 
 So the rule is not "turn on LangSmith with the hide flags". It is:
 
@@ -45,18 +47,18 @@ So the rule is not "turn on LangSmith with the hide flags". It is:
 a message naming this spec when either is missing. `LANGSMITH_ENDPOINT` is
 optional, for a workspace outside the default region.
 
-The service builds its own LangSmith client from those values and hands the
-runner a tracer for that client. It never sets LangChain's global tracing.
-`LANGSMITH_TRACING`, `LANGCHAIN_TRACING_V2` and their siblings still stop boot,
-as `050` requires, whether or not `TRACE_TURNS` is set: the only way to trace is
-through the projection.
+The service builds its own uploader from those values (ADR-0029) and hands
+the runner a tracer that projects into it. It never sets LangChain's global
+tracing. `LANGSMITH_TRACING`, `LANGCHAIN_TRACING_V2` and their siblings still
+stop boot, as `050` requires, whether or not `TRACE_TURNS` is set: the only way
+to trace is through the projection.
 
 Each tenant sets its own key and project, so traces land in a workspace the
 tenant owns (ADR-0028). No key or project is committed (C1).
 
 ## A live trace carries no input and no output
 
-For a live turn, an inbound turn or a nudge, the client's functions are:
+For a live turn, an inbound turn or a nudge, each run is projected to:
 
 | Field    | What is uploaded                                                                                                      |
 | -------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -141,8 +143,8 @@ or correction. It is sent in the background and dropped on failure, exactly as
 exactly one: `superseded` is recorded instead of `answered_inline` or
 `deferred` (`046`), never on top of one.
 
-Feedback does not pass through the client's hide functions, so this call is
-the one upload the projection does not cover. Its value is drawn from the
+Feedback is not a run, so this call is the one upload the projection does
+not build. Its value is drawn from the
 `TurnOutcome` enum, which holds no text from a contact or a tenant.
 
 A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
@@ -156,8 +158,12 @@ A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
 - An upload that fails is logged once, through the redacting logger, with the
   error's class and status code, and dropped. It is never retried into a later
   turn and never changes a reply or how a turn is recorded (C6).
-- On `SIGTERM`, shutdown waits for pending batches within the time the existing
-  shutdown already allows, and drops what is left.
+- The queue holds at most 1,000 runs and feedbacks. Past it the oldest is
+  dropped, logged once until the queue drains. One upload carries at most 100
+  runs and gives up after 10 s, the bound every other outbound call outside the
+  race has (`022`).
+- On `SIGTERM`, shutdown sends what is queued once, after the server has
+  closed, and drops what is left.
 
 ## Verification
 
@@ -207,15 +213,17 @@ What this misses:
   to it is the enforcement.
 - **The workspace.** Nothing in code can tell a tenant's own workspace from a
   shared one. Deployment documentation says it; nothing checks it.
-- **New library fields.** An allowlist drops a field a new version adds, but a
-  new path that uploads without going through the client's functions, such as
-  an attachment call, would not be caught. The service's own outcome feedback
-  is the one such path, and its test pins the body. Reading the changelog of
-  each `langsmith` and `@langchain/core` update is the check.
+- **New library fields.** The projection drops a field a new
+  `@langchain/core` or LangGraph version adds to a run, and nothing uploads
+  except the service's own uploader (ADR-0029). What it cannot see is a field
+  it already passes starting to carry text, such as a node name or
+  `ls_model_name`. The outcome feedback is the one upload the projection does
+  not build, and its test pins the body. Reading the changelog of each
+  `@langchain/core` and `@langchain/langgraph` update is the check.
 - **Run names.** The test checks the names a turn produces today. A future
   node named from tenant config would leak through `name`; review is the
   enforcement.
 
-When this is implemented, the tracing row of `050 § Defaults that change
-behaviour` and of `026` change in the same pull request: the LangChain
-variables are still refused, and the turn's spans are this spec's projection.
+The tracing rows of `050 § Defaults that change behaviour` and of `026`
+changed with this implementation: the LangChain variables are still refused,
+and the turn's spans are this spec's projection.

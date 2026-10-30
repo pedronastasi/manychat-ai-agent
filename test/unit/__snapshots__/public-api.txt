@@ -218,9 +218,13 @@ type Env = {
   EVAL_JUDGE_MODEL?: string | undefined
   GOOGLE_GENERATIVE_AI_API_KEY?: string | undefined
   INSIGHT_MODEL?: string | undefined
+  LANGCHAIN_CALLBACKS_BACKGROUND?: string | undefined
   LANGCHAIN_TRACING?: string | undefined
   LANGCHAIN_TRACING_V2?: string | undefined
   LANGCHAIN_VERBOSE?: string | undefined
+  LANGSMITH_API_KEY?: string | undefined
+  LANGSMITH_ENDPOINT: string
+  LANGSMITH_PROJECT?: string | undefined
   LANGSMITH_TRACING?: string | undefined
   LANGSMITH_TRACING_V2?: string | undefined
   LOG_LEVEL: "debug" | "error" | "fatal" | "info" | "trace" | "warn"
@@ -241,6 +245,7 @@ type Env = {
   PUBLIC_BASE_URL: string
   RACE_DEADLINE_MS: number
   TENANT_ID: string
+  TRACE_TURNS: "langsmith" | "off"
   TRANSCRIPTION_MODEL?: string | undefined
   TRUST_PROXY: string[]
 }

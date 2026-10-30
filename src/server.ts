@@ -36,6 +36,7 @@ import { bearerToken, createSharedSecretGuard, isAuthenticated } from './routes/
 import { escalationReply } from './agent/guardrails.ts';
 import { mediaScrubbingStream, redactText } from './observability/redact.ts';
 import { loggerOptions } from './observability/logger.ts';
+import { Tracing } from './observability/tracing.ts';
 import type { PlaybookSource } from './learning/playbook.ts';
 import { Plugins } from './plugins/plugins.ts';
 
@@ -64,6 +65,11 @@ export interface BuildOptions {
   configStore: ConfigStore;
   /** Injected by tests to avoid a live provider. */
   runner?: AgentRunner;
+  /**
+   * Turn traces (specs/052). Built from `env` when absent; injected by tests
+   * to fake the LangSmith boundary.
+   */
+  tracing?: Tracing | undefined;
   /** Injected by tests to read what the service logs. */
   logStream?: { write(line: string): void };
   /**
@@ -149,6 +155,13 @@ export async function buildServer(opts: BuildOptions) {
       playbook: opts.playbook,
       defaultChannel: env.CHANNEL,
     });
+
+  // Shape, never text: the server never traces a prompt or a message, whatever
+  // its config (specs/052 § Eval runs on the fixture tenant are the only
+  // traces with text).
+  const tracing =
+    opts.tracing ??
+    Tracing.fromEnv(env, { warn: (fields, message) => app.log.warn(fields, message) });
 
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
   // the deploy, and a missing ffmpeg is found at boot rather than per video.
@@ -342,6 +355,7 @@ export async function buildServer(opts: BuildOptions) {
       media,
       lanes,
       defaultChannel: env.CHANNEL,
+      tracing,
       ...deps,
     });
     const turn = await handler.handle(inbound);
@@ -454,5 +468,5 @@ export async function buildServer(opts: BuildOptions) {
     );
   }
 
-  return { app, runner };
+  return { app, runner, tracing };
 }

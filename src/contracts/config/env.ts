@@ -182,6 +182,15 @@ export const EnvSchema = z
     OPENAI_API_KEY: optionalString,
     GOOGLE_GENERATIVE_AI_API_KEY: optionalString,
 
+    // Turn traces, off unless this repository's own switch names LangSmith.
+    // The key and project are the tenant's own workspace (specs/052).
+    TRACE_TURNS: z.enum(['off', 'langsmith']).default('off'),
+    LANGSMITH_API_KEY: optionalString,
+    LANGSMITH_PROJECT: optionalString,
+    LANGSMITH_ENDPOINT: z.string().url().default('https://api.smith.langchain.com'),
+    // Read only to be refused while tracing is on: see the refine below.
+    LANGCHAIN_CALLBACKS_BACKGROUND: optionalString,
+
     // Read only to be refused: see the refine below.
     LANGSMITH_TRACING_V2: optionalString,
     LANGCHAIN_TRACING_V2: optionalString,
@@ -202,6 +211,30 @@ export const EnvSchema = z
           path: [name],
         });
       }
+    }
+  })
+  // Tracing is the projection's or nothing: a key and a project to send it
+  // to, and LangChain's callbacks left in the background, where an upload
+  // cannot hold a turn (specs/052 § Tracing is on only when this repository's
+  // own variable says so, C7).
+  .superRefine((env, context) => {
+    if (env.TRACE_TURNS !== 'langsmith') return;
+    for (const name of ['LANGSMITH_API_KEY', 'LANGSMITH_PROJECT'] as const) {
+      if (env[name] === undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: `TRACE_TURNS=langsmith needs ${name} (specs/052)`,
+          path: [name],
+        });
+      }
+    }
+    if (env.LANGCHAIN_CALLBACKS_BACKGROUND === 'false') {
+      context.addIssue({
+        code: 'custom',
+        message:
+          'LANGCHAIN_CALLBACKS_BACKGROUND="false" would hold each turn for its trace upload (specs/052); unset it',
+        path: ['LANGCHAIN_CALLBACKS_BACKGROUND'],
+      });
     }
   })
   // Losing the race must not cancel the model call - it continues and delivers

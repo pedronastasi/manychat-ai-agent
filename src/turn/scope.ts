@@ -12,6 +12,7 @@ import type { NudgeStore } from '../nudge/store.ts';
 import type { OutboxQueue } from '../outbox/queue.ts';
 import type { Plugins } from '../plugins/plugins.ts';
 import { PluginReads } from '../plugins/reads.ts';
+import type { Tracing, TurnTrace } from '../observability/tracing.ts';
 import { DeferredSettlement } from './deferred.ts';
 import { ContactOutbox, ReplyDelivery } from './delivery.ts';
 import type { TurnLogger } from './logger.ts';
@@ -32,6 +33,8 @@ export interface TurnScopeDeps {
   plugins?: Plugins | undefined;
   /** The plugin channel the turn arrived on (specs/038); ManyChat when absent. */
   channel?: string | undefined;
+  /** Turn traces, when `TRACE_TURNS` names LangSmith (specs/052). */
+  tracing?: Tracing | undefined;
   logger: TurnLogger;
 }
 
@@ -61,6 +64,8 @@ export interface TurnCollaborators {
   outbox: ContactOutbox;
   delivery: ReplyDelivery;
   recorder: TurnRecorder;
+  /** The turn's trace, absent when tracing is off (specs/052). */
+  trace: TurnTrace | undefined;
 }
 
 /** How a lost race answered the contact, for the settlement that finishes it. */
@@ -123,11 +128,14 @@ export class TurnScope {
       deadlineAt: turn.deadlineAt,
       flows,
     });
+    // Named by the conversation's random ID, never by anything derived from
+    // the subscriber (specs/052, ADR-0014).
+    const trace = this.deps.tracing?.turn({ conversation: conversationId, kind: 'inbound' });
     const recorder = new TurnRecorder(
       { store: this.deps.store, budget: this.deps.budget, nudges: this.deps.nudges },
-      { conversationId, tenantId: inbound.tenantId, bound, logger, stage, pluginReads },
+      { conversationId, tenantId: inbound.tenantId, bound, logger, stage, pluginReads, trace },
     );
-    return { stage, reads, pluginReads, flows, outbox, delivery, recorder };
+    return { stage, reads, pluginReads, flows, outbox, delivery, recorder, trace };
   }
 
   /** The contact's queued replies, on the turn's channel (specs/038, 048). */

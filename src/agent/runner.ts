@@ -34,6 +34,8 @@ import type { ContactActions } from './tools.ts';
 import type { Plugins } from '../plugins/plugins.ts';
 import { renderPlaybook } from '../learning/playbook.ts';
 import type { ActivePlaybook } from '../learning/playbook.ts';
+import type { Callbacks } from '@langchain/core/callbacks/manager';
+import type { TurnTrace } from '../observability/tracing.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -160,6 +162,8 @@ export interface AgentTurnInput {
    * channel's flows (specs/049). Absent, the runner's `defaultChannel`.
    */
   channel?: string | undefined;
+  /** The turn's trace, when tracing is on: its root run holds every model call (specs/052). */
+  trace?: TurnTrace | undefined;
 }
 
 /**
@@ -287,6 +291,8 @@ export interface PreparedTurn {
   /** The reply step's note of what was staged, read when that step starts. */
   replyNotice(): ModelMessage;
   signal: AbortSignal | undefined;
+  /** The turn's root run, which every model call joins (specs/052). Absent untraced. */
+  callbacks?: Callbacks | undefined;
 }
 
 /** What a runner's model call produced: the reply before guardrails, and its tokens. */
@@ -397,6 +403,7 @@ export abstract class PromptedRunner<
     nudge,
     builtInTools = true,
     channel,
+    trace,
   }: AgentTurnInput): Promise<AgentResult> {
     const started = Date.now();
     // Resolved once per turn: a reload landing mid-turn must not produce a
@@ -455,8 +462,55 @@ export abstract class PromptedRunner<
         ),
       }),
       signal,
+      // One root run for the whole turn, rewrite included (specs/052 § One
+      // traced turn is one root run). Opened before the first model call.
+      callbacks: await trace?.open(tools ? Object.keys(tools) : []),
     };
 
+    let failure: unknown;
+    try {
+      return await this.answer(turn, {
+        started,
+        config,
+        playbookVersion,
+        tools,
+        tenantTools,
+        history,
+        stage,
+        contact,
+      });
+    } catch (error) {
+      failure = error;
+      throw error;
+    } finally {
+      void trace?.close(failure);
+    }
+  }
+
+  /** The turn's model calls and guardrails, from the prepared turn on. */
+  private async answer(
+    turn: PreparedTurn,
+    {
+      started,
+      config,
+      playbookVersion,
+      tools,
+      tenantTools,
+      history,
+      stage,
+      contact,
+    }: {
+      started: number;
+      config: TenantConfig;
+      playbookVersion: string | null;
+      tools: PreparedTurn['tools'];
+      tenantTools: Tools;
+      history: HistoryTurn[];
+      stage: ActionStage;
+      contact: ContactActions | undefined;
+    },
+  ): Promise<AgentResult> {
+    const { signal } = turn;
     let output: unknown;
     let usage: Omit<AgentUsage, 'costUsd'>;
     try {

@@ -45,7 +45,7 @@ export async function main() {
     error: (obj: object, msg: string) => app.log.error(obj, msg),
   };
   const playbook = playbookSource(db, env, configStore.get(), logs);
-  const { app, runner } = await buildServer({
+  const { app, runner, tracing } = await buildServer({
     env,
     db,
     configStore,
@@ -75,6 +75,7 @@ export async function main() {
     contacts: manychat,
     logger: app.log,
     modelAbortMs: env.MODEL_ABORT_MS,
+    tracing,
   }).start();
 
   // The playbook and the weekly learning job (specs/031). Idle without a
@@ -102,6 +103,9 @@ export async function main() {
     await stopNudges();
     await stopWorker();
     await app.close();
+    // What is queued goes once, inside the shutdown already allowed; the
+    // rest is dropped (specs/052 § The uploader never holds a turn).
+    await tracing?.close();
     process.exit(0);
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));

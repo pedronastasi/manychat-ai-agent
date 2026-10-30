@@ -4,6 +4,7 @@ import { loadEnv, loadTenantConfig } from '../../config/loader.ts';
 import type { TenantConfig } from '../../config/loader.ts';
 import type { Env } from '../../contracts/config.ts';
 import { createRunner } from '../../agent/select-runner.ts';
+import { fixtureEval, Tracing } from '../../observability/tracing.ts';
 import { loadPlugins } from '../../plugins/loader.ts';
 import { evalDir } from '../cases.ts';
 import { playbookFor } from '../runner.ts';
@@ -158,6 +159,14 @@ export async function runConversations(args: string[]): Promise<number> {
     `\n  model: ${env.AGENT_MODEL}   suite: ${suiteDir}   scenarios: ${suite.scenarios.length}   agent turns: up to ${steps * REPETITIONS} (${REPETITIONS} repetitions)   judge calls: up to ${judgeCalls}\n`,
   );
 
+  // Text only on the fixture tenant and the golden set, by resolved path
+  // (specs/052 § Eval runs on the fixture tenant are the only traces with text).
+  const tracing = Tracing.fromEnv(
+    env,
+    { warn: (fields, message) => console.warn(message, fields) },
+    { fullText: fixtureEval(configDir, suiteDir) },
+  );
+
   const runner = () =>
     createRunner({
       modelSpec: env.AGENT_MODEL,
@@ -218,6 +227,7 @@ export async function runConversations(args: string[]): Promise<number> {
       stale,
       judge,
       latencyBudgetMs: Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS),
+      tracing,
     },
     result => {
       const flags = [
@@ -257,6 +267,7 @@ export async function runConversations(args: string[]): Promise<number> {
   );
   console.log(`  run: ${report.runId}`);
   console.log(`  report: ${paths.markdown}\n`);
+  await tracing?.close();
   return exitCode(report);
 }
 

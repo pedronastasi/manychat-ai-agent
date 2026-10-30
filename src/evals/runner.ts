@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { fixtureEval, Tracing } from '../observability/tracing.ts';
 import { loadEnv, loadTenantConfig } from '../config/loader.ts';
 import type { Env } from '../contracts/config.ts';
 import { createRunner } from '../agent/select-runner.ts';
@@ -80,6 +82,14 @@ export async function runEval(): Promise<void> {
   // RACE_DEADLINE_MS, which the live request path depends on.
   const latencyBudgetMs = Number(process.env.EVAL_MAX_LATENCY_MS ?? env.RACE_DEADLINE_MS);
 
+  // Text only on the fixture tenant and the golden set, by resolved path
+  // (specs/052 § Eval runs on the fixture tenant are the only traces with text).
+  const tracing = Tracing.fromEnv(
+    env,
+    { warn: (fields, message) => console.warn(message, fields) },
+    { fullText: fixtureEval(configDir, suiteDir) },
+  );
+
   const runner = createRunner({
     modelSpec: env.AGENT_MODEL,
     config: () => tenant,
@@ -131,6 +141,8 @@ export async function runEval(): Promise<void> {
       ? new PluginReads({ subscriberId: EVAL_SUBSCRIBER, logger: SILENT })
       : undefined;
     const result = await runner.run({
+      // A case has no conversation row: its trace is named by a random ID.
+      trace: tracing?.turn({ conversation: randomUUID(), kind: 'inbound' }),
       text: testCase.text,
       history: testCase.history,
       stage,
@@ -245,6 +257,7 @@ export async function runEval(): Promise<void> {
     model: env.AGENT_MODEL,
     outcomes: Object.fromEntries(outcomes.map(outcome => [outcome.id, outcome.status])),
   });
+  await tracing?.close();
   process.exit(failed + judgedFail === 0 ? 0 : 1);
 }
 
