@@ -164,7 +164,9 @@ A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
   runs and gives up after 10 s, the bound every other outbound call outside the
   race has (`022`).
 - On `SIGTERM`, shutdown sends what is queued once, after the server has
-  closed, and drops what is left.
+  closed, within 5 s in all (`SHUTDOWN_SEND_MS`, chosen 2026-10-31). When that
+  runs out, the request in flight stops and what is left is dropped, so a hung
+  endpoint never holds the shutdown.
 
 ## Verification
 

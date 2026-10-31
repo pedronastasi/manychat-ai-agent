@@ -70,4 +70,32 @@ describe('the uploader never holds a turn (specs/052)', () => {
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(sent).toHaveLength(1);
   });
+
+  it('gives up the shutdown send at its deadline when the endpoint hangs', async () => {
+    const warnings: string[] = [];
+    let requests = 0;
+    const hung = new TraceUploader({
+      endpoint: 'https://langsmith.test',
+      apiKey: 'test-key',
+      logger: { warn: (_fields, message) => warnings.push(message) },
+      // Never answers, and honours the request's signal as a real connection does.
+      fetch: (_url: string | URL | Request, init?: RequestInit) => {
+        requests++;
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      },
+      flushDelayMs: 60_000,
+    });
+    for (let index = 0; index < 50; index++) {
+      hung.run(run(`run-${index}`));
+      hung.feedback(`run-${index}`, 'outcome', 'answered_inline');
+    }
+    const started = Date.now();
+    await hung.close(100);
+    expect(Date.now() - started).toBeLessThan(1_000);
+    // The request in flight stopped, and nothing after it was tried.
+    expect(requests).toBe(1);
+    expect(warnings).toContain('trace queue dropped at shutdown');
+  });
 });

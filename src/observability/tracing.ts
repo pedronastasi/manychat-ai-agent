@@ -23,6 +23,11 @@ const FLUSH_DELAY_MS = 250;
 const BATCH_LIMIT = 100;
 /** One upload's bound, the 10 s every other outbound call outside the race has (specs/022). */
 const UPLOAD_TIMEOUT_MS = 10_000;
+/**
+ * The whole shutdown send's bound, whatever is queued: past it the rest is
+ * dropped, so a hung endpoint never holds SIGTERM (specs/052, chosen 2026-10-31).
+ */
+export const SHUTDOWN_SEND_MS = 5_000;
 
 /** Metadata a live run may carry; every other key is dropped (specs/052). */
 const METADATA_ALLOWLIST = [
@@ -211,6 +216,8 @@ export class TraceUploader {
   private flushing: Promise<void> | undefined;
   private overflowed = false;
   private closed = false;
+  /** Fires once the shutdown send's time is up: the request in flight stops, and the queue is dropped. */
+  private readonly stopped = new AbortController();
 
   constructor(opts: TraceUploaderOptions) {
     this.opts = {
@@ -231,12 +238,21 @@ export class TraceUploader {
     this.enqueue({ kind: 'feedback', feedback: { run_id: runId, key, value } });
   }
 
-  /** Sends what is queued now, once, and stops scheduling: for shutdown. */
-  async close(): Promise<void> {
+  /**
+   * Sends what is queued now, once, within `deadlineMs` in all, and stops
+   * scheduling: for shutdown. What is left when it runs out is dropped.
+   */
+  async close(deadlineMs = SHUTDOWN_SEND_MS): Promise<void> {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
-    await this.flush();
+    const deadline = setTimeout(() => this.stopped.abort(), deadlineMs);
+    deadline.unref?.();
+    try {
+      await this.flush();
+    } finally {
+      clearTimeout(deadline);
+    }
   }
 
   /** Sends what is queued, in order. Resolves when the queue is empty. */
@@ -270,7 +286,7 @@ export class TraceUploader {
   }
 
   private async drain(): Promise<void> {
-    while (this.queue.length > 0) {
+    while (this.queue.length > 0 && !this.stopped.signal.aborted) {
       const first = this.queue[0]!;
       if (first.kind === 'feedback') {
         this.queue.shift();
@@ -283,6 +299,10 @@ export class TraceUploader {
       }
       await this.send('/runs/batch', { post: runs, patch: [] });
     }
+    if (this.stopped.signal.aborted && this.queue.length > 0) {
+      this.opts.logger.warn({ dropped: this.queue.length }, 'trace queue dropped at shutdown');
+      this.queue.length = 0;
+    }
     this.overflowed = false;
   }
 
@@ -292,7 +312,7 @@ export class TraceUploader {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': this.opts.apiKey },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+        signal: AbortSignal.any([AbortSignal.timeout(UPLOAD_TIMEOUT_MS), this.stopped.signal]),
       });
       if (!response.ok) {
         this.opts.logger.warn({ path, status: response.status }, 'trace upload failed; dropped');
@@ -484,7 +504,7 @@ export class Tracing {
     });
   }
 
-  /** Sends what is queued, once: on SIGTERM, inside the shutdown already allowed. */
+  /** Sends what is queued, once, for at most `SHUTDOWN_SEND_MS`: on SIGTERM. */
   async close(): Promise<void> {
     await this.uploader.close();
   }
