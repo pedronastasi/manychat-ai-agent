@@ -13,7 +13,7 @@ import { TURN_RUN } from '../../src/observability/tracing.ts';
 import { FakeContactFields } from '../helpers/manychat.ts';
 import { fixtureTenant, scriptedTurns } from '../helpers/conversations.ts';
 import type { TurnScript } from '../helpers/conversations.ts';
-import { fakeLangSmith } from '../helpers/langsmith.ts';
+import { fakeLangSmith, PROJECT_ID } from '../helpers/langsmith.ts';
 
 /**
  * specs/052-traces-carry-shape-not-text.md § Verification: identity, the
@@ -127,7 +127,13 @@ describe('how the turn ended is one feedback on its root run (specs/052 V8)', ()
     expect(root?.name).toBe(TURN_RUN);
     const sent = langsmith.feedback();
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ run_id: root!.id, key: 'outcome', value: 'answered_inline' });
+    expect(sent[0]).toMatchObject({
+      run_id: root!.id,
+      key: 'outcome',
+      value: 'answered_inline',
+      // Named by its project, which some deployments need to find the run.
+      session_id: PROJECT_ID,
+    });
     // The client adds its own ID and source; nothing of the turn's beyond the value.
     for (const field of ['comment', 'correction', 'score']) {
       expect(sent[0]![field] ?? null).toBeNull();

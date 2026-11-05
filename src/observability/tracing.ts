@@ -334,17 +334,20 @@ export class TurnTrace {
 
   /** Holds the background outcome send, so a flush or shutdown can wait for it. */
   private readonly track: (work: Promise<void>) => void;
+  /** The project's ID, which feedback on a run must name. */
+  private readonly sessionId: () => Promise<string>;
 
   constructor(
     client: Client,
     logger: TraceLogger,
     context: { conversation: string; kind: TurnKind },
     projection: Omit<Projection, 'offered' | 'errorClass'>,
-    track: (work: Promise<void>) => void = () => {},
+    background: { track: (work: Promise<void>) => void; sessionId: () => Promise<string> },
   ) {
     this.client = client;
     this.logger = logger;
-    this.track = track;
+    this.track = background.track;
+    this.sessionId = background.sessionId;
     this.metadata = { conversation: context.conversation, turn_kind: context.kind };
     this.projection = projection;
   }
@@ -423,7 +426,14 @@ export class TurnTrace {
       (async () => {
         await rootQueued;
         await this.client.awaitPendingTraceBatches();
-        await this.client.createFeedback(this.rootId, 'outcome', { value: outcomeValue });
+        // Named by its project, as a run's feedback must be: some LangSmith
+        // deployments cannot find the run without it, and the client calls
+        // feedback without it deprecated.
+        const sessionId = await this.sessionId();
+        await this.client.createFeedback(this.rootId, 'outcome', {
+          value: outcomeValue,
+          sessionId,
+        });
       })().catch((error: unknown) => {
         this.logger.warn({ err: errorClass(error) }, 'trace outcome dropped');
       }),
@@ -446,6 +456,8 @@ export class Tracing {
   private readonly fullText: boolean;
   /** Outcome feedback still being sent. */
   private readonly pending = new Set<Promise<void>>();
+  /** The project's ID, looked up once; forgotten on failure so a later turn retries. */
+  private projectId: Promise<string> | undefined;
 
   constructor(opts: { client: Client; logger: TraceLogger; project: string; fullText?: boolean }) {
     this.client = opts.client;
@@ -480,11 +492,30 @@ export class Tracing {
       this.logger,
       context,
       { project: this.project, fullText: this.fullText },
-      work => {
-        this.pending.add(work);
-        void work.finally(() => this.pending.delete(work));
+      {
+        track: work => {
+          this.pending.add(work);
+          void work.finally(() => this.pending.delete(work));
+        },
+        sessionId: () => this.resolveProjectId(),
       },
     );
+  }
+
+  /**
+   * Looked up after a root run's batch has gone, so the project exists: the
+   * workspace creates it with its first run.
+   */
+  private resolveProjectId(): Promise<string> {
+    if (this.projectId) return this.projectId;
+    const lookup = this.client
+      .readProject({ projectName: this.project })
+      .then(project => project.id);
+    this.projectId = lookup;
+    lookup.catch(() => {
+      if (this.projectId === lookup) this.projectId = undefined;
+    });
+    return lookup;
   }
 
   /** Resolves once the client's queued batches and every outcome feedback have gone. */

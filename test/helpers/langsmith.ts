@@ -2,6 +2,9 @@ import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
 import { Client } from 'langsmith';
 import { clientConfig, Tracing } from '../../src/observability/tracing.ts';
 
+/** The ID the fake LangSmith gives the project `demo`. */
+export const PROJECT_ID = '5b0c8a2e-4f3d-4a6b-9c1e-7d2f3a4b5c6d';
+
 /** A run as the client sent it to `/runs/batch`. */
 export interface UploadedRun {
   id: string;
@@ -37,6 +40,10 @@ export function fakeLangSmith(
     // Whatever the client sends, a string, a blob or a stream, as text.
     const body = init?.body ? await new Response(init.body).text() : '';
     requests.push({ url, method: init?.method ?? 'GET', body });
+    // The project the outcome feedback names, as LangSmith returns a lookup by name.
+    if (new URL(url).pathname === '/sessions') {
+      return new Response(JSON.stringify([{ id: PROJECT_ID, name: 'demo' }]));
+    }
     if (url.endsWith('/info')) {
       return new Response(
         JSON.stringify(
@@ -69,8 +76,11 @@ export function fakeLangSmith(
     await Promise.all(built.map(created => created.flush()));
   };
 
-  /** Every request that is not the client's `/info` probe. */
-  const uploads = () => requests.filter(request => !request.url.endsWith('/info'));
+  /** Every request that is not the client's `/info` probe or a project lookup. */
+  const uploads = () =>
+    requests.filter(
+      request => !request.url.endsWith('/info') && new URL(request.url).pathname !== '/sessions',
+    );
 
   const runs = (): UploadedRun[] =>
     requests

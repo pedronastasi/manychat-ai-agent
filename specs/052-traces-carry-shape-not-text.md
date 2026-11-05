@@ -141,7 +141,9 @@ a run's metadata is fixed when the run starts.
 When `TurnRecorder` records an outcome for a turn whose graph ran, the service
 sends LangSmith one feedback on the turn's root run: key
 `outcome`, value the `TurnOutcome` value, and nothing else of the turn's: no
-score, comment or correction. The client adds its own feedback ID and source.
+score, comment or correction. It names the project, looked up by name once
+per process, because some LangSmith deployments cannot find a run's feedback
+without it. The client adds its own feedback ID and source.
 It is sent in the background, after the root run's batch, and never holds a
 turn, as § The upload never holds a turn requires. Every turn whose graph ran gets
 exactly one: `superseded` is recorded instead of `answered_inline` or
@@ -209,7 +211,8 @@ A turn that never runs the graph (`answered_scripted`, `escalated_precheck`,
   turn that loses the race sends `deferred` once the graph has finished; a reply
   dropped because the contact kept writing sends `superseded` and nothing else;
   a precheck escalation sends no trace and no feedback. The feedback carries
-  the run ID, the key and the value, and no score, comment or correction.
+  the run ID, the project's ID, the key and the value, and no score, comment
+  or correction.
 - **Errors**: a turn whose model throws an error with a sentence in its message
   uploads the class name and not the sentence.
 - **Eval scope**: the fixture tenant on the golden set uploads full inputs; the
