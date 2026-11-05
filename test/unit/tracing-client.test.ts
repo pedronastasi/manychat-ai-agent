@@ -4,7 +4,7 @@ import { clientConfig, TRACE_QUEUE_BYTES } from '../../src/observability/tracing
 import { fakeLangSmith } from '../helpers/langsmith.ts';
 
 /**
- * specs/052-traces-carry-shape-not-text.md § The uploader never holds a turn,
+ * specs/052-traces-carry-shape-not-text.md § The upload never holds a turn,
  * and the table of § Setting LangChain's tracing variable …: the official
  * client as the service configures it (ADR-0029), and the shutdown deadline.
  * Every value here is invented (C1).

@@ -104,7 +104,7 @@ export async function main() {
     await stopWorker();
     await app.close();
     // What is queued goes once, inside the shutdown already allowed; the
-    // rest is dropped (specs/052 § The uploader never holds a turn).
+    // rest is dropped (specs/052 § The upload never holds a turn).
     await tracing?.close();
     process.exit(0);
   };

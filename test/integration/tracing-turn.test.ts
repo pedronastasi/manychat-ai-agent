@@ -223,7 +223,7 @@ function reply(text: string): AgentResult {
   };
 }
 
-describe('the uploader never holds a turn (specs/052 V11)', () => {
+describe('the upload never holds a turn (specs/052 V11)', () => {
   const REPLY = 'The weekend group meets on Saturdays.';
 
   /** A first turn of a contact of its own, so neither run sees the other's history. */
