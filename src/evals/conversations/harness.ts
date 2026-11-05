@@ -6,6 +6,7 @@ import { createEmbeddedDatabase } from '../../db/client.ts';
 import { runMigrations } from '../../db/migrate.ts';
 import { conversations, nudges, outbox, turns } from '../../db/schema.ts';
 import { TurnHandler } from '../../turn/handler.ts';
+import type { Tracing } from '../../observability/tracing.ts';
 import type { TurnLogger } from '../../turn/logger.ts';
 import { TurnLanes } from '../../conversation/turns.ts';
 import { ConversationStore } from '../../conversation/store.ts';
@@ -141,6 +142,8 @@ export interface HarnessOptions {
   media?: { acceptsImages: boolean; transcription: boolean; splitter: VideoSplitter | null };
   /** A database for the repetition; defaults to a fresh embedded one. */
   database?: (() => Promise<{ db: Database; close: () => Promise<void> }>) | undefined;
+  /** Turn traces, when `TRACE_TURNS` names LangSmith (specs/052). */
+  tracing?: Tracing | undefined;
 }
 
 /** Records every result the model boundary returns, per step, without changing any. */
@@ -254,6 +257,7 @@ export async function runRepetition(
     contacts: channel,
     logger: { ...SILENT, error: (_fields, message) => nudgeFailures.push(message) },
     modelAbortMs: opts.modelAbortMs,
+    tracing: opts.tracing,
   });
   const fetcher = new FixtureFetcher();
   const transcriber = new FixtureTranscriber();
@@ -272,6 +276,7 @@ export async function runRepetition(
     contacts: channel,
     lanes,
     defaultChannel: opts.defaultChannel,
+    tracing: opts.tracing,
     media: new MediaResolver({
       fetcher,
       transcriber: capabilities.transcription ? transcriber : null,

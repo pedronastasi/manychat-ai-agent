@@ -94,7 +94,7 @@ src/
   learning/            # Learning from outcomes: weekly job, playbook, insights CLI (specs/031)
   media/               # Inbound voice notes, images, videos: resolver, ffmpeg splitter
   nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
-  observability/       # PII redaction
+  observability/       # PII redaction, turn traces (specs/052)
   outbox/              # Deferred reply queue + polling worker
   routes/              # Auth middleware
   turn/                # TurnHandler (the race) and the classes it delegates to
@@ -105,7 +105,7 @@ test/
   fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)
-docs/adr/              # Architecture Decision Records (0001–0028)
+docs/adr/              # Architecture Decision Records (0001–0029)
 specs/                 # Specification documents (000–052)
 evals/golden/          # Golden eval cases (cases.jsonl), conversations (conversations.jsonl, branches.json, conversation-calibration.jsonl)
 packages/create/       # create-manychat-ai-agent: scaffolds a tenant project (specs/035)
@@ -174,5 +174,8 @@ All env vars documented in `.env.example`. Key variables:
 - `CONTACT_TOKENS_ENFORCED` — `false` only during the specs/019 rollout (default: `true`)
 - `TRANSCRIPTION_MODEL` — `provider:model` for voice notes and video soundtracks
   (specs/020); unset sends them to `rules.messages.mediaFallback`
+- `TRACE_TURNS` — `langsmith` sends the tenant's own LangSmith workspace the
+  shape of each turn, never its text (specs/052); needs `LANGSMITH_API_KEY` and
+  `LANGSMITH_PROJECT`. Default `off`
 
 Tenant config (`config/prompt.md`, `catalog.json`, `rules.json`, optional `tools.json`) reloads on `SIGHUP` without restart.

@@ -1,6 +1,7 @@
 import { asSchema, InvalidToolInputError, NoSuchToolError, TypeValidationError } from 'ai';
 import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage, MessageContent, UsageMetadata } from '@langchain/core/messages';
 import { AgentReplyForModel, AgentReplyFromModel } from '../contracts/agent.ts';
@@ -204,23 +205,29 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
     const responses: AIMessage[] = [];
     const tools = turn.tools;
 
+    // A model call joins the node it runs in, so a traced turn's runs nest
+    // under its root run (specs/052 § One traced turn is one root run).
     const call = async (
       runnable: { invoke: (input: BaseMessage[], options: object) => Promise<unknown> },
       messages: BaseMessage[],
+      config: LangGraphRunnableConfig,
     ) => {
-      const response = (await runnable.invoke(messages, signal ? { signal } : {})) as AIMessage;
+      const response = (await runnable.invoke(messages, {
+        ...(signal ? { signal } : {}),
+        ...(config.callbacks ? { callbacks: config.callbacks } : {}),
+      })) as AIMessage;
       responses.push(response);
       return response;
     };
 
     const graph = new StateGraph(TurnState)
-      .addNode('model', async state => {
+      .addNode('model', async (state, config) => {
         if (!tools || !handle.model.bindTools) throw new Error('the model node needs tools');
         const bound = handle.model.bindTools(
           await toolDefinitions(tools),
           handle.replyFormat(schema),
         );
-        const response = await call(bound, [system, ...history, ...state.steps]);
+        const response = await call(bound, [system, ...history, ...state.steps], config);
         return (response.tool_calls ?? []).length > 0
           ? { steps: [response], calls: state.calls + 1 }
           : { answer: response, calls: state.calls + 1 };
@@ -234,15 +241,15 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
         }
         return { steps: results };
       })
-      .addNode('reply', async () => {
+      .addNode('reply', async (_state, config) => {
         // The reply step sees the staged note in place of its own tool calls,
         // as the AI SDK runner's last step did (specs/024).
         const notice = tools ? toLangChainMessages([turn.replyNotice()]) : [];
-        const response = await call(handle.model.withConfig(handle.replyFormat(schema)), [
-          system,
-          ...history,
-          ...notice,
-        ]);
+        const response = await call(
+          handle.model.withConfig(handle.replyFormat(schema)),
+          [system, ...history, ...notice],
+          config,
+        );
         return { answer: response };
       })
       .addConditionalEdges(START, () => (tools ? 'model' : 'reply'), ['model', 'reply'])
@@ -256,7 +263,14 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
       .compile();
 
     const state = await raceAbort(
-      graph.invoke({}, { recursionLimit: this.recursionLimit, ...(signal ? { signal } : {}) }),
+      graph.invoke(
+        {},
+        {
+          recursionLimit: this.recursionLimit,
+          ...(signal ? { signal } : {}),
+          ...(turn.callbacks ? { callbacks: turn.callbacks } : {}),
+        },
+      ),
       signal,
     );
     const reply = state.answer;
@@ -281,7 +295,10 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
             ...notice,
             new HumanMessage(REWRITE_NOTE),
           ],
-          signal ? { signal } : {},
+          {
+            ...(signal ? { signal } : {}),
+            ...(turn.callbacks ? { callbacks: turn.callbacks } : {}),
+          },
         ),
       signal,
     )) as AIMessage;

@@ -78,4 +78,5 @@ export const REDACT_PATHS = [
   'env.MANYCHAT_SHARED_SECRET',
   'env.MANYCHAT_API_TOKEN',
   'env.DATABASE_URL',
+  'env.LANGSMITH_API_KEY',
 ];

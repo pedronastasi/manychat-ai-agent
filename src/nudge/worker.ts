@@ -10,6 +10,7 @@ import { OutboxQueue } from '../outbox/queue.ts';
 import { ContactOutbox } from '../turn/delivery.ts';
 import { withConversation } from '../turn/logger.ts';
 import { TurnRecorder } from '../turn/recorder.ts';
+import type { Tracing } from '../observability/tracing.ts';
 import { NudgeChecks } from './checks.ts';
 import { NudgeStore } from './store.ts';
 import type { CancelReason, ClaimedNudge } from './store.ts';
@@ -30,6 +31,8 @@ export interface NudgeWorkerOptions {
   logger: NudgeLogger;
   /** The outer bound on the model call; there is no race to lose. */
   modelAbortMs: number;
+  /** Turn traces, when `TRACE_TURNS` names LangSmith (specs/052). */
+  tracing?: Tracing | undefined;
   batchSize?: number;
   pollIntervalMs?: number;
 }
@@ -115,6 +118,7 @@ export class NudgeWorker {
     const stage = new ActionStage();
     const abort = new AbortController();
     const abortTimer = setTimeout(() => abort.abort(), this.opts.modelAbortMs);
+    const trace = this.opts.tracing?.turn({ conversation: conversation.id, kind: 'nudge' });
     let result: AgentResult;
     try {
       result = await this.opts.runner.run({
@@ -126,6 +130,7 @@ export class NudgeWorker {
         nudge: { since: lastInbound },
         // Its flows are the nudge channel's own (specs/049).
         channel: nudge.channel ?? undefined,
+        trace,
       });
     } catch (error) {
       logger.error({ err: String(error) }, 'nudge model call failed');
@@ -145,6 +150,7 @@ export class NudgeWorker {
         bound: true,
         logger,
         stage,
+        trace,
       },
     );
     // Spent whether or not anything is sent: the call was made.

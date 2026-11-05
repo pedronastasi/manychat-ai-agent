@@ -36,6 +36,7 @@ import type { Completion, Settled } from './completion.ts';
 import type { TurnLogger } from './logger.ts';
 import { MediaReader } from './media.ts';
 import { TurnScope } from './scope.ts';
+import type { Tracing } from '../observability/tracing.ts';
 import type { TurnResult } from './result.ts';
 
 const DAY_MS = 86_400_000;
@@ -77,6 +78,8 @@ export interface TurnDeps {
   channel?: string | undefined;
   /** `CHANNEL`: the Meta channel a string `flowNs` names (specs/049). WhatsApp when absent. */
   defaultChannel?: string | undefined;
+  /** Turn traces, when `TRACE_TURNS` names LangSmith (specs/052). Absent, none. */
+  tracing?: Tracing | undefined;
 }
 
 /**
@@ -140,6 +143,7 @@ export class TurnHandler {
       contacts: deps.contacts,
       plugins: deps.plugins,
       channel,
+      tracing: deps.tracing,
       logger,
     });
   }
@@ -176,7 +180,7 @@ export class TurnHandler {
       late: opts.late === true,
       deadlineAt: opts.deadlineAt,
     });
-    const { stage, reads, pluginReads, flows, delivery, recorder } = turn;
+    const { stage, reads, pluginReads, flows, delivery, recorder, trace } = turn;
 
     const precheck = await this.prechecks.check(inbound, {
       turnCount: conversation.turnCount,
@@ -280,6 +284,7 @@ export class TurnHandler {
       beforeFlow: sendOpening,
       builtInTools: this.deps.channel === undefined,
       channel: inbound.channel,
+      trace,
     };
     const answered: Promise<Completion> = media
       ? this.media.read(media, { userTurnId, tenantId: inbound.tenantId, logger, input })
