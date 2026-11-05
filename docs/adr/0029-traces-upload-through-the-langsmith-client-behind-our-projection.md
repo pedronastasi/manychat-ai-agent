@@ -42,9 +42,9 @@ functions set as a second allowlist.
   alone does not leak text.
 - Every switch that could change what is sent or where is set in code:
   tracing mode, debug, sampling rate, runtime metadata, the queue's bytes.
-  The two the client reads only from the environment,
-  `LANGSMITH_FAILED_TRACES_DIR` and `LANGSMITH_RUNS_ENDPOINTS`, stop boot while
-  tracing is on.
+  The two the client reads only from the environment, the failed-traces
+  directory (`LANGSMITH_FAILED_TRACES_DIR`, or its `LANGCHAIN_` fallback) and
+  `LANGSMITH_RUNS_ENDPOINTS`, stop boot while tracing is on.
 - Cost: a failed batch is reported by the client on stderr, with the status
   and the server's response body, outside the redacting logger. What it could
   print is projected already, so no contact or tenant text is in it; the C5

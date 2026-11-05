@@ -219,6 +219,7 @@ type Env = {
   GOOGLE_GENERATIVE_AI_API_KEY?: string | undefined
   INSIGHT_MODEL?: string | undefined
   LANGCHAIN_CALLBACKS_BACKGROUND?: string | undefined
+  LANGCHAIN_FAILED_TRACES_DIR?: string | undefined
   LANGCHAIN_TRACING?: string | undefined
   LANGCHAIN_TRACING_V2?: string | undefined
   LANGCHAIN_VERBOSE?: string | undefined

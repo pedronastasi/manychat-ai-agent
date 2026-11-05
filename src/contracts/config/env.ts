@@ -191,6 +191,7 @@ export const EnvSchema = z
     // Read only to be refused while tracing is on: see the refine below.
     LANGCHAIN_CALLBACKS_BACKGROUND: optionalString,
     LANGSMITH_FAILED_TRACES_DIR: optionalString,
+    LANGCHAIN_FAILED_TRACES_DIR: optionalString,
     LANGSMITH_RUNS_ENDPOINTS: optionalString,
 
     // Read only to be refused: see the refine below.
@@ -231,9 +232,14 @@ export const EnvSchema = z
       }
     }
     // The LangSmith client reads these itself, and no option in code turns
-    // them off: one writes failed batches to disk for replay, the other copies
-    // runs to further endpoints (specs/052, ADR-0029).
-    for (const name of ['LANGSMITH_FAILED_TRACES_DIR', 'LANGSMITH_RUNS_ENDPOINTS'] as const) {
+    // them off: the failed-traces directory, under either prefix the client
+    // falls back through, writes failed batches to disk for replay; the runs
+    // endpoints copy runs to further endpoints (specs/052, ADR-0029).
+    for (const name of [
+      'LANGSMITH_FAILED_TRACES_DIR',
+      'LANGCHAIN_FAILED_TRACES_DIR',
+      'LANGSMITH_RUNS_ENDPOINTS',
+    ] as const) {
       if (env[name] !== undefined) {
         context.addIssue({
           code: 'custom',

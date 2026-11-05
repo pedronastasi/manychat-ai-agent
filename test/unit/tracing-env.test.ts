@@ -63,12 +63,13 @@ describe('the refusals stand (specs/052 V5)', () => {
     );
   });
 
-  it.each(['LANGSMITH_FAILED_TRACES_DIR', 'LANGSMITH_RUNS_ENDPOINTS'])(
-    'refuses %s while tracing is on: the client reads it and no option overrides it',
-    name => {
-      expect(pathsOf({ ...traced, [name]: '/somewhere' })).toContain(name);
-    },
-  );
+  it.each([
+    'LANGSMITH_FAILED_TRACES_DIR',
+    'LANGCHAIN_FAILED_TRACES_DIR',
+    'LANGSMITH_RUNS_ENDPOINTS',
+  ])('refuses %s while tracing is on: the client reads it and no option overrides it', name => {
+    expect(pathsOf({ ...traced, [name]: '/somewhere' })).toContain(name);
+  });
 
   it('leaves LANGCHAIN_CALLBACKS_BACKGROUND alone while tracing is off', () => {
     expect(EnvSchema.safeParse({ ...base, LANGCHAIN_CALLBACKS_BACKGROUND: 'false' }).success).toBe(
