@@ -46,7 +46,7 @@ jobs:
       # (manychat-sdk, ai, drizzle-orm) instead of guessing at its API.
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
+        with: { node-version: 26, cache: pnpm }
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       # What GitHub knows about the PR, written to files the reviewer reads.
