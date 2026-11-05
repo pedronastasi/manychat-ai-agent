@@ -16,7 +16,7 @@ test fails the suite.
 | [001 — Agent Behavior](001-agent-behavior.md)                                                                              | implemented | 2026-09-14  | #1   | 6     | C4, C5, C6, C7                     | [0010], [0015]                                                                         |
 | [002 — Channel Contract (ManyChat / WhatsApp)](002-channel-contract.md)                                                    | implemented | 2026-09-14  | #1   | 5     | C7                                 | [0001], [0004], [0005], [0012]                                                         |
 | [003 — Tenant Configuration](003-config-schema.md)                                                                         | implemented | 2026-09-14  | #1   | 2     | C1, C2                             | [0025]                                                                                 |
-| [004 — Testing](004-testing.md)                                                                                            | implemented | 2026-09-14  | #2   | 18    | C8                                 | —                                                                                      |
+| [004 — Testing](004-testing.md)                                                                                            | implemented | 2026-09-14  | #2   | 17    | C8                                 | —                                                                                      |
 | [005 — Repository Language](005-language.md)                                                                               | implemented | 2026-09-15  | #3   | 2     | C1, C9                             | —                                                                                      |
 | [006 — Pull Requests](006-pull-requests.md)                                                                                | implemented | 2026-09-15  | #6   | 2     | C1, C5, C8, C9                     | —                                                                                      |
 | [007 — Local Model (Ollama)](007-local-model.md)                                                                           | specified   | —           | —    | 1     | C2, C3, C6, C7                     | [0001], [0025]                                                                         |
@@ -86,4 +86,4 @@ test fails the suite.
 [0026]: ../docs/adr/0026-the-typescript-model-layer-moves-to-langchain.md
 [0027]: ../docs/adr/0027-the-bounded-loop-is-a-langgraph-graph-not-a-prebuilt-agent.md
 [0028]: ../docs/adr/0028-langsmith-traces-the-shape-of-a-turn-never-its-text.md
-[0029]: ../docs/adr/0029-traces-upload-through-our-own-uploader-not-the-langsmith-client.md
+[0029]: ../docs/adr/0029-traces-upload-through-the-langsmith-client-behind-our-projection.md

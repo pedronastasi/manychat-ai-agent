@@ -1,46 +1,84 @@
 import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
-import { TraceUploader, Tracing } from '../../src/observability/tracing.ts';
-import type { ProjectedRun } from '../../src/observability/tracing.ts';
+import { Client } from 'langsmith';
+import { clientConfig, Tracing } from '../../src/observability/tracing.ts';
+
+/** A run as the client sent it to `/runs/batch`. */
+export interface UploadedRun {
+  id: string;
+  name: string;
+  run_type: string;
+  start_time: string;
+  end_time?: string;
+  parent_run_id?: string;
+  trace_id?: string;
+  dotted_order?: string;
+  session_name: string;
+  inputs: Record<string, unknown>;
+  outputs: Record<string, unknown>;
+  extra: { metadata: Record<string, unknown> };
+  error?: string;
+}
 
 /**
- * The LangSmith HTTP boundary, faked (specs/004): every request the uploader
- * makes is kept, as the bytes it sent, and answered as `answer` says. Nothing
- * here stands in for the projection, which runs for real.
+ * The LangSmith HTTP boundary, faked (specs/004), behind the real `langsmith`
+ * client. Every request the client makes is kept, as the bytes it sent, and
+ * answered as `answer` says. `/info` tells the client to upload JSON batches,
+ * so runs can be read field by field; `multipart` leaves it on the client's
+ * default, multipart ingestion, for tests that only search the bytes.
  */
 export function fakeLangSmith(
   answer: (url: string, init?: RequestInit) => Promise<Response> | Response = () =>
     new Response('{}'),
+  opts: { multipart?: boolean } = {},
 ) {
-  const requests: { url: string; body: string; headers: Record<string, string> }[] = [];
-  const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    requests.push({
-      url: String(url),
-      body: typeof init?.body === 'string' ? init.body : '',
-      headers: (init?.headers ?? {}) as Record<string, string>,
-    });
-    return answer(String(url), init);
+  const requests: { url: string; method: string; body: string }[] = [];
+  const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    // Whatever the client sends, a string, a blob or a stream, as text.
+    const body = init?.body ? await new Response(init.body).text() : '';
+    requests.push({ url, method: init?.method ?? 'GET', body });
+    if (url.endsWith('/info')) {
+      return new Response(
+        JSON.stringify(
+          opts.multipart ? {} : { batch_ingest_config: { use_multipart_endpoint: false } },
+        ),
+      );
+    }
+    return answer(url, init);
   }) as typeof globalThis.fetch;
   const warnings: { fields: object; message: string }[] = [];
   const logger = { warn: (fields: object, message: string) => warnings.push({ fields, message }) };
-  const uploader = new TraceUploader({
-    endpoint: 'https://langsmith.test',
-    apiKey: 'test-key',
-    logger,
-    fetch,
-    flushDelayMs: 1,
-  });
-  const tracing = (fullText = false) => new Tracing({ uploader, project: 'demo', fullText });
 
-  /** Waits for LangChain's background callbacks, then for the uploads they queued. */
-  const settle = async () => {
-    await awaitAllCallbacks();
-    await uploader.flush();
+  const built: Tracing[] = [];
+  const tracing = (fullText = false) => {
+    const created = new Tracing({
+      client: new Client(
+        clientConfig({ endpoint: 'https://langsmith.test', apiKey: 'test-key', fullText, fetch }),
+      ),
+      logger,
+      project: 'demo',
+      fullText,
+    });
+    built.push(created);
+    return created;
   };
 
-  const runs = (): ProjectedRun[] =>
+  /** Waits for LangChain's background callbacks, then for what each client queued. */
+  const settle = async () => {
+    await awaitAllCallbacks();
+    await Promise.all(built.map(created => created.flush()));
+  };
+
+  /** Every request that is not the client's `/info` probe. */
+  const uploads = () => requests.filter(request => !request.url.endsWith('/info'));
+
+  const runs = (): UploadedRun[] =>
     requests
       .filter(request => request.url.endsWith('/runs/batch'))
-      .flatMap(request => (JSON.parse(request.body) as { post: ProjectedRun[] }).post);
+      .flatMap(request => {
+        const body = JSON.parse(request.body) as { post?: UploadedRun[]; patch?: UploadedRun[] };
+        return [...(body.post ?? []), ...(body.patch ?? [])];
+      });
 
   const feedback = () =>
     requests
@@ -50,5 +88,5 @@ export function fakeLangSmith(
   /** Every byte sent, for searching for what must not be in it. */
   const bytes = () => requests.map(request => request.body).join('\n');
 
-  return { requests, warnings, uploader, tracing, settle, runs, feedback, bytes };
+  return { requests, uploads, warnings, tracing, settle, runs, feedback, bytes };
 }

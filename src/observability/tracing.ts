@@ -1,8 +1,9 @@
 /**
  * Turn traces in the tenant's own LangSmith workspace (specs/052, ADR-0028,
- * ADR-0029). A live trace is built from an allowlist: what leaves the process
- * is a projection written here, field by field, so a field a library adds is
- * dropped too. Only an eval on the fixture tenant traces with text.
+ * ADR-0029). A live trace is built from an allowlist: each run is projected
+ * here, field by field, with the turn's context, and the official LangSmith
+ * client uploads the projection behind a second allowlist of its own hide
+ * functions. Only an eval on the fixture tenant traces with text.
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
@@ -13,14 +14,16 @@ import type { CallbackManagerForChainRun, Callbacks } from '@langchain/core/call
 import type { Serialized } from '@langchain/core/load/serializable';
 import { BaseTracer } from '@langchain/core/tracers/base';
 import type { Run } from '@langchain/core/tracers/base';
+import { Client } from 'langsmith';
+import type { ClientConfig } from 'langsmith';
 import type { TurnOutcome } from '../contracts/agent.ts';
 
-/** Uploads waiting at most: past it the oldest is dropped (specs/052, chosen 2026-10-30). */
-export const TRACE_QUEUE_LIMIT = 1000;
-/** How long an upload waits for more runs to join it. */
-const FLUSH_DELAY_MS = 250;
-/** The most runs one request carries. */
-const BATCH_LIMIT = 100;
+/**
+ * The client's upload queue, in bytes: past it the client drops runs. Its own
+ * default is 1 GB (specs/052, chosen 2026-11-05). A projected run is a few
+ * hundred bytes, so this holds thousands of turns of backlog.
+ */
+export const TRACE_QUEUE_BYTES = 16 * 1024 * 1024;
 /** One upload's bound, the 10 s every other outbound call outside the race has (specs/022). */
 const UPLOAD_TIMEOUT_MS = 10_000;
 /**
@@ -53,7 +56,7 @@ export interface TraceLogger {
 
 export type TurnKind = 'inbound' | 'nudge';
 
-/** A run as `/runs/batch` takes it, after the projection. */
+/** A run as the client's `createRun` takes it, after the projection. */
 export interface ProjectedRun {
   id: string;
   name: string;
@@ -63,7 +66,7 @@ export interface ProjectedRun {
   parent_run_id?: string | undefined;
   trace_id?: string | undefined;
   dotted_order?: string | undefined;
-  session_name: string;
+  project_name: string;
   inputs: Record<string, unknown>;
   outputs: Record<string, unknown>;
   extra: { metadata: Record<string, unknown> };
@@ -162,7 +165,7 @@ export function projectRun(run: Run, projection: Projection): ProjectedRun {
     parent_run_id: run.parent_run_id,
     trace_id: run.trace_id,
     dotted_order: run.dotted_order,
-    session_name: projection.project,
+    project_name: projection.project,
   };
   if (projection.fullText) {
     return {
@@ -189,138 +192,79 @@ export function projectRun(run: Run, projection: Projection): ProjectedRun {
   };
 }
 
-type Upload =
-  | { kind: 'run'; run: ProjectedRun }
-  | { kind: 'feedback'; feedback: { run_id: string; key: string; value: string } };
+/** An error as the projection leaves it: a class name, and nothing that reads as a sentence. */
+const CLASS_NAME = /^[A-Za-z_$][\w$]*$/;
 
-export interface TraceUploaderOptions {
+/**
+ * The client's own hide functions, a second allowlist behind the projection:
+ * whatever reaches the client is cut to the same fields again before it is
+ * sent, so a projection bug alone cannot leak text (specs/052).
+ */
+export function liveHideFunctions(): Pick<
+  ClientConfig,
+  'hideInputs' | 'hideOutputs' | 'hideMetadata' | 'anonymizer'
+> {
+  return {
+    hideInputs: () => ({}),
+    hideOutputs: outputs => {
+      const kept: Record<string, unknown> = {};
+      const usage: unknown = outputs.usage_metadata;
+      if (isRecord(usage)) {
+        const counts: Record<string, number> = {};
+        for (const key of ['input_tokens', 'output_tokens', 'total_tokens']) {
+          const value = usage[key];
+          if (typeof value === 'number') counts[key] = value;
+        }
+        kept.usage_metadata = counts;
+      }
+      const tools: unknown = outputs.tools;
+      if (Array.isArray(tools)) {
+        kept.tools = tools.filter((name): name is string => typeof name === 'string');
+      }
+      return kept;
+    },
+    hideMetadata: metadata => allowedMetadata(metadata),
+    // With the hide functions set, the client calls this for a run's error only.
+    anonymizer: values => {
+      const error: unknown = values.error;
+      return { error: typeof error === 'string' && CLASS_NAME.test(error) ? error : 'Error' };
+    },
+  };
+}
+
+export interface ClientOptions {
   endpoint: string;
   apiKey: string;
-  logger: TraceLogger;
+  /** An eval on the fixture tenant only: the client then hides nothing. */
+  fullText: boolean;
   /** The HTTP boundary; tests fake it (specs/004). */
-  fetch?: typeof fetch;
-  limit?: number;
-  flushDelayMs?: number;
+  fetch?: typeof fetch | undefined;
 }
 
 /**
- * Sends projected runs and outcome feedback in the background (ADR-0029).
- * Nothing awaits it inside a turn; a failed upload is logged once, by class
- * and status, and dropped, never retried (specs/052 § The uploader never
- * holds a turn, C6, C7).
+ * The official client, configured in code so no environment variable can
+ * change what it sends or where (specs/052, ADR-0029). It uploads in the
+ * background, in batches, and never blocks a turn's root run.
  */
-export class TraceUploader {
-  private readonly opts: Required<Omit<TraceUploaderOptions, 'fetch'>> & { fetch: typeof fetch };
-  private readonly queue: Upload[] = [];
-  private timer: ReturnType<typeof setTimeout> | undefined;
-  private flushing: Promise<void> | undefined;
-  private overflowed = false;
-  private closed = false;
-  /** Fires once the shutdown send's time is up: the request in flight stops, and the queue is dropped. */
-  private readonly stopped = new AbortController();
-
-  constructor(opts: TraceUploaderOptions) {
-    this.opts = {
-      endpoint: opts.endpoint.replace(/\/+$/, ''),
-      apiKey: opts.apiKey,
-      logger: opts.logger,
-      fetch: opts.fetch ?? globalThis.fetch.bind(globalThis),
-      limit: opts.limit ?? TRACE_QUEUE_LIMIT,
-      flushDelayMs: opts.flushDelayMs ?? FLUSH_DELAY_MS,
-    };
-  }
-
-  run(run: ProjectedRun): void {
-    this.enqueue({ kind: 'run', run });
-  }
-
-  feedback(runId: string, key: string, value: string): void {
-    this.enqueue({ kind: 'feedback', feedback: { run_id: runId, key, value } });
-  }
-
-  /**
-   * Sends what is queued now, once, within `deadlineMs` in all, and stops
-   * scheduling: for shutdown. What is left when it runs out is dropped.
-   */
-  async close(deadlineMs = SHUTDOWN_SEND_MS): Promise<void> {
-    this.closed = true;
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = undefined;
-    const deadline = setTimeout(() => this.stopped.abort(), deadlineMs);
-    deadline.unref?.();
-    try {
-      await this.flush();
-    } finally {
-      clearTimeout(deadline);
-    }
-  }
-
-  /** Sends what is queued, in order. Resolves when the queue is empty. */
-  async flush(): Promise<void> {
-    this.flushing ??= this.drain().finally(() => {
-      this.flushing = undefined;
-      if (this.queue.length > 0) this.schedule();
-    });
-    return this.flushing;
-  }
-
-  private enqueue(upload: Upload): void {
-    if (this.queue.length >= this.opts.limit) {
-      this.queue.shift();
-      if (!this.overflowed) {
-        this.opts.logger.warn({ limit: this.opts.limit }, 'trace queue full; dropping the oldest');
-        this.overflowed = true;
-      }
-    }
-    this.queue.push(upload);
-    this.schedule();
-  }
-
-  private schedule(): void {
-    if (this.timer || this.flushing || this.closed) return;
-    this.timer = setTimeout(() => {
-      this.timer = undefined;
-      void this.flush();
-    }, this.opts.flushDelayMs);
-    this.timer.unref?.();
-  }
-
-  private async drain(): Promise<void> {
-    while (this.queue.length > 0 && !this.stopped.signal.aborted) {
-      const first = this.queue[0]!;
-      if (first.kind === 'feedback') {
-        this.queue.shift();
-        await this.send('/feedback', first.feedback);
-        continue;
-      }
-      const runs: ProjectedRun[] = [];
-      while (runs.length < BATCH_LIMIT && this.queue[0]?.kind === 'run') {
-        runs.push((this.queue.shift() as Extract<Upload, { kind: 'run' }>).run);
-      }
-      await this.send('/runs/batch', { post: runs, patch: [] });
-    }
-    if (this.stopped.signal.aborted && this.queue.length > 0) {
-      this.opts.logger.warn({ dropped: this.queue.length }, 'trace queue dropped at shutdown');
-      this.queue.length = 0;
-    }
-    this.overflowed = false;
-  }
-
-  private async send(path: string, body: unknown): Promise<void> {
-    try {
-      const response = await this.opts.fetch(`${this.opts.endpoint}${path}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': this.opts.apiKey },
-        body: JSON.stringify(body),
-        signal: AbortSignal.any([AbortSignal.timeout(UPLOAD_TIMEOUT_MS), this.stopped.signal]),
-      });
-      if (!response.ok) {
-        this.opts.logger.warn({ path, status: response.status }, 'trace upload failed; dropped');
-      }
-    } catch (error) {
-      this.opts.logger.warn({ path, err: errorClass(error) }, 'trace upload failed; dropped');
-    }
-  }
+export function clientConfig(opts: ClientOptions): ClientConfig {
+  return {
+    apiUrl: opts.endpoint,
+    apiKey: opts.apiKey,
+    autoBatchTracing: true,
+    blockOnRootRunFinalization: false,
+    omitTracedRuntimeInfo: true,
+    maxIngestMemoryBytes: TRACE_QUEUE_BYTES,
+    timeout_ms: UPLOAD_TIMEOUT_MS,
+    // Set here so LANGSMITH_TRACING_MODE, OTEL_ENABLED, LANGSMITH_DEBUG and
+    // LANGSMITH_TRACING_SAMPLING_RATE cannot reroute, print or thin the trace.
+    tracingMode: 'langsmith',
+    debug: false,
+    tracingSamplingRate: 1,
+    ...(opts.fullText
+      ? { hideInputs: false, hideOutputs: false, hideMetadata: false }
+      : liveHideFunctions()),
+    ...(opts.fetch ? { fetchImplementation: opts.fetch } : {}),
+  };
 }
 
 /** Hands each finished run of one turn to its trace, with the class of its error. */
@@ -377,21 +321,30 @@ const TURN_SERIALIZED = { lc: 1, type: 'not_implemented', id: [TURN_RUN] } as Se
 export class TurnTrace {
   /** The root run's ID, set here rather than by LangChain, so feedback can name it. */
   readonly rootId = randomUUID();
-  private readonly uploader: TraceUploader;
+  private readonly client: Client;
+  private readonly logger: TraceLogger;
   private readonly metadata: { conversation: string; turn_kind: TurnKind };
   private readonly projection: Omit<Projection, 'offered' | 'errorClass'>;
   private offered: ReadonlySet<string> = new Set();
   private root: CallbackManagerForChainRun | undefined;
-  private rootEnded = false;
+  /** Settles once the root run is in the client's queue. */
+  private rootQueued: Promise<void> | undefined;
   private outcomeValue: TurnOutcome | undefined;
   private outcomeSent = false;
 
+  /** Holds the background outcome send, so a flush or shutdown can wait for it. */
+  private readonly track: (work: Promise<void>) => void;
+
   constructor(
-    uploader: TraceUploader,
+    client: Client,
+    logger: TraceLogger,
     context: { conversation: string; kind: TurnKind },
     projection: Omit<Projection, 'offered' | 'errorClass'>,
+    track: (work: Promise<void>) => void = () => {},
   ) {
-    this.uploader = uploader;
+    this.client = client;
+    this.logger = logger;
+    this.track = track;
     this.metadata = { conversation: context.conversation, turn_kind: context.kind };
     this.projection = projection;
   }
@@ -438,21 +391,43 @@ export class TurnTrace {
     this.sendOutcome();
   }
 
-  /** A run of this turn finished: projected and queued. */
+  /** A run of this turn finished: projected and handed to the client's queue. */
   ended(run: Run, failure: string | undefined): void {
-    this.uploader.run(
-      projectRun(run, { ...this.projection, offered: this.offered, errorClass: failure }),
-    );
+    const projected = projectRun(run, {
+      ...this.projection,
+      offered: this.offered,
+      errorClass: failure,
+    });
+    // The client reads a key that is present as set, so absent ones stay absent.
+    const create = Object.fromEntries(
+      Object.entries(projected).filter(([, value]) => value !== undefined),
+    ) as Parameters<Client['createRun']>[0];
+    const queued = this.client.createRun(create).catch((error: unknown) => {
+      this.logger.warn({ err: errorClass(error) }, 'trace run dropped');
+    });
     if (run.id === this.rootId) {
-      this.rootEnded = true;
+      this.rootQueued = queued;
       this.sendOutcome();
     }
   }
 
+  /**
+   * After the root run's batch has gone, so the feedback names a run the
+   * workspace already holds. In the background: nothing waits on it.
+   */
   private sendOutcome(): void {
-    if (!this.rootEnded || this.outcomeValue === undefined || this.outcomeSent) return;
+    const { rootQueued, outcomeValue } = this;
+    if (!rootQueued || outcomeValue === undefined || this.outcomeSent) return;
     this.outcomeSent = true;
-    this.uploader.feedback(this.rootId, 'outcome', this.outcomeValue);
+    this.track(
+      (async () => {
+        await rootQueued;
+        await this.client.awaitPendingTraceBatches();
+        await this.client.createFeedback(this.rootId, 'outcome', { value: outcomeValue });
+      })().catch((error: unknown) => {
+        this.logger.warn({ err: errorClass(error) }, 'trace outcome dropped');
+      }),
+    );
   }
 }
 
@@ -463,14 +438,18 @@ export interface TracingEnv {
   LANGSMITH_ENDPOINT: string;
 }
 
-/** The process's tracing: one uploader, a trace per turn. */
+/** The process's tracing: one LangSmith client, a trace per turn. */
 export class Tracing {
-  private readonly uploader: TraceUploader;
+  private readonly client: Client;
+  private readonly logger: TraceLogger;
   private readonly project: string;
   private readonly fullText: boolean;
+  /** Outcome feedback still being sent. */
+  private readonly pending = new Set<Promise<void>>();
 
-  constructor(opts: { uploader: TraceUploader; project: string; fullText?: boolean }) {
-    this.uploader = opts.uploader;
+  constructor(opts: { client: Client; logger: TraceLogger; project: string; fullText?: boolean }) {
+    this.client = opts.client;
+    this.logger = opts.logger;
     this.project = opts.project;
     this.fullText = opts.fullText ?? false;
   }
@@ -488,25 +467,47 @@ export class Tracing {
     const { LANGSMITH_API_KEY: apiKey, LANGSMITH_PROJECT: project } = env;
     // The schema refuses this combination; checked again so no caller can skip it.
     if (apiKey === undefined || project === undefined) return undefined;
-    const uploader = new TraceUploader({
-      endpoint: env.LANGSMITH_ENDPOINT,
-      apiKey,
-      logger,
-      ...(opts.fetch ? { fetch: opts.fetch } : {}),
-    });
-    return new Tracing({ uploader, project, fullText: opts.fullText ?? false });
+    const fullText = opts.fullText ?? false;
+    const client = new Client(
+      clientConfig({ endpoint: env.LANGSMITH_ENDPOINT, apiKey, fullText, fetch: opts.fetch }),
+    );
+    return new Tracing({ client, logger, project, fullText });
   }
 
   turn(context: { conversation: string; kind: TurnKind }): TurnTrace {
-    return new TurnTrace(this.uploader, context, {
-      project: this.project,
-      fullText: this.fullText,
-    });
+    return new TurnTrace(
+      this.client,
+      this.logger,
+      context,
+      { project: this.project, fullText: this.fullText },
+      work => {
+        this.pending.add(work);
+        void work.finally(() => this.pending.delete(work));
+      },
+    );
   }
 
-  /** Sends what is queued, once, for at most `SHUTDOWN_SEND_MS`: on SIGTERM. */
-  async close(): Promise<void> {
-    await this.uploader.close();
+  /** Resolves once the client's queued batches and every outcome feedback have gone. */
+  async flush(): Promise<void> {
+    await this.client.awaitPendingTraceBatches();
+    await Promise.all([...this.pending]);
+  }
+
+  /**
+   * Waits for the client's queued batches and outcome feedback, for at most
+   * `deadlineMs`: on SIGTERM. What has not gone by then is left behind as the
+   * process exits.
+   */
+  async close(deadlineMs = SHUTDOWN_SEND_MS): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<'deadline'>(resolve => {
+      timer = setTimeout(() => resolve('deadline'), deadlineMs);
+      timer.unref?.();
+    });
+    const sent = this.flush().then(() => 'sent' as const);
+    const first = await Promise.race([sent, deadline]).catch(() => 'sent' as const);
+    clearTimeout(timer);
+    if (first === 'deadline') this.logger.warn({ deadlineMs }, 'trace send cut short at shutdown');
   }
 }
 

@@ -190,6 +190,8 @@ export const EnvSchema = z
     LANGSMITH_ENDPOINT: z.string().url().default('https://api.smith.langchain.com'),
     // Read only to be refused while tracing is on: see the refine below.
     LANGCHAIN_CALLBACKS_BACKGROUND: optionalString,
+    LANGSMITH_FAILED_TRACES_DIR: optionalString,
+    LANGSMITH_RUNS_ENDPOINTS: optionalString,
 
     // Read only to be refused: see the refine below.
     LANGSMITH_TRACING_V2: optionalString,
@@ -224,6 +226,18 @@ export const EnvSchema = z
         context.addIssue({
           code: 'custom',
           message: `TRACE_TURNS=langsmith needs ${name} (specs/052)`,
+          path: [name],
+        });
+      }
+    }
+    // The LangSmith client reads these itself, and no option in code turns
+    // them off: one writes failed batches to disk for replay, the other copies
+    // runs to further endpoints (specs/052, ADR-0029).
+    for (const name of ['LANGSMITH_FAILED_TRACES_DIR', 'LANGSMITH_RUNS_ENDPOINTS'] as const) {
+      if (env[name] !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: `${name} sends traces somewhere specs/052 does not allow; unset it`,
           path: [name],
         });
       }

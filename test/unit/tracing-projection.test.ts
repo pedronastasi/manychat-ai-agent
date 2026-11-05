@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { LangGraphRunner } from '../../src/agent/langgraph-runner.ts';
 import type { TenantConfig } from '../../src/config/loader.ts';
 import { TURN_RUN, UNKNOWN_TOOL } from '../../src/observability/tracing.ts';
-import type { ProjectedRun } from '../../src/observability/tracing.ts';
 import { fixtureTenant, scriptedTurns } from '../helpers/conversations.ts';
 import type { TurnScript } from '../helpers/conversations.ts';
 import { fakeLangSmith } from '../helpers/langsmith.ts';
+import type { UploadedRun } from '../helpers/langsmith.ts';
 
 /**
  * specs/052-traces-carry-shape-not-text.md § Verification: what a live trace
@@ -44,8 +44,12 @@ const METADATA_KEYS = new Set([
   'ls_temperature',
 ]);
 
-async function tracedTurn(script: TurnScript[], tenant: TenantConfig = fixtureTenant) {
-  const langsmith = fakeLangSmith();
+async function tracedTurn(
+  script: TurnScript[],
+  tenant: TenantConfig = fixtureTenant,
+  multipart = false,
+) {
+  const langsmith = fakeLangSmith(undefined, { multipart });
   const scripted = scriptedTurns(script);
   const runner = new LangGraphRunner({
     model: scripted.model,
@@ -60,7 +64,7 @@ async function tracedTurn(script: TurnScript[], tenant: TenantConfig = fixtureTe
   return { ...langsmith, result, trace };
 }
 
-const nodeRuns = (runs: ProjectedRun[]) =>
+const nodeRuns = (runs: UploadedRun[]) =>
   runs
     .filter(run => run.name === 'model' || run.name === 'tools')
     .sort((left, right) => left.dotted_order!.localeCompare(right.dotted_order!));
@@ -86,28 +90,45 @@ describe('a live trace carries no input and no output (specs/052 V1)', () => {
     }
   });
 
-  it('sends none of the prompt, the catalog, the message, the reply or a tool argument', async () => {
-    const { bytes, result } = await tracedTurn([
-      {
-        tools: [{ name: 'write_note', input: { note: TOOL_ARGUMENT } }],
-        reply: { messages: [REPLY] },
-      },
-    ]);
-    expect(result.reply.messages).toEqual([REPLY]);
-    const sent = bytes();
-    const offering = fixtureTenant.catalog.offerings[0]!;
-    for (const secret of [
-      'professional training academy',
-      fixtureTenant.catalog.businessName,
-      offering.name,
-      offering.description,
-      INBOUND,
-      REPLY,
-      TOOL_ARGUMENT,
-    ]) {
-      expect(sent).not.toContain(secret);
-    }
-  });
+  // Multipart is the client's own default; JSON batches are what the other
+  // tests read field by field.
+  it.each([
+    ['JSON batches', false],
+    ['multipart', true],
+  ])(
+    'sends none of the prompt, the catalog, the message, the reply or a tool argument (%s)',
+    async (_label, multipart) => {
+      const { bytes, result, uploads } = await tracedTurn(
+        [
+          {
+            tools: [{ name: 'write_note', input: { note: TOOL_ARGUMENT } }],
+            reply: { messages: [REPLY] },
+          },
+        ],
+        fixtureTenant,
+        multipart,
+      );
+      expect(result.reply.messages).toEqual([REPLY]);
+      expect(uploads().length).toBeGreaterThan(0);
+      if (multipart)
+        expect(uploads().some(request => request.url.endsWith('/runs/multipart'))).toBe(true);
+      const sent = bytes();
+      // The bytes were read: the token counts the projection keeps are in them.
+      expect(sent).toContain('usage_metadata');
+      const offering = fixtureTenant.catalog.offerings[0]!;
+      for (const secret of [
+        'professional training academy',
+        fixtureTenant.catalog.businessName,
+        offering.name,
+        offering.description,
+        INBOUND,
+        REPLY,
+        TOOL_ARGUMENT,
+      ]) {
+        expect(sent).not.toContain(secret);
+      }
+    },
+  );
 });
 
 describe('token counts survive the projection (specs/052 V2)', () => {

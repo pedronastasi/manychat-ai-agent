@@ -224,7 +224,9 @@ type Env = {
   LANGCHAIN_VERBOSE?: string | undefined
   LANGSMITH_API_KEY?: string | undefined
   LANGSMITH_ENDPOINT: string
+  LANGSMITH_FAILED_TRACES_DIR?: string | undefined
   LANGSMITH_PROJECT?: string | undefined
+  LANGSMITH_RUNS_ENDPOINTS?: string | undefined
   LANGSMITH_TRACING?: string | undefined
   LANGSMITH_TRACING_V2?: string | undefined
   LOG_LEVEL: "debug" | "error" | "fatal" | "info" | "trace" | "warn"

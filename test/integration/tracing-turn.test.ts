@@ -125,11 +125,13 @@ describe('how the turn ended is one feedback on its root run (specs/052 V8)', ()
 
     const root = langsmith.runs().find(run => run.parent_run_id === undefined);
     expect(root?.name).toBe(TURN_RUN);
-    expect(langsmith.feedback()).toEqual([
-      { run_id: root!.id, key: 'outcome', value: 'answered_inline' },
-    ]);
-    // The body carries no field but these three.
-    expect(Object.keys(langsmith.feedback()[0]!).sort()).toEqual(['key', 'run_id', 'value']);
+    const sent = langsmith.feedback();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ run_id: root!.id, key: 'outcome', value: 'answered_inline' });
+    // The client adds its own ID and source; nothing of the turn's beyond the value.
+    for (const field of ['comment', 'correction', 'score']) {
+      expect(sent[0]![field] ?? null).toBeNull();
+    }
   });
 
   it('sends deferred once the graph has finished, for a turn that lost the race', async () => {
@@ -250,22 +252,18 @@ describe('the uploader never holds a turn (specs/052 V11)', () => {
     expect(traced.ms).toBeLessThan(untraced.ms + 500);
   });
 
-  it('logs a failed upload by its status, once, and drops it', async () => {
-    const langsmith = fakeLangSmith(
-      () => new Response('a body the log must not carry', { status: 500 }),
-    );
-    await timedTurn(langsmith.tracing(), 'subscriber-traced');
-    await langsmith.settle();
-    expect(langsmith.warnings.length).toBeGreaterThan(0);
-    for (const warning of langsmith.warnings) {
-      expect(warning.fields).toMatchObject({ status: 500 });
-      expect(JSON.stringify(warning)).not.toContain('a body the log must not carry');
-    }
-    const sent = langsmith.requests.length;
-    await sleep(50);
-    await langsmith.settle();
-    // Dropped, never retried.
-    expect(langsmith.requests.length).toBe(sent);
+  it('keeps a failing endpoint out of our logs, and out of the shutdown', async () => {
+    const body = 'a body the log must not carry';
+    const langsmith = fakeLangSmith(() => new Response(body, { status: 500 }));
+    const tracing = langsmith.tracing();
+    const traced = await timedTurn(tracing, 'subscriber-traced');
+    expect(traced.out.outcome).toBe('answered_inline');
+    // The client retries in the background; shutdown waits for it no longer
+    // than its deadline.
+    const started = Date.now();
+    await tracing.close(200);
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(JSON.stringify(langsmith.warnings)).not.toContain(body);
   });
 });
 
