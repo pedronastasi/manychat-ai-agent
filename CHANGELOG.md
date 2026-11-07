@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.34.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.34.0...v0.34.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** update patch dependencies ([0c7378f](https://github.com/pedronastasi/manychat-ai-agent/commit/0c7378f4941a154bf65fb52497a55b17cab506f3))
+* **deps:** update patch dependencies ([3e3adc5](https://github.com/pedronastasi/manychat-ai-agent/commit/3e3adc5619ad4db82327b0c70a75ad0fcfeef3e6))
+
+
+### Dependencies
+
+* **deps:** update minor dependencies ([6a90146](https://github.com/pedronastasi/manychat-ai-agent/commit/6a90146a0e6fe7f87279a5f3c24a03f515fdc6d9))
+* **deps:** update minor dependencies ([a6b4d0e](https://github.com/pedronastasi/manychat-ai-agent/commit/a6b4d0e723bd198ca92e6997099ab3f52176004b))
+
 ## [0.34.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.33.1...v0.34.0) (2026-11-06)
 
 
