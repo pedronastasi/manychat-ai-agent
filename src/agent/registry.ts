@@ -1,17 +1,21 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createProviderRegistry } from 'ai';
-import type { LanguageModel, TranscriptionModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
+import OpenAI from 'openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { SystemMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { JSONSchema7 } from '@ai-sdk/provider';
+import type { ModelJsonSchema } from './model-schema.ts';
 import { createMockModel } from './mock-provider.ts';
 import { AiSdkChatModel, aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
+import { OpenAiTranscriber, SdkTranscriber } from './transcriber.ts';
+import type { TranscriptionEndpoint } from './transcriber.ts';
+import type { Transcriber } from '../media/port.ts';
 
 /**
  * The ONLY module permitted to import a provider package (Constitution C2).
@@ -175,13 +179,61 @@ export function resolveModel(spec: string, variable = 'AGENT_MODEL'): LanguageMo
 }
 
 /**
- * Resolves TRANSCRIPTION_MODEL, at startup for the same reason as
- * `resolveModel`. Not every provider transcribes (Anthropic does not), and one
- * that does not fails here rather than on the first voice note.
+ * The retries a transcription makes, inside the abort: the AI SDK's default,
+ * kept (specs/053 § Transcription is a port the registry implements with the
+ * provider's SDK). The `openai` package's own default is also 2; it is set
+ * here so a change to it is a finding.
  */
-export function resolveTranscriptionModel(spec: string): TranscriptionModel {
+export const TRANSCRIPTION_MAX_RETRIES = 2;
+
+/** The HTTP boundary of the transcription client, faked only by tests (specs/004). */
+export interface TranscriptionClientOptions {
+  fetch?: typeof globalThis.fetch | undefined;
+}
+
+/** The `openai` client's transcription endpoint, for OpenAI or for Ollama. */
+function openAiEndpoint(
+  provider: 'openai' | 'ollama',
+  options: TranscriptionClientOptions,
+): TranscriptionEndpoint {
+  const client = new OpenAI({
+    maxRetries: TRANSCRIPTION_MAX_RETRIES,
+    // No timeout is relied on: the turn's abort bounds the call (specs/020).
+    ...(provider === 'ollama' ? { apiKey: 'ollama', baseURL: OLLAMA_BASE_URL } : {}),
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+  });
+  return {
+    create: (body, requestOptions) =>
+      client.audio.transcriptions.create(body as never, requestOptions),
+  };
+}
+
+/**
+ * Resolves TRANSCRIPTION_MODEL to a transcriber, at startup for the same
+ * reason as `resolveModel`. OpenAI and Ollama go through the `openai` client;
+ * Google stays on the AI SDK until specs/053's step 3 drops it. Anthropic does
+ * not transcribe, and fails here rather than on the first voice note.
+ */
+export function resolveTranscriptionModel(
+  spec: string,
+  options: TranscriptionClientOptions = {},
+): Transcriber {
+  const separator = spec.indexOf(':');
+  const provider = separator > 0 ? spec.slice(0, separator) : '';
+  const model = spec.slice(separator + 1);
+  if ((provider === 'openai' || provider === 'ollama') && model.length > 0) {
+    return new OpenAiTranscriber({
+      endpoint: () => openAiEndpoint(provider, options),
+      model,
+      modelSpec: spec,
+    });
+  }
   try {
-    return registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]);
+    if (provider !== 'google') throw new Error(`'${provider}' does not transcribe here`);
+    return new SdkTranscriber({
+      model: registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]),
+      modelSpec: spec,
+    });
   } catch (cause) {
     throw new UnknownProviderError(spec, cause, 'TRANSCRIPTION_MODEL');
   }
@@ -189,8 +241,10 @@ export function resolveTranscriptionModel(spec: string): TranscriptionModel {
 
 /** What the LangChain runner is configured with (specs/050). */
 export interface ChatModelSettings {
-  maxOutputTokens: number;
-  temperature: number;
+  /** Unset leaves the provider's default: the judges set none (specs/053). */
+  maxOutputTokens?: number | undefined;
+  /** Unset leaves the provider's default: the judges and analyst set none (specs/053). */
+  temperature?: number | undefined;
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | undefined;
 }
 
@@ -202,7 +256,7 @@ export interface ChatModelSettings {
 export interface ChatModelHandle {
   model: BaseChatModel;
   /** Per-call options asking for the reply as JSON matching `schema`, the provider's way. */
-  replyFormat(schema: JSONSchema7): Record<string, unknown>;
+  replyFormat(schema: ModelJsonSchema): Record<string, unknown>;
   /** The system prompt, carrying the provider's cache breakpoint. */
   systemMessage(text: string): SystemMessage;
 }
@@ -226,7 +280,10 @@ export function chatModelFromAiSdk(
   return {
     model: new AiSdkChatModel(model, {
       maxOutputTokens: settings.maxOutputTokens,
-      temperature: supportsTemperature(modelSpec) ? settings.temperature : undefined,
+      temperature:
+        supportsTemperature(modelSpec) && settings.temperature !== undefined
+          ? settings.temperature
+          : undefined,
       providerOptions: aiSdkProviderOptions(settings.reasoningEffort),
     }),
     replyFormat: schema => ({ responseFormat: { type: 'json', schema } }),
@@ -257,7 +314,7 @@ class AbortableGemini extends ChatGoogleGenerativeAI {
 }
 
 /** OpenAI's structured output, strict as the AI SDK's `strictJsonSchema` default. */
-function openAiReplyFormat(schema: JSONSchema7): Record<string, unknown> {
+function openAiReplyFormat(schema: ModelJsonSchema): Record<string, unknown> {
   return {
     response_format: { type: 'json_schema', json_schema: { name: 'reply', schema, strict: true } },
   };
@@ -278,7 +335,12 @@ export function resolveChatModel(
   const separator = spec.indexOf(':');
   const provider = separator > 0 ? spec.slice(0, separator) : '';
   const model = spec.slice(separator + 1);
-  const temperature = supportsTemperature(spec) ? { temperature: settings.temperature } : {};
+  const temperature =
+    supportsTemperature(spec) && settings.temperature !== undefined
+      ? { temperature: settings.temperature }
+      : {};
+  const maxTokens = (key: 'maxTokens' | 'maxOutputTokens') =>
+    settings.maxOutputTokens !== undefined ? { [key]: settings.maxOutputTokens } : {};
   const plainSystem = (text: string) => new SystemMessage(text);
   try {
     switch (provider) {
@@ -289,7 +351,7 @@ export function resolveChatModel(
           model: new ChatAnthropic({
             model,
             maxRetries: CHAT_MODEL_MAX_RETRIES,
-            maxTokens: settings.maxOutputTokens,
+            ...maxTokens('maxTokens'),
             ...temperature,
           }),
           replyFormat: schema => ({ outputConfig: { format: { type: 'json_schema', schema } } }),
@@ -304,7 +366,7 @@ export function resolveChatModel(
           model: new ChatOpenAI({
             model,
             maxRetries: CHAT_MODEL_MAX_RETRIES,
-            maxTokens: settings.maxOutputTokens,
+            ...maxTokens('maxTokens'),
             // The AI SDK's `openai(model)` is the Responses API.
             useResponsesApi: true,
             ...temperature,
@@ -322,8 +384,11 @@ export function resolveChatModel(
         return {
           model: new AbortableGemini({
             model,
+            // The key this repository documents (.env.example), which the AI
+            // SDK read; LangChain's own names still work when it is unset.
+            ...googleApiKey(),
             maxRetries: CHAT_MODEL_MAX_RETRIES,
-            maxOutputTokens: settings.maxOutputTokens,
+            ...maxTokens('maxOutputTokens'),
             ...temperature,
           }),
           replyFormat: schema => ({ responseSchema: schema }),
@@ -335,4 +400,44 @@ export function resolveChatModel(
   } catch (cause) {
     throw new UnknownProviderError(spec, cause, variable);
   }
+}
+
+/**
+ * `GOOGLE_GENERATIVE_AI_API_KEY` as the Gemini key, when set. Unset, LangChain
+ * reads its own `GOOGLE_API_KEY` or `GEMINI_API_KEY`.
+ */
+function googleApiKey(): { apiKey: string } | Record<string, never> {
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  return key ? { apiKey: key } : {};
+}
+
+const CHAT_PROVIDERS = new Set(['mock', 'anthropic', 'openai', 'ollama', 'google']);
+
+/**
+ * `resolveChatModel` for the judges and the analyst, which `resolveModel`
+ * served before specs/053: the provider is checked now, so a typo fails boot,
+ * but the chat model is built on first use. LangChain's provider classes throw
+ * in their constructors when the key is missing, where the AI SDK read it only
+ * when a request went out; building it here would stop a service that boots
+ * on `main` (specs/053 § The judges and the analyst validate their own output).
+ */
+export function resolveChatModelOnUse(
+  spec: string,
+  settings: ChatModelSettings,
+  variable: string,
+): ChatModelHandle {
+  const separator = spec.indexOf(':');
+  const provider = separator > 0 ? spec.slice(0, separator) : '';
+  if (!CHAT_PROVIDERS.has(provider) || separator === spec.length - 1) {
+    throw new UnknownProviderError(spec, new Error(`unknown provider '${provider}'`), variable);
+  }
+  let built: ChatModelHandle | undefined;
+  const handle = () => (built ??= resolveChatModel(spec, settings, variable));
+  return {
+    get model() {
+      return handle().model;
+    },
+    replyFormat: schema => handle().replyFormat(schema),
+    systemMessage: text => handle().systemMessage(text),
+  };
 }

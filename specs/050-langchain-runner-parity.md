@@ -211,6 +211,10 @@ the eval judge (`016`), the mock provider and every test fake, which
 those types is still the separate breaking change § The public exports keep
 their signatures describes.
 
+`053` takes the rest off the AI SDK. Its step 1 moved transcription for
+`openai:` and `ollama:`, the analyst and the judges; the mock, the fakes, the
+tool definitions and the public types follow in its later steps.
+
 ## Verification
 
 - **Retries, tokens, the abort and tracing**: one test per row of § Defaults

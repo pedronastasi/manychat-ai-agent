@@ -1,14 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { generateText, Output } from 'ai';
 import type { LanguageModel } from 'ai';
-import { estimateCostUsd } from '../../agent/registry.ts';
+import { chatModelFromAiSdk, estimateCostUsd } from '../../agent/registry.ts';
+import type { ChatModelHandle } from '../../agent/registry.ts';
+import { generateObject } from '../../agent/structured.ts';
 import { ConversationCalibrationItem, ConversationVerdict } from '../../contracts/conversations.ts';
 import type { ChannelFixtures, Scenario, TranscriptStep } from '../../contracts/conversations.ts';
 import {
   AGREEMENT_THRESHOLD,
   groupOf,
   isDimension,
+  JUDGE_SETTINGS,
   JUDGE_TIMEOUT_MS,
   RUBRIC,
   SAMPLES,
@@ -222,7 +224,7 @@ export function conversationMajority(
 /** The judge model behind `EVAL_JUDGE_MODEL`, resolved through the registry (C2). */
 export class ConversationJudge {
   readonly modelSpec: string;
-  private readonly model: LanguageModel;
+  private readonly handle: ChatModelHandle;
   private readonly timeoutMs: number;
   /** What the judge has cost this run, apart from the agent's. */
   costUsd = 0;
@@ -230,8 +232,20 @@ export class ConversationJudge {
   latencyMs = 0;
   calls = 0;
 
-  constructor(opts: { model: LanguageModel; modelSpec: string; timeoutMs?: number }) {
-    this.model = opts.model;
+  /**
+   * `model` is the chat model `resolveChatModel` builds with `JUDGE_SETTINGS`,
+   * or an AI SDK model (`mock:`, a test fake) to wrap until specs/053's step 3.
+   */
+  constructor(opts: {
+    model: ChatModelHandle | LanguageModel;
+    modelSpec: string;
+    timeoutMs?: number;
+  }) {
+    const { model } = opts;
+    this.handle =
+      typeof model === 'object' && 'replyFormat' in model
+        ? model
+        : chatModelFromAiSdk(model, opts.modelSpec, JUDGE_SETTINGS);
     this.modelSpec = opts.modelSpec;
     this.timeoutMs = opts.timeoutMs ?? JUDGE_TIMEOUT_MS;
   }
@@ -241,24 +255,14 @@ export class ConversationJudge {
     const started = Date.now();
     this.calls++;
     try {
-      const result = await generateText({
-        model: this.model,
-        output: Output.object({ schema: ConversationVerdict }),
+      // The material is not a trace: no trace is ever opened here (C5).
+      const result = await generateObject(this.handle, ConversationVerdict, {
         system: CONVERSATION_JUDGE_INSTRUCTIONS,
-        messages: [{ role: 'user', content: conversationJudgeMessage(input) }],
-        // The transcript is material, not traces (C5).
-        telemetry: {
-          functionId: 'eval-conversation-judge',
-          recordInputs: false,
-          recordOutputs: false,
-        },
-        abortSignal: AbortSignal.timeout(this.timeoutMs),
+        user: conversationJudgeMessage(input),
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
-      this.costUsd += estimateCostUsd(this.modelSpec, {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens,
-      });
+      // Only a sample that parsed is billed, as before (specs/053).
+      this.costUsd += estimateCostUsd(this.modelSpec, result.usage);
       return validConversationSample(result.output, input.transcript);
     } catch {
       return undefined;

@@ -8,7 +8,7 @@ import { fixtureEval, Tracing } from '../../observability/tracing.ts';
 import { loadPlugins } from '../../plugins/loader.ts';
 import { evalDir } from '../cases.ts';
 import { playbookFor } from '../runner.ts';
-import { groupOf, sameModelWarning } from '../judge.ts';
+import { groupOf, JUDGE_SETTINGS, sameModelWarning } from '../judge.ts';
 import {
   configHash,
   evaluatedOf,
@@ -32,7 +32,7 @@ import {
   loadConversationCalibration,
 } from './judge.ts';
 import { gate, GateReport, loadReviews } from './gate.ts';
-import { acceptsImages, resolveModel } from '../../agent/registry.ts';
+import { acceptsImages, resolveChatModelOnUse } from '../../agent/registry.ts';
 import { detectFfmpeg, FfmpegVideoSplitter } from '../../media/ffmpeg.ts';
 
 /** Where reports go unless `EVAL_ARTIFACTS_DIR` says otherwise. Gitignored. */
@@ -184,7 +184,7 @@ export async function runConversations(args: string[]): Promise<number> {
   let judge;
   if (env.EVAL_JUDGE_MODEL) {
     const conversationJudge = new ConversationJudge({
-      model: resolveModel(env.EVAL_JUDGE_MODEL, 'EVAL_JUDGE_MODEL'),
+      model: resolveChatModelOnUse(env.EVAL_JUDGE_MODEL, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
       modelSpec: env.EVAL_JUDGE_MODEL,
     });
     const warning = sameModelWarning(conversationJudge.modelSpec, env.AGENT_MODEL);

@@ -54,7 +54,7 @@ only in the groups that pass calibration on that run — see
 
 - **Runtime:** Node.js >= 22, TypeScript ~6.0 (strict, ESM, `verbatimModuleSyntax`)
 - **Server:** Fastify 5 with Zod type provider
-- **AI:** LangChain.js + LangGraph.js for the turn (specs/050); Vercel AI SDK for transcription, the learning analyst, the eval judge and the mock, with Anthropic/OpenAI/Google providers
+- **AI:** LangChain.js + LangGraph.js for the turn, the judges and the analyst (specs/050, 053); the `openai` client for `openai:`/`ollama:` transcription; the Vercel AI SDK, until specs/053's step 3, for the mock, the test fakes, the tool definitions and `google:` transcription
 - **Database:** PostgreSQL via `postgres` + Drizzle ORM; PGlite for dev/test
 - **Validation:** Zod 4 (single source of truth for types, validation, and OpenAPI)
 - **Testing:** Vitest 5, V8 coverage

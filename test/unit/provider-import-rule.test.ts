@@ -4,7 +4,8 @@ import { ESLint } from 'eslint';
 /**
  * specs/050-langchain-runner-parity.md § Verification item 4, the lint rule
  * Constitution C2 says enforces it (§ The registry builds each chat model by
- * its class).
+ * its class), and specs/053-one-model-library.md § Verification, C2: the
+ * transcription client is a provider package too.
  */
 
 const PROVIDER_PACKAGES = [
@@ -15,6 +16,7 @@ const PROVIDER_PACKAGES = [
   '@langchain/openai',
   '@langchain/google-genai',
   'langchain/chat_models/universal',
+  'openai',
 ];
 
 const eslint = new ESLint();
@@ -24,7 +26,7 @@ async function errorsFor(code: string, filePath: string) {
   return (result?.messages ?? []).filter(message => message.ruleId === 'no-restricted-imports');
 }
 
-describe('only the registry imports a provider package (specs/050 V4, C2)', () => {
+describe('only the registry imports a provider package (specs/050 V4, specs/053 V2, C2)', () => {
   it('configures the rule, for every provider package of both libraries and the universal chat model', async () => {
     const config = (await eslint.calculateConfigForFile('src/agent/runner.ts')) as {
       rules: Record<string, unknown>;
@@ -49,9 +51,9 @@ describe('only the registry imports a provider package (specs/050 V4, C2)', () =
     },
   );
 
-  it('lets the registry import them', async () => {
+  it.each(['@langchain/anthropic', 'openai'])('lets the registry import %s', async name => {
     const errors = await errorsFor(
-      `import * as provider from '@langchain/anthropic';\nvoid provider;\n`,
+      `import * as provider from '${name}';\nvoid provider;\n`,
       'src/agent/registry.ts',
     );
     expect(errors).toEqual([]);

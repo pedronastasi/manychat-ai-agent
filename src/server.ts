@@ -166,10 +166,12 @@ export async function buildServer(opts: BuildOptions) {
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
   // the deploy, and a missing ffmpeg is found at boot rather than per video.
   const transcriber = env.TRANSCRIPTION_MODEL
-    ? new SdkTranscriber({
-        model: opts.transcriptionModel ?? resolveTranscriptionModel(env.TRANSCRIPTION_MODEL),
-        modelSpec: env.TRANSCRIPTION_MODEL,
-      })
+    ? opts.transcriptionModel
+      ? new SdkTranscriber({
+          model: opts.transcriptionModel,
+          modelSpec: env.TRANSCRIPTION_MODEL,
+        })
+      : resolveTranscriptionModel(env.TRANSCRIPTION_MODEL)
     : null;
   const ffmpeg = await detectFfmpeg(opts.ffmpegPaths);
   const media = new MediaResolver({

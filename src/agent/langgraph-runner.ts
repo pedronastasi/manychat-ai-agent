@@ -1,10 +1,16 @@
-import { asSchema, InvalidToolInputError, NoSuchToolError, TypeValidationError } from 'ai';
-import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
+import type { LanguageModel, ToolSet } from 'ai';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import type { BaseMessage, MessageContent, UsageMetadata } from '@langchain/core/messages';
+import { HumanMessage, ToolMessage } from '@langchain/core/messages';
+import type {
+  BaseMessage,
+  MessageContent,
+  UsageMetadata,
+  AIMessage,
+} from '@langchain/core/messages';
+import type { z } from 'zod';
 import { AgentReplyForModel, AgentReplyFromModel } from '../contracts/agent.ts';
+import { invalidToolInputText, modelJsonSchema, unknownToolText } from './model-schema.ts';
 import { chatModelFromAiSdk } from './registry.ts';
 import type { ChatModelHandle } from './registry.ts';
 import { PromptedRunner } from './runner.ts';
@@ -68,43 +74,6 @@ function raceAbort<T>(work: Promise<T>, signal: AbortSignal | undefined): Promis
   });
 }
 
-function base64(data: unknown): string {
-  if (data instanceof Uint8Array) return Buffer.from(data).toString('base64');
-  if (typeof data === 'string') return data;
-  throw new Error('only inline images reach the model (specs/020)');
-}
-
-/** A turn's AI SDK messages as LangChain messages, part for part. */
-export function toLangChainMessages(messages: ModelMessage[]): BaseMessage[] {
-  return messages.map(message => {
-    if (message.role === 'user') {
-      if (typeof message.content === 'string') return new HumanMessage(message.content);
-      return new HumanMessage({
-        content: message.content.map(part => {
-          if (part.type === 'text') return { type: 'text', text: part.text };
-          if (part.type === 'file') {
-            return {
-              type: 'image_url',
-              image_url: { url: `data:${part.mediaType};base64,${base64(part.data)}` },
-            };
-          }
-          throw new Error(`unsupported user part: ${part.type}`);
-        }),
-      });
-    }
-    if (message.role === 'assistant') {
-      if (typeof message.content === 'string') return new AIMessage(message.content);
-      return new AIMessage({
-        content: message.content.map(part => {
-          if (part.type === 'text') return { type: 'text', text: part.text };
-          throw new Error(`unsupported assistant part: ${part.type}`);
-        }),
-      });
-    }
-    throw new Error(`unsupported message role: ${message.role}`);
-  });
-}
-
 function textOf(content: MessageContent): string {
   if (typeof content === 'string') return content;
   return content.flatMap(block => (block.type === 'text' ? [String(block.text)] : [])).join('');
@@ -129,17 +98,20 @@ export const REWRITE_NOTE =
   'you need to weigh goes in notes.';
 
 /** The tools as the model sees them: the names, descriptions and schemas `buildTools` produces. */
-async function toolDefinitions(tools: ToolSet) {
-  return Promise.all(
-    Object.entries(tools).map(async ([name, tool]) => ({
-      type: 'function' as const,
-      function: {
-        name,
-        ...(tool.description !== undefined ? { description: tool.description } : {}),
-        parameters: await asSchema(tool.inputSchema).jsonSchema,
-      },
-    })),
-  );
+function toolDefinitions(tools: ToolSet) {
+  return Object.entries(tools).map(([name, tool]) => ({
+    type: 'function' as const,
+    function: {
+      name,
+      ...(tool.description !== undefined ? { description: tool.description } : {}),
+      parameters: modelJsonSchema(inputSchemaOf(tool)),
+    },
+  }));
+}
+
+/** A tool's input schema. Every tool here is built with a Zod schema (specs/012, specs/036). */
+function inputSchemaOf(tool: ToolSet[string]): z.ZodType | undefined {
+  return tool.inputSchema as z.ZodType | undefined;
 }
 
 /** The standard usage field, which the default message structure types as absent. */
@@ -199,9 +171,9 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
   protected async generate(turn: PreparedTurn): Promise<Generated> {
     const { handle } = this;
     const { signal } = turn;
-    const schema = await asSchema(AgentReplyForModel).jsonSchema;
+    const schema = modelJsonSchema(AgentReplyForModel);
     const system = handle.systemMessage(turn.system);
-    const history = toLangChainMessages(turn.messages);
+    const history = turn.messages;
     const responses: AIMessage[] = [];
     const tools = turn.tools;
 
@@ -223,10 +195,7 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
     const graph = new StateGraph(TurnState)
       .addNode('model', async (state, config) => {
         if (!tools || !handle.model.bindTools) throw new Error('the model node needs tools');
-        const bound = handle.model.bindTools(
-          await toolDefinitions(tools),
-          handle.replyFormat(schema),
-        );
+        const bound = handle.model.bindTools(toolDefinitions(tools), handle.replyFormat(schema));
         const response = await call(bound, [system, ...history, ...state.steps], config);
         return (response.tool_calls ?? []).length > 0
           ? { steps: [response], calls: state.calls + 1 }
@@ -244,7 +213,7 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
       .addNode('reply', async (_state, config) => {
         // The reply step sees the staged note in place of its own tool calls,
         // as the AI SDK runner's last step did (specs/024).
-        const notice = tools ? toLangChainMessages([turn.replyNotice()]) : [];
+        const notice = tools ? [turn.replyNotice()] : [];
         const response = await call(
           handle.model.withConfig(handle.replyFormat(schema)),
           [system, ...history, ...notice],
@@ -281,17 +250,17 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
   protected async rewrite(turn: PreparedTurn): Promise<Generated> {
     const { handle } = this;
     const { signal } = turn;
-    const schema = await asSchema(AgentReplyForModel).jsonSchema;
+    const schema = modelJsonSchema(AgentReplyForModel);
     // The staged note, as the reply node sees it, so the rewrite knows what
     // already went out and does not offer it again.
-    const notice = turn.tools ? toLangChainMessages([turn.replyNotice()]) : [];
+    const notice = turn.tools ? [turn.replyNotice()] : [];
     const response = (await raceAbort(
       handle.model
         .withConfig(handle.replyFormat(schema))
         .invoke(
           [
             handle.systemMessage(turn.system),
-            ...toLangChainMessages(turn.messages),
+            ...turn.messages,
             ...notice,
             new HumanMessage(REWRITE_NOTE),
           ],
@@ -309,8 +278,9 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
    * One tool call, as `generateText` performs it: the input checked against the
    * tool's schema, then its `execute`. An unknown tool, input that fails the
    * schema and a tool that throws each answer the model with the error, in the
-   * AI SDK's own error text, and the loop goes on (specs/050 § The runner
-   * changes no behaviour a spec here fixes).
+   * text the AI SDK's error classes printed, now written here, and the loop
+   * goes on (specs/050 § The runner changes no behaviour a spec here fixes,
+   * specs/053 § Tools are LangChain tools, and the model sees the same bytes).
    */
   private async perform(
     tools: ToolSet,
@@ -322,26 +292,17 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
       new ToolMessage({ tool_call_id: id, name: toolCall.name, content, status });
     const tool = tools[toolCall.name];
     if (!tool?.execute) {
-      const unknown = new NoSuchToolError({
-        toolName: toolCall.name,
-        availableTools: Object.keys(tools),
-      });
-      return answer(String(unknown), 'error');
+      return answer(unknownToolText(toolCall.name, Object.keys(tools)), 'error');
     }
-    const schema = asSchema(tool.inputSchema);
-    const checked = schema.validate
-      ? await schema.validate(toolCall.args)
-      : { success: true as const, value: toolCall.args };
+    const schema = inputSchemaOf(tool);
+    const checked = schema
+      ? await schema.safeParseAsync(toolCall.args)
+      : { success: true as const, data: toolCall.args as unknown };
     if (!checked.success) {
-      const invalid = new InvalidToolInputError({
-        toolName: toolCall.name,
-        toolInput: JSON.stringify(toolCall.args),
-        cause: TypeValidationError.wrap({ value: toolCall.args, cause: checked.error }),
-      });
-      return answer(String(invalid), 'error');
+      return answer(invalidToolInputText(toolCall.name, toolCall.args, checked.error), 'error');
     }
     try {
-      const result: unknown = await tool.execute(checked.value, {
+      const result: unknown = await tool.execute(checked.data, {
         toolCallId: id,
         messages: [],
         context: undefined,

@@ -40,7 +40,8 @@ export interface AiSdkChatModelCallOptions extends BaseChatModelCallOptions {
 }
 
 export interface AiSdkChatModelSettings {
-  maxOutputTokens: number;
+  /** Unset leaves the provider's default, as a call without `maxOutputTokens` did. */
+  maxOutputTokens?: number | undefined;
   temperature?: number | undefined;
   providerOptions?: SharedV4ProviderOptions | undefined;
 }
@@ -72,7 +73,9 @@ export class AiSdkChatModel extends BaseChatModel<AiSdkChatModelCallOptions> {
   ): Promise<ChatResult> {
     const call: LanguageModelV4CallOptions = {
       prompt: toPrompt(messages),
-      maxOutputTokens: this.settings.maxOutputTokens,
+      ...(this.settings.maxOutputTokens !== undefined
+        ? { maxOutputTokens: this.settings.maxOutputTokens }
+        : {}),
       ...(this.settings.temperature !== undefined
         ? { temperature: this.settings.temperature }
         : {}),

@@ -89,6 +89,7 @@
     "fastify-type-provider-zod": "^7.0.0",
     "langsmith": "0.11.8",
     "manychat-sdk": "^0.1.0",
+    "openai": "^7.53.0",
     "pino": "^10.4.0",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"

@@ -16,8 +16,9 @@ import {
   readReturnedData,
   sameModelWarning,
 } from './judge.ts';
+import { JUDGE_SETTINGS } from './judge.ts';
 import type { Grade, GroupCalibration } from './judge.ts';
-import { resolveModel } from '../agent/registry.ts';
+import { resolveChatModelOnUse } from '../agent/registry.ts';
 import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
 import type { ActivePlaybook } from '../learning/playbook.ts';
 import type { Status } from './cases.ts';
@@ -104,7 +105,10 @@ export async function runEval(): Promise<void> {
   // groups that pass calibration grade anything (specs/016).
   const judgeSpec = env.EVAL_JUDGE_MODEL;
   const judge = judgeSpec
-    ? new Judge({ model: resolveModel(judgeSpec, 'EVAL_JUDGE_MODEL'), modelSpec: judgeSpec })
+    ? new Judge({
+        model: resolveChatModelOnUse(judgeSpec, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
+        modelSpec: judgeSpec,
+      })
     : undefined;
   let groups: Map<string, GroupCalibration> | undefined;
 

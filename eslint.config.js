@@ -15,6 +15,8 @@ export const PROVIDER_PACKAGES = [
   '@langchain/openai',
   '@langchain/google-genai',
   'langchain/chat_models/universal',
+  // The transcription client (specs/053 § C2's import list names the transcription client).
+  'openai',
 ];
 
 export default tseslint.config(

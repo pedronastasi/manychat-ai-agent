@@ -1,10 +1,12 @@
-import { generateText, NoObjectGeneratedError, Output, type LanguageModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import { AnalystOutput } from '../contracts/learning.ts';
 import type { OutcomeLabel } from '../contracts/learning.ts';
 import { cleanText } from '../agent/contact.ts';
 import { fenceUserText, FENCE, FENCE_END } from '../agent/fence.ts';
 import { describeAction } from '../agent/tools.ts';
-import { estimateCostUsd } from '../agent/registry.ts';
+import { chatModelFromAiSdk, estimateCostUsd } from '../agent/registry.ts';
+import type { ChatModelHandle } from '../agent/registry.ts';
+import { generateObject, NoObjectGeneratedError } from '../agent/structured.ts';
 import { MAX_INSIGHT_LENGTH, MAX_PROPOSALS_PER_RUN, MAX_RATIONALE_LENGTH } from './proposals.ts';
 import type { TranscriptTurn } from './cohort.ts';
 
@@ -148,11 +150,20 @@ export interface AnalystResult {
  * `AnalystOutput` (C3).
  */
 export class Analyst {
-  private readonly model: LanguageModel;
+  private readonly handle: ChatModelHandle;
   private readonly modelSpec: string;
 
-  constructor(opts: { model: LanguageModel; modelSpec: string }) {
-    this.model = opts.model;
+  /**
+   * `model` is the chat model `resolveChatModel` builds with
+   * `ANALYST_SETTINGS`, or an AI SDK model (`mock:`, a test fake) to wrap
+   * until specs/053's step 3.
+   */
+  constructor(opts: { model: ChatModelHandle | LanguageModel; modelSpec: string }) {
+    const { model } = opts;
+    this.handle =
+      typeof model === 'object' && 'replyFormat' in model
+        ? model
+        : chatModelFromAiSdk(model, opts.modelSpec, ANALYST_SETTINGS);
     this.modelSpec = opts.modelSpec;
   }
 
@@ -161,36 +172,18 @@ export class Analyst {
   }
 
   async propose(input: AnalystInput, signal?: AbortSignal): Promise<AnalystResult> {
-    let usage = { inputTokens: 0, outputTokens: 0 };
     try {
-      const result = await generateText({
-        model: this.model,
-        output: Output.object({ schema: AnalystOutput }),
+      // Transcripts are contact text, and no trace is ever opened here (C5).
+      const { output, usage } = await generateObject(this.handle, AnalystOutput, {
         system: analystInstructions(input.language),
-        messages: [{ role: 'user', content: analystMessage(input) }],
-        maxOutputTokens: ANALYST_MAX_OUTPUT_TOKENS,
-        ...(signal ? { abortSignal: signal } : {}),
-        // Transcripts are contact text: never in a trace (C5).
-        telemetry: { functionId: 'learning-analyst', recordInputs: false, recordOutputs: false },
+        user: analystMessage(input),
+        signal,
       });
-      usage = {
-        inputTokens: result.usage.inputTokens ?? 0,
-        outputTokens: result.usage.outputTokens ?? 0,
-      };
-      const parsed = AnalystOutput.safeParse(result.output);
-      return {
-        output: parsed.success ? parsed.data : undefined,
-        costUsd: estimateCostUsd(this.modelSpec, usage),
-        ...(parsed.success ? {} : { error: 'InvalidOutput' }),
-      };
+      return { output, costUsd: estimateCostUsd(this.modelSpec, billed(usage)) };
     } catch (error) {
-      // Output that fails the schema was still paid for.
-      if (NoObjectGeneratedError.isInstance(error) && error.usage) {
-        usage = {
-          inputTokens: error.usage.inputTokens ?? 0,
-          outputTokens: error.usage.outputTokens ?? 0,
-        };
-      }
+      // Output that is not JSON or fails the schema was still paid for
+      // (specs/053 § The judges and the analyst validate their own output).
+      const usage = error instanceof NoObjectGeneratedError ? billed(error.usage) : {};
       return {
         output: undefined,
         costUsd: estimateCostUsd(this.modelSpec, usage),
@@ -198,4 +191,12 @@ export class Analyst {
       };
     }
   }
+}
+
+/** What the analyst asks the model for: its output cap, and the provider's temperature. */
+export const ANALYST_SETTINGS = { maxOutputTokens: ANALYST_MAX_OUTPUT_TOKENS } as const;
+
+/** Input and output tokens, as the analyst has always billed them. */
+function billed(usage: { inputTokens: number | undefined; outputTokens: number | undefined }) {
+  return { inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0 };
 }
