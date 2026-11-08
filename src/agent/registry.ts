@@ -9,7 +9,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { SystemMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { JSONSchema7 } from '@ai-sdk/provider';
+import type { ModelJsonSchema } from './model-schema.ts';
 import { createMockModel } from './mock-provider.ts';
 import { AiSdkChatModel, aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
 
@@ -189,8 +189,10 @@ export function resolveTranscriptionModel(spec: string): TranscriptionModel {
 
 /** What the LangChain runner is configured with (specs/050). */
 export interface ChatModelSettings {
-  maxOutputTokens: number;
-  temperature: number;
+  /** Unset leaves the provider's default: the judges set none (specs/053). */
+  maxOutputTokens?: number | undefined;
+  /** Unset leaves the provider's default: the judges and analyst set none (specs/053). */
+  temperature?: number | undefined;
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | undefined;
 }
 
@@ -202,7 +204,7 @@ export interface ChatModelSettings {
 export interface ChatModelHandle {
   model: BaseChatModel;
   /** Per-call options asking for the reply as JSON matching `schema`, the provider's way. */
-  replyFormat(schema: JSONSchema7): Record<string, unknown>;
+  replyFormat(schema: ModelJsonSchema): Record<string, unknown>;
   /** The system prompt, carrying the provider's cache breakpoint. */
   systemMessage(text: string): SystemMessage;
 }
@@ -226,7 +228,10 @@ export function chatModelFromAiSdk(
   return {
     model: new AiSdkChatModel(model, {
       maxOutputTokens: settings.maxOutputTokens,
-      temperature: supportsTemperature(modelSpec) ? settings.temperature : undefined,
+      temperature:
+        supportsTemperature(modelSpec) && settings.temperature !== undefined
+          ? settings.temperature
+          : undefined,
       providerOptions: aiSdkProviderOptions(settings.reasoningEffort),
     }),
     replyFormat: schema => ({ responseFormat: { type: 'json', schema } }),
@@ -257,7 +262,7 @@ class AbortableGemini extends ChatGoogleGenerativeAI {
 }
 
 /** OpenAI's structured output, strict as the AI SDK's `strictJsonSchema` default. */
-function openAiReplyFormat(schema: JSONSchema7): Record<string, unknown> {
+function openAiReplyFormat(schema: ModelJsonSchema): Record<string, unknown> {
   return {
     response_format: { type: 'json_schema', json_schema: { name: 'reply', schema, strict: true } },
   };
@@ -278,7 +283,12 @@ export function resolveChatModel(
   const separator = spec.indexOf(':');
   const provider = separator > 0 ? spec.slice(0, separator) : '';
   const model = spec.slice(separator + 1);
-  const temperature = supportsTemperature(spec) ? { temperature: settings.temperature } : {};
+  const temperature =
+    supportsTemperature(spec) && settings.temperature !== undefined
+      ? { temperature: settings.temperature }
+      : {};
+  const maxTokens = (key: 'maxTokens' | 'maxOutputTokens') =>
+    settings.maxOutputTokens !== undefined ? { [key]: settings.maxOutputTokens } : {};
   const plainSystem = (text: string) => new SystemMessage(text);
   try {
     switch (provider) {
@@ -289,7 +299,7 @@ export function resolveChatModel(
           model: new ChatAnthropic({
             model,
             maxRetries: CHAT_MODEL_MAX_RETRIES,
-            maxTokens: settings.maxOutputTokens,
+            ...maxTokens('maxTokens'),
             ...temperature,
           }),
           replyFormat: schema => ({ outputConfig: { format: { type: 'json_schema', schema } } }),
@@ -304,7 +314,7 @@ export function resolveChatModel(
           model: new ChatOpenAI({
             model,
             maxRetries: CHAT_MODEL_MAX_RETRIES,
-            maxTokens: settings.maxOutputTokens,
+            ...maxTokens('maxTokens'),
             // The AI SDK's `openai(model)` is the Responses API.
             useResponsesApi: true,
             ...temperature,
@@ -323,7 +333,7 @@ export function resolveChatModel(
           model: new AbortableGemini({
             model,
             maxRetries: CHAT_MODEL_MAX_RETRIES,
-            maxOutputTokens: settings.maxOutputTokens,
+            ...maxTokens('maxOutputTokens'),
             ...temperature,
           }),
           replyFormat: schema => ({ responseSchema: schema }),
