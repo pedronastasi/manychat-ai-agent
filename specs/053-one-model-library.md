@@ -9,9 +9,11 @@ adr: [0026, 0030]
 Defines how the TypeScript service stops depending on the Vercel AI SDK
 (ADR-0030): what replaces each remaining use of `ai` and `@ai-sdk/*`, what the
 public `manychat-ai-agent/testing` export becomes, and the order the change
-ships in. It leaves out the turn runner, which `050` already moved; the Python
-implementation (`026`); and any new behaviour. Nothing a customer sees changes; the one change an
-operator sees is § Google transcription is dropped.
+ships in. It leaves out the turn runner's graph and model calls, which `050`
+already moved (the AI SDK types and helpers the runner still imports are in
+scope); the Python implementation (`026`); and any new behaviour. Nothing a
+customer sees changes; the one change an operator sees is § Google
+transcription is dropped.
 
 ## Rejected: keep the AI SDK wherever LangChain.js has no counterpart
 
@@ -36,15 +38,16 @@ explicitly and tested.
 
 ## What moves, and to what
 
-| Use today                                                                                                         | Files                                                                               | Becomes                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Provider resolution: `createProviderRegistry`                                                                     | `src/agent/registry.ts`                                                             | The chat model classes `050 § The registry builds each chat model by its class` already constructs |
-| Tool definitions: `tool()`, `ToolSet`, `asSchema`                                                                 | `src/agent/tools/*.ts`, `src/plugins/plugins.ts`, the runner                        | `tool()` from `@langchain/core/tools` (§ Tools are LangChain tools)                                |
-| Transcription: `transcribe()`, `TranscriptionModel`                                                               | `src/agent/transcriber.ts`, `src/server.ts`                                         | A port the registry implements (§ Transcription is a port)                                         |
-| Judges and analyst: `generateText` + `Output`                                                                     | `src/evals/judge.ts`, `src/evals/conversations/judge.ts`, `src/learning/analyst.ts` | `withStructuredOutput`, re-parsed by us (§ The judges and the analyst validate their own output)   |
-| The mock provider and `AiSdkChatModel`                                                                            | `src/agent/mock-provider.ts`, `src/agent/ai-sdk-chat-model.ts`                      | One LangChain.js chat model; the adapter is deleted (§ The mock and every fake)                    |
-| Public test helpers                                                                                               | `src/testing/model.ts`, `src/testing/index.ts`                                      | § The testing export changes shape once                                                            |
-| Error classes: `NoSuchToolError`, `InvalidToolInputError`, `NoObjectGeneratedError`, `NoTranscriptGeneratedError` | runner, analyst, transcriber                                                        | Our own checks; the text the model sees is § Tools are LangChain tools' concern                    |
+| Use today                                                                                                                                                                                          | Files                                                                                                                                          | Becomes                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider resolution: `createProviderRegistry`                                                                                                                                                      | `src/agent/registry.ts`                                                                                                                        | The chat model classes `050 § The registry builds each chat model by its class` already constructs                                     |
+| Tool definitions: `tool()`, `ToolSet`, `asSchema` (tool inputs and the reply schema `AgentReplyForModel`)                                                                                          | `src/agent/tools/*.ts`, `src/plugins/plugins.ts`, the runner                                                                                   | `tool()` from `@langchain/core/tools` (§ Tools are LangChain tools)                                                                    |
+| Runner types: `ModelMessage`, `LanguageModel`                                                                                                                                                      | `src/agent/runner.ts` (history, nudge and reply-notice messages; `PreparedTurn.messages`; the `model` option), `src/agent/langgraph-runner.ts` | LangChain.js messages, so `toLangChainMessages` goes; the `model` option becomes the LangChain.js chat model in step 3, with the fakes |
+| Transcription: `transcribe()`, `TranscriptionModel`                                                                                                                                                | `src/agent/transcriber.ts`, `src/server.ts`                                                                                                    | A port the registry implements (§ Transcription is a port)                                                                             |
+| Judges and analyst: `generateText` + `Output`                                                                                                                                                      | `src/evals/judge.ts`, `src/evals/conversations/judge.ts`, `src/learning/analyst.ts`                                                            | `withStructuredOutput`, re-parsed by us (§ The judges and the analyst validate their own output)                                       |
+| The mock provider and `AiSdkChatModel`                                                                                                                                                             | `src/agent/mock-provider.ts`, `src/agent/ai-sdk-chat-model.ts`                                                                                 | One LangChain.js chat model; the adapter is deleted (§ The mock and every fake)                                                        |
+| Public test helpers                                                                                                                                                                                | `src/testing/model.ts`, `src/testing/index.ts`                                                                                                 | § The testing export changes shape once                                                                                                |
+| Error classes: `NoSuchToolError`, `InvalidToolInputError`, `NoObjectGeneratedError`, `NoTranscriptGeneratedError`, `TypeValidationError` (its `wrap` text is part of today's invalid-input answer) | runner, analyst, transcriber                                                                                                                   | Our own checks; the text the model sees is § Tools are LangChain tools' concern                                                        |
 
 ## Tools are LangChain tools, and the model sees the same bytes
 
@@ -53,7 +56,9 @@ Built-in tools, plugin read tools and plugin write tools are built with
 description and JSON schema each tool presents to the model are the ones
 `buildTools` produces today, byte for byte: the schema is derived from the same
 Zod object, and a difference in how the two libraries convert Zod to JSON
-Schema is a finding, not an accepted drift.
+Schema is a finding, not an accepted drift. The same holds for the reply: the
+JSON schema the runner derives from `AgentReplyForModel` for the structured
+reply, which every customer reply is shaped by, stays byte for byte as today.
 
 `050 § The graph has three nodes` keeps its error behaviour: a call to a tool
 the turn did not offer, input that fails the tool's schema, and a tool that
@@ -191,8 +196,9 @@ a stray import fails lint before it fails install.
 
 ## The order it ships in
 
-1. Tools, judges, analyst and `openai:`/`ollama:` transcription move, still
-   behind the old public types where a test helper needs them; `google:`
+1. Tools, the reply schema, the runner's messages and error text, judges,
+   analyst and `openai:`/`ollama:` transcription move, still behind the old
+   public types where a test helper needs them; `google:`
    transcription stays on the AI SDK. Each step passes CI's chain on its own.
 2. The mock is rewritten, and `pnpm eval:mock` is compared case for case.
 3. The fakes, `AiSdkChatModel` and the public types change, `ai` and
@@ -208,9 +214,10 @@ breaking release, and the only one a tenant project has to act on.
   `@ai-sdk/`.
 - **C2**: the existing import-rule test lists `openai` and not `@ai-sdk/*`;
   lint fails on `openai` imported outside `registry.ts`.
-- **Tool bytes**: a snapshot of the tools bound to the model, taken from
-  `buildTools` with every built-in and a fixture plugin, is recorded before
-  step 1 and asserted equal after.
+- **Tool and reply schema bytes**: a snapshot of the tools bound to the model,
+  taken from `buildTools` with every built-in and a fixture plugin, and of the
+  JSON schema of `AgentReplyForModel` the runner sends for the reply, is
+  recorded before step 1 and asserted equal after.
 - **Tool errors**: an unknown tool, invalid input and a throwing tool each
   answer the model with today's text, and the turn goes on (`050`'s existing
   tests, unchanged in what they assert).
