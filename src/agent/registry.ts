@@ -384,6 +384,9 @@ export function resolveChatModel(
         return {
           model: new AbortableGemini({
             model,
+            // The key this repository documents (.env.example), which the AI
+            // SDK read; LangChain's own names still work when it is unset.
+            ...googleApiKey(),
             maxRetries: CHAT_MODEL_MAX_RETRIES,
             ...maxTokens('maxOutputTokens'),
             ...temperature,
@@ -397,4 +400,44 @@ export function resolveChatModel(
   } catch (cause) {
     throw new UnknownProviderError(spec, cause, variable);
   }
+}
+
+/**
+ * `GOOGLE_GENERATIVE_AI_API_KEY` as the Gemini key, when set. Unset, LangChain
+ * reads its own `GOOGLE_API_KEY` or `GEMINI_API_KEY`.
+ */
+function googleApiKey(): { apiKey: string } | Record<string, never> {
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  return key ? { apiKey: key } : {};
+}
+
+const CHAT_PROVIDERS = new Set(['mock', 'anthropic', 'openai', 'ollama', 'google']);
+
+/**
+ * `resolveChatModel` for the judges and the analyst, which `resolveModel`
+ * served before specs/053: the provider is checked now, so a typo fails boot,
+ * but the chat model is built on first use. LangChain's provider classes throw
+ * in their constructors when the key is missing, where the AI SDK read it only
+ * when a request went out; building it here would stop a service that boots
+ * on `main` (specs/053 § The judges and the analyst validate their own output).
+ */
+export function resolveChatModelOnUse(
+  spec: string,
+  settings: ChatModelSettings,
+  variable: string,
+): ChatModelHandle {
+  const separator = spec.indexOf(':');
+  const provider = separator > 0 ? spec.slice(0, separator) : '';
+  if (!CHAT_PROVIDERS.has(provider) || separator === spec.length - 1) {
+    throw new UnknownProviderError(spec, new Error(`unknown provider '${provider}'`), variable);
+  }
+  let built: ChatModelHandle | undefined;
+  const handle = () => (built ??= resolveChatModel(spec, settings, variable));
+  return {
+    get model() {
+      return handle().model;
+    },
+    replyFormat: schema => handle().replyFormat(schema),
+    systemMessage: text => handle().systemMessage(text),
+  };
 }

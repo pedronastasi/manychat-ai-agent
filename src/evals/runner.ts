@@ -18,7 +18,7 @@ import {
 } from './judge.ts';
 import { JUDGE_SETTINGS } from './judge.ts';
 import type { Grade, GroupCalibration } from './judge.ts';
-import { resolveChatModel } from '../agent/registry.ts';
+import { resolveChatModelOnUse } from '../agent/registry.ts';
 import { isRealModel, NO_PLAYBOOK } from '../learning/gate.ts';
 import type { ActivePlaybook } from '../learning/playbook.ts';
 import type { Status } from './cases.ts';
@@ -106,7 +106,7 @@ export async function runEval(): Promise<void> {
   const judgeSpec = env.EVAL_JUDGE_MODEL;
   const judge = judgeSpec
     ? new Judge({
-        model: resolveChatModel(judgeSpec, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
+        model: resolveChatModelOnUse(judgeSpec, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
         modelSpec: judgeSpec,
       })
     : undefined;

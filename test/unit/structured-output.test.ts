@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
-import { Analyst } from '../../src/learning/analyst.ts';
+import { Analyst, ANALYST_SETTINGS } from '../../src/learning/analyst.ts';
 import type { AnalystInput } from '../../src/learning/analyst.ts';
-import { Judge } from '../../src/evals/judge.ts';
-import { estimateCostUsd } from '../../src/agent/registry.ts';
+import { Judge, JUDGE_SETTINGS } from '../../src/evals/judge.ts';
+import {
+  estimateCostUsd,
+  resolveChatModel,
+  resolveChatModelOnUse,
+  UnknownProviderError,
+} from '../../src/agent/registry.ts';
 
 /**
  * specs/053-one-model-library.md § Verification, Structured output: the
@@ -87,5 +92,52 @@ describe('a judge counts an unparseable answer as one invalid, unbilled sample (
     });
     expect(grade).toMatchObject({ outcome: 'pass' });
     expect(judge.costUsd).toBeCloseTo(2 * ONE_CALL, 12);
+  });
+});
+
+describe('the judges and the analyst build their model on first use, as before (specs/053 V9)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('boots with no key, and fails the analyst’s first run instead', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    const handle = resolveChatModelOnUse(SPEC, ANALYST_SETTINGS, 'INSIGHT_MODEL');
+    const result = await new Analyst({ model: handle, modelSpec: SPEC }).propose(input);
+    expect(result.output).toBeUndefined();
+    expect(result.error).toBe('UnknownProviderError');
+  });
+
+  it('grades nothing, rather than stopping the run, when the judge has no key', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    const judge = new Judge({
+      model: resolveChatModelOnUse(SPEC, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
+      modelSpec: SPEC,
+    });
+    expect(
+      await judge.grade({
+        criterion: 'warm',
+        history: [],
+        text: 'hi',
+        reply: ['Hello, happy to help.'],
+        agentPrompt: 'An invented front desk.',
+      }),
+    ).toEqual({ outcome: 'ungraded', split: false });
+  });
+
+  it('still fails boot on a provider it does not know, naming the variable', () => {
+    expect(() => resolveChatModelOnUse('typo:model', ANALYST_SETTINGS, 'INSIGHT_MODEL')).toThrow(
+      UnknownProviderError,
+    );
+    expect(() => resolveChatModelOnUse('typo:model', ANALYST_SETTINGS, 'INSIGHT_MODEL')).toThrow(
+      /INSIGHT_MODEL/,
+    );
+  });
+
+  it('builds Gemini from GOOGLE_GENERATIVE_AI_API_KEY, the key .env.example documents', () => {
+    vi.stubEnv('GOOGLE_API_KEY', '');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'invented-key-for-tests');
+    expect(() => resolveChatModel('google:gemini-2.5-flash', JUDGE_SETTINGS)).not.toThrow();
   });
 });

@@ -2,7 +2,7 @@ import { createInterface } from 'node:readline/promises';
 import { loadEnv, loadTenantConfig, reservedNames } from '../config/loader.ts';
 import { evalDir, suiteHash } from '../evals/cases.ts';
 import { manychatClientFor } from '../channels/manychat/client.ts';
-import { resolveChatModel } from '../agent/registry.ts';
+import { resolveChatModelOnUse } from '../agent/registry.ts';
 import { openDatabase } from './database.ts';
 import { Analyst, ANALYST_SETTINGS } from './analyst.ts';
 import { LearningJob } from './job.ts';
@@ -64,7 +64,7 @@ export async function runInsights(args: readonly string[]): Promise<number> {
         config: () => config,
         contacts: manychatClientFor(env),
         analyst: new Analyst({
-          model: resolveChatModel(env.INSIGHT_MODEL, ANALYST_SETTINGS, 'INSIGHT_MODEL'),
+          model: resolveChatModelOnUse(env.INSIGHT_MODEL, ANALYST_SETTINGS, 'INSIGHT_MODEL'),
           modelSpec: env.INSIGHT_MODEL,
         }),
         logger: cliLogger,

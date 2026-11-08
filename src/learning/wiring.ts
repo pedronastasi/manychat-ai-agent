@@ -2,7 +2,7 @@ import type { Env } from '../contracts/config.ts';
 import type { Database } from '../db/client.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import type { ContactReader } from '../channels/manychat/client.ts';
-import { resolveChatModel } from '../agent/registry.ts';
+import { resolveChatModelOnUse } from '../agent/registry.ts';
 import { Analyst, ANALYST_SETTINGS } from './analyst.ts';
 import { LearningJob } from './job.ts';
 import type { LearningLogger } from './job.ts';
@@ -43,7 +43,7 @@ export async function startLearning(opts: {
   const stopRefresh = opts.playbook?.start();
   const analyst = env.INSIGHT_MODEL
     ? new Analyst({
-        model: resolveChatModel(env.INSIGHT_MODEL, ANALYST_SETTINGS, 'INSIGHT_MODEL'),
+        model: resolveChatModelOnUse(env.INSIGHT_MODEL, ANALYST_SETTINGS, 'INSIGHT_MODEL'),
         modelSpec: env.INSIGHT_MODEL,
       })
     : undefined;

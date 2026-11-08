@@ -32,7 +32,7 @@ import {
   loadConversationCalibration,
 } from './judge.ts';
 import { gate, GateReport, loadReviews } from './gate.ts';
-import { acceptsImages, resolveChatModel } from '../../agent/registry.ts';
+import { acceptsImages, resolveChatModelOnUse } from '../../agent/registry.ts';
 import { detectFfmpeg, FfmpegVideoSplitter } from '../../media/ffmpeg.ts';
 
 /** Where reports go unless `EVAL_ARTIFACTS_DIR` says otherwise. Gitignored. */
@@ -184,7 +184,7 @@ export async function runConversations(args: string[]): Promise<number> {
   let judge;
   if (env.EVAL_JUDGE_MODEL) {
     const conversationJudge = new ConversationJudge({
-      model: resolveChatModel(env.EVAL_JUDGE_MODEL, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
+      model: resolveChatModelOnUse(env.EVAL_JUDGE_MODEL, JUDGE_SETTINGS, 'EVAL_JUDGE_MODEL'),
       modelSpec: env.EVAL_JUDGE_MODEL,
     });
     const warning = sameModelWarning(conversationJudge.modelSpec, env.AGENT_MODEL);

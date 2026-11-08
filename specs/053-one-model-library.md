@@ -168,6 +168,18 @@ The judge sets no output cap and no temperature, and the analyst only its
 4000-token cap, as their `generateText` calls did; `ChatModelSettings` leaves
 an unset value to the provider's default.
 
+Their chat model is built on first use (`resolveChatModelOnUse`), and only the
+provider is checked at boot. LangChain's Anthropic and Google classes throw in
+their constructors when the key is missing, where the AI SDK read it when a
+request went out. Building the model at boot would stop a service that starts
+on `main` with `INSIGHT_MODEL` set and no key; built on first use, that run
+fails and records its error, as before, and a provider typo still fails boot.
+
+The Gemini model reads `GOOGLE_GENERATIVE_AI_API_KEY`, the key `.env.example`
+documents and the AI SDK read, before LangChain's own `GOOGLE_API_KEY` and
+`GEMINI_API_KEY`. This also corrects `AGENT_MODEL=google:…`, which since `050`
+had ignored the documented key.
+
 The result is not trusted to the method. Each caller parses the text as JSON
 and validates it with its own Zod schema (`AnalystOutput`, the judge's
 verdict), and each keeps what it does today when that fails:
@@ -276,7 +288,10 @@ breaking release, and the only one a tenant project has to act on.
   fails `AnalystOutput`, gives the analyst `error: 'NoObjectGeneratedError'`
   and a cost from the raw message's counts. For a judge, the same fake gives
   one invalid sample, the majority of the other two still grades, and the
-  judge's `costUsd` does not grow for the invalid one.
+  judge's `costUsd` does not grow for the invalid one. With no key, the
+  analyst's run fails and a judge grades nothing, while boot succeeds; an
+  unknown provider fails boot; and Gemini is built from
+  `GOOGLE_GENERATIVE_AI_API_KEY`.
 - **The mock**: CI's four `pnpm eval:mock` runs, including `mock:judge`,
   before and after the rewrite, with the same outcome per case, recorded in
   the pull request.
