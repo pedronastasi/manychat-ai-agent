@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.35.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.34.0...v0.35.0) (2026-11-08)
+
+
+### Features
+
+* transcribe openai: and ollama: through the openai client (spec 053) ([deca684](https://github.com/pedronastasi/manychat-ai-agent/commit/deca68471725d2a21738ed4c84867652e5c7e4e2))
+* transcribe openai: and ollama: through the openai client (spec 053) ([1d9b281](https://github.com/pedronastasi/manychat-ai-agent/commit/1d9b2811c7eee5bfd2a47f24b7f78eefb0816e9e))
+
+
+### Bug Fixes
+
+* build the judges' and analyst's model on first use, and read the documented Gemini key (spec 053) ([f8bac56](https://github.com/pedronastasi/manychat-ai-agent/commit/f8bac56471a040c25331c9fd89bf403bad21a515))
+* **deps:** update patch dependencies ([0c7378f](https://github.com/pedronastasi/manychat-ai-agent/commit/0c7378f4941a154bf65fb52497a55b17cab506f3))
+* **deps:** update patch dependencies ([3e3adc5](https://github.com/pedronastasi/manychat-ai-agent/commit/3e3adc5619ad4db82327b0c70a75ad0fcfeef3e6))
+
+
+### Refactors
+
+* the judges and the analyst call the registry's LangChain model (spec 053) ([a531b3e](https://github.com/pedronastasi/manychat-ai-agent/commit/a531b3e273828e124a085f1ebbbbfa8010232a34))
+* the runner builds LangChain messages and its own tool schemas and error text (spec 053) ([d0fd8b5](https://github.com/pedronastasi/manychat-ai-agent/commit/d0fd8b5f72e59357b52929296d0c3beeeeca87a7))
+
+
+### Specs and Docs
+
+* amend spec 053 to what step 1 does, and point 050 and CLAUDE.md at it ([19ddc83](https://github.com/pedronastasi/manychat-ai-agent/commit/19ddc83b8ed24941c788b1da43fa8b9d5b04f2cd))
+* bring the runner's remaining AI SDK imports into specs/053 ([41f1612](https://github.com/pedronastasi/manychat-ai-agent/commit/41f1612a1f9f02f97f199b46243f65a12dffcce6))
+* ground ADR-0030 in the Python implementation, not an overstated C7 cost ([fa2fb8d](https://github.com/pedronastasi/manychat-ai-agent/commit/fa2fb8d11b0c64d071032787631ab6a2a8612d07))
+* keep Ollama transcription, drop Google's as breaking (specs/053) ([340a700](https://github.com/pedronastasi/manychat-ai-agent/commit/340a70011ef9ac6fb0b38e00cee14801ffc6317c))
+* keep the judges' and analyst's parse-failure behaviour in specs/053 ([c9eb4ab](https://github.com/pedronastasi/manychat-ai-agent/commit/c9eb4ab7e1ccb44d5930c56c4510dbd41194b222))
+* make openai a direct dependency in specs/053 ([0c75c65](https://github.com/pedronastasi/manychat-ai-agent/commit/0c75c659d29e5f0c0b95ef73747bae0c40b2f722))
+* name the registry's remaining AI SDK types in specs/053 ([7782f00](https://github.com/pedronastasi/manychat-ai-agent/commit/7782f001ad3a4b780c9b39e33400747643ed8717))
+* specify removing the AI SDK entirely (specs/053, ADR-0030) ([43a66df](https://github.com/pedronastasi/manychat-ai-agent/commit/43a66df3530aafdc2d2b00aef0945a2278bf365e))
+* specify removing the AI SDK entirely (specs/053, ADR-0030) ([165a772](https://github.com/pedronastasi/manychat-ai-agent/commit/165a7729bd1501ec2a17f4633bf000897f2705d5))
+
+
+### Dependencies
+
+* **deps:** update minor dependencies ([6a90146](https://github.com/pedronastasi/manychat-ai-agent/commit/6a90146a0e6fe7f87279a5f3c24a03f515fdc6d9))
+* **deps:** update minor dependencies ([a6b4d0e](https://github.com/pedronastasi/manychat-ai-agent/commit/a6b4d0e723bd198ca92e6997099ab3f52176004b))
+* **deps:** update pnpm to v12.18.0 ([6a99410](https://github.com/pedronastasi/manychat-ai-agent/commit/6a99410f94c71979e436106a10fb39ea148be4bf))
+* **deps:** update pnpm to v12.18.0 ([b05fa5d](https://github.com/pedronastasi/manychat-ai-agent/commit/b05fa5d0f4cc700bc0422fdd5ebcff51c4baec20))
+
 ## [0.34.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.33.1...v0.34.0) (2026-11-06)
 
 
