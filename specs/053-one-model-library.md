@@ -200,9 +200,13 @@ same registry.
 
 ## The mock and every fake are LangChain chat models
 
-`mock:` resolves to one `BaseChatModel` that answers as today's mock provider
-does: same canned replies, same tool calls, same reported counts, for the same
-inputs. `AiSdkChatModel` is deleted with the provider it adapted.
+`mock:` resolves to one `BaseChatModel` (`MockChatModel`,
+`src/agent/mock-provider.ts`) that answers as the AI SDK mock did: same canned
+replies, same tool calls, same reported counts, for the same inputs. Its
+decisions are unchanged; they read a `MockRequest` of its own, built from the
+turn's LangChain messages and bound tools the way `AiSdkChatModel` built the
+AI SDK prompt, so they see what they saw before. `AiSdkChatModel` stays until
+step 3, for the test fakes; it is deleted with them.
 
 The check is the one `050` used, now against the rewrite: `pnpm eval:mock`
 gives the same outcome, case for case, on each of CI's four `eval:mock` runs,
@@ -210,6 +214,12 @@ before and after. One of them sets `EVAL_JUDGE_MODEL=mock:judge`, the only run
 that drives the mock's judge path through the structured output this spec
 moves; calibration must still refuse that judge (`016`). The pull request that
 deletes the old mock records all four.
+
+Recorded on 2026-11-08, step 2: the full output of each run on `main` and on
+the rewrite, timings removed, is identical, every verdict, staged action and
+line of reply text included (golden 34 passed, 21 to review, $0.4080; the
+`mock:judge` run 134 ungraded, judge $0.1350; repair and prompt overrides 4 to
+review each).
 
 Tests still fake only the model and the ManyChat boundary (`004`). A fake is a
 LangChain.js chat model that honours its contract: it reports
@@ -250,6 +260,7 @@ a stray import fails lint before it fails install.
    definitions and `google:` transcription stay on the AI SDK. Each step
    passes CI's chain on its own.
 2. The mock is rewritten, and `pnpm eval:mock` is compared case for case.
+   `resolveModel` stops resolving `mock:`; nothing called it for that.
 3. The tool definitions, the fakes, `AiSdkChatModel` and the public types
    change, `resolveModel` and `google:` transcription go, `ai` and `@ai-sdk/*`
    leave `package.json`, and the release is cut as breaking.

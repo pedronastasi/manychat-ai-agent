@@ -65,7 +65,7 @@ test fails the suite.
 | [050 — LangChain Runner Parity](050-langchain-runner-parity.md)                                                            | implemented | 2026-10-23  | #263 | 17    | C1, C2, C3, C4, C5, C6, C7, C8     | [0026], [0027], [0025], [0001], [0010], [0016], [0019]                                 |
 | [051 — Grounded Claims](051-grounded-claims.md)                                                                            | implemented | 2026-10-23  | #266 | 2     | C1, C3, C6, C8, C9                 | [0011]                                                                                 |
 | [052 — Traces Carry Shape, Not Text](052-traces-carry-shape-not-text.md)                                                   | implemented | 2026-10-30  | #285 | 5     | C1, C5, C6, C7                     | [0014], [0028], [0029]                                                                 |
-| [053 — One Model Library](053-one-model-library.md)                                                                        | specified   | —           | —    | 5     | C2, C3, C7, C8                     | [0026], [0030]                                                                         |
+| [053 — One Model Library](053-one-model-library.md)                                                                        | specified   | —           | —    | 7     | C2, C3, C7, C8                     | [0026], [0030]                                                                         |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
