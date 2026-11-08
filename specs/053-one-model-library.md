@@ -10,7 +10,8 @@ Defines how the TypeScript service stops depending on the Vercel AI SDK
 (ADR-0030): what replaces each remaining use of `ai` and `@ai-sdk/*`, what the
 public `manychat-ai-agent/testing` export becomes, and the order the change
 ships in. It leaves out the turn runner, which `050` already moved; the Python
-implementation (`026`); and any new behaviour. Nothing a customer sees changes.
+implementation (`026`); and any new behaviour. Nothing a customer sees changes; the one change an
+operator sees is § Google transcription is dropped.
 
 ## Rejected: keep the AI SDK wherever LangChain.js has no counterpart
 
@@ -68,9 +69,14 @@ plugin API does not change.
 LangChain.js has no transcription model. The `Transcriber` port in
 `src/media/port.ts` stays as it is; what changes is behind it.
 `resolveTranscriptionModel` in `registry.ts` returns a `Transcriber` built on
-the `openai` package's `audio.transcriptions.create`. A `TRANSCRIPTION_MODEL`
-whose provider has no transcriber here (Anthropic, Google, Ollama) fails boot
-with `UnknownProviderError` naming `TRANSCRIPTION_MODEL`, as it does now.
+the `openai` package's `audio.transcriptions.create`, for two providers:
+
+| Provider     | Today (AI SDK)                                                                  | After                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `openai:`    | `@ai-sdk/openai` `transcription()`                                              | The `openai` client                                                                                                  |
+| `ollama:`    | `createOpenAI` at `OLLAMA_BASE_URL`                                             | The same `openai` client, constructed with `baseURL: OLLAMA_BASE_URL`, as `050`'s registry points `ChatOpenAI` there |
+| `google:`    | `@ai-sdk/google` `transcriptionModel()`, which calls Gemini's transcription API | **Dropped.** Fails boot with `UnknownProviderError` naming `TRANSCRIPTION_MODEL` (§ Google transcription is dropped) |
+| `anthropic:` | Fails boot: Anthropic does not transcribe                                       | Fails boot, unchanged                                                                                                |
 
 The client's defaults are set, each with a test, as `050` sets the chat models':
 
@@ -90,6 +96,25 @@ price table do not change.
 
 The response is parsed with a Zod schema before its text is read (C3): it is an
 external boundary like any other.
+
+## Google transcription is dropped, and that is the one behaviour this changes
+
+A deployment with `TRANSCRIPTION_MODEL=google:…` boots today: `@ai-sdk/google`
+implements a transcription model over Gemini's transcription API. After this
+spec it fails boot. That is a breaking change for the operator, not a silent
+one for a customer: the deploy stops, it does not start sending voice notes to
+`rules.messages.mediaFallback`.
+
+Rejected: keeping it. No Google SDK the service already depends on offers
+transcription, so keeping it means either a hand-written client for an API no
+spec here has read, or a further provider package under C2, for one model.
+Nothing in this repository prices it (`transcriptionCostUsd` bills it at the
+fallback rate), and OpenAI is the documented transcription path (`020`). A
+tenant on `google:` moves to an `openai:` model before upgrading.
+
+So `google:` transcription stays on the AI SDK through steps 1 and 2 of § The
+order it ships in, and goes in step 3, the breaking release. Its release notes
+name it beside the `testing` export changes.
 
 ## The judges and the analyst validate their own output
 
@@ -151,8 +176,9 @@ a stray import fails lint before it fails install.
 
 ## The order it ships in
 
-1. Tools, judges, analyst and transcription move, still behind the old public
-   types where a test helper needs them. Each step passes CI's chain on its own.
+1. Tools, judges, analyst and `openai:`/`ollama:` transcription move, still
+   behind the old public types where a test helper needs them; `google:`
+   transcription stays on the AI SDK. Each step passes CI's chain on its own.
 2. The mock is rewritten, and `pnpm eval:mock` is compared case for case.
 3. The fakes, `AiSdkChatModel` and the public types change, `ai` and
    `@ai-sdk/*` leave `package.json`, and the release is cut as breaking.
@@ -178,6 +204,11 @@ breaking release, and the only one a tenant project has to act on.
   turn aborts, an empty transcript giving empty text and no failure, a
   malformed response giving `MediaFailure`, and a missing duration billed at
   1000 bytes per second.
+- **Ollama transcription**: `ollama:…` resolves to the `openai` client, and a
+  test reads that its request goes to `OLLAMA_BASE_URL`.
+- **Google transcription dropped**: `TRANSCRIPTION_MODEL=google:…` and
+  `anthropic:…` fail boot with `UnknownProviderError` naming
+  `TRANSCRIPTION_MODEL`.
 - **Structured output**: a fake returning output that fails the schema gives
   `InvalidOutput` from the analyst, an ungraded group from the judge, and a
   cost computed from the raw message's counts.

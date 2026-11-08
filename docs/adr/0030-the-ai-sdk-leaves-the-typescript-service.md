@@ -64,10 +64,14 @@ as a breaking release. `053` is the detailed form.
 - Cost: a breaking release. Every tenant project that uses `mockModel`,
   `mockTranscriptionModel` or `buildTools` changes its tests, and the tenant
   repository's own `ai` dependency goes with them.
-- Cost: transcription loses the AI SDK's provider abstraction. Adding a second
-  transcription provider means a second SDK in `registry.ts`, not a registry
-  entry. Only OpenAI models are priced for transcription today, so nothing is
-  lost now.
+- Cost: transcription loses the AI SDK's provider abstraction. OpenAI and
+  Ollama keep transcribing through the one `openai` client; Google
+  transcription (`google:` in `TRANSCRIPTION_MODEL`), which the AI SDK offers
+  today, is dropped in the breaking release, and a deployment using it fails
+  boot until it moves to an `openai:` model. It is unpriced here and billed at
+  the fallback rate, so no tenant is known to rely on it, but that is not
+  measured. Adding a transcription provider later means another SDK in
+  `registry.ts`, not a registry entry.
 - Amends ADR-0026 where it keeps the AI SDK for transcription, the analyst, the
   judges, the mock and the public types. Its reason for moving to LangChain.js
   stands.
