@@ -1,4 +1,6 @@
-import type { LanguageModel, ModelMessage } from 'ai';
+import type { LanguageModel } from 'ai';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
 import type { ActionRecord, AgentReply } from '../contracts/agent.ts';
 import type { TenantConfig } from '../config/loader.ts';
 import { NO_TOOLS, offersTools, type Tools } from '../contracts/config.ts';
@@ -172,17 +174,16 @@ export interface AgentTurnInput {
  * never from the model's own text. Outside the fence: it is the system's
  * account, not the contact's (C4).
  */
-function historyMessage(turn: HistoryTurn): ModelMessage {
-  if (turn.role === 'user') return { role: 'user', content: fenceUserText(turn.text) };
+function historyMessage(turn: HistoryTurn): BaseMessage {
+  if (turn.role === 'user') return new HumanMessage(fenceUserText(turn.text));
   const note = actionsNote(turn.actions);
-  if (note === null) return { role: 'assistant', content: turn.text };
-  return {
-    role: 'assistant',
+  if (note === null) return new AIMessage(turn.text);
+  return new AIMessage({
     content: [
       { type: 'text', text: turn.text },
       { type: 'text', text: note },
     ],
-  };
+  });
 }
 
 /**
@@ -196,8 +197,8 @@ function currentMessage(
   text: string,
   media: TurnMedia | undefined,
   contactNotices: string[],
-): ModelMessage {
-  if (!media && contactNotices.length === 0) return { role: 'user', content: fenceUserText(text) };
+): BaseMessage {
+  if (!media && contactNotices.length === 0) return new HumanMessage(fenceUserText(text));
   const notices = [
     ...contactNotices,
     ...(media
@@ -210,20 +211,19 @@ function currentMessage(
         ]
       : []),
   ];
-  return {
-    role: 'user',
+  return new HumanMessage({
     content: [
       ...notices.map(notice => ({ type: 'text' as const, text: notice })),
-      // `file` with an image type: the SDK deprecated `image` parts and warns
-      // on every request that sends one.
+      // Inline bytes as a data URL, never a link a provider would fetch.
       ...(media?.images ?? []).map(image => ({
-        type: 'file' as const,
-        data: image.data,
-        mediaType: image.mediaType,
+        type: 'image_url' as const,
+        image_url: {
+          url: `data:${image.mediaType};base64,${Buffer.from(image.data).toString('base64')}`,
+        },
       })),
       ...(text.length > 0 ? [{ type: 'text' as const, text: fenceUserText(text) }] : []),
     ],
-  };
+  });
 }
 
 /**
@@ -231,14 +231,13 @@ function currentMessage(
  * offering notes if there are any. All of it is the system's, so none of it is
  * fenced (C4).
  */
-function nudgeMessage(since: Date, contactNotices: string[]): ModelMessage {
-  return {
-    role: 'user',
+function nudgeMessage(since: Date, contactNotices: string[]): BaseMessage {
+  return new HumanMessage({
     content: [...contactNotices, nudgeNotice(since)].map(text => ({
       type: 'text' as const,
       text,
     })),
-  };
+  });
 }
 
 /**
@@ -285,11 +284,12 @@ export interface PreparedTurn {
   config: TenantConfig;
   /** `staticPrefix` and the catalog, as one system prompt. */
   system: string;
-  messages: ModelMessage[];
+  /** LangChain.js messages, built as the model receives them (specs/053). */
+  messages: BaseMessage[];
   /** Absent when the turn offers no tools: one model call. */
   tools: ReturnType<typeof buildTools> | undefined;
   /** The reply step's note of what was staged, read when that step starts. */
-  replyNotice(): ModelMessage;
+  replyNotice(): BaseMessage;
   signal: AbortSignal | undefined;
   /** The turn's root run, which every model call joins (specs/052). Absent untraced. */
   callbacks?: Callbacks | undefined;
@@ -439,7 +439,7 @@ export abstract class PromptedRunner<
         : []),
     ];
 
-    const messages: ModelMessage[] = [
+    const messages: BaseMessage[] = [
       ...history.map(historyMessage),
       nudge
         ? nudgeMessage(nudge.since, contactNotices)
@@ -451,16 +451,16 @@ export abstract class PromptedRunner<
       system: `${staticPrefix}\n\n${catalogBlock}`,
       messages,
       tools,
-      replyNotice: () => ({
-        role: 'user',
-        content: stagedNotice(
-          stage,
-          reads?.latest,
-          opening && stagesProspect(stage, tenantTools) ? opening : undefined,
-          pluginReads?.latest,
-          tenantTools.flows,
+      replyNotice: () =>
+        new HumanMessage(
+          stagedNotice(
+            stage,
+            reads?.latest,
+            opening && stagesProspect(stage, tenantTools) ? opening : undefined,
+            pluginReads?.latest,
+            tenantTools.flows,
+          ),
         ),
-      }),
       signal,
       // One root run for the whole turn, rewrite included (specs/052 § One
       // traced turn is one root run). Opened before the first model call.
