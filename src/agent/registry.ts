@@ -1,9 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createProviderRegistry } from 'ai';
-import type { LanguageModel, TranscriptionModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
+import OpenAI from 'openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
@@ -12,6 +13,9 @@ import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { ModelJsonSchema } from './model-schema.ts';
 import { createMockModel } from './mock-provider.ts';
 import { AiSdkChatModel, aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
+import { OpenAiTranscriber, SdkTranscriber } from './transcriber.ts';
+import type { TranscriptionEndpoint } from './transcriber.ts';
+import type { Transcriber } from '../media/port.ts';
 
 /**
  * The ONLY module permitted to import a provider package (Constitution C2).
@@ -175,13 +179,61 @@ export function resolveModel(spec: string, variable = 'AGENT_MODEL'): LanguageMo
 }
 
 /**
- * Resolves TRANSCRIPTION_MODEL, at startup for the same reason as
- * `resolveModel`. Not every provider transcribes (Anthropic does not), and one
- * that does not fails here rather than on the first voice note.
+ * The retries a transcription makes, inside the abort: the AI SDK's default,
+ * kept (specs/053 § Transcription is a port the registry implements with the
+ * provider's SDK). The `openai` package's own default is also 2; it is set
+ * here so a change to it is a finding.
  */
-export function resolveTranscriptionModel(spec: string): TranscriptionModel {
+export const TRANSCRIPTION_MAX_RETRIES = 2;
+
+/** The HTTP boundary of the transcription client, faked only by tests (specs/004). */
+export interface TranscriptionClientOptions {
+  fetch?: typeof globalThis.fetch | undefined;
+}
+
+/** The `openai` client's transcription endpoint, for OpenAI or for Ollama. */
+function openAiEndpoint(
+  provider: 'openai' | 'ollama',
+  options: TranscriptionClientOptions,
+): TranscriptionEndpoint {
+  const client = new OpenAI({
+    maxRetries: TRANSCRIPTION_MAX_RETRIES,
+    // No timeout is relied on: the turn's abort bounds the call (specs/020).
+    ...(provider === 'ollama' ? { apiKey: 'ollama', baseURL: OLLAMA_BASE_URL } : {}),
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+  });
+  return {
+    create: (body, requestOptions) =>
+      client.audio.transcriptions.create(body as never, requestOptions),
+  };
+}
+
+/**
+ * Resolves TRANSCRIPTION_MODEL to a transcriber, at startup for the same
+ * reason as `resolveModel`. OpenAI and Ollama go through the `openai` client;
+ * Google stays on the AI SDK until specs/053's step 3 drops it. Anthropic does
+ * not transcribe, and fails here rather than on the first voice note.
+ */
+export function resolveTranscriptionModel(
+  spec: string,
+  options: TranscriptionClientOptions = {},
+): Transcriber {
+  const separator = spec.indexOf(':');
+  const provider = separator > 0 ? spec.slice(0, separator) : '';
+  const model = spec.slice(separator + 1);
+  if ((provider === 'openai' || provider === 'ollama') && model.length > 0) {
+    return new OpenAiTranscriber({
+      endpoint: () => openAiEndpoint(provider, options),
+      model,
+      modelSpec: spec,
+    });
+  }
   try {
-    return registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]);
+    if (provider !== 'google') throw new Error(`'${provider}' does not transcribe here`);
+    return new SdkTranscriber({
+      model: registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]),
+      modelSpec: spec,
+    });
   } catch (cause) {
     throw new UnknownProviderError(spec, cause, 'TRANSCRIPTION_MODEL');
   }
