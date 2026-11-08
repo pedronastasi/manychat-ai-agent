@@ -130,11 +130,17 @@ and `includeRaw: true`. The method is set per provider, as `050` sets it for
 the reply; it is never left to the wrapper's choice.
 
 The result is not trusted to the method. Each caller parses it with its own Zod
-schema (`AnalystOutput`, the judge's verdict) and treats a parse failure exactly
-as it treats `NoObjectGeneratedError` today: the analyst records
-`InvalidOutput`, a judge's group is not graded. Output that fails the schema
-was still paid for, so its cost comes from the raw message's `usage_metadata`,
-which the analyst reads today from the error's `usage`.
+schema (`AnalystOutput`, the judge's verdict), and each keeps what it does
+today when the model's output cannot be parsed:
+
+| Caller                | Today                                                                                                                                                                                                                                     | After                                                                                                                                                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Analyst (`031`)       | The AI SDK throws `NoObjectGeneratedError`; the run records `error: 'AI_NoObjectGeneratedError'` (the error's `name`) and bills the tokens on the error's `usage`. A result that parses but fails `AnalystOutput` records `InvalidOutput` | Unparseable output records `error: 'NoObjectGeneratedError'`, the name `LangGraphRunner` already gives the same case, and bills the raw message's `usage_metadata`. Output that fails `AnalystOutput` still records `InvalidOutput` |
+| Judges (`016`, `043`) | A failed call is one invalid sample (`undefined`); `majority` still grades from the other samples (`016 § three samples`). Nothing is billed for it: the `catch` skips the cost                                                           | Unchanged: an invalid sample, decided by the majority, and nothing billed for it                                                                                                                                                    |
+
+The analyst's error string loses its `AI_` prefix. That is the one change here,
+made on purpose: the prefix names a library the service no longer has. The
+string is logged, not matched by any code.
 
 Retries and the abort follow `050`'s table, because these calls go through the
 same registry.
@@ -146,8 +152,11 @@ does: same canned replies, same tool calls, same reported counts, for the same
 inputs. `AiSdkChatModel` is deleted with the provider it adapted.
 
 The check is the one `050` used, now against the rewrite: `pnpm eval:mock`
-gives the same outcome, case for case, on each of CI's three suites, before and
-after. The pull request that deletes the old mock records both runs.
+gives the same outcome, case for case, on each of CI's four `eval:mock` runs,
+before and after. One of them sets `EVAL_JUDGE_MODEL=mock:judge`, the only run
+that drives the mock's judge path through the structured output this spec
+moves; calibration must still refuse that judge (`016`). The pull request that
+deletes the old mock records all four.
 
 Tests still fake only the model and the ManyChat boundary (`004`). A fake is a
 LangChain.js chat model that honours its contract: it reports
@@ -217,11 +226,14 @@ breaking release, and the only one a tenant project has to act on.
 - **Google transcription dropped**: `TRANSCRIPTION_MODEL=google:…` and
   `anthropic:…` fail boot with `UnknownProviderError` naming
   `TRANSCRIPTION_MODEL`.
-- **Structured output**: a fake returning output that fails the schema gives
-  `InvalidOutput` from the analyst, an ungraded group from the judge, and a
-  cost computed from the raw message's counts.
-- **The mock**: `pnpm eval:mock` on CI's three suites, before and after the
-  rewrite, with the same outcome per case, recorded in the pull request.
+- **Structured output**: a fake returning unparseable output gives the analyst
+  `error: 'NoObjectGeneratedError'` and a cost from the raw message's counts;
+  output that parses but fails `AnalystOutput` gives `InvalidOutput`. For a
+  judge, the same fake gives one invalid sample, the majority of the other two
+  still grades, and the judge's `costUsd` does not grow for the invalid one.
+- **The mock**: CI's four `pnpm eval:mock` runs, including `mock:judge`,
+  before and after the rewrite, with the same outcome per case, recorded in
+  the pull request.
 - **Fakes honour the abort**: `hangingModel` rejects within 100 ms of its
   signal aborting.
 
