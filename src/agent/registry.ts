@@ -166,11 +166,9 @@ export class UnknownProviderError extends Error {
  * fail the deploy, not the first customer message.
  */
 export function resolveModel(spec: string, variable = 'AGENT_MODEL'): LanguageModel {
-  // Offline provider for local dev, CI and demos. Keeping it behind the same
-  // `provider:model` indirection means nothing downstream knows the difference.
-  if (spec.startsWith('mock:')) {
-    return createMockModel(spec.slice('mock:'.length));
-  }
+  // `mock:` is a LangChain.js chat model since specs/053's step 2, resolved by
+  // `resolveChatModel`; nothing resolves it here, and this function goes in
+  // step 3.
   try {
     return registry.languageModel(spec as Parameters<typeof registry.languageModel>[0]);
   } catch (cause) {
@@ -345,7 +343,9 @@ export function resolveChatModel(
   try {
     switch (provider) {
       case 'mock':
-        return chatModelFromAiSdk(createMockModel(model), spec, settings);
+        // Offline, for local dev, CI and demos, behind the same `provider:model`
+        // indirection, so nothing downstream knows the difference (specs/007).
+        return createMockModel(model);
       case 'anthropic':
         return {
           model: new ChatAnthropic({

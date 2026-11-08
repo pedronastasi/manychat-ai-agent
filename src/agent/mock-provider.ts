@@ -1,4 +1,13 @@
-import type { LanguageModelV4, LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type {
+  BaseChatModelCallOptions,
+  BindToolsInput,
+} from '@langchain/core/language_models/chat_models';
+import { AIMessage, SystemMessage } from '@langchain/core/messages';
+import type { BaseMessage, MessageContent, UsageMetadata } from '@langchain/core/messages';
+import type { ChatResult } from '@langchain/core/outputs';
+import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
+import type { ChatModelHandle } from './registry.ts';
 import { FENCE, FENCE_END, NUDGE_NOTE_OPEN } from './prompt.ts';
 
 /**
@@ -8,11 +17,42 @@ import { FENCE, FENCE_END, NUDGE_NOTE_OPEN } from './prompt.ts';
  * and no spend, and so the eval harness has a fixed baseline to assert the
  * pipeline itself (not the model) still works.
  *
- * The usage shape below is the PROVIDER-facing one — nested
- * `{total, noCache, cacheRead, cacheWrite}` — which the SDK flattens for
- * callers. Emitting the flattened shape here silently yields undefined token
- * counts, which would make the budget cap a no-op.
+ * It is a LangChain.js chat model (specs/053 § The mock and every fake are
+ * LangChain chat models). Its answers are decided from a `MockRequest`, the
+ * turn's messages and tools read the way a provider receives them, so it
+ * answers as the AI SDK mock it replaced did, case for case. Every answer
+ * reports `usage_metadata`; without it the budget cap would read no tokens
+ * and never stop anything.
  */
+
+/** One part of a message, as the mock reads it. */
+type MockPart =
+  | { type: 'text'; text: string }
+  | { type: 'file'; mediaType: string }
+  | { type: 'tool-call'; toolCallId: string; toolName: string; input: Record<string, unknown> }
+  | {
+      type: 'tool-result';
+      toolCallId: string;
+      toolName: string;
+      output: { type: 'json'; value: unknown } | { type: 'error-text'; value: string };
+    };
+
+type MockEntry =
+  | { role: 'system'; content: string }
+  | { role: 'user' | 'assistant' | 'tool'; content: MockPart[] };
+
+interface MockTool {
+  type: 'function';
+  name: string;
+  description?: string | undefined;
+  inputSchema: { properties?: Record<string, unknown> };
+}
+
+/** A turn as the mock reads it: the messages in order, and the tools offered. */
+interface MockRequest {
+  prompt: MockEntry[];
+  tools?: MockTool[] | undefined;
+}
 function reply(
   messages: string[],
   escalate: boolean,
@@ -224,7 +264,7 @@ function detailsOf(offering: FirstOffering): string[] {
 }
 
 /** Read from the rendered CATALOG block (`src/agent/prompt.ts`), first entry only. */
-function firstOffering(options: LanguageModelV4CallOptions): FirstOffering | undefined {
+function firstOffering(options: MockRequest): FirstOffering | undefined {
   for (const entry of options.prompt) {
     if (entry.role !== 'system') continue;
     const lines = entry.content.split('\n');
@@ -249,7 +289,7 @@ function firstOffering(options: LanguageModelV4CallOptions): FirstOffering | und
   return undefined;
 }
 
-function catalogOf(options: LanguageModelV4CallOptions): MockCatalog {
+function catalogOf(options: MockRequest): MockCatalog {
   return { paymentOptions: hasPaymentOptions(options), first: firstOffering(options) };
 }
 
@@ -258,7 +298,7 @@ function catalogOf(options: LanguageModelV4CallOptions): MockCatalog {
  * image. A media turn also carries the server's MEDIA note; routing on it
  * would answer the note rather than the contact (specs/020).
  */
-function lastUserMessage(options: LanguageModelV4CallOptions): { text: string; image: boolean } {
+function lastUserMessage(options: MockRequest): { text: string; image: boolean } {
   for (let index = options.prompt.length - 1; index >= 0; index--) {
     const entry = options.prompt[index];
     if (entry?.role === 'user') {
@@ -276,15 +316,11 @@ function lastUserMessage(options: LanguageModelV4CallOptions): { text: string; i
 }
 
 /** The values a tool's parameter offers, read from its schema. */
-function offered(
-  options: LanguageModelV4CallOptions,
-  toolName: string,
-  parameter: string,
-): unknown[] {
+function offered(options: MockRequest, toolName: string, parameter: string): unknown[] {
   const found = options.tools?.find(tool => tool.type === 'function' && tool.name === toolName);
   if (found?.type !== 'function') return [];
-  const property = found.inputSchema.properties?.[parameter];
-  return (typeof property === 'object' ? property.enum : undefined) ?? [];
+  const property = found.inputSchema.properties?.[parameter] as { enum?: unknown[] } | undefined;
+  return property?.enum ?? [];
 }
 
 /** A demo-tenant course named in the contact's words, if any (specs/028). */
@@ -310,7 +346,7 @@ interface ContactNotes {
 }
 
 /** The server's notes on the contact, read from the turn's message: stage, course and intent. */
-function contactNotes(options: LanguageModelV4CallOptions): ContactNotes {
+function contactNotes(options: MockRequest): ContactNotes {
   const notes: ContactNotes = {};
   for (const entry of options.prompt) {
     if (entry.role !== 'user' || typeof entry.content === 'string') continue;
@@ -334,7 +370,7 @@ function contactNotes(options: LanguageModelV4CallOptions): ContactNotes {
 }
 
 /** Whether the tenant marks an offering field, read from the tool it offers or the prompt (specs/028). */
-function hasCourseField(options: LanguageModelV4CallOptions): boolean {
+function hasCourseField(options: MockRequest): boolean {
   // The reply step offers no tools, so the system prompt's section says so there.
   return (
     offered(options, 'set_field', 'field').includes('course') ||
@@ -345,7 +381,7 @@ function hasCourseField(options: LanguageModelV4CallOptions): boolean {
 }
 
 /** A contact who wants a different course from the one recorded (specs/028). */
-function switchTo(options: LanguageModelV4CallOptions, lower: string): string | undefined {
+function switchTo(options: MockRequest, lower: string): string | undefined {
   if (!hasCourseField(options)) return undefined;
   const named = namedCourse(lower);
   const current = contactNotes(options).course;
@@ -359,7 +395,7 @@ function switchTo(options: LanguageModelV4CallOptions, lower: string): string | 
  * From `offered` on, a switch is a person's decision (specs/028), unless the
  * system prompt says the offering stays open (specs/045).
  */
-function courseLocked(options: LanguageModelV4CallOptions): boolean {
+function courseLocked(options: MockRequest): boolean {
   const stage = contactNotes(options).stage;
   const locked = options.prompt.some(
     entry => entry.role === 'system' && entry.content.includes('From offered on it is locked'),
@@ -368,7 +404,7 @@ function courseLocked(options: LanguageModelV4CallOptions): boolean {
 }
 
 /** A request for course content from a contact with no course, named or recorded. */
-function unplacedRequest(options: LanguageModelV4CallOptions, lower: string): boolean {
+function unplacedRequest(options: MockRequest, lower: string): boolean {
   return (
     hasCourseField(options) &&
     /(brochure|syllabus|something to read)/.test(lower) &&
@@ -380,7 +416,7 @@ function unplacedRequest(options: LanguageModelV4CallOptions, lower: string): bo
 type MockAction = { toolName: string; input: Record<string, string | boolean> };
 
 /** The payment-link flow, as the system prompt's SALES section names it (specs/023). */
-function paymentLinkOf(options: LanguageModelV4CallOptions): string | undefined {
+function paymentLinkOf(options: MockRequest): string | undefined {
   for (const entry of options.prompt) {
     if (entry.role !== 'system') continue;
     const match = /The payment link is the flow ([a-z0-9_-]+)\./.exec(entry.content);
@@ -394,7 +430,7 @@ function paymentLinkOf(options: LanguageModelV4CallOptions): string | undefined 
  * when the tool offers it: a flow already sent is not offered again, and a
  * tenant without one has nothing to send (specs/012, specs/023).
  */
-function saleActions(options: LanguageModelV4CallOptions, text: string): MockAction[] {
+function saleActions(options: MockRequest, text: string): MockAction[] {
   const lower = text.toLowerCase();
   const flows = offered(options, 'send_flow', 'flow');
   const flow = (id: string | undefined): MockAction[] =>
@@ -457,7 +493,7 @@ const PROSPECT =
  * every other write refuses, so the prospect write comes before them in the
  * same turn (specs/034 § Until intent is prospect, the sale's tools refuse).
  */
-function chooseActions(options: LanguageModelV4CallOptions, text: string): MockAction[] {
+function chooseActions(options: MockRequest, text: string): MockAction[] {
   const lower = text.toLowerCase();
   // A nudge turn has no contact message to judge intent from (specs/025).
   if (text.includes(NUDGE_NOTE_OPEN)) return saleActions(options, text);
@@ -482,7 +518,7 @@ function chooseActions(options: LanguageModelV4CallOptions, text: string): MockA
  * The next action to call: the first of `chooseActions` not yet called this
  * turn, or the last again once all were (staging a repeat is a no-op).
  */
-function chooseAction(options: LanguageModelV4CallOptions, text: string): MockAction | null {
+function chooseAction(options: MockRequest, text: string): MockAction | null {
   const actions = chooseActions(options, text);
   const called = options.prompt.flatMap(entry =>
     entry.role === 'assistant' && typeof entry.content !== 'string'
@@ -514,7 +550,7 @@ const ASKS_FOR_READ = /\b(room|seats?|space|next intake|start)\b/;
  * asks something it could answer. Its enum parameter takes the value the
  * message names, or its first.
  */
-function readAction(options: LanguageModelV4CallOptions, text: string): MockAction | null {
+function readAction(options: MockRequest, text: string): MockAction | null {
   const lower = text.toLowerCase();
   if (!ASKS_FOR_READ.test(lower)) return null;
   const found = options.tools?.find(
@@ -540,7 +576,7 @@ function readAction(options: LanguageModelV4CallOptions, text: string): MockActi
 }
 
 /** What the turn's plugin read returned, as the tool result the model was sent. */
-function readOutcome(options: LanguageModelV4CallOptions): Record<string, unknown> | undefined {
+function readOutcome(options: MockRequest): Record<string, unknown> | undefined {
   for (const entry of options.prompt) {
     if (entry.role !== 'tool') continue;
     for (const part of entry.content) {
@@ -580,7 +616,7 @@ function readReply(outcome: Record<string, unknown>, text: string, catalog: Mock
 }
 
 /** Step two of a tool turn: the server's note of what was staged, if any. */
-function stagedNote(options: LanguageModelV4CallOptions): string | undefined {
+function stagedNote(options: MockRequest): string | undefined {
   for (const entry of options.prompt) {
     if (entry.role !== 'user') continue;
     for (const part of entry.content) {
@@ -678,7 +714,7 @@ function stagedReply(note: string, link: string | undefined): string {
  * section in every prompt, so a substring match would find it for every
  * tenant.
  */
-function hasPaymentOptions(options: LanguageModelV4CallOptions): boolean {
+function hasPaymentOptions(options: MockRequest): boolean {
   return options.prompt.some(
     entry => entry.role === 'system' && entry.content.split('\n').includes('PAYMENT OPTIONS'),
   );
@@ -690,7 +726,7 @@ function hasPaymentOptions(options: LanguageModelV4CallOptions): boolean {
  * Read from the contact's last fenced message in history, never from the
  * server's trigger note.
  */
-function nudgeReply(options: LanguageModelV4CallOptions): string {
+function nudgeReply(options: MockRequest): string {
   const asked = options.prompt
     .filter(entry => entry.role === 'user')
     .flatMap(entry =>
@@ -722,9 +758,12 @@ function nudgeReply(options: LanguageModelV4CallOptions): string {
   return reply(['Nothing to follow up.'], true, 'low_confidence', 0.4);
 }
 
-const USAGE = {
-  inputTokens: { total: 1200, noCache: 200, cacheRead: 1000, cacheWrite: 0 },
-  outputTokens: { total: 60, text: 60, reasoning: 0 },
+/** What every mock answer reports: 1200 in, 1000 of them read from cache, and 60 out. */
+const USAGE: UsageMetadata = {
+  input_tokens: 1200,
+  output_tokens: 60,
+  total_tokens: 1260,
+  input_token_details: { cache_read: 1000 },
 };
 
 /** An image with no words: a correct agent asks what the contact wants to know. */
@@ -752,105 +791,224 @@ const COURSE_LOCKED_REPLY = reply(
   0.9,
 );
 
-export function createMockModel(modelId: string): LanguageModelV4 {
-  return {
-    specificationVersion: 'v4',
-    provider: 'mock',
-    modelId,
-    supportedUrls: {},
+/** The answer to one call: a reply's text, or one tool call. */
+type MockAnswer =
+  | { type: 'text'; text: string }
+  | { type: 'tool-call'; toolCallId: string; toolName: string; input: Record<string, unknown> };
 
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      // `mock:judge` approves everything. It cannot demonstrate judgement and
-      // is not meant to: it proves the judged eval path runs offline, and that
-      // calibration refuses a judge that never fails (specs/016).
-      if (modelId === 'judge') {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                verdict: 'pass',
-                evidence: '',
-                // The conversation judge's fields (specs/043); the reply
-                // judge ignores them.
-                step: '',
-                absent: '',
-                reason: 'The mock judge passes every reply.',
-              }),
-            },
-          ],
-          finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-          usage: USAGE,
-          warnings: [],
-        };
-      }
-      const message = lastUserMessage(options);
-      const staged = stagedNote(options);
-      // Only the prospect write staged: the message is answered as it would
-      // be without it (specs/034).
-      const note =
-        staged !== undefined &&
-        !staged.includes('intent=not_prospect') &&
-        !/(send_flow|course=|funnel_stage=)/.test(staged)
-          ? undefined
-          : staged;
-      const read = readOutcome(options);
-      const action =
-        staged === undefined
-          ? (readAction(options, message.text) ??
-            (read === undefined ? chooseAction(options, message.text) : null))
-          : null;
-      if (action !== null) {
-        return {
-          content: [
-            {
-              type: 'tool-call' as const,
-              toolCallId: `mock-${action.toolName}`,
-              toolName: action.toolName,
-              input: JSON.stringify(action.input),
-            },
-          ],
-          finishReason: { unified: 'tool-calls' as const, raw: 'tool_use' },
-          usage: USAGE,
-          warnings: [],
-        };
-      }
-      const lower = message.text.toLowerCase();
-      const text =
-        read !== undefined
-          ? readReply(read, message.text, catalogOf(options))
-          : note !== undefined
-            ? stagedReply(note, paymentLinkOf(options))
-            : switchTo(options, lower) !== undefined && courseLocked(options)
-              ? COURSE_LOCKED_REPLY
-              : unplacedRequest(options, lower)
-                ? WHICH_COURSE_REPLY
-                : message.text.includes(NUDGE_NOTE_OPEN)
-                  ? nudgeReply(options)
-                  : message.image
-                    ? IMAGE_REPLY
-                    : respondTo(message.text, catalogOf(options));
-      // `mock:slow` deliberately exceeds the race deadline so the deferred path
-      // can be exercised without a real slow provider.
-      if (modelId === 'slow') {
-        await new Promise((resolve, reject) => {
-          const timer = setTimeout(resolve, 12_000);
-          options.abortSignal?.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-          });
-        });
-      }
-      return {
-        content: [{ type: 'text' as const, text }],
-        finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-        usage: USAGE,
-        warnings: [],
+async function answer(
+  modelId: string,
+  options: MockRequest,
+  signal: AbortSignal | undefined,
+): Promise<MockAnswer> {
+  // `mock:judge` approves everything. It cannot demonstrate judgement and is
+  // not meant to: it proves the judged eval path runs offline, and that
+  // calibration refuses a judge that never fails (specs/016).
+  if (modelId === 'judge') {
+    return {
+      type: 'text',
+      text: JSON.stringify({
+        verdict: 'pass',
+        evidence: '',
+        // The conversation judge's fields (specs/043); the reply judge ignores them.
+        step: '',
+        absent: '',
+        reason: 'The mock judge passes every reply.',
+      }),
+    };
+  }
+  const message = lastUserMessage(options);
+  const staged = stagedNote(options);
+  // Only the prospect write staged: the message is answered as it would be
+  // without it (specs/034).
+  const note =
+    staged !== undefined &&
+    !staged.includes('intent=not_prospect') &&
+    !/(send_flow|course=|funnel_stage=)/.test(staged)
+      ? undefined
+      : staged;
+  const read = readOutcome(options);
+  const action =
+    staged === undefined
+      ? (readAction(options, message.text) ??
+        (read === undefined ? chooseAction(options, message.text) : null))
+      : null;
+  if (action !== null) {
+    return {
+      type: 'tool-call',
+      toolCallId: `mock-${action.toolName}`,
+      toolName: action.toolName,
+      input: action.input,
+    };
+  }
+  const lower = message.text.toLowerCase();
+  const text =
+    read !== undefined
+      ? readReply(read, message.text, catalogOf(options))
+      : note !== undefined
+        ? stagedReply(note, paymentLinkOf(options))
+        : switchTo(options, lower) !== undefined && courseLocked(options)
+          ? COURSE_LOCKED_REPLY
+          : unplacedRequest(options, lower)
+            ? WHICH_COURSE_REPLY
+            : message.text.includes(NUDGE_NOTE_OPEN)
+              ? nudgeReply(options)
+              : message.image
+                ? IMAGE_REPLY
+                : respondTo(message.text, catalogOf(options));
+  // `mock:slow` deliberately exceeds the race deadline so the deferred path
+  // can be exercised without a real slow provider.
+  if (modelId === 'slow') {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, 12_000);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      });
+    });
+  }
+  return { type: 'text', text };
+}
+
+function textOf(content: MessageContent): string {
+  if (typeof content === 'string') return content;
+  return content.flatMap(block => (block.type === 'text' ? [String(block.text)] : [])).join('');
+}
+
+/** An inline image's media type: the mock reads that an image came, never its bytes. */
+function imagePart(url: string): MockPart {
+  const match = /^data:([^;]+);base64,/.exec(url);
+  if (!match?.[1]) throw new Error('only inline images reach the model (specs/020)');
+  return { type: 'file', mediaType: match[1] };
+}
+
+function userParts(content: MessageContent): MockPart[] {
+  if (typeof content === 'string') return [{ type: 'text', text: content }];
+  return content.map(block => {
+    if (block.type === 'text') return { type: 'text', text: String(block.text) };
+    if (block.type === 'image_url') {
+      const imageUrl = block.image_url as string | { url: string };
+      return imagePart(typeof imageUrl === 'string' ? imageUrl : imageUrl.url);
+    }
+    throw new Error(`unsupported content block: ${block.type}`);
+  });
+}
+
+/**
+ * The turn's LangChain messages as the mock reads them: a system entry, the
+ * user's parts, the model's text and tool calls, and one tool entry per step
+ * holding its results, as a provider receives them.
+ */
+function requestOf(messages: BaseMessage[], tools: MockTool[] | undefined): MockRequest {
+  const prompt: MockEntry[] = [];
+  for (const message of messages) {
+    const type = message.type;
+    if (type === 'system') {
+      prompt.push({ role: 'system', content: textOf(message.content) });
+    } else if (type === 'human') {
+      prompt.push({ role: 'user', content: userParts(message.content) });
+    } else if (type === 'ai') {
+      const ai = message as AIMessage;
+      const texts =
+        typeof ai.content === 'string'
+          ? ai.content.length > 0
+            ? [ai.content]
+            : []
+          : ai.content.flatMap(block => (block.type === 'text' ? [String(block.text)] : []));
+      prompt.push({
+        role: 'assistant',
+        content: [
+          ...texts.map(text => ({ type: 'text' as const, text })),
+          ...(ai.tool_calls ?? []).map(call => ({
+            type: 'tool-call' as const,
+            toolCallId: call.id ?? '',
+            toolName: call.name,
+            input: call.args,
+          })),
+        ],
+      });
+    } else if (type === 'tool') {
+      const tool = message as BaseMessage & {
+        tool_call_id: string;
+        name?: string;
+        status?: 'success' | 'error';
       };
-    },
+      const text = textOf(tool.content);
+      const part: MockPart = {
+        type: 'tool-result',
+        toolCallId: tool.tool_call_id,
+        toolName: tool.name ?? '',
+        output:
+          tool.status === 'error'
+            ? { type: 'error-text', value: text }
+            : { type: 'json', value: JSON.parse(text) as unknown },
+      };
+      const last = prompt.at(-1);
+      if (last?.role === 'tool') last.content.push(part);
+      else prompt.push({ role: 'tool', content: [part] });
+    } else {
+      throw new Error(`unsupported message type: ${type}`);
+    }
+  }
+  return { prompt, tools };
+}
 
-    doStream: () => {
-      throw new Error('mock provider does not support streaming');
-    },
+interface MockChatModelCallOptions extends BaseChatModelCallOptions {
+  tools?: ReturnType<typeof convertToOpenAITool>[] | undefined;
+}
+
+/** The offline model behind `mock:` (specs/007, specs/053). */
+export class MockChatModel extends BaseChatModel<MockChatModelCallOptions> {
+  readonly modelId: string;
+
+  constructor(modelId: string) {
+    super({});
+    this.modelId = modelId;
+  }
+
+  _llmType(): string {
+    return 'mock';
+  }
+
+  override bindTools(tools: BindToolsInput[], kwargs?: Partial<MockChatModelCallOptions>) {
+    return this.withConfig({ ...kwargs, tools: tools.map(tool => convertToOpenAITool(tool)) });
+  }
+
+  async _generate(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+  ): Promise<ChatResult> {
+    const tools = options.tools?.map(tool => ({
+      type: 'function' as const,
+      name: tool.function.name,
+      description: tool.function.description,
+      inputSchema: tool.function.parameters as MockTool['inputSchema'],
+    }));
+    const given = await answer(
+      this.modelId,
+      requestOf(messages, tools && tools.length > 0 ? tools : undefined),
+      options.signal,
+    );
+    const message =
+      given.type === 'text'
+        ? new AIMessage({ content: given.text, tool_calls: [] })
+        : new AIMessage({
+            content: '',
+            tool_calls: [
+              { id: given.toolCallId, name: given.toolName, args: given.input, type: 'tool_call' },
+            ],
+          });
+    Object.assign(message, { usage_metadata: USAGE });
+    return { generations: [{ text: textOf(message.content), message }] };
+  }
+}
+
+/** `mock:<id>` as the registry hands out every chat model. */
+export function createMockModel(modelId: string): ChatModelHandle {
+  return {
+    model: new MockChatModel(modelId),
+    // The mock reads no response format: its replies are JSON already.
+    replyFormat: () => ({}),
+    systemMessage: text => new SystemMessage(text),
   };
 }
