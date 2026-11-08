@@ -78,6 +78,12 @@ the `openai` package's `audio.transcriptions.create`, for two providers:
 | `google:`    | `@ai-sdk/google` `transcriptionModel()`, which calls Gemini's transcription API | **Dropped.** Fails boot with `UnknownProviderError` naming `TRANSCRIPTION_MODEL` (§ Google transcription is dropped) |
 | `anthropic:` | Fails boot: Anthropic does not transcribe                                       | Fails boot, unchanged                                                                                                |
 
+`openai` reaches the service today only through `@langchain/openai`, and
+pnpm's strict layout does not let `src/` import a transitive dependency. It
+becomes a direct dependency in `package.json`, at the version
+`@langchain/openai` resolves, so one copy of the client is installed and
+Renovate (`011`) moves both together.
+
 The client's defaults are set, each with a test, as `050` sets the chat models':
 
 | Setting         | Required                                                                                            | Why                                             |
@@ -204,6 +210,8 @@ breaking release, and the only one a tenant project has to act on.
   turn aborts, an empty transcript giving empty text and no failure, a
   malformed response giving `MediaFailure`, and a missing duration billed at
   1000 bytes per second.
+- **Direct dependency**: the `package.json` test that asserts no `ai` or
+  `@ai-sdk/*` also asserts `openai` is listed in `dependencies`.
 - **Ollama transcription**: `ollama:…` resolves to the `openai` client, and a
   test reads that its request goes to `OLLAMA_BASE_URL`.
 - **Google transcription dropped**: `TRANSCRIPTION_MODEL=google:…` and
