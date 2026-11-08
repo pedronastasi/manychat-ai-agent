@@ -16,10 +16,13 @@ implementation (`026`); and any new behaviour. Nothing a customer sees changes.
 
 The default is the one ADR-0026 took: move what LangChain.js covers and leave
 the rest. Each piece left behind works and is tested, so each looks free to
-keep. It is not. Every piece keeps a second library's retries, abort handling
-and usage shape in the service, and C7 depends on all three. `050` pinned them
-for LangChain.js; the same facts for the AI SDK are pinned nowhere a spec
-names, and Renovate (`011`) updates both.
+keep. For the Python implementation of ADR-0025 it is not: structured output,
+a fake that honours the abort, and a transcription call LangChain has no
+counterpart for are concepts that implementation needs, and ADR-0026 moved the
+turn so such concepts would be pinned against a tested service first. Each
+piece left behind is one not rehearsed. The service also keeps a second
+library's defaults to reread on every Renovate (`011`) update, though on the
+inbound turn only transcription still runs on it.
 
 > **The service depends on one model library.** Where LangChain.js offers no
 > counterpart, the gap is filled by a port of our own, implemented in

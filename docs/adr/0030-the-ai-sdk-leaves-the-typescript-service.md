@@ -12,13 +12,21 @@ the AI SDK types on the `manychat-ai-agent/testing` export. ADR-0026 recorded
 the cost: `registry.ts` imports from both libraries, and "this is not a phase
 that ends on its own".
 
-That state has been read for two weeks, and its cost is larger than the one
-line ADR-0026 gave it:
+The main reason to end that state is ADR-0026's own: the Python implementation
+of ADR-0025 is about to be written, on LangChain alone. ADR-0026 moved the turn
+so its concepts would be pinned against a tested service first. The pieces
+still on the AI SDK (structured output for the judges and the analyst, a
+LangChain.js fake that honours the abort and reports `usage_metadata`, a
+transcription call with no LangChain counterpart) are concepts the Python
+implementation needs as well, and they have not been rehearsed.
 
-- Every fact C7 depends on is held twice. Retries, the abort and usage
-  accounting are pinned for LangChain.js in `050`'s table, and the same facts
-  for the AI SDK live in the paths `050` did not move. Renovate (`011`) moves
-  both libraries, so both sets of defaults have to be reread on every update.
+The two-library state also costs something of its own, though no incident has
+come from it:
+
+- Two libraries' defaults to reread when Renovate (`011`) updates them. On the
+  inbound turn, only transcription still runs on the AI SDK: the judges and the
+  analyst are offline, and the mock runs only in development and CI. So the
+  doubled C7 surface is one call, not the whole model layer.
 - The turn runs on LangChain.js, but every test of it drives an AI SDK fake
   through `AiSdkChatModel`, an adapter that exists only so the fakes need not
   change. The seam `004` says to mock is the model; the tests mock a model of
@@ -27,10 +35,9 @@ line ADR-0026 gave it:
   repository carries `ai` as a dependency of its own to use a schema helper.
 
 The reflexive choice is to leave it as it is: each remaining use works, is
-tested, and moving it buys no feature. That was right while ADR-0026's
-rehearsal was unfinished. With `LangGraphRunner` the only runner, the AI SDK no
-longer runs any part of a customer's turn except transcription, and keeping it
-means keeping a second library's defaults for that one call.
+tested, and moving it buys no feature. Without a Python implementation coming,
+that would be the right call: the costs above are real but small, and the
+breaking release below is not.
 
 ## Decision
 
@@ -43,6 +50,9 @@ as a breaking release. `053` is the detailed form.
 
 ## Consequences
 
+- The Python implementation starts with structured output, fakes and
+  transcription pinned against a tested service, as ADR-0026 intended for the
+  turn.
 - One model library's defaults to pin and reread. `050`'s table becomes the
   whole list, plus the transcription client's rows in `053`.
 - Tests mock the library the service runs on. `AiSdkChatModel` is deleted, and
