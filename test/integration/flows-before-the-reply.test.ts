@@ -12,6 +12,7 @@ import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/029-flows-before-the-reply.md § Verification items 4 and 5: on an
@@ -96,11 +97,7 @@ function scriptedRunner(
     run: async ({ stage = new ActionStage(), contact, flows }) => {
       const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
       for (const [name, input] of calls) {
-        await built?.[name]?.execute?.(input as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        await execute(built?.[name], input);
       }
       seen.atReply = requests();
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
@@ -221,16 +218,18 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
     const runner: AgentRunner = {
       run: async ({ stage = new ActionStage(), contact, flows }) => {
         const built = buildTools(tools, stage, asProspect(contact), undefined, { flows })!;
-        const options = { toolCallId: 'test', messages: [], context: {} };
-        // One step: the SDK starts both calls together.
+        const options = {};
+        // One step: the model's two calls run together.
         outcomes.push(
           ...(await Promise.all([
-            built.send_flow!.execute!(
-              { flow: 'enrolment_link', contactAsked: true } as never,
+            execute(
+              built.send_flow,
+              { flow: 'enrolment_link', contactAsked: true },
               options,
             ),
-            built.set_field!.execute!(
-              { field: 'funnel_stage', value: 'offered' } as never,
+            execute(
+              built.set_field,
+              { field: 'funnel_stage', value: 'offered' },
               options,
             ),
           ])),
@@ -340,11 +339,7 @@ describe('an escalation does not recall a sent flow (specs/029 V5)', () => {
     const runner: AgentRunner = {
       run: async ({ stage = new ActionStage(), contact, flows, signal }) => {
         const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
-        await built?.send_flow?.execute?.({ flow: 'student_results' } as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        await execute(built?.send_flow, { flow: 'student_results' });
         return new Promise<AgentResult>((_resolve, reject) =>
           signal?.addEventListener('abort', () => reject(new Error('aborted'))),
         );
@@ -376,11 +371,7 @@ describe('an escalation does not recall a sent flow (specs/029 V5)', () => {
       run: ({ stage = new ActionStage(), contact, flows, signal }) => {
         const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
         // Called and not awaited, as a tool still running when the abort lands.
-        void built?.send_flow?.execute?.({ flow: 'student_results' } as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        void execute(built?.send_flow, { flow: 'student_results' });
         return new Promise<AgentResult>((_resolve, reject) =>
           signal?.addEventListener('abort', () => reject(new Error('aborted'))),
         );

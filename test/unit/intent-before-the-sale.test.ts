@@ -15,6 +15,7 @@ import type { Tools } from '../../src/contracts/config.ts';
 import type { ActionRecord } from '../../src/contracts/agent.ts';
 import { ContactRecord } from '../../src/contracts/manychat.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/034-intent-before-the-sale.md § Verification items 1, 2 and 3, against
@@ -32,13 +33,9 @@ const messages = (input: Raw) => {
 };
 const intentOf = (input: Raw) => input.fields.find(field => field.intent)!;
 
-/** Calls a built tool's `execute` the way the SDK does. */
+/** Runs a built tool the way the runner does. */
 async function call(built: ReturnType<typeof buildTools>, name: string, input: object) {
-  return (await built![name]!.execute!(input as never, {
-    toolCallId: 'test',
-    messages: [],
-    context: {},
-  })) as Record<string, unknown>;
+  return (await execute(built![name], input)) as Record<string, unknown>;
 }
 
 /** A flow sender that records every request: the ManyChat boundary. */

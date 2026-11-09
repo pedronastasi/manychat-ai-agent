@@ -13,6 +13,7 @@ import { NO_TOOLS, PROMPT_SECTIONS } from '../../src/contracts/config.ts';
 import type { PromptOverrides, PromptSection } from '../../src/contracts/config.ts';
 import { loadCases } from '../../src/evals/cases.ts';
 import { mockModel } from '../helpers/model.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -331,10 +332,8 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       });
       const config = loadTenantConfig(tenantDir(permissive));
       const built = buildTools(config.tools!, new ActionStage(), { sentFlows: new Set() });
-      const result = (await built!.send_flow!.execute!({ flow: 'student_results' } as never, {
-        toolCallId: 'test',
-        messages: [],
-        context: {},
+      const result = (await execute(built!.send_flow, {
+        flow: 'student_results',
       })) as Record<string, unknown>;
       expect(result).toEqual({ staged: false, reason: 'not_prospect' });
     });

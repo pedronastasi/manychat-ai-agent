@@ -17,6 +17,7 @@ import type { PerformableAction } from '../../src/contracts/agent.ts';
 import type { ActionPerformer } from '../../src/channels/manychat/client.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -290,11 +291,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       const built = buildTools(silentTools, new ActionStage(), prepared('foundation'), undefined, {
         flows,
       })!;
-      const result = await built.send_flow!.execute!({ flow: PAYMENT } as never, {
-        toolCallId: 'test',
-        messages: [],
-        context: {},
-      });
+      const result = await execute(built.send_flow, { flow: PAYMENT });
       expect(result).toEqual({
         sent: true,
         silent: expect.stringContaining('link of the contact’s offering from the CATALOG'),

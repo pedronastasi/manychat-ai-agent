@@ -1,4 +1,4 @@
-import { tool, type ToolSet } from 'ai';
+import { agentTool, type AgentTools } from './define.ts';
 import { z } from 'zod';
 import { LINK_SENT, PROSPECT } from '../../contracts/config.ts';
 import type { SendFlowAction } from '../flows.ts';
@@ -12,7 +12,7 @@ import type { ToolTurn } from './turn.ts';
  * `set_field`: the tenant's enum fields, the funnel, the offering and intent
  * among them (specs/012, 023, 028, 032, 034, 045).
  */
-export function addSetField(turn: ToolTurn, tools: ToolSet) {
+export function addSetField(turn: ToolTurn, tools: AgentTools) {
   const { config, stage, contact, options, funnel, intent, offering } = turn;
   if (config.fields.length > 0) {
     // `link_sent` is the server's to write, so the model cannot name it.
@@ -59,7 +59,7 @@ export function addSetField(turn: ToolTurn, tools: ToolSet) {
       return sent ? { flowSent: tied.id } : { flowRefused: tied.id };
     };
 
-    tools.set_field = tool({
+    tools.set_field = agentTool('set_field', {
       description: `Record one of these choices on the contact.\n${listing}\n${STAGED}`,
       // Never free text (specs/012 § Free-text field values are refused). The
       // enum covers every field's values; the refinement holds each value to

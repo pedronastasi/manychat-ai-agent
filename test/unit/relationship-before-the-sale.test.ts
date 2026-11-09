@@ -8,6 +8,8 @@ import { ToolsSchema } from '../../src/contracts/config.ts';
 import type { Tools } from '../../src/contracts/config.ts';
 import type { PerformableAction } from '../../src/contracts/agent.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
+import { execute } from '../helpers/tools.ts';
+import { modelJsonSchema } from '../../src/agent/model-schema.ts';
 
 /**
  * specs/032-relationship-before-the-sale.md § Verification items 1, 2 (the
@@ -46,19 +48,13 @@ const parse = (mutate: (input: ReturnType<typeof raw>) => void) => {
 const messages = (result: ReturnType<typeof parse>) =>
   result.success ? [] : result.error.issues.map(issue => issue.message);
 
-/** Calls a built tool's `execute` the way the SDK does. */
+/** Runs a built tool the way the runner does. */
 async function call(built: ReturnType<typeof buildTools>, name: string, input: object) {
-  const execute = built![name]!.execute!;
-  return (await execute(input as never, {
-    toolCallId: 'test',
-    messages: [],
-    context: {},
-  })) as Record<string, unknown>;
+  return (await execute(built![name], input)) as Record<string, unknown>;
 }
 
 async function enumOf(schema: unknown, parameter: string): Promise<unknown[]> {
-  const { asSchema } = await import('ai');
-  const json = (await asSchema(schema as z.ZodType).jsonSchema) as {
+  const json = modelJsonSchema(schema as z.ZodType) as {
     properties: Record<string, { enum?: unknown[] }>;
   };
   return json.properties[parameter]?.enum ?? [];
@@ -180,7 +176,7 @@ describe('the opening flow is the server’s (specs/032 V2)', () => {
   it('is absent from send_flow’s enum, on a first turn or any other', async () => {
     for (const contact of [at('new', { openingDue: true }), at('nurturing')]) {
       const built = buildTools(tools, new ActionStage(), contact);
-      const ids = await enumOf(built!.send_flow!.inputSchema, 'flow');
+      const ids = await enumOf(built!.send_flow!.schema, 'flow');
       expect(ids).not.toContain('welcome_note');
       expect(ids).toContain('student_results');
     }

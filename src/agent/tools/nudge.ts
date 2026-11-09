@@ -1,18 +1,18 @@
-import { tool, type ToolSet } from 'ai';
+import { agentTool, type AgentTools } from './define.ts';
 import { z } from 'zod';
 import { idsOf, STAGED } from './copy.ts';
 import { NOT_PROSPECT } from './turn.ts';
 import type { ToolTurn } from './turn.ts';
 
 /** `schedule_nudge`: a follow-up if the contact goes quiet; never on a nudge turn (specs/025). */
-export function addScheduleNudge(turn: ToolTurn, tools: ToolSet) {
+export function addScheduleNudge(turn: ToolTurn, tools: AgentTools) {
   const { config, stage, options } = turn;
   if (config.nudge && !options.nudgeTurn) {
     const delays = new Map(config.nudge.delays.map(delay => [delay.id, delay]));
     const listing = config.nudge.delays
       .map(delay => `- ${delay.id}: in ${delay.minutes} minutes`)
       .join('\n');
-    tools.schedule_nudge = tool({
+    tools.schedule_nudge = agentTool('schedule_nudge', {
       description:
         `Give yourself one more turn later, if the contact has not written by then.\n${listing}\n` +
         `A later call replaces an earlier one. ${STAGED}`,

@@ -13,6 +13,7 @@ import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { mockModel } from '../helpers/model.ts';
 import { manychatAnswer } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -128,12 +129,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
     it('stages the delay the model names, with its minutes', async () => {
       const stage = new ActionStage();
       const built = buildTools(tools, stage, asProspect());
-      const execute = built!.schedule_nudge!.execute!;
-      await execute({ delay: 'tomorrow' } as never, {
-        toolCallId: 'test',
-        messages: [],
-        context: {},
-      });
+      await execute(built!.schedule_nudge, { delay: 'tomorrow' });
       expect(stage.staged).toEqual([{ tool: 'schedule_nudge', id: 'tomorrow', minutes: 1200 }]);
     });
 

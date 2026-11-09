@@ -23,6 +23,8 @@ import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { mockModel } from '../helpers/model.ts';
 import { createMockModel } from '../../src/agent/mock-provider.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
+import { modelJsonSchema } from '../../src/agent/model-schema.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -43,8 +45,7 @@ const parse = (schema: unknown, input: unknown) => (schema as z.ZodType).safePar
 
 /** The values a built tool's parameter offers the model, as its JSON Schema renders them. */
 async function enumOf(schema: unknown, parameter: string): Promise<unknown[]> {
-  const { asSchema } = await import('ai');
-  const json = (await asSchema(schema as z.ZodType).jsonSchema) as {
+  const json = modelJsonSchema(schema as z.ZodType) as {
     properties: Record<string, { enum?: unknown[] }>;
   };
   return json.properties[parameter]?.enum ?? [];
@@ -52,10 +53,9 @@ async function enumOf(schema: unknown, parameter: string): Promise<unknown[]> {
 
 const stagedAt = (stage: string): ContactActions => ({ sentFlows: new Set(), funnelStage: stage });
 
-/** Calls a built tool's `execute` the way the SDK does. */
+/** Runs a built tool the way the runner does. */
 async function call(built: ReturnType<typeof buildTools>, name: string, input: object) {
-  const execute = built![name]!.execute!;
-  return (await execute(input as never, { toolCallId: 'test', messages: [], context: {} })) as {
+  return (await execute(built![name], input)) as {
     staged: boolean;
   };
 }
@@ -119,7 +119,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
 
     it('keeps link_sent out of the model’s enum', async () => {
       const built = buildTools(tools, new ActionStage(), asProspect())!;
-      const schema = built.set_field!.inputSchema;
+      const schema = built.set_field!.schema;
 
       expect(await enumOf(schema, 'value')).not.toContain('link_sent');
       expect(await enumOf(schema, 'value')).toContain('offered');
@@ -234,7 +234,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
         since,
       );
       const built = buildTools(tools, new ActionStage(), asProspect(contact))!;
-      const ids = await enumOf(built.send_flow!.inputSchema, 'flow');
+      const ids = await enumOf(built.send_flow!.schema, 'flow');
 
       expect(ids).not.toContain('foundation_brochure');
       expect(ids).toContain('enrolment_link');

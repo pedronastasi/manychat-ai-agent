@@ -2,7 +2,6 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, copyFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ToolExecutionOptions } from 'ai';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import type { ContactReader } from '../../src/channels/manychat/client.ts';
 import {
@@ -20,6 +19,7 @@ import { ContactRecord } from '../../src/contracts/manychat.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { manychatAnswer } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/024-contact-read-and-notes.md § Verification, items 1, 2, 4 (the
@@ -102,7 +102,7 @@ function clientAnswering(body: unknown) {
   return { client, requested };
 }
 
-const toolOptions = { toolCallId: 'call', messages: [] } as unknown as ToolExecutionOptions<never>;
+const toolOptions = {};
 
 /* -------------------------------------------------------------------------- */
 /* V1 — a whitelist, never the subscriber                                      */
@@ -164,7 +164,7 @@ describe('note values come back inside the contact fence (specs/024 V2)', () => 
     };
     const reads = new ContactReads({ reader, subscriberId: 's1', logger: { warn: () => {} } });
     const built = buildTools(tools, new ActionStage(), asProspect(undefined), reads)!;
-    const result = (await built.get_contact!.execute!({}, toolOptions)) as {
+    const result = (await execute(built.get_contact, {}, toolOptions)) as {
       tags: string[];
       fields: Record<string, string | null>;
       notes: string;
@@ -223,7 +223,7 @@ describe('a turn stages at most eight actions (specs/024 V4)', () => {
     ];
     const results = [];
     for (const [name, input] of calls) {
-      results.push(await built[name]!.execute!(input, toolOptions));
+      results.push(await execute(built[name], input, toolOptions));
     }
     expect(results.slice(0, 8)).toEqual(Array(8).fill({ staged: true }));
     expect(results[8]).toEqual({ staged: false });
@@ -323,7 +323,7 @@ describe('note text is cleaned before it is written (specs/024 V6)', () => {
     expect(cleanNote('  robin.example@example.test \n', 280)).toBe('[removed]');
     const stage = new ActionStage();
     const built = buildTools(tools, stage, asProspect())!;
-    expect(await built.write_note!.execute!({ note: 'goal', text: ' \n\t ' }, toolOptions)).toEqual(
+    expect(await execute(built.write_note, { note: 'goal', text: ' \n\t ' }, toolOptions)).toEqual(
       { staged: false },
     );
     expect(stage.staged).toHaveLength(0);
@@ -332,7 +332,8 @@ describe('note text is cleaned before it is written (specs/024 V6)', () => {
   it('stages the cleaned text, and records only its length', async () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage, asProspect())!;
-    await built.write_note!.execute!(
+    await execute(
+      built.write_note,
       { note: 'goal', text: 'Reach me at robin.example@example.test' },
       toolOptions,
     );

@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,6 +39,7 @@ import { activationGate, NO_PLAYBOOK } from '../../src/learning/gate.ts';
 import type { EvalRecord, PlaybookVersion } from '../../src/learning/store.ts';
 import { isoWeek } from '../../src/learning/store.ts';
 import { mockModel } from '../helpers/model.ts';
+import { modelJsonSchema } from '../../src/agent/model-schema.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -176,7 +178,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
           Object.entries(built).map(([name, tool]) => ({
             name,
             description: tool.description,
-            schema: (tool.inputSchema as { toJSONSchema?: () => unknown }).toJSONSchema?.() ?? null,
+            schema: modelJsonSchema(tool.schema as z.ZodType),
           })),
         );
         expect(surface).not.toMatch(/playbook|insight|tactic|remember|lesson/i);

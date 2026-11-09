@@ -27,7 +27,7 @@ describe('the model sees the same tool and reply schema bytes (specs/053 V3)', (
     const definitions = Object.entries(fullToolSet()).map(([name, tool]) => ({
       name,
       description: tool.description,
-      parameters: modelJsonSchema(tool.inputSchema as z.ZodType),
+      parameters: modelJsonSchema(tool.schema as z.ZodType),
     }));
     expect(bytes(definitions)).toBe(bytes(recorded('tool-definitions')));
   });
@@ -53,7 +53,7 @@ describe('a tool error answers the model with today’s text (specs/053 V4)', ()
   });
 
   it('quotes the input and the schema’s complaint, as InvalidToolInputError did', async () => {
-    const schema = fullToolSet().set_field!.inputSchema as z.ZodType;
+    const schema = fullToolSet().set_field!.schema as z.ZodType;
     const checked = await schema.safeParseAsync(INVALID_SET_FIELD_INPUT);
     expect(checked.success).toBe(false);
     expect(invalidToolInputText('set_field', INVALID_SET_FIELD_INPUT, checked.error)).toBe(
