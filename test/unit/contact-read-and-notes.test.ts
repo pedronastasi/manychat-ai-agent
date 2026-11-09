@@ -323,9 +323,9 @@ describe('note text is cleaned before it is written (specs/024 V6)', () => {
     expect(cleanNote('  robin.example@example.test \n', 280)).toBe('[removed]');
     const stage = new ActionStage();
     const built = buildTools(tools, stage, asProspect())!;
-    expect(await execute(built.write_note, { note: 'goal', text: ' \n\t ' }, toolOptions)).toEqual(
-      { staged: false },
-    );
+    expect(await execute(built.write_note, { note: 'goal', text: ' \n\t ' }, toolOptions)).toEqual({
+      staged: false,
+    });
     expect(stage.staged).toHaveLength(0);
   });
 

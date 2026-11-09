@@ -2,7 +2,7 @@ import { beforeEach, afterAll, describe, it, expect } from 'vitest';
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { ActionStage, buildTools } from '../../src/agent/tools.ts';
 import { buildSystemPrompt, FENCE, nudgeNotice } from '../../src/agent/prompt.ts';
 import { RUNNERS } from '../helpers/runners.ts';
@@ -58,8 +58,7 @@ const reply = {
   closing_question: null,
 };
 
-const toolNames = (call: LanguageModelV4CallOptions | undefined) =>
-  (call?.tools ?? []).map(entry => entry.name);
+const toolNames = (call: ModelCall | undefined) => (call?.tools ?? []).map(entry => entry.name);
 
 describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each }) => {
   beforeEach(() => {

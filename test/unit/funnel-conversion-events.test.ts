@@ -2,7 +2,6 @@ import { afterAll, describe, it, expect } from 'vitest';
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { z } from 'zod';
 import { ActionStage, buildTools } from '../../src/agent/tools.ts';
 import type { ContactActions } from '../../src/agent/tools.ts';
 import { actionsNote, buildSystemPrompt } from '../../src/agent/prompt.ts';
@@ -134,7 +133,7 @@ describe('no event reaches the model (specs/027 V2)', () => {
       // Every description here is a plain string; a computed one would escape this check.
       expect(typeof entry.description).toBe('string');
       parts.push(name, entry.description);
-      parts.push(JSON.stringify(modelJsonSchema(entry.schema as z.ZodType)));
+      parts.push(JSON.stringify(modelJsonSchema(entry.schema)));
     }
     return parts.join('\n');
   }

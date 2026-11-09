@@ -1,4 +1,3 @@
-import type { LanguageModel } from 'ai';
 import { runTool } from './tools/define.ts';
 import type { AgentTool, AgentTools } from './tools/define.ts';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
@@ -13,7 +12,6 @@ import type {
 import type { z } from 'zod';
 import { AgentReplyForModel, AgentReplyFromModel } from '../contracts/agent.ts';
 import { invalidToolInputText, modelJsonSchema, unknownToolText } from './model-schema.ts';
-import { chatModelFromAiSdk } from './registry.ts';
 import type { ChatModelHandle } from './registry.ts';
 import { PromptedRunner } from './runner.ts';
 import type { AgentUsage, Generated, PreparedTurn, RunnerOptions } from './runner.ts';
@@ -26,10 +24,7 @@ import { MAX_STEPS } from './tools.ts';
  * (specs/050 § The graph has three nodes and a step counter).
  */
 
-export type LangGraphRunnerOptions = Omit<RunnerOptions, 'model'> & {
-  /** A chat model from `resolveChatModel`, or an AI SDK model (`mock:`, a test fake) to wrap. */
-  model: ChatModelHandle | LanguageModel;
-};
+export type LangGraphRunnerOptions = RunnerOptions;
 
 /**
  * Supersteps a turn can take: a model and a tools step for each step that may
@@ -113,7 +108,7 @@ function toolDefinitions(tools: AgentTools) {
 
 /** A tool's input schema. Every tool here is built with a Zod schema (specs/012, specs/036). */
 function inputSchemaOf(tool: AgentTool): z.ZodType {
-  return tool.schema as z.ZodType;
+  return tool.schema;
 }
 
 /** The standard usage field, which the default message structure types as absent. */
@@ -163,11 +158,7 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
 
   constructor(opts: LangGraphRunnerOptions) {
     super(opts);
-    const { model } = opts;
-    this.handle =
-      typeof model === 'object' && 'replyFormat' in model
-        ? model
-        : chatModelFromAiSdk(model, opts.modelSpec, opts);
+    this.handle = opts.model;
   }
 
   protected async generate(turn: PreparedTurn): Promise<Generated> {

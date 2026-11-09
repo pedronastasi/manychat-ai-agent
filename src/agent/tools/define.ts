@@ -3,11 +3,19 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import type { z } from 'zod';
 
 /**
- * A tool the model may call: a LangChain.js tool (specs/053 § Tools are
- * LangChain tools, and the model sees the same bytes). Its `schema` is the Zod
+ * A tool the model may call. Each is a LangChain.js tool, a
+ * `DynamicStructuredTool` (specs/053 § Tools are LangChain tools, and the
+ * model sees the same bytes); this is the part of it the package promises, so
+ * LangChain's own generics stay out of the public API. `schema` is the Zod
  * object the model is shown, through `modelJsonSchema`.
  */
-export type AgentTool = DynamicStructuredTool;
+export interface AgentTool {
+  readonly name: string;
+  readonly description: string;
+  readonly schema: z.ZodType;
+  /** Validates `input` against `schema` and runs the tool, as LangChain does. */
+  invoke(input: unknown, config?: { signal?: AbortSignal | undefined }): Promise<unknown>;
+}
 
 /** A turn's tools, by name, in the order the model is offered them. */
 export type AgentTools = Record<string, AgentTool>;
@@ -47,5 +55,6 @@ export async function runTool(
   input: unknown,
   signal: AbortSignal | undefined,
 ): Promise<unknown> {
-  return agentTool.func(input, undefined, signal ? { signal } : {});
+  const langchain = agentTool as unknown as DynamicStructuredTool;
+  return langchain.func(input, undefined, signal ? { signal } : {});
 }

@@ -222,16 +222,8 @@ describe('an inbound turn sends its flow before the reply (specs/029 V4)', () =>
         // One step: the model's two calls run together.
         outcomes.push(
           ...(await Promise.all([
-            execute(
-              built.send_flow,
-              { flow: 'enrolment_link', contactAsked: true },
-              options,
-            ),
-            execute(
-              built.set_field,
-              { field: 'funnel_stage', value: 'offered' },
-              options,
-            ),
+            execute(built.send_flow, { flow: 'enrolment_link', contactAsked: true }, options),
+            execute(built.set_field, { field: 'funnel_stage', value: 'offered' }, options),
           ])),
         );
         return {

@@ -3,7 +3,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { z } from 'zod';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import {
   ActionStage,
   buildTools,
@@ -394,7 +394,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       });
       await runner.run({ text: 'hello', history: [], contact: stagedAt('offered') });
 
-      const texts = (calls[0] as LanguageModelV4CallOptions).prompt.flatMap(entry =>
+      const texts = (calls[0] as ModelCall).prompt.flatMap(entry =>
         entry.role === 'user'
           ? entry.content.flatMap(part => (part.type === 'text' ? [part.text] : []))
           : entry.role === 'system'

@@ -1,9 +1,8 @@
-import type { z } from 'zod';
 import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import type { TenantConfig } from '../../src/config/loader.ts';
 import { buildSystemPrompt } from '../../src/agent/prompt.ts';
@@ -111,7 +110,7 @@ async function promptOf(config: TenantConfig, source?: { current(): ActivePlaybo
     playbook: source,
   });
   const result = await runner.run({ text: 'hello', history: [] });
-  const prompt = (calls[0] as LanguageModelV4CallOptions).prompt;
+  const prompt = (calls[0] as ModelCall).prompt;
   const system = prompt
     .filter(message => message.role === 'system')
     .map(message => message.content)
@@ -178,7 +177,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
           Object.entries(built).map(([name, tool]) => ({
             name,
             description: tool.description,
-            schema: modelJsonSchema(tool.schema as z.ZodType),
+            schema: modelJsonSchema(tool.schema),
           })),
         );
         expect(surface).not.toMatch(/playbook|insight|tactic|remember|lesson/i);

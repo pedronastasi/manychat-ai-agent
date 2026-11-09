@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
 import {
   calibrateConversations,
   ConversationJudge,
@@ -13,6 +12,7 @@ import {
 import type { RepetitionRun, StepRecord } from '../../src/evals/conversations/harness.ts';
 import { ConversationCalibrationItem, Scenario } from '../../src/contracts/conversations.ts';
 import type { TranscriptStep } from '../../src/contracts/conversations.ts';
+import { fakeChatModel } from '../helpers/model.ts';
 
 /**
  * specs/043-complete-conversation-evals.md § Verification item 8: the judge
@@ -130,20 +130,18 @@ describe('a conversation verdict quotes the step it names (specs/043 V8)', () =>
 /** A judge model answering `outputs` in turn, or throwing when an output is an Error. */
 function judgeAnswering(outputs: (object | Error)[]) {
   let call = 0;
-  const model = new MockLanguageModelV4({
-    doGenerate: () => {
-      const output = outputs[Math.min(call++, outputs.length - 1)];
-      if (output instanceof Error) return Promise.reject(output);
-      return Promise.resolve({
-        content: [{ type: 'text' as const, text: JSON.stringify(output) }],
-        finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 5, text: 5, reasoning: 0 },
-        },
-        warnings: [],
-      });
-    },
+  const model = fakeChatModel(() => {
+    const output = outputs[Math.min(call++, outputs.length - 1)];
+    if (output instanceof Error) return Promise.reject(output);
+    return Promise.resolve({
+      content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+      finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 5, text: 5, reasoning: 0 },
+      },
+      warnings: [],
+    });
   });
   return new ConversationJudge({ model, modelSpec: 'mock:judge', timeoutMs: 1000 });
 }

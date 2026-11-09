@@ -2,7 +2,7 @@ import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { buildSystemPrompt, FENCE, FENCE_END, SECTION_HEADINGS } from '../../src/agent/prompt.ts';
 import type { SystemPromptOptions } from '../../src/agent/prompt.ts';
 import { RUNNERS } from '../helpers/runners.ts';
@@ -85,7 +85,7 @@ function tenantDir(overrides?: string): string {
   return dir;
 }
 
-const systemOf = (call: LanguageModelV4CallOptions) =>
+const systemOf = (call: ModelCall) =>
   call.prompt
     .filter(entry => entry.role === 'system')
     .map(entry => entry.content)
