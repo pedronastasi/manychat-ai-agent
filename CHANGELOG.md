@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.36.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.35.0...v0.36.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* the manychat-ai-agent/testing export changes shape:
+    - mockModel returns { model, calls } where model is a LangChain chat-model
+      handle and each call records the LangChain messages and a normalized
+      prompt and tools, not AI SDK call options.
+    - hangingModel returns a LangChain chat-model handle.
+    - mockTranscriptionModel returns a Transcriber.
+    - buildTools returns AgentTools (exported): read a tool's schema from
+      tool.schema, not tool.inputSchema, and convert it with Zod's
+      z.toJSONSchema instead of the AI SDK's asSchema.
+* buildTools returns LangChain tools: a tool's schema is tool.schema, not tool.inputSchema, and it runs through LangChain, not an AI SDK execute.
+
+### Bug Fixes
+
+* **deps:** update dependency postgres to v4 ([f67cf9c](https://github.com/pedronastasi/manychat-ai-agent/commit/f67cf9ce23d2d6fef810111bf6ccec9ac7ffcfee))
+* **deps:** update dependency postgres to v4 ([1ccacfe](https://github.com/pedronastasi/manychat-ai-agent/commit/1ccacfe5d1f278751472c08ffa9970480cd8e4c7))
+* hand File an ArrayBuffer-backed copy of the audio under @types/node 26 ([5633c5a](https://github.com/pedronastasi/manychat-ai-agent/commit/5633c5aff18c47f8e3f2fa6a874d50ecae5aadce))
+* hand File an ArrayBuffer-backed copy of the audio under @types/node 26 ([c92fba2](https://github.com/pedronastasi/manychat-ai-agent/commit/c92fba2b71a6e0b951a15ffcbd8a938c8095e20c))
+
+
+### Refactors
+
+* remove the AI SDK; fakes are LangChain chat models (spec 053) ([57416c5](https://github.com/pedronastasi/manychat-ai-agent/commit/57416c53a6756c1a35d75a246b98926303e03273))
+* the mock is a LangChain chat model (spec 053) ([48ce549](https://github.com/pedronastasi/manychat-ai-agent/commit/48ce5491f26bdc9f546bd0149fc034937c55d7f4))
+* the mock is a LangChain chat model (spec 053) ([d5ccc74](https://github.com/pedronastasi/manychat-ai-agent/commit/d5ccc748647bf3aee6e4fd71d9edb77e6168648a))
+* tools are LangChain tools (spec 053) ([cabf44d](https://github.com/pedronastasi/manychat-ai-agent/commit/cabf44d51ac0a1beb5342c99e924e1ce6f9f37a8))
+
+
+### Specs and Docs
+
+* bring the docs up to specs/053's steps 1 and 2 ([ebb3ada](https://github.com/pedronastasi/manychat-ai-agent/commit/ebb3adad4a2687bb6b77fd3815482ec37f5f2e35))
+* describe the turn graph, the stack, channels and tracing in the README ([20ea629](https://github.com/pedronastasi/manychat-ai-agent/commit/20ea629195581f6b3d0da9c2c01259d43243de64))
+* describe the turn graph, the stack, channels and tracing in the README ([613737f](https://github.com/pedronastasi/manychat-ai-agent/commit/613737fcd4584b36cad3a2d52fd9c38cde2e7165))
+* drop the AI SDK from the docs now that spec 053 has landed ([244be18](https://github.com/pedronastasi/manychat-ai-agent/commit/244be18a9476450e2a29a7ef721285b49a8d47c6))
+* let the README hold the stack, the turn graph, channels and configuration (spec 040) ([05b3db4](https://github.com/pedronastasi/manychat-ai-agent/commit/05b3db4850de29321f6c53e7caa6899f4d399cd3))
+* say what the runner helper takes now that the fakes are chat models ([1d9aef5](https://github.com/pedronastasi/manychat-ai-agent/commit/1d9aef52c374727f7d841170d4ae5fd6a0057e4b))
+* spec 053 is implemented; CLAUDE.md and specs 007 and 016 lose the AI SDK ([3ebb7e3](https://github.com/pedronastasi/manychat-ai-agent/commit/3ebb7e36380455f515739926ab17e371b72b2dab))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([51dfab0](https://github.com/pedronastasi/manychat-ai-agent/commit/51dfab0934f07efa6a871303fc714d494bd8ca41))
+* **deps:** lock file maintenance ([a7de01d](https://github.com/pedronastasi/manychat-ai-agent/commit/a7de01d52c1eb52c2cc660d9378bc60825c92476))
+* **deps:** update node.js to v26 ([9f8bc2b](https://github.com/pedronastasi/manychat-ai-agent/commit/9f8bc2b4e1b43d7d7271814b820dbdb79ae54764))
+* **deps:** update node.js to v26 ([4d0939c](https://github.com/pedronastasi/manychat-ai-agent/commit/4d0939cf8d95acfbcdb48c1af64e3c541763f7c6))
+
 ## [0.35.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.34.0...v0.35.0) (2026-11-08)
 
 
