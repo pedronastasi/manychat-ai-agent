@@ -80,7 +80,11 @@ export class OpenAiTranscriber implements Transcriber {
       this.endpoint ??= this.opts.endpoint();
       const raw = await this.endpoint.create(
         {
-          file: new File([audio], `audio.${audioExtension(mediaType)}`, { type: mediaType }),
+          // A copy: File takes an ArrayBuffer-backed view, and the port's
+          // Uint8Array may sit on a SharedArrayBuffer (@types/node 26).
+          file: new File([new Uint8Array(audio)], `audio.${audioExtension(mediaType)}`, {
+            type: mediaType,
+          }),
           model: this.opts.model,
           ...requestFor(this.opts.model),
         },
