@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { createTestDatabase } from '../helpers/db.ts';
 import type { Database } from '../../src/db/client.ts';
 import { TurnHandler } from '../../src/turn/handler.ts';
 import { RUNNERS } from '../helpers/runners.ts';
 import type { RunnerClass } from '../helpers/runners.ts';
-import { SdkTranscriber } from '../../src/agent/transcriber.ts';
 import { ManyChatAdapter } from '../../src/channels/manychat/adapter.ts';
 import { ManyChatMediaFetcher } from '../../src/channels/manychat/media.ts';
 import { FfmpegVideoSplitter } from '../../src/media/ffmpeg.ts';
@@ -126,12 +125,7 @@ function setup(over: Setup = {}) {
       : mockTranscriptionModel(over.transcriber ?? { text: 'how much is the course?' });
   const media = new MediaResolver({
     fetcher: new ManyChatMediaFetcher(host.fetch),
-    transcriber: transcription
-      ? new SdkTranscriber({
-          model: transcription.model,
-          modelSpec: 'openai:gpt-4o-mini-transcribe',
-        })
-      : null,
+    transcriber: transcription ? transcription.model : null,
     splitter: over.ffmpeg === false ? null : new FfmpegVideoSplitter(),
     acceptsImages: over.acceptsImages ?? true,
   });
@@ -167,7 +161,7 @@ const inbound = (text: string, subscriberId = 's1') =>
   );
 
 /** The last user message the answering model was sent, split into its parts. */
-function lastUserMessage(call: LanguageModelV4CallOptions) {
+function lastUserMessage(call: ModelCall) {
   const user = call.prompt.filter(message => message.role === 'user').at(-1)!;
   const parts = user.content as { type: string; text?: string; mediaType?: string }[];
   return {
@@ -198,7 +192,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       expect(out.outcome).toBe('answered_inline');
       expect(out.reply.messages).toEqual(['Happy to help with that.']);
       // The transcriber heard the downloaded bytes, not the link.
-      expect([...(transcription!.calls[0]!.audio as Uint8Array)]).toEqual([...OGG]);
+      expect([...transcription!.calls[0]!.audio]).toEqual([...OGG]);
 
       const { texts, files } = lastUserMessage(answering.calls[0]!);
       expect(files).toEqual([]);
@@ -297,9 +291,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
 
       expect(out.outcome).toBe('answered_inline');
       // The soundtrack, as Ogg, not the video file itself.
-      expect(
-        Buffer.from((transcription!.calls[0]!.audio as Uint8Array).subarray(0, 4)).toString(),
-      ).toBe('OggS');
+      expect(Buffer.from(transcription!.calls[0]!.audio.subarray(0, 4)).toString()).toBe('OggS');
       const { texts, files } = lastUserMessage(answering.calls[0]!);
       expect(files.length).toBeGreaterThan(0);
       expect(files.length).toBeLessThanOrEqual(4);

@@ -1,5 +1,6 @@
 ---
-status: specified
+status: implemented
+implemented: 2026-11-09
 constitution: [C2, C3, C7, C8]
 adr: [0026, 0030]
 ---
@@ -205,8 +206,9 @@ same registry.
 replies, same tool calls, same reported counts, for the same inputs. Its
 decisions are unchanged; they read a `MockRequest` of its own, built from the
 turn's LangChain messages and bound tools the way `AiSdkChatModel` built the
-AI SDK prompt, so they see what they saw before. `AiSdkChatModel` stays until
-step 3, for the test fakes; it is deleted with them.
+AI SDK prompt, so they see what they saw before. That request view is
+`ModelRequest` in `src/agent/model-request.ts`, shared with the test fakes.
+`AiSdkChatModel` stayed for the fakes until step 3 and was deleted with them.
 
 The check is the one `050` used, now against the rewrite: `pnpm eval:mock`
 gives the same outcome, case for case, on each of CI's four `eval:mock` runs,
@@ -219,31 +221,44 @@ Recorded on 2026-11-08, step 2: the full output of each run on `main` and on
 the rewrite, timings removed, is identical, every verdict, staged action and
 line of reply text included (golden 34 passed, 21 to review, $0.4080; the
 `mock:judge` run 134 ungraded, judge $0.1350; repair and prompt overrides 4 to
-review each).
+review each). Recorded again on 2026-11-09, step 3, against `main` with the
+step-2 mock: identical on all four, after the tools, the fakes and the
+adapters changed.
 
 Tests still fake only the model and the ManyChat boundary (`004`). A fake is a
-LangChain.js chat model that honours its contract: it reports
-`usage_metadata`, returns tool calls as `tool_calls`, and rejects with an abort
-error when the call's signal aborts. A fake that ignores the signal would let a
-C7 test pass that production fails.
+LangChain.js chat model (`fakeChatModel`, `src/testing/model.ts`) that honours
+its contract: it reports `usage_metadata`, returns tool calls as `tool_calls`,
+and rejects with an abort error when the call's signal aborts. It records each
+call as the same `ModelRequest` the mock reads, the shape the AI SDK's prompt
+had, so what a test asserted of a call before reads the same now. Settings the
+registry applies to a provider's model (temperature, reasoning effort) are
+tested on the model the registry builds; a fake is given none. A fake that
+ignores the signal would let a C7 test pass that production fails.
 
 ## The testing export changes shape once, as a breaking release
 
 `manychat-ai-agent/testing` keeps its names and changes its types:
 
-| Export                   | Today                                  | After                                                            |
-| ------------------------ | -------------------------------------- | ---------------------------------------------------------------- |
-| `mockModel`              | Records `LanguageModelV4CallOptions`   | Records the LangChain.js messages and tools sent                 |
-| `mockTranscriptionModel` | Returns an AI SDK `TranscriptionModel` | Returns a `Transcriber`                                          |
-| `hangingModel`           | AI SDK model that never answers        | LangChain.js chat model that never answers, and rejects on abort |
-| `buildTools`             | Returns a `ToolSet`                    | Returns LangChain.js tools                                       |
-| `ActionStage`            | Unchanged                              | Unchanged                                                        |
+| Export                   | Today                                  | After                                                              |
+| ------------------------ | -------------------------------------- | ------------------------------------------------------------------ |
+| `mockModel`              | Records `LanguageModelV4CallOptions`   | Records the LangChain.js messages and tools sent                   |
+| `mockTranscriptionModel` | Returns an AI SDK `TranscriptionModel` | Returns a `Transcriber`                                            |
+| `hangingModel`           | AI SDK model that never answers        | LangChain.js chat model that never answers, and rejects on abort   |
+| `buildTools`             | Returns a `ToolSet`                    | Returns `AgentTools`: LangChain.js tools, read through `AgentTool` |
+| `ActionStage`            | Unchanged                              | Unchanged                                                          |
 
 All of it ships in one release, marked breaking, which bumps the minor below
 `1.0.0` (`010 § Before 1.0, a breaking change bumps the minor`). No release
 carries half of it: a tenant project upgrades once. The release notes say what
 a tenant project changes, including that a test converting a tool schema with
 the AI SDK's `asSchema` uses Zod's `z.toJSONSchema` instead.
+
+`AgentTool` and `AgentTools` are exported from `testing`. `AgentTool` is an
+interface of what the package promises of a tool (`name`, `description`,
+`schema`, `invoke`), not LangChain's `DynamicStructuredTool` with its
+generics: a LangChain update then cannot change the public API, which the
+`public-api` snapshot (`033`) would otherwise record as a breaking change of
+ours.
 
 ## C2's import list names the transcription client
 

@@ -6,6 +6,7 @@ import { stagedNotice } from '../../src/agent/prompt.ts';
 import { ToolsSchema } from '../../src/contracts/config.ts';
 import type { PerformableAction } from '../../src/contracts/agent.ts';
 import type { ActionPerformer } from '../../src/channels/manychat/client.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/029-flows-before-the-reply.md § Verification items 1, 2 and 3: a flow
@@ -48,7 +49,7 @@ class RecordingPerformer implements ActionPerformer {
 }
 
 const logger = { warn: () => {} };
-const options = { toolCallId: 'test', messages: [], context: {} };
+const options = {};
 const onCourse: ContactActions = { sentFlows: new Set(), offering: 'foundation' };
 
 function turn() {
@@ -57,7 +58,7 @@ function turn() {
   const flows = new FlowSends({ performer, subscriberId: 's1', logger });
   const built = buildTools(tools, stage, onCourse, undefined, { flows })!;
   const call = (name: string, input: object) =>
-    built[name]!.execute!(input as never, options) as Promise<object>;
+    execute(built[name], input, options) as Promise<object>;
   return { performer, stage, call, built };
 }
 
@@ -123,7 +124,7 @@ describe('a flow is sent when the model calls it (specs/029 V1)', () => {
   it('stages as before without a flow sender', async () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage, onCourse)!;
-    expect(await built.send_flow!.execute!({ flow: 'brochure' } as never, options)).toEqual({
+    expect(await execute(built.send_flow, { flow: 'brochure' }, options)).toEqual({
       staged: true,
     });
     expect(stage.staged).toEqual([expect.objectContaining({ tool: 'send_flow', id: 'brochure' })]);

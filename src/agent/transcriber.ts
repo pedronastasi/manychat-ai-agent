@@ -1,4 +1,3 @@
-import { NoTranscriptGeneratedError, transcribe, type TranscriptionModel } from 'ai';
 import { z } from 'zod';
 import { MediaFailure, type Transcriber, type Transcript } from '../media/port.ts';
 import { audioExtension, audioMediaType } from '../media/audio-type.ts';
@@ -15,39 +14,6 @@ function billed(modelSpec: string, audio: Uint8Array, seconds: number | undefine
     modelSpec,
     seconds ?? audio.byteLength / PESSIMISTIC_BYTES_PER_SECOND,
   );
-}
-
-/**
- * Transcribes with an AI SDK model. Kept for `google:` and for test fakes
- * until specs/053's step 3 (§ Google transcription is dropped).
- */
-export class SdkTranscriber implements Transcriber {
-  private readonly model: TranscriptionModel;
-  private readonly modelSpec: string;
-
-  constructor(opts: { model: TranscriptionModel; modelSpec: string }) {
-    this.model = opts.model;
-    this.modelSpec = opts.modelSpec;
-  }
-
-  async transcribe(audio: Uint8Array, signal: AbortSignal): Promise<Transcript> {
-    let text = '';
-    let seconds: number | undefined;
-    try {
-      const result = await transcribe({ model: this.model, audio, abortSignal: signal });
-      text = result.text.trim();
-      seconds = result.durationInSeconds;
-    } catch (error) {
-      // The SDK throws on an empty transcript. A voice note with nothing said
-      // is the contact's to fix by typing, not a failure to hand off.
-      if (!NoTranscriptGeneratedError.isInstance(error)) {
-        throw new MediaFailure('transcription', error instanceof Error ? error.name : 'unknown', {
-          cause: error,
-        });
-      }
-    }
-    return { text, model: this.modelSpec, costUsd: billed(this.modelSpec, audio, seconds) };
-  }
 }
 
 /** The transcription endpoint of an OpenAI-compatible client: the `openai` package's, built in the registry (C2). */

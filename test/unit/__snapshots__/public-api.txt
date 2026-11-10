@@ -939,6 +939,21 @@ type ActionStage = {
   }
 }
 
+type AgentTool = {
+  invoke: {
+    (input: unknown, config?: undefined | {
+      signal?: AbortSignal | undefined
+    }) => Promise<unknown>
+  }
+  readonly description: string
+  readonly name: string
+  readonly schema: zod schema of unknown
+}
+
+type AgentTools = {
+  [key: string]: AgentTool
+}
+
 buildTools: {
   (config: Tools, stage: ActionStage, contact?: {
     advertOffering?: string | undefined
@@ -1068,7 +1083,7 @@ buildTools: {
     }
     plugins?: undefined | {
       addReadTools: {
-        (tools: ToolSet, reads: {
+        (tools: AgentTools, reads: {
           latest: readonly {
             result: {
               fields: Record<string, false | number | string | true>
@@ -1096,7 +1111,7 @@ buildTools: {
         }) => void
       }
       addTools: {
-        (tools: ToolSet, stage: ActionStage, closed: {
+        (tools: AgentTools, stage: ActionStage, closed: {
           () => false | true
         }, describe: {
           (description: string) => string
@@ -1254,11 +1269,24 @@ buildTools: {
         }[]
       }
     }
-  }) => ToolSet | undefined
+  }) => AgentTools | undefined
 }
 
 hangingModel: {
-  () => MockLanguageModelV4
+  () => {
+    model: BaseChatModel<BaseLanguageModelCallOptions & {
+      outputVersion?: "v0" | "v1" | undefined
+      tool_choice?: Record<string, any> | string | undefined
+    }, AIMessageChunk<MessageStructure<MessageToolSet>>>
+    replyFormat: {
+      (schema: {
+        [key: string]: unknown
+      }) => Record<string, unknown>
+    }
+    systemMessage: {
+      (text: string) => SystemMessage<MessageStructure<MessageToolSet>>
+    }
+  }
 }
 
 mockModel: {
@@ -1267,8 +1295,62 @@ mockModel: {
     inputTokens?: number | undefined
     outputTokens?: number | undefined
   }) => {
-    calls: LanguageModelV4CallOptions[]
-    model: MockLanguageModelV4
+    calls: {
+      abortSignal: AbortSignal | undefined
+      messages: (BaseMessage<MessageStructure<MessageToolSet>, "ai" | "human" | "system" | "tool" | string & {}>)[]
+      prompt: {
+        content: string
+        role: "system"
+      } | {
+        content: {
+          input: Record<string, unknown>
+          toolCallId: string
+          toolName: string
+          type: "tool-call"
+        } | {
+          mediaType: string
+          type: "file"
+        } | {
+          output: {
+            type: "error-text"
+            value: string
+          } | {
+            type: "json"
+            value: unknown
+          }
+          toolCallId: string
+          toolName: string
+          type: "tool-result"
+        } | {
+          text: string
+          type: "text"
+        }[]
+        role: "assistant" | "tool" | "user"
+      }[]
+      responseFormat?: unknown
+      tools?: undefined | {
+        description?: string | undefined
+        inputSchema: {
+          properties?: Record<string, unknown> | undefined
+        }
+        name: string
+        type: "function"
+      }[]
+    }[]
+    model: {
+      model: BaseChatModel<BaseLanguageModelCallOptions & {
+        outputVersion?: "v0" | "v1" | undefined
+        tool_choice?: Record<string, any> | string | undefined
+      }, AIMessageChunk<MessageStructure<MessageToolSet>>>
+      replyFormat: {
+        (schema: {
+          [key: string]: unknown
+        }) => Record<string, unknown>
+      }
+      systemMessage: {
+        (text: string) => SystemMessage<MessageStructure<MessageToolSet>>
+      }
+    }
   }
 }
 
@@ -1277,10 +1359,22 @@ mockTranscriptionModel: {
     delayMs?: number | undefined
     durationInSeconds?: number | undefined
     error?: Error | undefined
+    modelSpec?: string | undefined
     text?: string | undefined
   }) => {
-    calls: TranscriptionModelV4CallOptions[]
-    model: TranscriptionModelV2 | TranscriptionModelV3 | TranscriptionModelV4 | string
+    calls: {
+      audio: Uint8Array<ArrayBuffer | SharedArrayBuffer>
+      signal: AbortSignal
+    }[]
+    model: {
+      transcribe: {
+        (audio: Uint8Array<ArrayBuffer | SharedArrayBuffer>, signal: AbortSignal) => Promise<{
+          costUsd: number
+          model: string
+          text: string
+        }>
+      }
+    }
   }
 }
 

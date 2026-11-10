@@ -15,12 +15,10 @@ import { ManyChatInbound, ManyChatResponse } from './contracts/manychat.ts';
 import { acceptedChannels, capabilitiesFor, NO_TOOLS } from './contracts/config.ts';
 import type { Env } from './contracts/config.ts';
 import type { AgentReply, InboundMessage } from './contracts/agent.ts';
-import type { TranscriptionModel } from 'ai';
 import type { Database } from './db/client.ts';
 import { acceptsImages, resolveTranscriptionModel } from './agent/registry.ts';
 import { createRunner } from './agent/select-runner.ts';
 import type { AgentRunner } from './agent/runner.ts';
-import { SdkTranscriber } from './agent/transcriber.ts';
 import { ManyChatAdapter } from './channels/manychat/adapter.ts';
 import { manychatClientFor } from './channels/manychat/client.ts';
 import type { ActionPerformer, ContactReader, ManyChatClient } from './channels/manychat/client.ts';
@@ -39,6 +37,7 @@ import { loggerOptions } from './observability/logger.ts';
 import { Tracing } from './observability/tracing.ts';
 import type { PlaybookSource } from './learning/playbook.ts';
 import { Plugins } from './plugins/plugins.ts';
+import type { Transcriber } from './media/port.ts';
 
 const MESSAGE_ROUTE = '/v1/channels/manychat/message';
 
@@ -86,7 +85,7 @@ export interface BuildOptions {
   /** Injected by tests: the ManyChat HTTP boundary, API and media host alike. */
   manychatFetch?: typeof fetch;
   /** Injected by tests in place of resolving TRANSCRIPTION_MODEL: the model boundary. */
-  transcriptionModel?: TranscriptionModel;
+  transcriptionModel?: Transcriber;
   /** Injected by tests to stand in for a server without ffmpeg. */
   ffmpegPaths?: FfmpegPaths;
   /** The tenant's plugins, loaded once at boot (specs/036). None when absent. */
@@ -166,12 +165,7 @@ export async function buildServer(opts: BuildOptions) {
   // Resolved once, like the answering model: a TRANSCRIPTION_MODEL typo fails
   // the deploy, and a missing ffmpeg is found at boot rather than per video.
   const transcriber = env.TRANSCRIPTION_MODEL
-    ? opts.transcriptionModel
-      ? new SdkTranscriber({
-          model: opts.transcriptionModel,
-          modelSpec: env.TRANSCRIPTION_MODEL,
-        })
-      : resolveTranscriptionModel(env.TRANSCRIPTION_MODEL)
+    ? (opts.transcriptionModel ?? resolveTranscriptionModel(env.TRANSCRIPTION_MODEL))
     : null;
   const ffmpeg = await detectFfmpeg(opts.ffmpegPaths);
   const media = new MediaResolver({

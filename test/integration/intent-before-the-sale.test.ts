@@ -13,6 +13,7 @@ import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { loadTenantConfig } from '../../src/config/loader.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/034-intent-before-the-sale.md § Verification items 4 and 5: the
@@ -122,13 +123,7 @@ function runner(
       seen.contacts.push(contact);
       const built = buildTools(tools, stage, contact, undefined, { flows, beforeFlow });
       for (const [name, input] of calls) {
-        seen.results.push(
-          await built?.[name]?.execute?.(input as never, {
-            toolCallId: 'test',
-            messages: [],
-            context: {},
-          }),
-        );
+        seen.results.push(await execute(built?.[name], input));
       }
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
       seen.openingsAtReply.push(openingSends());

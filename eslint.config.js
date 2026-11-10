@@ -8,9 +8,6 @@ import tseslint from 'typescript-eslint';
  * (specs/050 § The registry builds each chat model by its class).
  */
 export const PROVIDER_PACKAGES = [
-  '@ai-sdk/anthropic',
-  '@ai-sdk/openai',
-  '@ai-sdk/google',
   '@langchain/anthropic',
   '@langchain/openai',
   '@langchain/google-genai',
@@ -18,6 +15,19 @@ export const PROVIDER_PACKAGES = [
   // The transcription client (specs/053 § C2's import list names the transcription client).
   'openai',
 ];
+
+/**
+ * The Vercel AI SDK left the service (specs/053, ADR-0030), so it is refused
+ * everywhere, the registry included: a stray import fails lint before it
+ * fails install.
+ */
+const REMOVED_MESSAGE =
+  'The AI SDK left this service: use LangChain.js, or a port in the registry (specs/053).';
+export const REMOVED_PACKAGES = ['ai', 'ai/test'];
+const removed = {
+  paths: REMOVED_PACKAGES.map(name => ({ name, message: REMOVED_MESSAGE })),
+  patterns: [{ group: ['@ai-sdk/*'], message: REMOVED_MESSAGE }],
+};
 
 export default tseslint.config(
   {
@@ -62,13 +72,22 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          paths: PROVIDER_PACKAGES.map(name => ({
-            name,
-            message: 'Only src/agent/registry.ts imports a provider package (Constitution C2).',
-          })),
+          paths: [
+            ...PROVIDER_PACKAGES.map(name => ({
+              name,
+              message: 'Only src/agent/registry.ts imports a provider package (Constitution C2).',
+            })),
+            ...removed.paths,
+          ],
+          patterns: removed.patterns,
         },
       ],
     },
+  },
+
+  {
+    files: ['src/agent/registry.ts'],
+    rules: { 'no-restricted-imports': ['error', removed] },
   },
 
   {

@@ -11,6 +11,7 @@ import { loadTenantConfig } from '../../src/config/loader.ts';
 import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/030-reply-waits-for-the-flow.md § Verification items 4 and 5: a reply
@@ -83,11 +84,7 @@ function scriptedRunner(calls: Call[], opts: { delayMs?: number; fail?: boolean 
     run: async ({ stage = new ActionStage(), contact, flows }) => {
       const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
       for (const [name, input] of calls) {
-        await built?.[name]?.execute?.(input as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        await execute(built?.[name], input);
       }
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
       if (opts.fail) throw new Error('model unavailable');

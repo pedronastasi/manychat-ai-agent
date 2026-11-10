@@ -20,6 +20,7 @@ import type { ContactReader } from '../../src/channels/manychat/client.ts';
 import type { ContactRecord } from '../../src/contracts/manychat.ts';
 import { FakeActions, FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/025-in-window-nudge.md § Verification items 2 (one pending row),
@@ -81,10 +82,7 @@ function scriptedRunner(reply: AgentReply, flow?: string) {
         nudgeTurn: input.nudge !== undefined,
       });
       if (flow) {
-        await built?.send_flow?.execute?.(
-          { flow },
-          { toolCallId: 'test', messages: [], context: {} },
-        );
+        await execute(built?.send_flow, { flow });
       }
       const result: AgentResult = {
         reply,
@@ -205,11 +203,7 @@ describe('at most one nudge waits per contact (specs/025 V2)', () => {
     const runner: AgentRunner = {
       run: async ({ stage = new ActionStage() }) => {
         const built = buildTools(tools, stage, asProspect());
-        await built!.schedule_nudge!.execute!({ delay: 'later_today' } as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        await execute(built!.schedule_nudge, { delay: 'later_today' });
         return {
           reply: FOLLOW_UP,
           model: 'mock:demo',
@@ -379,14 +373,10 @@ describe('each cancellation reason cancels without a model call (specs/025 V3)',
       fetchImpl: api.fetch,
     });
     const stage = new ActionStage();
-    await buildTools(tools, stage, asProspect())!.send_flow!.execute!(
-      { flow: 'enrolment_link', contactAsked: true } as never,
-      {
-        toolCallId: 'test',
-        messages: [],
-        context: {},
-      },
-    );
+    await execute(buildTools(tools, stage, asProspect())!.send_flow, {
+      flow: 'enrolment_link',
+      contactAsked: true,
+    });
     const turnId = await new ConversationStore(db).recordAgentReply(id, 'Here it is.', 'deferred', {
       bound: true,
       actions: stage.records('staged'),

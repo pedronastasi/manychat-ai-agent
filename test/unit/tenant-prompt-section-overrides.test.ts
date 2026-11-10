@@ -2,7 +2,7 @@ import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { buildSystemPrompt, FENCE, FENCE_END, SECTION_HEADINGS } from '../../src/agent/prompt.ts';
 import type { SystemPromptOptions } from '../../src/agent/prompt.ts';
 import { RUNNERS } from '../helpers/runners.ts';
@@ -13,6 +13,7 @@ import { NO_TOOLS, PROMPT_SECTIONS } from '../../src/contracts/config.ts';
 import type { PromptOverrides, PromptSection } from '../../src/contracts/config.ts';
 import { loadCases } from '../../src/evals/cases.ts';
 import { mockModel } from '../helpers/model.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -84,7 +85,7 @@ function tenantDir(overrides?: string): string {
   return dir;
 }
 
-const systemOf = (call: LanguageModelV4CallOptions) =>
+const systemOf = (call: ModelCall) =>
   call.prompt
     .filter(entry => entry.role === 'system')
     .map(entry => entry.content)
@@ -331,10 +332,8 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       });
       const config = loadTenantConfig(tenantDir(permissive));
       const built = buildTools(config.tools!, new ActionStage(), { sentFlows: new Set() });
-      const result = (await built!.send_flow!.execute!({ flow: 'student_results' } as never, {
-        toolCallId: 'test',
-        messages: [],
-        context: {},
+      const result = (await execute(built!.send_flow, {
+        flow: 'student_results',
       })) as Record<string, unknown>;
       expect(result).toEqual({ staged: false, reason: 'not_prospect' });
     });

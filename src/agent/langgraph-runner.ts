@@ -1,4 +1,5 @@
-import type { LanguageModel, ToolSet } from 'ai';
+import { runTool } from './tools/define.ts';
+import type { AgentTool, AgentTools } from './tools/define.ts';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import { HumanMessage, ToolMessage } from '@langchain/core/messages';
@@ -11,7 +12,6 @@ import type {
 import type { z } from 'zod';
 import { AgentReplyForModel, AgentReplyFromModel } from '../contracts/agent.ts';
 import { invalidToolInputText, modelJsonSchema, unknownToolText } from './model-schema.ts';
-import { chatModelFromAiSdk } from './registry.ts';
 import type { ChatModelHandle } from './registry.ts';
 import { PromptedRunner } from './runner.ts';
 import type { AgentUsage, Generated, PreparedTurn, RunnerOptions } from './runner.ts';
@@ -24,10 +24,7 @@ import { MAX_STEPS } from './tools.ts';
  * (specs/050 § The graph has three nodes and a step counter).
  */
 
-export type LangGraphRunnerOptions = Omit<RunnerOptions, 'model'> & {
-  /** A chat model from `resolveChatModel`, or an AI SDK model (`mock:`, a test fake) to wrap. */
-  model: ChatModelHandle | LanguageModel;
-};
+export type LangGraphRunnerOptions = RunnerOptions;
 
 /**
  * Supersteps a turn can take: a model and a tools step for each step that may
@@ -98,20 +95,20 @@ export const REWRITE_NOTE =
   'you need to weigh goes in notes.';
 
 /** The tools as the model sees them: the names, descriptions and schemas `buildTools` produces. */
-function toolDefinitions(tools: ToolSet) {
+function toolDefinitions(tools: AgentTools) {
   return Object.entries(tools).map(([name, tool]) => ({
     type: 'function' as const,
     function: {
       name,
-      ...(tool.description !== undefined ? { description: tool.description } : {}),
+      description: tool.description,
       parameters: modelJsonSchema(inputSchemaOf(tool)),
     },
   }));
 }
 
 /** A tool's input schema. Every tool here is built with a Zod schema (specs/012, specs/036). */
-function inputSchemaOf(tool: ToolSet[string]): z.ZodType | undefined {
-  return tool.inputSchema as z.ZodType | undefined;
+function inputSchemaOf(tool: AgentTool): z.ZodType {
+  return tool.schema;
 }
 
 /** The standard usage field, which the default message structure types as absent. */
@@ -161,11 +158,7 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
 
   constructor(opts: LangGraphRunnerOptions) {
     super(opts);
-    const { model } = opts;
-    this.handle =
-      typeof model === 'object' && 'replyFormat' in model
-        ? model
-        : chatModelFromAiSdk(model, opts.modelSpec, opts);
+    this.handle = opts.model;
   }
 
   protected async generate(turn: PreparedTurn): Promise<Generated> {
@@ -275,15 +268,15 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
   }
 
   /**
-   * One tool call, as `generateText` performs it: the input checked against the
-   * tool's schema, then its `execute`. An unknown tool, input that fails the
+   * One tool call, as `generateText` performed it: the input checked against
+   * the tool's schema, then the tool run. An unknown tool, input that fails the
    * schema and a tool that throws each answer the model with the error, in the
    * text the AI SDK's error classes printed, now written here, and the loop
    * goes on (specs/050 § The runner changes no behaviour a spec here fixes,
    * specs/053 § Tools are LangChain tools, and the model sees the same bytes).
    */
   private async perform(
-    tools: ToolSet,
+    tools: AgentTools,
     toolCall: { id?: string | undefined; name: string; args: Record<string, unknown> },
     signal: AbortSignal | undefined,
   ): Promise<ToolMessage> {
@@ -291,23 +284,16 @@ export class LangGraphRunner extends PromptedRunner<LangGraphRunnerOptions> {
     const answer = (content: string, status: 'success' | 'error') =>
       new ToolMessage({ tool_call_id: id, name: toolCall.name, content, status });
     const tool = tools[toolCall.name];
-    if (!tool?.execute) {
+    if (!tool) {
       return answer(unknownToolText(toolCall.name, Object.keys(tools)), 'error');
     }
     const schema = inputSchemaOf(tool);
-    const checked = schema
-      ? await schema.safeParseAsync(toolCall.args)
-      : { success: true as const, data: toolCall.args as unknown };
+    const checked = await schema.safeParseAsync(toolCall.args);
     if (!checked.success) {
       return answer(invalidToolInputText(toolCall.name, toolCall.args, checked.error), 'error');
     }
     try {
-      const result: unknown = await tool.execute(checked.data, {
-        toolCallId: id,
-        messages: [],
-        context: undefined,
-        ...(signal ? { abortSignal: signal } : {}),
-      });
+      const result: unknown = await runTool(tool, checked.data, signal);
       return answer(JSON.stringify(result ?? null), 'success');
     } catch (error) {
       if (signal?.aborted) throw error;

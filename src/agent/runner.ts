@@ -1,4 +1,3 @@
-import type { LanguageModel } from 'ai';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { ActionRecord, AgentReply } from '../contracts/agent.ts';
@@ -38,6 +37,7 @@ import { renderPlaybook } from '../learning/playbook.ts';
 import type { ActivePlaybook } from '../learning/playbook.ts';
 import type { Callbacks } from '@langchain/core/callbacks/manager';
 import type { TurnTrace } from '../observability/tracing.ts';
+import type { ChatModelHandle } from './registry.ts';
 
 export interface AgentUsage {
   inputTokens: number | undefined;
@@ -251,7 +251,8 @@ export interface AgentRunner {
 }
 
 export interface RunnerOptions {
-  model: LanguageModel;
+  /** The chat model the registry builds (`resolveChatModel`), or a test fake. */
+  model: ChatModelHandle;
   modelSpec: string;
   /**
    * Read per turn rather than captured, so a SIGHUP reload reaches the prompt.

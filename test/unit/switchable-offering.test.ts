@@ -9,6 +9,7 @@ import { RUNNERS } from '../helpers/runners.ts';
 import type { RunnerClass } from '../helpers/runners.ts';
 import { createMockModel } from '../../src/agent/mock-provider.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -38,12 +39,9 @@ const on = (funnelStage: string | undefined): ContactActions => ({
 async function setCourse(tools: Tools, funnelStage: string | undefined) {
   const stage = new ActionStage();
   const built = buildTools(tools, stage, asProspect(on(funnelStage)));
-  const execute = built!.set_field!.execute!;
-  const result = (await execute({ field: 'course', value: 'advanced' } as never, {
-    toolCallId: 'test',
-    messages: [],
-    context: {},
-  })) as { staged: boolean };
+  const result = (await execute(built!.set_field, { field: 'course', value: 'advanced' })) as {
+    staged: boolean;
+  };
   return { result, stage };
 }
 
