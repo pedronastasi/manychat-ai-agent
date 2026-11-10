@@ -7,8 +7,11 @@
 [![Node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpedronastasi%2Fmanychat-ai-agent%2Fmain%2Fpackage.json&query=%24.engines.node&label=node)](package.json)
 
 A production-shaped, provider-agnostic AI agent that answers customer questions
-on WhatsApp, Instagram and Messenger through [ManyChat](https://manychat.com),
-escalating to a human rather than guessing.
+on WhatsApp, Instagram and Facebook Messenger through
+[ManyChat](https://manychat.com), escalating to a human rather than guessing.
+Each turn is a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) graph
+over LangChain.js models, served by Fastify, and traceable to your own
+[LangSmith](https://smith.langchain.com): its shape, never its text.
 
 Switching the model is one environment variable. Switching the chat platform is
 one adapter.
@@ -101,6 +104,63 @@ record — is in [How it works](docs/guides/how-it-works.md).
 - **Learn from outcomes**, offline and only after a person approves
   ([spec 031](specs/031-learning-from-outcomes.md)).
 
+## Stack
+
+| Layer         | What                                                                                                             | Where                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| HTTP          | Fastify 5, Zod type provider, helmet, rate limiting, under-pressure                                              | [`src/server.ts`](src/server.ts)                                 |
+| Orchestration | LangGraph.js `StateGraph`                                                                                        | [`src/agent/langgraph-runner.ts`](src/agent/langgraph-runner.ts) |
+| Models        | LangChain.js chat models (Anthropic, OpenAI, Gemini, Ollama, offline `mock:`); `openai` client for transcription | [`src/agent/registry.ts`](src/agent/registry.ts)                 |
+| Tracing       | LangSmith, off unless `TRACE_TURNS=langsmith`                                                                    | [`src/observability/`](src/observability/)                       |
+| Vercel AI SDK | Leaving ([spec 053](specs/053-one-model-library.md)); still the tool definitions and `google:` transcription     | [`src/agent/tools/`](src/agent/tools/)                           |
+| Data          | Postgres via Drizzle; PGlite for development and tests. ManyChat via `manychat-sdk`                              | [`src/db/`](src/db/)                                             |
+
+## Architecture: one turn
+
+Three nodes, no checkpoint, between checks that hand off to a person:
+
+```mermaid
+flowchart LR
+  pre{prechecks} -- denied --> human[[escalate]]
+  pre -- tools offered --> model
+  pre -- no tools --> reply
+  model -- tool calls --> tools
+  tools -- under the step limit --> model
+  tools -- third model call made --> reply
+  model -- answer --> guard{guardrails}
+  reply --> guard
+  guard -- fails --> human
+```
+
+`tools` runs reads and `send_flow` now and stages other writes until after the
+reply, dropping them on an escalation. A turn escalates **before the graph** on
+a keyword, the turn cap, the rate limit or the daily budget; **in it** when the
+model sets `escalate`; **after it** when the reply fails its schema, falls below
+`confidenceThreshold`, leaks working notes past one rewrite, or the call fails.
+The contact gets the tenant's escalation message; the conversation is marked
+escalated. A lost race is no escalation: the reply finishes into the outbox.
+
+## Channels
+
+Each channel's ManyChat flow calls one Dynamic Block endpoint and names its
+channel, which must be in `CHANNELS`. The reply and a callback for the next
+message return in the response; a deferred reply goes into a ManyChat field and
+out through the channel's reply flow ([limits](src/contracts/config/channels.ts)):
+
+| Channel   | Messages per reply             | Deferred reply after Meta's 24-hour window         | Reply flow                         |
+| --------- | ------------------------------ | -------------------------------------------------- | ---------------------------------- |
+| WhatsApp  | 1: the rest are joined into it | Sent; the reply flow's template carries it         | `MANYCHAT_REPLY_FLOW_NS`           |
+| Instagram | Up to 10                       | Refused as `window_closed`, conversation escalated | `MANYCHAT_REPLY_FLOW_NS_INSTAGRAM` |
+| Messenger | Up to 10                       | Refused as `window_closed`, conversation escalated | `MANYCHAT_REPLY_FLOW_NS_MESSENGER` |
+
+## Configuration
+
+All in [`.env.example`](.env.example): the model and its key, `PUBLIC_BASE_URL`
+(HTTPS), `MANYCHAT_SHARED_SECRET`, `DATABASE_URL`, `CHANNEL`/`CHANNELS`. Tracing
+is `TRACE_TURNS=langsmith`, `LANGSMITH_API_KEY=<your-key>` and
+`LANGSMITH_PROJECT=<your-project>`; LangChain's own `LANGSMITH_TRACING` and its
+siblings **stop boot** when `true` ([spec 052](specs/052-traces-carry-shape-not-text.md)).
+
 ## Documentation
 
 The same pages, with search, are on the
@@ -131,9 +191,9 @@ pnpm lint && pnpm typecheck
 
 ## Status
 
-MVP. Answers, escalates, and can send a tenant's ManyChat flows, tags and field
-values; it does not book or take payment. The `AgentRunner` port exists so
-adding those does not change any caller.
+MVP. Answers, escalates, and calls the tools a tenant turns on: flows, tags,
+fields, contact reads, notes, follow-ups and the payment link. It does not book
+or process a payment. Removing the AI SDK (spec 053) awaits its breaking step.
 
 ## License
 
