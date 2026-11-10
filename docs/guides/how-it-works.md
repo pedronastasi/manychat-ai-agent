@@ -72,7 +72,13 @@ AGENT_MODEL=mock:demo                    # offline, deterministic, free
 
 Callers depend on an `AgentRunner` port, not on a model library, so replacing the
 library is contained behind it: the turn moved from the Vercel AI SDK to
-LangChain.js and LangGraph.js without a caller changing (ADR-0026).
+LangChain.js and LangGraph.js without a caller changing (ADR-0026). The rest
+followed (ADR-0030, [spec 053](../../specs/053-one-model-library.md)), and the
+service now depends on one model library: the tools are LangChain.js tools, the
+eval judges and the learning analyst call the same registry's chat model and
+validate their own JSON, voice notes are transcribed through the `openai` client
+behind the `Transcriber` port, and the offline `mock:` model and every test fake
+are LangChain.js chat models.
 
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in
@@ -114,6 +120,7 @@ Every non-obvious choice is written down in [`docs/adr/`](../adr/):
 | [0027](../adr/0027-the-bounded-loop-is-a-langgraph-graph-not-a-prebuilt-agent.md)       | The bounded tool loop is a LangGraph.js graph the service draws, never a prebuilt agent                           |
 | [0028](../adr/0028-langsmith-traces-the-shape-of-a-turn-never-its-text.md)              | LangSmith traces the shape of a live turn, never its text; full text only for fixture evals                       |
 | [0029](../adr/0029-traces-upload-through-the-langsmith-client-behind-our-projection.md) | Each run is projected by our tracer, then uploaded by the official LangSmith client behind its own hide functions |
+| [0030](../adr/0030-the-ai-sdk-leaves-the-typescript-service.md)                         | The AI SDK leaves the service; where LangChain.js has no counterpart, a port of our own fills the gap             |
 
 Behavior is specified before it is implemented, in [`specs/`](../../specs/) —
 a [constitution](../../specs/000-constitution.md) of non-negotiables, the

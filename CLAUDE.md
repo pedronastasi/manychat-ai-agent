@@ -84,8 +84,9 @@ Ports are implemented as classes; pure functions stay as functions (ADR-0008).
 src/
   main.ts              # Process entrypoint
   server.ts            # Fastify composition root
-  agent/               # LLM interaction: runner, prompt, guardrails, registry, mock
+  agent/               # LLM interaction: runner, prompt, guardrails, registry, mock chat model, transcriber, structured output (specs/053)
   channels/            # Channel adapters (ManyChat + local simulator)
+  cli/                 # The `agent` CLI a tenant project runs (`agent config check`; specs/033)
   config/              # Env + tenant config loading (SIGHUP reload)
   contracts/           # Zod schemas (agent, config, manychat)
   conversation/        # Budget enforcement, conversation/turn persistence
@@ -96,12 +97,14 @@ src/
   nudge/               # In-window follow-ups: store, performer, due-time worker (specs/025)
   observability/       # PII redaction, turn traces (specs/052)
   outbox/              # Deferred reply queue + polling worker
+  plugins/             # Plugin API, loader, plugin tools and reads (specs/036, 038, 039)
   routes/              # Auth middleware
+  testing/             # The public `manychat-ai-agent/testing` export: model helpers, buildTools, ActionStage
   turn/                # TurnHandler (the race) and the classes it delegates to
 test/
   unit/                # Pure logic tests
   integration/         # Tests hitting PGlite
-  helpers/             # db.ts (PGlite factory), model.ts (mock models), manychat.ts, ffmpeg.ts
+  helpers/             # db.ts (PGlite factory), model.ts (mock models), runners.ts, conversations.ts, manychat.ts, ffmpeg.ts
   fixtures/            # Tenant config fixtures, invented media clips
 config/                # Tenant config (gitignored; *.example committed)
 .vitepress/            # Docs site config: allowlist, derived sidebar, link rewriting (specs/014)

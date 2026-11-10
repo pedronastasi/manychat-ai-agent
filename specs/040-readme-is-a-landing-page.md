@@ -48,6 +48,10 @@ Below the first screen, the README has these sections and no others:
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | The problem this solves | The 10-second limit, the race diagram and why the losing call is not cancelled      |
 | What it can do          | One bullet per capability, each naming the spec that defines it                     |
+| Stack                   | One row per layer: the library and the file that uses it                            |
+| Architecture: one turn  | The turn graph as a diagram, and where a turn hands off to a person                 |
+| Channels                | How a channel is reached, and one row per channel of the limits the code holds      |
+| Configuration           | The settings a deployment cannot start without, and the tracing switch              |
 | Documentation           | A table from what a reader wants to do to the one page that tells them              |
 | Development             | The commands a contributor runs, without explanation; the explanation is in a guide |
 | Status, License         | As before                                                                           |
@@ -55,6 +59,16 @@ Below the first screen, the README has these sections and no others:
 A capability bullet says what the agent does, not how to turn it on. When a new
 capability needs explaining, it gets a bullet here and its explanation goes
 elsewhere.
+
+Stack, Architecture, Channels and Configuration were added on 2026-11-10
+(#298). A visitor deciding whether the project fits asks which libraries it is
+built on, what a turn does and where it hands off, and what each channel
+allows; the README is where they ask it, and a link to a guide does not answer
+it in a minute. Each section stays a summary: a table or a diagram and a
+paragraph, linking the file or guide that holds the detail. Configuration
+names variables; it does not explain them, and `.env.example` stays the one
+reference for every setting. A section that grows steps belongs in a guide,
+and the line cap below still holds.
 
 ## Steps and reference live in exactly one guide, spec or config/README.md
 

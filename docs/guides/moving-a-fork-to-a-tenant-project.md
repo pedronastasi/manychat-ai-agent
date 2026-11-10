@@ -45,6 +45,13 @@ release you move to, and `<owner>` for the GitHub owner of this repository.
   else is a gap in the package. Open an issue or pull request upstream and wait
   for the release that closes it.
 
+  The `testing` export changed its types once, in the breaking release after
+  0.35.0 ([spec 053](../../specs/053-one-model-library.md)): the model
+  helpers are LangChain.js chat models, `mockTranscriptionModel` returns a
+  `Transcriber`, and `buildTools` returns `AgentTools`, LangChain.js tools read
+  through `AgentTool`. A test that converted a tool schema with the AI SDK's
+  `asSchema` uses Zod's `z.toJSONSchema` instead.
+
 - **Your suite is green** on the fork as it stands, so a failure after the move
   is the move's.
 
