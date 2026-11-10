@@ -86,7 +86,7 @@
     "manychat-sdk": "^0.1.0",
     "openai": "^7.53.0",
     "pino": "^10.4.0",
-    "postgres": "^3.4.9",
+    "postgres": "^4.0.0",
     "zod": "^4.6.5"
   },
   "peerDependencies": {
