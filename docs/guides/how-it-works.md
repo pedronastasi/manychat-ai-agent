@@ -72,13 +72,13 @@ AGENT_MODEL=mock:demo                    # offline, deterministic, free
 
 Callers depend on an `AgentRunner` port, not on a model library, so replacing the
 library is contained behind it: the turn moved from the Vercel AI SDK to
-LangChain.js and LangGraph.js without a caller changing (ADR-0026). The rest is
-following it (ADR-0030, [spec 053](../../specs/053-one-model-library.md)): the
+LangChain.js and LangGraph.js without a caller changing (ADR-0026). The rest
+followed (ADR-0030, [spec 053](../../specs/053-one-model-library.md)), and the
+service now depends on one model library: the tools are LangChain.js tools, the
 eval judges and the learning analyst call the same registry's chat model and
 validate their own JSON, voice notes are transcribed through the `openai` client
-behind the `Transcriber` port, and the offline `mock:` model is a LangChain.js
-chat model. The test fakes and the tool definitions move last, in one breaking
-release, after which the service depends on one model library.
+behind the `Transcriber` port, and the offline `mock:` model and every test fake
+are LangChain.js chat models.
 
 Configuration is files, not code: `config/catalog.json` holds every fact the
 agent may state, so a price change is a JSON edit and `kill -HUP`. Nothing in

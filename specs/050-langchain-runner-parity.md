@@ -211,10 +211,10 @@ the eval judge (`016`), the mock provider and every test fake, which
 those types is still the separate breaking change § The public exports keep
 their signatures describes.
 
-`053` takes the rest off the AI SDK. Its step 1 moved transcription for
-`openai:` and `ollama:`, the analyst and the judges, and its step 2 made the
-mock a LangChain.js chat model; the fakes, the tool definitions, `google:`
-transcription and the public types follow in its step 3.
+`053` took the rest off the AI SDK: its step 1 moved transcription for
+`openai:` and `ollama:`, the analyst and the judges; its step 2 made the mock a
+LangChain.js chat model; and its step 3 moved the fakes, the tool definitions
+and the public types, dropped `google:` transcription and removed the AI SDK.
 
 ## Verification
 

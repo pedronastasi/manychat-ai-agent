@@ -112,7 +112,7 @@ record — is in [How it works](docs/guides/how-it-works.md).
 | Orchestration | LangGraph.js `StateGraph`                                                                                        | [`src/agent/langgraph-runner.ts`](src/agent/langgraph-runner.ts) |
 | Models        | LangChain.js chat models (Anthropic, OpenAI, Gemini, Ollama, offline `mock:`); `openai` client for transcription | [`src/agent/registry.ts`](src/agent/registry.ts)                 |
 | Tracing       | LangSmith, off unless `TRACE_TURNS=langsmith`                                                                    | [`src/observability/`](src/observability/)                       |
-| Vercel AI SDK | Leaving ([spec 053](specs/053-one-model-library.md)); still the tool definitions and `google:` transcription     | [`src/agent/tools/`](src/agent/tools/)                           |
+| Tools         | LangChain.js `tool()` from `@langchain/core/tools`, with Zod input schemas                                       | [`src/agent/tools/define.ts`](src/agent/tools/define.ts)         |
 | Data          | Postgres via Drizzle; PGlite for development and tests. ManyChat via `manychat-sdk`                              | [`src/db/`](src/db/)                                             |
 
 ## Architecture: one turn
@@ -193,7 +193,7 @@ pnpm lint && pnpm typecheck
 
 MVP. Answers, escalates, and calls the tools a tenant turns on: flows, tags,
 fields, contact reads, notes, follow-ups and the payment link. It does not book
-or process a payment. Removing the AI SDK (spec 053) awaits its breaking step.
+or process a payment.
 
 ## License
 
