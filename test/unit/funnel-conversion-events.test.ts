@@ -2,13 +2,13 @@ import { afterAll, describe, it, expect } from 'vitest';
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { z } from 'zod';
 import { ActionStage, buildTools } from '../../src/agent/tools.ts';
 import type { ContactActions } from '../../src/agent/tools.ts';
 import { actionsNote, buildSystemPrompt } from '../../src/agent/prompt.ts';
 import type { Tools } from '../../src/contracts/config.ts';
 import { ActionRecord } from '../../src/contracts/agent.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
+import { modelJsonSchema } from '../../src/agent/model-schema.ts';
 
 /**
  * specs/027-funnel-conversion-events.md § Verification items 1, 2 and 7,
@@ -128,13 +128,12 @@ describe('no event reaches the model (specs/027 V2)', () => {
 
   /** Every word a built tool shows the model: its description and parameter schema. */
   async function rendered(built: ReturnType<typeof buildTools>) {
-    const { asSchema } = await import('ai');
     const parts: string[] = [];
     for (const [name, entry] of Object.entries(built!)) {
       // Every description here is a plain string; a computed one would escape this check.
       expect(typeof entry.description).toBe('string');
-      parts.push(name, entry.description as string);
-      parts.push(JSON.stringify(await asSchema(entry.inputSchema as z.ZodType).jsonSchema));
+      parts.push(name, entry.description);
+      parts.push(JSON.stringify(modelJsonSchema(entry.schema)));
     }
     return parts.join('\n');
   }

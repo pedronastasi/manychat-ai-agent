@@ -241,8 +241,9 @@ agreement and is downgraded.
 ## The judge is not the agent
 
 `EVAL_JUDGE_MODEL` names the judge in the same `provider:model` form, and is
-validated like `AGENT_MODEL`. It is resolved through `resolveModel` in
-`src/agent/registry.ts`; the judge imports no provider package (C2). Unset means
+validated like `AGENT_MODEL`. It is resolved through `resolveChatModelOnUse` in
+`src/agent/registry.ts` (specs/053); the judge imports no provider package
+(C2). Unset means
 no judge.
 
 If it equals `AGENT_MODEL`, the runner prints a warning and proceeds. A model

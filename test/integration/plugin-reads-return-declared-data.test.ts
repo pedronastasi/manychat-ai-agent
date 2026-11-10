@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
+import type { ModelCall, FakeContent } from '../helpers/model.ts';
 import { createTestDatabase } from '../helpers/db.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import { EXAMPLE_READ_PLUGIN, tenantProject } from '../helpers/plugins.ts';
@@ -15,6 +14,8 @@ import { NO_TOOLS } from '../../src/contracts/config.ts';
 import type { InboundMessage } from '../../src/contracts/agent.ts';
 import { loadPlugins } from '../../src/plugins/loader.ts';
 import type { Plugins, HostLogger } from '../../src/plugins/plugins.ts';
+import { fakeChatModel } from '../helpers/model.ts';
+import type { ChatModelHandle } from '../../src/agent/registry.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -61,7 +62,7 @@ function journal() {
   return { logger, reads: () => reads };
 }
 
-const readCall = (step: number): LanguageModelV4Content => ({
+const readCall = (step: number): FakeContent => ({
   type: 'tool-call',
   toolCallId: `read-${step}`,
   toolName: 'class_availability',
@@ -81,35 +82,33 @@ const ANSWER = {
  * step, which offers none. `delays` holds a step's wait before it answers.
  */
 function model(delays: Record<number, number> = {}) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const mock = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      const step = calls.length;
-      calls.push(options);
-      const delay = delays[step];
-      // Abortable, as a provider call is, so MODEL_ABORT_MS can end a step.
-      if (delay) {
-        await new Promise((resolve, reject) => {
-          const timer = setTimeout(resolve, delay);
-          options.abortSignal?.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-          });
+  const calls: ModelCall[] = [];
+  const mock = fakeChatModel(async (options: ModelCall) => {
+    const step = calls.length;
+    calls.push(options);
+    const delay = delays[step];
+    // Abortable, as a provider call is, so MODEL_ABORT_MS can end a step.
+    if (delay) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, delay);
+        options.abortSignal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
         });
-      }
-      const reads = (options.tools ?? []).length > 0;
-      return {
-        content: reads ? [readCall(step)] : [{ type: 'text', text: JSON.stringify(ANSWER) }],
-        finishReason: reads
-          ? { unified: 'tool-calls' as const, raw: 'tool_use' }
-          : { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 20, text: 20, reasoning: 0 },
-        },
-        warnings: [],
-      };
-    },
+      });
+    }
+    const reads = (options.tools ?? []).length > 0;
+    return {
+      content: reads ? [readCall(step)] : [{ type: 'text', text: JSON.stringify(ANSWER) }],
+      finishReason: reads
+        ? { unified: 'tool-calls' as const, raw: 'tool_use' }
+        : { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 20, text: 20, reasoning: 0 },
+      },
+      warnings: [],
+    };
   });
   return { model: mock, calls };
 }
@@ -126,7 +125,7 @@ const inbound = (text: string): InboundMessage => ({
 });
 
 function handler(
-  languageModel: MockLanguageModelV4,
+  languageModel: ChatModelHandle,
   logger: HostLogger,
   opts: { raceDeadlineMs?: number; modelAbortMs?: number; tokensEnforced?: boolean } = {},
 ) {
@@ -164,7 +163,7 @@ async function waitFor(ready: () => boolean | Promise<boolean>, timeoutMs = 5000
 }
 
 /** Every text part the model was sent on a step, its system prompt left out. */
-const promptText = (options: LanguageModelV4CallOptions) =>
+const promptText = (options: ModelCall) =>
   JSON.stringify(options.prompt.filter(entry => entry.role !== 'system'));
 
 describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each }) => {

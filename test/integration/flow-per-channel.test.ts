@@ -19,6 +19,7 @@ import { NudgeWorker } from '../../src/nudge/worker.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/049-a-flow-is-authored-per-channel.md § Verification items 3 to 7:
@@ -118,7 +119,7 @@ const resultOf = (): AgentResult => ({
 
 /** The flow ids `send_flow` offers on a turn, or undefined when it is not offered. */
 const enumOf = (built: ReturnType<typeof buildTools>) => {
-  const schema = built?.send_flow?.inputSchema as z.ZodObject | undefined;
+  const schema = built?.send_flow?.schema as z.ZodObject | undefined;
   return (schema?.shape.flow as z.ZodEnum | undefined)?.options as string[] | undefined;
 };
 
@@ -147,11 +148,7 @@ function scriptedRunner(
       });
       seen.offered.push(enumOf(built));
       for (const [name, args] of calls) {
-        await built?.[name]?.execute?.(args as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        await execute(built?.[name], args);
       }
       return resultOf();
     },

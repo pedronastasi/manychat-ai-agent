@@ -9,9 +9,6 @@ import { ESLint } from 'eslint';
  */
 
 const PROVIDER_PACKAGES = [
-  '@ai-sdk/anthropic',
-  '@ai-sdk/openai',
-  '@ai-sdk/google',
   '@langchain/anthropic',
   '@langchain/openai',
   '@langchain/google-genai',
@@ -36,7 +33,8 @@ describe('only the registry imports a provider package (specs/050 V4, specs/053 
       { paths: { name: string }[] },
     ];
     expect(severity).toBe(2);
-    expect(options.paths.map(path => path.name)).toEqual(PROVIDER_PACKAGES);
+    const c2 = options.paths.filter(path => (path as { message?: string }).message?.includes('C2'));
+    expect(c2.map(path => path.name)).toEqual(PROVIDER_PACKAGES);
   });
 
   it.each(PROVIDER_PACKAGES)(
@@ -57,5 +55,27 @@ describe('only the registry imports a provider package (specs/050 V4, specs/053 
       'src/agent/registry.ts',
     );
     expect(errors).toEqual([]);
+  });
+});
+
+describe('the AI SDK is refused everywhere, the registry included (specs/053 V2)', () => {
+  const removed = ['ai', 'ai/test', '@ai-sdk/provider', '@ai-sdk/anthropic'];
+
+  it.each(removed)('fails lint on %s outside the registry', async name => {
+    const errors = await errorsFor(
+      `import * as sdk from '${name}';\nvoid sdk;\n`,
+      'src/agent/runner.ts',
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.message).toContain('specs/053');
+  });
+
+  it.each(removed)('fails lint on %s in the registry', async name => {
+    const errors = await errorsFor(
+      `import * as sdk from '${name}';\nvoid sdk;\n`,
+      'src/agent/registry.ts',
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.message).toContain('specs/053');
   });
 });

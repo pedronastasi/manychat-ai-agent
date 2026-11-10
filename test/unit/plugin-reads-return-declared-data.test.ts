@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import type { ToolExecutionOptions, ToolSet } from 'ai';
+import type { AgentTools } from '../../src/agent/tools/define.ts';
 import {
   defineReadTool,
   PLUGIN_API_VERSION,
@@ -29,6 +29,7 @@ import {
   readPluginSource,
   tenantProject,
 } from '../helpers/plugins.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/039-plugin-reads-return-declared-data.md § Verification. The plugin
@@ -106,16 +107,11 @@ function turn(tool: PluginReadTool, budget = new ReadBudget()) {
   return { tools, reads, lines };
 }
 
-const toolOptions = {
-  toolCallId: 'call-1',
-  messages: [],
-} as unknown as ToolExecutionOptions<never>;
-
-/** Runs a tool's `execute` as the SDK does after validating the input against its schema. */
-async function call(tools: ToolSet, name: string, input: unknown): Promise<unknown> {
+/** Runs a tool as the runner does, after validating the input against its schema. */
+async function call(tools: AgentTools, name: string, input: unknown): Promise<unknown> {
   const declared = tools[name]!;
-  const parsed = (declared.inputSchema as { parse: (value: unknown) => unknown }).parse(input);
-  return declared.execute!(parsed as never, toolOptions);
+  const parsed = (declared.schema as { parse: (value: unknown) => unknown }).parse(input);
+  return execute(declared, parsed);
 }
 
 /* -------------------------------------------------------------------------- */

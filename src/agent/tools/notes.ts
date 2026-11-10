@@ -1,11 +1,11 @@
-import { tool, type ToolSet } from 'ai';
+import { agentTool, type AgentTools } from './define.ts';
 import { z } from 'zod';
 import { cleanNote } from '../contact.ts';
 import { idsOf, STAGED_NOTE } from './copy.ts';
 import type { ToolTurn } from './turn.ts';
 
 /** `write_note`: the tenant's free-text notes (specs/024, ADR-0017). */
-export function addWriteNote(turn: ToolTurn, tools: ToolSet) {
+export function addWriteNote(turn: ToolTurn, tools: AgentTools) {
   const { config, stage } = turn;
   if (config.notes.length > 0) {
     const notes = new Map(config.notes.map(note => [note.id, note]));
@@ -15,7 +15,7 @@ export function addWriteNote(turn: ToolTurn, tools: ToolSet) {
           `- ${note.id} (at most ${note.maxLength} characters${note.onEscalation ? '; still written if you escalate' : ''}): ${note.description}`,
       )
       .join('\n');
-    tools.write_note = tool({
+    tools.write_note = agentTool('write_note', {
       description:
         `Write one of these notes on the contact, for the people who follow up.\n${listing}\n` +
         'Write what they need, in your own words. Never put a name, phone number, email or link ' +

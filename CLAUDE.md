@@ -54,7 +54,7 @@ only in the groups that pass calibration on that run — see
 
 - **Runtime:** Node.js >= 22, TypeScript ~6.0 (strict, ESM, `verbatimModuleSyntax`)
 - **Server:** Fastify 5 with Zod type provider
-- **AI:** LangChain.js + LangGraph.js for the turn, the judges and the analyst (specs/050, 053); the `openai` client for `openai:`/`ollama:` transcription; the Vercel AI SDK, until specs/053's step 3, for the test fakes, the tool definitions and `google:` transcription; the `mock:` model is a LangChain.js chat model
+- **AI:** LangChain.js + LangGraph.js for the turn, the tools, the judges, the analyst, the `mock:` model and the test fakes (specs/050, 053); the `openai` client for `openai:`/`ollama:` transcription, through the registry. No Vercel AI SDK: lint refuses it
 - **Database:** PostgreSQL via `postgres` + Drizzle ORM; PGlite for dev/test
 - **Validation:** Zod 4 (single source of truth for types, validation, and OpenAPI)
 - **Testing:** Vitest 5, V8 coverage
@@ -119,7 +119,7 @@ packages/create/       # create-manychat-ai-agent: scaffolds a tenant project (s
 - Database tests run against PGlite (real Postgres in WASM — no container needed).
 - Tests cite the spec clause they enforce.
 - A fake must honour the contract it stands in for.
-- Mock the model at the provider boundary using the correct nested `usage` shape (see `test/helpers/model.ts`).
+- Mock the model with `fakeChatModel` (`test/helpers/model.ts`): a LangChain.js chat model that records each call and reports `usage_metadata` from the nested `usage` its answer gives (specs/053).
 - Coverage thresholds: 85% statements, 75% branches, 85% functions, 85% lines.
 - **Fixtures are English and invented.** Every string a test or eval case
   contains — persona, catalog, schedule, FAQ, message text, price — is written

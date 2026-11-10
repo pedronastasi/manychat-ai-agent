@@ -42,28 +42,28 @@ describe('tool parameter schemas (specs/012 V1)', () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage)!;
     expect(built.send_flow).toBeDefined();
-    expect(parse(built.send_flow!.inputSchema, { flow: 'foundation_brochure' }).success).toBe(true);
-    expect(parse(built.send_flow!.inputSchema, { flow: 'nonexistent_flow' }).success).toBe(false);
+    expect(parse(built.send_flow!.schema, { flow: 'foundation_brochure' }).success).toBe(true);
+    expect(parse(built.send_flow!.schema, { flow: 'nonexistent_flow' }).success).toBe(false);
   });
 
   it('rejects a tag id absent from config', () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage)!;
-    expect(parse(built.add_tag!.inputSchema, { tag: 'interested_foundation' }).success).toBe(true);
-    expect(parse(built.add_tag!.inputSchema, { tag: 'nonexistent_tag' }).success).toBe(false);
+    expect(parse(built.add_tag!.schema, { tag: 'interested_foundation' }).success).toBe(true);
+    expect(parse(built.add_tag!.schema, { tag: 'nonexistent_tag' }).success).toBe(false);
   });
 
   it('rejects a field value absent from config', () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage)!;
     expect(
-      parse(built.set_field!.inputSchema, {
+      parse(built.set_field!.schema, {
         field: 'preferred_schedule',
         value: 'weekday_evenings',
       }).success,
     ).toBe(true);
     expect(
-      parse(built.set_field!.inputSchema, {
+      parse(built.set_field!.schema, {
         field: 'preferred_schedule',
         value: 'free_text_answer',
       }).success,
@@ -74,7 +74,7 @@ describe('tool parameter schemas (specs/012 V1)', () => {
     const stage = new ActionStage();
     const built = buildTools(tools, stage)!;
     expect(
-      parse(built.set_field!.inputSchema, { field: 'nonexistent_field', value: 'weekday_evenings' })
+      parse(built.set_field!.schema, { field: 'nonexistent_field', value: 'weekday_evenings' })
         .success,
     ).toBe(false);
   });

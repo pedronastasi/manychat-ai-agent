@@ -11,6 +11,7 @@ import { loadTenantConfig } from '../../src/config/loader.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/023-sales-funnel.md § Verification item 4: performing the
@@ -68,10 +69,7 @@ function flowRunner(flow: string, opts: { delayMs?: number; seen?: ContactAction
       if (contact) opts.seen?.push(contact);
       const built = buildTools(tools, stage, asProspect(contact));
       // A contact who asks for the link gets it before prepared (specs/032).
-      await built?.send_flow?.execute?.(
-        { flow, contactAsked: true },
-        { toolCallId: 'test', messages: [], context: {} },
-      );
+      await execute(built?.send_flow, { flow, contactAsked: true });
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
       const result: AgentResult = {
         reply: {

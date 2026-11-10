@@ -1,10 +1,9 @@
-import type { LanguageModel } from 'ai';
 import { AnalystOutput } from '../contracts/learning.ts';
 import type { OutcomeLabel } from '../contracts/learning.ts';
 import { cleanText } from '../agent/contact.ts';
 import { fenceUserText, FENCE, FENCE_END } from '../agent/fence.ts';
 import { describeAction } from '../agent/tools.ts';
-import { chatModelFromAiSdk, estimateCostUsd } from '../agent/registry.ts';
+import { estimateCostUsd } from '../agent/registry.ts';
 import type { ChatModelHandle } from '../agent/registry.ts';
 import { generateObject, NoObjectGeneratedError } from '../agent/structured.ts';
 import { MAX_INSIGHT_LENGTH, MAX_PROPOSALS_PER_RUN, MAX_RATIONALE_LENGTH } from './proposals.ts';
@@ -154,16 +153,11 @@ export class Analyst {
   private readonly modelSpec: string;
 
   /**
-   * `model` is the chat model `resolveChatModel` builds with
-   * `ANALYST_SETTINGS`, or an AI SDK model (`mock:`, a test fake) to wrap
-   * until specs/053's step 3.
+   * `model` is the chat model the registry builds with `ANALYST_SETTINGS`,
+   * or a test fake.
    */
-  constructor(opts: { model: ChatModelHandle | LanguageModel; modelSpec: string }) {
-    const { model } = opts;
-    this.handle =
-      typeof model === 'object' && 'replyFormat' in model
-        ? model
-        : chatModelFromAiSdk(model, opts.modelSpec, ANALYST_SETTINGS);
+  constructor(opts: { model: ChatModelHandle; modelSpec: string }) {
+    this.handle = opts.model;
     this.modelSpec = opts.modelSpec;
   }
 

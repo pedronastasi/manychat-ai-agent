@@ -1,4 +1,4 @@
-import { tool, type ToolSet } from 'ai';
+import { agentTool, type AgentTools } from '../agent/tools/define.ts';
 import { z } from 'zod';
 import type { PerformableAction } from '../contracts/agent.ts';
 import type { ActionPerformer } from '../channels/manychat/client.ts';
@@ -172,11 +172,11 @@ export class Plugins {
    * budget. Never refused before a contact is a prospect: looking something
    * up is front-desk work.
    */
-  addReadTools(tools: ToolSet, reads: PluginReads): void {
+  addReadTools(tools: AgentTools, reads: PluginReads): void {
     for (const entry of this.readsByName.values()) {
       const parameters = Object.entries(entry.tool.parameters);
       const query = parameters.some(([, parameter]) => parameter.type === 'query');
-      tools[entry.tool.name] = tool({
+      tools[entry.tool.name] = agentTool(entry.tool.name, {
         description: [entry.tool.description, ...(query ? [QUERY_RULE] : []), READ_RULE].join('\n'),
         inputSchema: z.object(
           Object.fromEntries(
@@ -195,7 +195,7 @@ export class Plugins {
    * before a contact is a prospect (specs/034).
    */
   addTools(
-    tools: ToolSet,
+    tools: AgentTools,
     stage: ActionStage,
     closed: () => boolean,
     describe: (description: string) => string,
@@ -203,7 +203,7 @@ export class Plugins {
     for (const { plugin, tool: declared } of this.byName.values()) {
       const parameters = Object.entries(declared.parameters);
       const notes = parameters.filter(([, parameter]) => parameter.type === 'note');
-      tools[declared.name] = tool({
+      tools[declared.name] = agentTool(declared.name, {
         description: describe(
           notes.length > 0 ? `${declared.description}\n${NOTE_RULE}` : declared.description,
         ),

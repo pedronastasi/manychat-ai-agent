@@ -12,6 +12,7 @@ import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { FakeContactFields, fakeManyChatApi, manychatAnswer } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/027-funnel-conversion-events.md § Verification items 3, 4, 5 and 6:
@@ -86,11 +87,7 @@ function scriptedRunner(calls: Call[], opts: { delayMs?: number; escalate?: bool
     run: async ({ stage = new ActionStage(), contact }) => {
       const built = buildTools(tools, stage, asProspect(contact));
       for (const [name, input] of calls) {
-        await built?.[name]?.execute?.(input as never, {
-          toolCallId: 'test',
-          messages: [],
-          context: {},
-        });
+        await execute(built?.[name], input);
       }
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
       const result: AgentResult = {

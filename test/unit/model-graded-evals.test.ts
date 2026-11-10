@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, existsSync } from 'node:fs';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { classify, Case } from '../../src/evals/cases.ts';
 import type { Judged } from '../../src/evals/cases.ts';
 import {
@@ -24,6 +23,7 @@ import {
 } from '../../src/evals/judge.ts';
 import type { GroupCalibration } from '../../src/evals/judge.ts';
 import type { CalibrationItem } from '../../src/contracts/judge.ts';
+import { fakeChatModel } from '../helpers/model.ts';
 
 /**
  * specs/016-model-graded-evals.md § Verification items 1, 2, 3 and 5. The
@@ -35,32 +35,30 @@ type JudgeAnswer = { verdict: 'pass' | 'fail'; evidence: string; reason: string 
 
 /** A judge model at the provider boundary, answering each call from `answer`. */
 function fakeJudge(answer: (message: string, call: number) => JudgeAnswer) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const model = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      calls.push(options);
-      const user = options.prompt.find(entry => entry.role === 'user');
-      const message =
-        user && typeof user.content !== 'string'
-          ? user.content.map(part => (part.type === 'text' ? part.text : '')).join('')
-          : '';
-      const given = answer(message, calls.length - 1);
-      if (given instanceof Error) throw given;
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: typeof given === 'string' ? given : JSON.stringify(given),
-          },
-        ],
-        finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 5, text: 5, reasoning: 0 },
+  const calls: ModelCall[] = [];
+  const model = fakeChatModel(async (options: ModelCall) => {
+    calls.push(options);
+    const user = options.prompt.find(entry => entry.role === 'user');
+    const message =
+      user && typeof user.content !== 'string'
+        ? user.content.map(part => (part.type === 'text' ? part.text : '')).join('')
+        : '';
+    const given = answer(message, calls.length - 1);
+    if (given instanceof Error) throw given;
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: typeof given === 'string' ? given : JSON.stringify(given),
         },
-        warnings: [],
-      };
-    },
+      ],
+      finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 5, text: 5, reasoning: 0 },
+      },
+      warnings: [],
+    };
   });
   return { judge: new Judge({ model, modelSpec: 'mock:judge-under-test' }), calls };
 }
@@ -203,14 +201,14 @@ describe('a verdict needs two agreeing valid samples (specs/016 V2)', () => {
   });
 
   it('abandons a sample that stalls, and grades nothing rather than hang (C6)', async () => {
-    const model = new MockLanguageModelV4({
-      doGenerate: (options: LanguageModelV4CallOptions) =>
+    const model = fakeChatModel(
+      (options: ModelCall) =>
         new Promise((_resolve, reject) => {
           options.abortSignal?.addEventListener('abort', () =>
             reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
           );
         }),
-    });
+    );
     const judge = new Judge({ model, modelSpec: 'mock:stalled', timeoutMs: 20 });
     expect(
       await judge.grade({

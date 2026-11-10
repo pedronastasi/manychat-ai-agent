@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
+import type { ModelCall, FakeContent } from '../helpers/model.ts';
 import { carriesWorkingNotes } from '../../src/agent/guardrails.ts';
 import { LangGraphRunner, REWRITE_NOTE } from '../../src/agent/langgraph-runner.ts';
 import { buildSystemPrompt } from '../../src/agent/prompt.ts';
@@ -10,6 +9,7 @@ import { RulesSchema } from '../../src/contracts/config.ts';
 import type { TenantConfig } from '../../src/config/loader.ts';
 import { fixtureTenant, promptText } from '../helpers/conversations.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { fakeChatModel } from '../helpers/model.ts';
 
 /**
  * specs/001-agent-behavior.md § Working notes never reach the contact. Every
@@ -42,33 +42,31 @@ type Step = { tool: { name: string; input: object } } | { text: object } | { err
 
 /** A model that answers each call with the next step, at the provider boundary. */
 function sequence(steps: Step[]) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const model = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      calls.push(options);
-      const step = steps[calls.length - 1] ?? steps.at(-1)!;
-      if ('error' in step) throw step.error;
-      const content: LanguageModelV4Content[] =
+  const calls: ModelCall[] = [];
+  const model = fakeChatModel(async (options: ModelCall) => {
+    calls.push(options);
+    const step = steps[calls.length - 1] ?? steps.at(-1)!;
+    if ('error' in step) throw step.error;
+    const content: FakeContent[] =
+      'tool' in step
+        ? [
+            {
+              type: 'tool-call',
+              toolCallId: `call-${calls.length}`,
+              toolName: step.tool.name,
+              input: JSON.stringify(step.tool.input),
+            },
+          ]
+        : [{ type: 'text', text: JSON.stringify(step.text) }];
+    return {
+      content,
+      finishReason:
         'tool' in step
-          ? [
-              {
-                type: 'tool-call',
-                toolCallId: `call-${calls.length}`,
-                toolName: step.tool.name,
-                input: JSON.stringify(step.tool.input),
-              },
-            ]
-          : [{ type: 'text', text: JSON.stringify(step.text) }];
-      return {
-        content,
-        finishReason:
-          'tool' in step
-            ? { unified: 'tool-calls' as const, raw: 'tool_use' }
-            : { unified: 'stop' as const, raw: 'end_turn' },
-        usage: USAGE,
-        warnings: [],
-      };
-    },
+          ? { unified: 'tool-calls' as const, raw: 'tool_use' }
+          : { unified: 'stop' as const, raw: 'end_turn' },
+      usage: USAGE,
+      warnings: [],
+    };
   });
   return { model, calls };
 }

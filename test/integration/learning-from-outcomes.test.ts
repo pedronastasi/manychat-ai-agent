@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
+import type { ModelCall } from '../helpers/model.ts';
 import { eq, sql } from 'drizzle-orm';
 import { createTestDatabase } from '../helpers/db.ts';
-import { mockModel } from '../helpers/model.ts';
+import { mockModel, fakeChatModel } from '../helpers/model.ts';
 import type { Database } from '../../src/db/client.ts';
 import {
   budgetCounters,
@@ -34,6 +33,7 @@ import { PlaybookSource } from '../../src/learning/playbook.ts';
 import { activate, report, review } from '../../src/learning/cli.ts';
 import type { ReviewIo } from '../../src/learning/cli.ts';
 import { NO_PLAYBOOK } from '../../src/learning/gate.ts';
+import type { ChatModelHandle } from '../../src/agent/registry.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -135,22 +135,20 @@ function analystModel(
   answer: (turnIds: string[]) => unknown,
   usage = { input: 20_000, output: 500 },
 ) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const model = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      calls.push(options);
-      const text = JSON.stringify(options.prompt);
-      const ids = [...text.matchAll(/\[turn ([0-9a-f-]{36})\]/g)].map(match => match[1]!);
-      return {
-        finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: usage.input, noCache: usage.input, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: usage.output, text: usage.output, reasoning: 0 },
-        },
-        content: [{ type: 'text' as const, text: JSON.stringify(answer(ids)) }],
-        warnings: [],
-      };
-    },
+  const calls: ModelCall[] = [];
+  const model = fakeChatModel(async (options: ModelCall) => {
+    calls.push(options);
+    const text = JSON.stringify(options.prompt);
+    const ids = [...text.matchAll(/\[turn ([0-9a-f-]{36})\]/g)].map(match => match[1]!);
+    return {
+      finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: usage.input, noCache: usage.input, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: usage.output, text: usage.output, reasoning: 0 },
+      },
+      content: [{ type: 'text' as const, text: JSON.stringify(answer(ids)) }],
+      warnings: [],
+    };
   });
   return { model, calls };
 }
@@ -184,7 +182,7 @@ function logs() {
 
 function job(
   contacts: ContactReader,
-  model: MockLanguageModelV4 | undefined,
+  model: ChatModelHandle | undefined,
   opts: { logger?: ReturnType<typeof logs>['logger']; config?: TenantConfig; spec?: string } = {},
 ) {
   return new LearningJob({

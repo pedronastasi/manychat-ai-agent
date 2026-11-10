@@ -16,6 +16,7 @@ import { FakeContactFields, fakeMediaHost, mediaUrl } from '../helpers/manychat.
 import { MediaResolver } from '../../src/media/resolver.ts';
 import { ManyChatMediaFetcher } from '../../src/channels/manychat/media.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/046-one-reply-to-a-burst-of-bubbles.md § Verification items 2 to 5.
@@ -352,11 +353,7 @@ describe('a first reply that is still sent (specs/046 V5)', () => {
       run: async ({ text, stage = new ActionStage(), contact, flows }) => {
         if (text === 'hi') {
           const built = buildTools(tools, stage, asProspect(contact), undefined, { flows });
-          await built?.send_flow?.execute?.({ flow } as never, {
-            toolCallId: 'test',
-            messages: [],
-            context: {},
-          });
+          await execute(built?.send_flow, { flow });
           await sleep(300);
         }
         return result(`reply to ${text}`, true);

@@ -1,4 +1,4 @@
-import { tool, type ToolSet } from 'ai';
+import { agentTool, type AgentTools } from './define.ts';
 import { z } from 'zod';
 import { LINK_SENT, PREPARED } from '../../contracts/config.ts';
 import type { SendFlowAction } from '../flows.ts';
@@ -9,7 +9,7 @@ import { fitsOffering, NOT_PROSPECT } from './turn.ts';
 import type { ToolTurn } from './turn.ts';
 
 /** `send_flow`: the content flows not yet sent to the contact (specs/023, 028, 029, 032). */
-export function addSendFlow(turn: ToolTurn, tools: ToolSet) {
+export function addSendFlow(turn: ToolTurn, tools: AgentTools) {
   const { config, stage, contact, options, funnel } = turn;
   if (turn.unsent.length > 0) {
     const flows = new Map(turn.unsent.map(flow => [flow.id, flow]));
@@ -30,7 +30,7 @@ export function addSendFlow(turn: ToolTurn, tools: ToolSet) {
     // The payment link waits for readiness unless the contact asked to pay
     // (specs/032 § The payment link waits for readiness).
     const gated = funnel !== undefined && turn.unsent.some(flow => flow.role === 'payment_link');
-    tools.send_flow = tool({
+    tools.send_flow = agentTool('send_flow', {
       description:
         `Send the contact one of these flows.\n${listing}\n${sends ? SENT_NOW : STAGED}` +
         (turn.unsent.some(flow => flow.silent) ? `\n${SILENT}` : '') +

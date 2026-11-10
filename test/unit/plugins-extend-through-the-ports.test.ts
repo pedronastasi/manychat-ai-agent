@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ToolExecutionOptions, ToolSet } from 'ai';
+import type { AgentTools } from '../../src/agent/tools/define.ts';
 import { definePlugin, defineTool, PLUGIN_API_VERSION } from '../../src/index.ts';
 import { loadPlugins, PluginError } from '../../src/plugins/loader.ts';
 import { Plugins, PLUGIN_PERFORM_TIMEOUT_MS } from '../../src/plugins/plugins.ts';
@@ -26,6 +26,7 @@ import type { StagedAction } from '../../src/contracts/agent.ts';
 import { run } from '../../src/cli/run.ts';
 import { FakeActions } from '../helpers/manychat.ts';
 import { EXAMPLE_PLUGIN, pluginSource, tenantProject } from '../helpers/plugins.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/036-plugins-extend-through-the-ports.md § Verification. The plugin
@@ -84,17 +85,11 @@ function recordingTool(over: Partial<PluginTool> & { ends?: 'ok' | 'throws' | 'h
 const plugins = (tool: PluginTool) =>
   new Plugins([{ plugin: 'example-crm', tool }], ['example-crm']);
 
-/** Runs a tool's `execute` as the SDK does after validating the input against its schema. */
-async function call(tools: ToolSet, name: string, input: unknown): Promise<unknown> {
+/** Runs a tool as the runner does, after validating the input against its schema. */
+async function call(tools: AgentTools, name: string, input: unknown): Promise<unknown> {
   const declared = tools[name]!;
-  const parsed = (declared.inputSchema as { parse: (value: unknown) => unknown }).parse(input);
-  return declared.execute!(
-    parsed as never,
-    {
-      toolCallId: 'call-1',
-      messages: [],
-    } as unknown as ToolExecutionOptions<never>,
-  );
+  const parsed = (declared.schema as { parse: (value: unknown) => unknown }).parse(input);
+  return execute(declared, parsed);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -274,7 +269,7 @@ describe('a plugin tool is a staged action (specs/036 V4)', () => {
     const tools = buildTools(NO_TOOLS, new ActionStage(), undefined, undefined, {
       plugins: plugins(tool),
     })!;
-    const schema = tools.crm_log_lead!.inputSchema as {
+    const schema = tools.crm_log_lead!.schema as {
       safeParse: (value: unknown) => { success: boolean };
     };
     expect(schema.safeParse({ temperature: 'cold' }).success).toBe(false);

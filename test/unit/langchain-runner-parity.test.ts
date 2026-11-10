@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
+import type { ModelCall, FakeContent } from '../helpers/model.ts';
 import { GraphRecursionError } from '@langchain/langgraph';
 import {
   CHAT_MODEL_MAX_RETRIES,
@@ -16,6 +15,8 @@ import { EnvSchema, LANGCHAIN_OUTPUTS } from '../../src/contracts/config/env.ts'
 import { createRunner } from '../../src/agent/select-runner.ts';
 import { RUNNERS } from '../helpers/runners.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { fakeChatModel } from '../helpers/model.ts';
+import type { ChatModelHandle } from '../../src/agent/registry.ts';
 
 /**
  * specs/050-langchain-runner-parity.md § Verification items 1, 2, 3, 5, 6 and
@@ -336,7 +337,7 @@ describe('the AI SDK runner is removed (specs/050)', () => {
   });
 });
 
-const toolCall = (toolName: string, input: object, id: string): LanguageModelV4Content => ({
+const toolCall = (toolName: string, input: object, id: string): FakeContent => ({
   type: 'tool-call',
   toolCallId: `call-${id}`,
   toolName,
@@ -345,59 +346,57 @@ const toolCall = (toolName: string, input: object, id: string): LanguageModelV4C
 
 /** A model at the provider boundary answering each step from `script`, honouring the abort. */
 function scriptedModel(
-  script: (step: number) => LanguageModelV4Content[],
+  script: (step: number) => FakeContent[],
   opts: {
     hangFrom?: number;
     usage?: boolean;
     cacheRead?: (step: number) => number | undefined;
   } = {},
 ) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const model = new MockLanguageModelV4({
-    doGenerate: async (call: LanguageModelV4CallOptions) => {
-      const step = calls.length;
-      calls.push(call);
-      if (opts.hangFrom !== undefined && step >= opts.hangFrom) {
-        await new Promise((_resolve, reject) => {
-          call.abortSignal?.addEventListener('abort', () =>
-            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
-          );
-        });
-      }
-      const content = script(step);
-      return {
-        content,
-        finishReason: content.some(part => part.type === 'tool-call')
-          ? { unified: 'tool-calls' as const, raw: 'tool_use' }
-          : { unified: 'stop' as const, raw: 'end_turn' },
-        usage:
-          opts.usage === false
-            ? {
-                inputTokens: {
-                  total: undefined,
-                  noCache: undefined,
-                  cacheRead: undefined,
-                  cacheWrite: undefined,
-                },
-                outputTokens: { total: undefined, text: undefined, reasoning: undefined },
-              }
-            : {
-                inputTokens: {
-                  total: 100 + step,
-                  noCache: 90,
-                  cacheRead: opts.cacheRead ? opts.cacheRead(step) : 10,
-                  cacheWrite: 0,
-                },
-                outputTokens: { total: 20, text: 20, reasoning: 0 },
+  const calls: ModelCall[] = [];
+  const model = fakeChatModel(async (call: ModelCall) => {
+    const step = calls.length;
+    calls.push(call);
+    if (opts.hangFrom !== undefined && step >= opts.hangFrom) {
+      await new Promise((_resolve, reject) => {
+        call.abortSignal?.addEventListener('abort', () =>
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+        );
+      });
+    }
+    const content = script(step);
+    return {
+      content,
+      finishReason: content.some(part => part.type === 'tool-call')
+        ? { unified: 'tool-calls' as const, raw: 'tool_use' }
+        : { unified: 'stop' as const, raw: 'end_turn' },
+      usage:
+        opts.usage === false
+          ? {
+              inputTokens: {
+                total: undefined,
+                noCache: undefined,
+                cacheRead: undefined,
+                cacheWrite: undefined,
               },
-        warnings: [],
-      };
-    },
+              outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+            }
+          : {
+              inputTokens: {
+                total: 100 + step,
+                noCache: 90,
+                cacheRead: opts.cacheRead ? opts.cacheRead(step) : 10,
+                cacheWrite: 0,
+              },
+              outputTokens: { total: 20, text: 20, reasoning: 0 },
+            },
+      warnings: [],
+    };
   });
   return { model, calls };
 }
 
-const answer: LanguageModelV4Content = { type: 'text', text: JSON.stringify(REPLY) };
+const answer: FakeContent = { type: 'text', text: JSON.stringify(REPLY) };
 
 /** Nine distinct writes in one step: one past the cap. */
 const NINE_WRITES = [
@@ -413,7 +412,7 @@ const NINE_WRITES = [
 ];
 
 describe.each(RUNNERS)('the loop under the $name runner (specs/050 V6)', ({ Runner }) => {
-  const runnerFor = (model: MockLanguageModelV4) => new Runner({ ...options(model), model });
+  const runnerFor = (model: ChatModelHandle) => new Runner({ ...options(model), model });
 
   it('stages one step’s calls in the order the model made them, and drops the one past the cap', async () => {
     const { model } = scriptedModel(step => (step === 0 ? NINE_WRITES : [answer]));
