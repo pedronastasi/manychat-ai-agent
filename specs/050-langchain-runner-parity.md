@@ -212,8 +212,9 @@ those types is still the separate breaking change § The public exports keep
 their signatures describes.
 
 `053` takes the rest off the AI SDK. Its step 1 moved transcription for
-`openai:` and `ollama:`, the analyst and the judges; the mock, the fakes, the
-tool definitions and the public types follow in its later steps.
+`openai:` and `ollama:`, the analyst and the judges, and its step 2 made the
+mock a LangChain.js chat model; the fakes, the tool definitions, `google:`
+transcription and the public types follow in its step 3.
 
 ## Verification
 
