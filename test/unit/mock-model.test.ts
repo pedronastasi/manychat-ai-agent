@@ -5,6 +5,7 @@ import { HumanMessage } from '@langchain/core/messages';
 import type { AIMessage } from '@langchain/core/messages';
 import { createMockModel } from '../../src/agent/mock-provider.ts';
 import { resolveChatModel } from '../../src/agent/registry.ts';
+import { hangingModel } from '../helpers/model.ts';
 
 /**
  * specs/053-one-model-library.md § Verification, The mock: `mock:` is a
@@ -54,5 +55,18 @@ describe('mock: is a LangChain chat model (specs/053 V10)', () => {
     setTimeout(() => controller.abort(), 20);
     await expect(pending).rejects.toThrow();
     expect(Date.now() - started).toBeLessThan(1000);
+  });
+});
+
+describe('a fake honours the abort (specs/053 V11)', () => {
+  it('hangingModel rejects within 100 ms of its signal aborting', async () => {
+    const controller = new AbortController();
+    const pending = hangingModel().model.invoke([new HumanMessage('hello')], {
+      signal: controller.signal,
+    });
+    const aborted = Date.now();
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+    expect(Date.now() - aborted).toBeLessThan(100);
   });
 });

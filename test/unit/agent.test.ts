@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { RUNNERS } from '../helpers/runners.ts';
 import type { RunnerClass } from '../helpers/runners.ts';
 import type { RunnerOptions } from '../../src/agent/runner.ts';
@@ -13,12 +13,12 @@ import { buildSystemPrompt, fenceUserText, FENCE, FENCE_END } from '../../src/ag
 import {
   estimateCostUsd,
   pricingFor,
-  resolveModel,
+  resolveChatModel,
   supportsTemperature,
   UnknownProviderError,
 } from '../../src/agent/registry.ts';
 import { CatalogSchema, RulesSchema } from '../../src/contracts/config.ts';
-import { mockModel } from '../helpers/model.ts';
+import { abortError, fakeChatModel, mockModel } from '../helpers/model.ts';
 
 /**
  * Every test here runs under the LangChain runner, the only one since the AI SDK
@@ -151,55 +151,46 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       expect(result.modelError).toBeUndefined();
     });
 
-    it('sends reasoningEffort only when configured', async () => {
-      // Reasoning is billed and capped as output, so a model that deliberates
-      // past maxOutputTokens never emits a reply at all. Capping the effort is
-      // the lever that avoids it; sending nothing keeps non-reasoning providers
-      // untouched.
-      const bare = mockModel(good);
-      await new Runner({
-        model: bare.model,
-        modelSpec: 'openai:gpt-5-mini',
-        config: () => ({ persona: 'P.', catalog, rules }),
-        maxOutputTokens: 400,
-        temperature: 0.3,
-      }).run({ text: 'hello', history: [] });
-      expect(bare.calls[0]!.providerOptions?.openai).toBeUndefined();
+    // The registry applies these settings when it builds the provider's chat
+    // model; a test fake is given none (specs/053 § The mock and every fake).
+    describe('model settings, applied where the registry builds the model', () => {
+      beforeEach(() => {
+        vi.stubEnv('ANTHROPIC_API_KEY', 'invented-key-for-tests');
+        vi.stubEnv('OPENAI_API_KEY', 'invented-key-for-tests');
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
 
-      const tuned = mockModel(good);
-      await new Runner({
-        model: tuned.model,
-        modelSpec: 'openai:gpt-5-mini',
-        config: () => ({ persona: 'P.', catalog, rules }),
-        maxOutputTokens: 400,
-        temperature: 0.3,
-        reasoningEffort: 'low',
-      }).run({ text: 'hello', history: [] });
-      expect(tuned.calls[0]!.providerOptions?.openai).toEqual({ reasoningEffort: 'low' });
-    });
+      it('sends reasoningEffort only when configured', () => {
+        // Reasoning is billed and capped as output, so a model that deliberates
+        // past maxOutputTokens never emits a reply at all. Capping the effort is
+        // the lever that avoids it; sending nothing keeps non-reasoning providers
+        // untouched.
+        const settings = { maxOutputTokens: 400, temperature: 0.3 };
+        const bare = resolveChatModel('openai:gpt-5-mini', settings).model as unknown as {
+          reasoning?: unknown;
+        };
+        expect(bare.reasoning).toBeUndefined();
+        const tuned = resolveChatModel('openai:gpt-5-mini', {
+          ...settings,
+          reasoningEffort: 'low',
+        }).model as unknown as { reasoning?: unknown };
+        expect(tuned.reasoning).toEqual({ effort: 'low' });
+      });
 
-    it('omits temperature for reasoning models, which reject it', async () => {
-      // Not a failed call: the provider drops the setting and warns once per
-      // request, which buries the warnings that do matter.
-      const reasoning = mockModel(good);
-      await new Runner({
-        model: reasoning.model,
-        modelSpec: 'openai:gpt-5-mini',
-        config: () => ({ persona: 'P.', catalog, rules }),
-        maxOutputTokens: 400,
-        temperature: 0.3,
-      }).run({ text: 'hello', history: [] });
-      expect(reasoning.calls[0]!.temperature).toBeUndefined();
-
-      const standard = mockModel(good);
-      await new Runner({
-        model: standard.model,
-        modelSpec: 'anthropic:claude-haiku-4-5',
-        config: () => ({ persona: 'P.', catalog, rules }),
-        maxOutputTokens: 400,
-        temperature: 0.3,
-      }).run({ text: 'hello', history: [] });
-      expect(standard.calls[0]!.temperature).toBe(0.3);
+      it('omits temperature for reasoning models, which reject it', () => {
+        // Not a failed call: the provider drops the setting and warns once per
+        // request, which buries the warnings that do matter.
+        const settings = { maxOutputTokens: 400, temperature: 0.3 };
+        const reasoning = resolveChatModel('openai:gpt-5-mini', settings).model as unknown as {
+          temperature?: number;
+        };
+        expect(reasoning.temperature).toBeUndefined();
+        const standard = resolveChatModel('anthropic:claude-haiku-4-5', settings)
+          .model as unknown as { temperature?: number };
+        expect(standard.temperature).toBe(0.3);
+      });
     });
 
     it('fences untrusted contact text', async () => {
@@ -650,13 +641,20 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
   });
 
   describe('registry', () => {
+    const settings = { maxOutputTokens: 400, temperature: 0.3 };
+    beforeEach(() => {
+      vi.stubEnv('ANTHROPIC_API_KEY', 'invented-key-for-tests');
+      vi.stubEnv('OPENAI_API_KEY', 'invented-key-for-tests');
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
     it('resolves a provider:model spec', () => {
-      const model = resolveModel('anthropic:claude-haiku-4-5');
-      expect(typeof model).toBe('object');
-      expect((model as { modelId: string }).modelId).toBe('claude-haiku-4-5');
+      const { model } = resolveChatModel('anthropic:claude-haiku-4-5', settings);
+      expect((model as unknown as { model: string }).model).toBe('claude-haiku-4-5');
     });
     it('throws a helpful error for an unknown provider', () => {
-      expect(() => resolveModel('notreal:x')).toThrow(UnknownProviderError);
+      expect(() => resolveChatModel('notreal:x', settings)).toThrow(UnknownProviderError);
     });
     it('falls back to pessimistic pricing for unknown models', () => {
       expect(pricingFor('openai:something-new').inputPerMTok).toBe(5);
@@ -716,8 +714,8 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       ).toBe(0);
     });
     it('resolves an ollama spec with a colon-bearing tag', () => {
-      const model = resolveModel('ollama:llama3.1:8b');
-      expect(typeof model).toBe('object');
+      const { model } = resolveChatModel('ollama:llama3.1:8b', settings);
+      expect((model as unknown as { model: string }).model).toBe('llama3.1:8b');
     });
   });
 
@@ -811,15 +809,12 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
     it('rethrows an abort so the caller can tell "too slow" from "misbehaved"', async () => {
       // turn.ts distinguishes these: an abort is an error outcome, while a schema
       // violation is a low-confidence escalation. Collapsing them loses that.
-      const { MockLanguageModelV4 } = await import('ai/test');
-      const hanging = new MockLanguageModelV4({
-        doGenerate: options =>
+      const hanging = fakeChatModel(
+        options =>
           new Promise((_resolve, reject) => {
-            options.abortSignal?.addEventListener('abort', () =>
-              reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
-            );
+            options.abortSignal?.addEventListener('abort', () => reject(abortError()));
           }),
-      });
+      );
 
       const controller = new AbortController();
       setTimeout(() => controller.abort(), 20);
@@ -829,10 +824,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
     });
 
     it('escalates on a provider error without charging for it', async () => {
-      const { MockLanguageModelV4 } = await import('ai/test');
-      const broken = new MockLanguageModelV4({
-        doGenerate: () => Promise.reject(new Error('provider exploded')),
-      });
+      const broken = fakeChatModel(() => Promise.reject(new Error('provider exploded')));
       const result = await runnerFor(broken).run({ text: 'hello', history: [] });
 
       expect(result.reply.escalate).toBe(true);

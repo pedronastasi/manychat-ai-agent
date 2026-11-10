@@ -17,6 +17,7 @@ import { ManyChatHttpClient } from '../../src/channels/manychat/client.ts';
 import type { ContactRecord } from '../../src/contracts/manychat.ts';
 import { FakeActions, FakeContactFields, fakeManyChatApi } from '../helpers/manychat.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/028-multi-course-funnels.md § Verification item 5: the conversation's
@@ -74,10 +75,7 @@ function courseRunner(opts: { offering?: string; delayMs?: number } = {}) {
         nudgeTurn: input.nudge !== undefined,
       });
       if (opts.offering) {
-        await built?.set_field?.execute?.(
-          { field: 'course', value: opts.offering },
-          { toolCallId: 'test', messages: [], context: {} },
-        );
+        await execute(built?.set_field, { field: 'course', value: opts.offering });
       }
       if (opts.delayMs) await new Promise(resolve => setTimeout(resolve, opts.delayMs));
       const result: AgentResult = {

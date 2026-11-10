@@ -9,8 +9,8 @@ import {
 import { MediaFailure } from '../../src/media/port.ts';
 
 /**
- * specs/053-one-model-library.md § Verification: Transcription, Direct
- * dependency, Ollama transcription and the Anthropic half of Google
+ * specs/053-one-model-library.md § Verification: No dependency,
+ * Transcription, Direct dependency, Ollama transcription and Google
  * transcription dropped (§ Transcription is a port the registry implements
  * with the provider's SDK). The transcription model is a model, so it is faked
  * at its HTTP boundary through the client's `fetch` (specs/004). The audio is
@@ -184,6 +184,17 @@ describe('the transcription client is set as the table says (specs/053 V5)', () 
   });
 });
 
+describe('the service depends on no AI SDK package (specs/053 V1)', () => {
+  it('lists neither ai nor any @ai-sdk package, in dependencies or devDependencies', () => {
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const names = [...Object.keys(manifest.dependencies), ...Object.keys(manifest.devDependencies)];
+    expect(names.filter(name => name === 'ai' || name.startsWith('@ai-sdk/'))).toEqual([]);
+  });
+});
+
 describe('openai is a direct dependency (specs/053 V6)', () => {
   it('lists openai in dependencies', () => {
     const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as {
@@ -208,6 +219,15 @@ describe('Ollama transcribes through the same client at OLLAMA_BASE_URL (specs/0
 });
 
 describe('a provider that does not transcribe fails boot (specs/053 V8)', () => {
+  it('refuses google:, dropped with the AI SDK, naming TRANSCRIPTION_MODEL', () => {
+    expect(() => resolveTranscriptionModel('google:gemini-3.5-transcribe')).toThrow(
+      UnknownProviderError,
+    );
+    expect(() => resolveTranscriptionModel('google:gemini-3.5-transcribe')).toThrow(
+      /TRANSCRIPTION_MODEL/,
+    );
+  });
+
   it('refuses anthropic: naming TRANSCRIPTION_MODEL', () => {
     expect(() => resolveTranscriptionModel('anthropic:claude-haiku-4-5')).toThrow(
       UnknownProviderError,

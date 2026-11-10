@@ -1,9 +1,4 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createProviderRegistry } from 'ai';
-import type { LanguageModel } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { openai, createOpenAI } from '@ai-sdk/openai';
-import { google } from '@ai-sdk/google';
 import OpenAI from 'openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOpenAI } from '@langchain/openai';
@@ -12,8 +7,7 @@ import { SystemMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { ModelJsonSchema } from './model-schema.ts';
 import { createMockModel } from './mock-provider.ts';
-import { AiSdkChatModel, aiSdkProviderOptions } from './ai-sdk-chat-model.ts';
-import { OpenAiTranscriber, SdkTranscriber } from './transcriber.ts';
+import { OpenAiTranscriber } from './transcriber.ts';
 import type { TranscriptionEndpoint } from './transcriber.ts';
 import type { Transcriber } from '../media/port.ts';
 
@@ -23,8 +17,6 @@ import type { Transcriber } from '../media/port.ts';
  * environment change rather than a code change (ADR-0002).
  */
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
-const ollama = createOpenAI({ baseURL: OLLAMA_BASE_URL, apiKey: 'ollama' });
-const registry = createProviderRegistry({ anthropic, openai, google, ollama });
 
 /** Per-million-token prices, USD. Used for budget caps, not billing. */
 export interface ModelPricing {
@@ -160,23 +152,6 @@ export class UnknownProviderError extends Error {
 }
 
 /**
- * Resolves `provider:model` to a language model.
- *
- * Called once at startup rather than per request: a typo in AGENT_MODEL should
- * fail the deploy, not the first customer message.
- */
-export function resolveModel(spec: string, variable = 'AGENT_MODEL'): LanguageModel {
-  // `mock:` is a LangChain.js chat model since specs/053's step 2, resolved by
-  // `resolveChatModel`; nothing resolves it here, and this function goes in
-  // step 3.
-  try {
-    return registry.languageModel(spec as Parameters<typeof registry.languageModel>[0]);
-  } catch (cause) {
-    throw new UnknownProviderError(spec, cause, variable);
-  }
-}
-
-/**
  * The retries a transcription makes, inside the abort: the AI SDK's default,
  * kept (specs/053 § Transcription is a port the registry implements with the
  * provider's SDK). The `openai` package's own default is also 2; it is set
@@ -207,10 +182,11 @@ function openAiEndpoint(
 }
 
 /**
- * Resolves TRANSCRIPTION_MODEL to a transcriber, at startup for the same
- * reason as `resolveModel`. OpenAI and Ollama go through the `openai` client;
- * Google stays on the AI SDK until specs/053's step 3 drops it. Anthropic does
- * not transcribe, and fails here rather than on the first voice note.
+ * Resolves TRANSCRIPTION_MODEL to a transcriber, at startup, so a typo fails
+ * the deploy rather than the first voice note. OpenAI and Ollama go through
+ * the `openai` client. Google transcription was dropped with the AI SDK, and
+ * Anthropic does not transcribe: both fail here, naming the variable
+ * (specs/053 § Google transcription is dropped).
  */
 export function resolveTranscriptionModel(
   spec: string,
@@ -226,15 +202,11 @@ export function resolveTranscriptionModel(
       modelSpec: spec,
     });
   }
-  try {
-    if (provider !== 'google') throw new Error(`'${provider}' does not transcribe here`);
-    return new SdkTranscriber({
-      model: registry.transcriptionModel(spec as Parameters<typeof registry.transcriptionModel>[0]),
-      modelSpec: spec,
-    });
-  } catch (cause) {
-    throw new UnknownProviderError(spec, cause, 'TRANSCRIPTION_MODEL');
-  }
+  throw new UnknownProviderError(
+    spec,
+    new Error(`'${provider}' does not transcribe here`),
+    'TRANSCRIPTION_MODEL',
+  );
 }
 
 /** What the LangChain runner is configured with (specs/050). */
@@ -265,29 +237,6 @@ export interface ChatModelHandle {
  * own default is 6 (specs/050 § Defaults that change behaviour).
  */
 export const CHAT_MODEL_MAX_RETRIES = 2;
-
-/** An AI SDK model, `mock:` or a test fake, as a LangChain chat model. */
-export function chatModelFromAiSdk(
-  model: LanguageModel,
-  modelSpec: string,
-  settings: ChatModelSettings,
-): ChatModelHandle {
-  if (typeof model === 'string' || model.specificationVersion !== 'v4') {
-    throw new Error(`the LangChain runner wraps AI SDK v4 models only, not ${modelSpec}`);
-  }
-  return {
-    model: new AiSdkChatModel(model, {
-      maxOutputTokens: settings.maxOutputTokens,
-      temperature:
-        supportsTemperature(modelSpec) && settings.temperature !== undefined
-          ? settings.temperature
-          : undefined,
-      providerOptions: aiSdkProviderOptions(settings.reasoningEffort),
-    }),
-    replyFormat: schema => ({ responseFormat: { type: 'json', schema } }),
-    systemMessage: text => new SystemMessage(text),
-  };
-}
 
 /** The signal of the Gemini call in progress, for `AbortableGemini`. */
 const geminiSignal = new AsyncLocalStorage<AbortSignal | undefined>();
@@ -323,7 +272,8 @@ function openAiReplyFormat(schema: ModelJsonSchema): Record<string, unknown> {
  * Never `initChatModel`: it loads a provider with a dynamic import the C2 lint
  * cannot see, infers a provider from a bare model name, and with no model makes
  * the model selectable at call time (specs/050 § The registry builds each chat
- * model by its class). Called once at startup, like `resolveModel`.
+ * model by its class). Called once at startup: a typo in AGENT_MODEL fails the
+ * deploy, not the first customer message.
  */
 export function resolveChatModel(
   spec: string,
@@ -414,12 +364,12 @@ function googleApiKey(): { apiKey: string } | Record<string, never> {
 const CHAT_PROVIDERS = new Set(['mock', 'anthropic', 'openai', 'ollama', 'google']);
 
 /**
- * `resolveChatModel` for the judges and the analyst, which `resolveModel`
- * served before specs/053: the provider is checked now, so a typo fails boot,
- * but the chat model is built on first use. LangChain's provider classes throw
- * in their constructors when the key is missing, where the AI SDK read it only
- * when a request went out; building it here would stop a service that boots
- * on `main` (specs/053 § The judges and the analyst validate their own output).
+ * `resolveChatModel` for the judges and the analyst: the provider is checked
+ * now, so a typo fails boot, but the chat model is built on first use.
+ * LangChain's provider classes throw in their constructors when the key is
+ * missing, where the AI SDK read it only when a request went out, so building
+ * it at boot would stop a service that ran before specs/053 (§ The judges and
+ * the analyst validate their own output).
  */
 export function resolveChatModelOnUse(
   spec: string,

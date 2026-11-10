@@ -4,10 +4,9 @@
  * which is a script, so every rule here is unit tested without running a suite.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import type { LanguageModel } from 'ai';
 import type { ReadRecord } from '../contracts/agent.ts';
 import { CalibrationItem, Verdict } from '../contracts/judge.ts';
-import { chatModelFromAiSdk, estimateCostUsd } from '../agent/registry.ts';
+import { estimateCostUsd } from '../agent/registry.ts';
 import type { ChatModelHandle } from '../agent/registry.ts';
 import { generateObject } from '../agent/structured.ts';
 import { reviewCriteria } from './cases.ts';
@@ -193,19 +192,11 @@ export class Judge {
   costUsd = 0;
 
   /**
-   * `model` is the chat model `resolveChatModel` builds with `JUDGE_SETTINGS`,
-   * or an AI SDK model (`mock:`, a test fake) to wrap until specs/053's step 3.
+   * `model` is the chat model the registry builds with `JUDGE_SETTINGS`, or a
+   * test fake.
    */
-  constructor(opts: {
-    model: ChatModelHandle | LanguageModel;
-    modelSpec: string;
-    timeoutMs?: number;
-  }) {
-    const { model } = opts;
-    this.handle =
-      typeof model === 'object' && 'replyFormat' in model
-        ? model
-        : chatModelFromAiSdk(model, opts.modelSpec, JUDGE_SETTINGS);
+  constructor(opts: { model: ChatModelHandle; modelSpec: string; timeoutMs?: number }) {
+    this.handle = opts.model;
     this.modelSpec = opts.modelSpec;
     this.timeoutMs = opts.timeoutMs ?? JUDGE_TIMEOUT_MS;
   }

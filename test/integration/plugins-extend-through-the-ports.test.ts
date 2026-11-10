@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
+import type { ModelCall, FakeContent } from '../helpers/model.ts';
 import { createTestDatabase } from '../helpers/db.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import { EXAMPLE_PLUGIN, tenantProject } from '../helpers/plugins.ts';
@@ -15,6 +14,8 @@ import type { ManyChatClient } from '../../src/channels/manychat/client.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
 import { loadPlugins } from '../../src/plugins/loader.ts';
 import type { Plugins, HostLogger } from '../../src/plugins/plugins.ts';
+import { fakeChatModel } from '../helpers/model.ts';
+import type { ChatModelHandle } from '../../src/agent/registry.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -62,14 +63,14 @@ function journal() {
   return { order, lines, logger };
 }
 
-const toolCall = (toolName: string, input: object): LanguageModelV4Content => ({
+const toolCall = (toolName: string, input: object): FakeContent => ({
   type: 'tool-call',
   toolCallId: `call-${toolName}`,
   toolName,
   input: JSON.stringify(input),
 });
 
-const replyText = (reply: object): LanguageModelV4Content => ({
+const replyText = (reply: object): FakeContent => ({
   type: 'text',
   text: JSON.stringify(reply),
 });
@@ -92,36 +93,34 @@ const HANDOFF = {
 
 /** Calls the plugin tool on the first step and answers with `reply` on the second. */
 function model(reply: object, delays: Record<number, number> = {}) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const mock = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      const step = calls.length;
-      calls.push(options);
-      const delay = delays[step];
-      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
-      const content =
+  const calls: ModelCall[] = [];
+  const mock = fakeChatModel(async (options: ModelCall) => {
+    const step = calls.length;
+    calls.push(options);
+    const delay = delays[step];
+    if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+    const content =
+      step === 0
+        ? [
+            toolCall('crm_log_lead', {
+              temperature: 'hot',
+              callback: true,
+              summary: 'Wants the evening course; reach them at lead@example.com',
+            }),
+          ]
+        : [replyText(reply)];
+    return {
+      content,
+      finishReason:
         step === 0
-          ? [
-              toolCall('crm_log_lead', {
-                temperature: 'hot',
-                callback: true,
-                summary: 'Wants the evening course; reach them at lead@example.com',
-              }),
-            ]
-          : [replyText(reply)];
-      return {
-        content,
-        finishReason:
-          step === 0
-            ? { unified: 'tool-calls' as const, raw: 'tool_use' }
-            : { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 20, text: 20, reasoning: 0 },
-        },
-        warnings: [],
-      };
-    },
+          ? { unified: 'tool-calls' as const, raw: 'tool_use' }
+          : { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 20, text: 20, reasoning: 0 },
+      },
+      warnings: [],
+    };
   });
   return { model: mock, calls };
 }
@@ -137,7 +136,7 @@ const inbound = (text: string): InboundMessage => ({
   receivedAt: new Date(),
 });
 
-function handler(languageModel: MockLanguageModelV4, logger: HostLogger, raceDeadlineMs = 8000) {
+function handler(languageModel: ChatModelHandle, logger: HostLogger, raceDeadlineMs = 8000) {
   const runner = new Runner({
     model: languageModel,
     modelSpec: 'mock:demo',

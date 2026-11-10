@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
+import type { ModelCall, FakeContent } from '../helpers/model.ts';
 import { createTestDatabase } from '../helpers/db.ts';
 import { FakeActions, FakeContactFields } from '../helpers/manychat.ts';
 import type { Database } from '../../src/db/client.ts';
@@ -16,6 +15,8 @@ import type { ContactRecord } from '../../src/contracts/manychat.ts';
 import { MAX_STEPS } from '../../src/agent/tools.ts';
 import { actionsNote, FENCE, FENCE_END } from '../../src/agent/prompt.ts';
 import { OutboxWorker } from '../../src/outbox/worker.ts';
+import { fakeChatModel } from '../helpers/model.ts';
+import type { ChatModelHandle } from '../../src/agent/registry.ts';
 
 /**
  * specs/024-contact-read-and-notes.md § Verification, items 3, 4 (the fourth
@@ -56,14 +57,14 @@ function capturingLogger() {
   return { logger, lines, text: () => JSON.stringify(lines) };
 }
 
-const toolCall = (toolName: string, input: object, id = toolName): LanguageModelV4Content => ({
+const toolCall = (toolName: string, input: object, id = toolName): FakeContent => ({
   type: 'tool-call',
   toolCallId: `call-${id}`,
   toolName,
   input: JSON.stringify(input),
 });
 
-const replyText = (reply: object): LanguageModelV4Content => ({
+const replyText = (reply: object): FakeContent => ({
   type: 'text',
   text: JSON.stringify(reply),
 });
@@ -89,39 +90,37 @@ const HANDOFF = {
  * honouring the abort signal while it waits, as a real provider call does.
  */
 function scriptedModel(
-  script: (step: number, options: LanguageModelV4CallOptions) => LanguageModelV4Content[] | Error,
+  script: (step: number, options: ModelCall) => FakeContent[] | Error,
   delays: Record<number, number> = {},
 ) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const model = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      const step = calls.length;
-      calls.push(options);
-      const delay = delays[step];
-      if (delay) {
-        await new Promise((resolve, reject) => {
-          const timer = setTimeout(resolve, delay);
-          options.abortSignal?.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-          });
+  const calls: ModelCall[] = [];
+  const model = fakeChatModel(async (options: ModelCall) => {
+    const step = calls.length;
+    calls.push(options);
+    const delay = delays[step];
+    if (delay) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, delay);
+        options.abortSignal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
         });
-      }
-      const content = script(step, options);
-      if (content instanceof Error) throw content;
-      const called = content.some(part => part.type === 'tool-call');
-      return {
-        content,
-        finishReason: called
-          ? { unified: 'tool-calls' as const, raw: 'tool_use' }
-          : { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 20, text: 20, reasoning: 0 },
-        },
-        warnings: [],
-      };
-    },
+      });
+    }
+    const content = script(step, options);
+    if (content instanceof Error) throw content;
+    const called = content.some(part => part.type === 'tool-call');
+    return {
+      content,
+      finishReason: called
+        ? { unified: 'tool-calls' as const, raw: 'tool_use' }
+        : { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 20, text: 20, reasoning: 0 },
+      },
+      warnings: [],
+    };
   });
   return { model, calls };
 }
@@ -161,7 +160,7 @@ const inbound = (text: string, subscriberId = '5550001234987'): InboundMessage =
 });
 
 function handler(
-  model: MockLanguageModelV4,
+  model: ChatModelHandle,
   opts: {
     logger?: TurnLogger;
     actions?: FakeActions;
@@ -204,7 +203,7 @@ const replyRows = async () =>
   (await db.query.outbox.findMany()).filter(row => row.kind === 'reply');
 
 /** Whether a step's prompt carries a tool result with this output. */
-const sawResult = (options: LanguageModelV4CallOptions, output: string) =>
+const sawResult = (options: ModelCall, output: string) =>
   JSON.stringify(options.prompt.filter(message => message.role === 'tool')).includes(output);
 
 /* -------------------------------------------------------------------------- */
@@ -338,10 +337,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
    * turn. A tag, not a flow: an inbound turn sends a flow when it is called
    * (specs/029), and these tests are about what stays staged.
    */
-  const stagingModel = (
-    ending: LanguageModelV4Content[] | Error,
-    delays: Record<number, number> = {},
-  ) =>
+  const stagingModel = (ending: FakeContent[] | Error, delays: Record<number, number> = {}) =>
     scriptedModel(
       step =>
         step === 0

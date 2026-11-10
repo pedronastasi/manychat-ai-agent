@@ -19,6 +19,7 @@ import { ManyChatInbound } from '../../src/contracts/manychat.ts';
 import { ManyChatAdapter, renderManyChat } from '../../src/channels/manychat/adapter.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/028-multi-course-funnels.md § Verification items 1, 2, 3, 4 and 6,
@@ -36,10 +37,9 @@ const on = (offering: string | undefined, extra: Partial<ContactActions> = {}): 
   ...extra,
 });
 
-/** Calls a built tool's `execute` the way the SDK does. */
+/** Runs a built tool the way the runner does. */
 async function call(built: ReturnType<typeof buildTools>, name: string, input: object) {
-  const execute = built![name]!.execute!;
-  return (await execute(input as never, { toolCallId: 'test', messages: [], context: {} })) as {
+  return (await execute(built![name], input)) as {
     staged: boolean;
     flowsAvailable?: { flow: string; description: string }[];
   };
@@ -202,7 +202,7 @@ describe('send_flow accepts only the turn course’s flows (specs/028 V2)', () =
 
   it('describes only the flows it can accept now, each with its course', () => {
     const description = buildTools(tools, new ActionStage(), asProspect(on('advanced')))!.send_flow!
-      .description!;
+      .description;
     expect(description).toContain('- advanced_brochure (offering advanced):');
     expect(description).toContain('- student_results:');
     expect(description).not.toContain('foundation_brochure');
@@ -385,7 +385,7 @@ describe('a course change does not bring a sent flow back (specs/028 V6)', () =>
     );
     const stage = new ActionStage();
     const built = buildTools(tools, stage, asProspect({ ...contact, offering: 'advanced' }));
-    const description = built!.send_flow!.description!;
+    const description = built!.send_flow!.description;
 
     expect(description).not.toContain('student_results');
     expect(description).toContain('advanced_brochure');

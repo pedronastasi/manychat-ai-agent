@@ -46,7 +46,7 @@ const issuesOf = (raw: unknown) => {
 /** The flow ids `send_flow` offers, or undefined when it is not offered. */
 const enumOf = (tools: Tools, channel: string) => {
   const built = buildTools(tools, new ActionStage(), asProspect(), undefined, { channel });
-  const schema = built?.send_flow?.inputSchema as z.ZodObject | undefined;
+  const schema = built?.send_flow?.schema as z.ZodObject | undefined;
   return (schema?.shape.flow as z.ZodEnum | undefined)?.options as string[] | undefined;
 };
 

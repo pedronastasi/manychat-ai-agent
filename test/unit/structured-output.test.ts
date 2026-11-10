@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { MockLanguageModelV4 } from 'ai/test';
 import { Analyst, ANALYST_SETTINGS } from '../../src/learning/analyst.ts';
 import type { AnalystInput } from '../../src/learning/analyst.ts';
 import { Judge, JUDGE_SETTINGS } from '../../src/evals/judge.ts';
@@ -9,6 +8,7 @@ import {
   resolveChatModelOnUse,
   UnknownProviderError,
 } from '../../src/agent/registry.ts';
+import { fakeChatModel } from '../helpers/model.ts';
 
 /**
  * specs/053-one-model-library.md § Verification, Structured output: the
@@ -24,18 +24,17 @@ const ONE_CALL = estimateCostUsd(SPEC, TOKENS);
 /** A model answering each call with `answers[call]`, reporting 10 in and 5 out. */
 function fake(answers: string[]) {
   let call = 0;
-  return new MockLanguageModelV4({
-    doGenerate: () =>
-      Promise.resolve({
-        content: [{ type: 'text' as const, text: answers[call++] ?? answers.at(-1)! }],
-        finishReason: { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 5, text: 5, reasoning: 0 },
-        },
-        warnings: [],
-      }),
-  });
+  return fakeChatModel(() =>
+    Promise.resolve({
+      content: [{ type: 'text' as const, text: answers[call++] ?? answers.at(-1)! }],
+      finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 5, text: 5, reasoning: 0 },
+      },
+      warnings: [],
+    }),
+  );
 }
 
 const input: AnalystInput = {

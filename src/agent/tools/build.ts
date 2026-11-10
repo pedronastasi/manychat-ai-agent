@@ -1,4 +1,4 @@
-import type { ToolSet } from 'ai';
+import type { AgentTools } from './define.ts';
 import type { Tools } from '../../contracts/config.ts';
 import type { ContactReads } from '../contact.ts';
 import { NO_CONTACT_ACTIONS } from './contact-actions.ts';
@@ -36,8 +36,8 @@ export function buildTools(
   /** The turn's own contact, readable only on a turn that reads history (specs/024). */
   reads?: ContactReads,
   options: BuildToolsOptions = {},
-): ToolSet | undefined {
-  const tools: ToolSet = {};
+): AgentTools | undefined {
+  const tools: AgentTools = {};
   const turn = new ToolTurn(config, stage, contact, options);
 
   // In the order the model is offered them.

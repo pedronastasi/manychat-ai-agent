@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ToolSet } from 'ai';
+import type { AgentTools } from '../../src/agent/tools/define.ts';
 import { EXAMPLE_PLUGIN, pluginSource, scaffoldProject } from '../helpers/plugins.ts';
 import { run } from '../../src/cli/run.ts';
 import { ActionStage } from '../../src/agent/tools.ts';
@@ -33,6 +33,7 @@ import {
   withWorkspaceGlob,
 } from '../../src/plugins/scaffold.ts';
 import type { PerformableAction } from '../../src/contracts/agent.ts';
+import { execute } from '../helpers/tools.ts';
 
 /**
  * specs/041-plugin-new-starts-from-the-example.md § Verification: `agent
@@ -42,11 +43,9 @@ import type { PerformableAction } from '../../src/contracts/agent.ts';
  */
 
 const quiet: HostLogger = { info: () => {}, warn: () => {}, error: () => {} };
-/** Calls a tool as the model would, through the AI SDK's `execute`. */
-const call = (tools: ToolSet, name: string, input: Record<string, unknown>): Promise<unknown> =>
-  Promise.resolve(
-    tools[name]!.execute!(input as never, { toolCallId: 'call-1', messages: [], context: {} }),
-  );
+/** Runs a tool as the runner does once the model called it. */
+const call = (tools: AgentTools, name: string, input: Record<string, unknown>): Promise<unknown> =>
+  execute(tools[name], input);
 
 let project: ReturnType<typeof scaffoldProject>;
 afterEach(() => {
@@ -118,7 +117,7 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
       ),
     );
     vi.stubGlobal('fetch', backend);
-    const tools: ToolSet = {};
+    const tools: AgentTools = {};
     (await loadPlugins(project.configDir)).addReadTools(
       tools,
       new PluginReads({ subscriberId: 's1', logger: quiet }),
@@ -132,7 +131,7 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
 
   it('answers unavailable while the invented backend is still in place (C6)', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('getaddrinfo ENOTFOUND')));
-    const tools: ToolSet = {};
+    const tools: AgentTools = {};
     (await loadPlugins(project.configDir)).addReadTools(
       tools,
       new PluginReads({ subscriberId: 's1', logger: quiet }),
@@ -146,7 +145,7 @@ describe('the generated plugins load, and their tools work (specs/041 V1)', () =
     );
     vi.stubGlobal('fetch', backend);
     const plugins = await loadPlugins(project.configDir);
-    const tools: ToolSet = {};
+    const tools: AgentTools = {};
     const stage = new ActionStage();
     plugins.addTools(
       tools,

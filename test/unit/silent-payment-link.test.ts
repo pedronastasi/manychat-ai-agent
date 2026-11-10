@@ -2,8 +2,7 @@ import { beforeEach, describe, it, expect } from 'vitest';
 import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MockLanguageModelV4 } from 'ai/test';
-import type { LanguageModelV4CallOptions, LanguageModelV4Content } from '@ai-sdk/provider';
+import type { ModelCall, FakeContent } from '../helpers/model.ts';
 import { ActionStage, buildTools, silentPaymentLink } from '../../src/agent/tools.ts';
 import type { ContactActions } from '../../src/agent/tools.ts';
 import { FlowSends } from '../../src/agent/flows.ts';
@@ -17,6 +16,8 @@ import type { PerformableAction } from '../../src/contracts/agent.ts';
 import type { ActionPerformer } from '../../src/channels/manychat/client.ts';
 import { ConfigError, loadTenantConfig } from '../../src/config/loader.ts';
 import { asProspect } from '../helpers/intent.ts';
+import { execute } from '../helpers/tools.ts';
+import { fakeChatModel } from '../helpers/model.ts';
 
 /**
  * Runs under the LangChain runner, the only one since the AI SDK runner was
@@ -65,7 +66,7 @@ class RecordingPerformer implements ActionPerformer {
   }
 }
 
-const toolCall = (toolName: string, input: object): LanguageModelV4Content => ({
+const toolCall = (toolName: string, input: object): FakeContent => ({
   type: 'tool-call',
   toolCallId: `call-${toolName}`,
   toolName,
@@ -74,28 +75,26 @@ const toolCall = (toolName: string, input: object): LanguageModelV4Content => ({
 
 /** A model at the provider boundary that sends the payment flow, then answers with `final`. */
 function sendsPaymentThen(final: object) {
-  const calls: LanguageModelV4CallOptions[] = [];
-  const model = new MockLanguageModelV4({
-    doGenerate: async (options: LanguageModelV4CallOptions) => {
-      const step = calls.length;
-      calls.push(options);
-      const content: LanguageModelV4Content[] =
+  const calls: ModelCall[] = [];
+  const model = fakeChatModel(async (options: ModelCall) => {
+    const step = calls.length;
+    calls.push(options);
+    const content: FakeContent[] =
+      step === 0
+        ? [toolCall('send_flow', { flow: PAYMENT })]
+        : [{ type: 'text', text: JSON.stringify(final) }];
+    return {
+      content,
+      finishReason:
         step === 0
-          ? [toolCall('send_flow', { flow: PAYMENT })]
-          : [{ type: 'text', text: JSON.stringify(final) }];
-      return {
-        content,
-        finishReason:
-          step === 0
-            ? { unified: 'tool-calls' as const, raw: 'tool_use' }
-            : { unified: 'stop' as const, raw: 'end_turn' },
-        usage: {
-          inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 20, text: 20, reasoning: 0 },
-        },
-        warnings: [],
-      };
-    },
+          ? { unified: 'tool-calls' as const, raw: 'tool_use' }
+          : { unified: 'stop' as const, raw: 'end_turn' },
+      usage: {
+        inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 20, text: 20, reasoning: 0 },
+      },
+      warnings: [],
+    };
   });
   return { model, calls };
 }
@@ -290,11 +289,7 @@ describe.each(RUNNERS)('under the $name runner (specs/050 V6)', ({ Runner: Each 
       const built = buildTools(silentTools, new ActionStage(), prepared('foundation'), undefined, {
         flows,
       })!;
-      const result = await built.send_flow!.execute!({ flow: PAYMENT } as never, {
-        toolCallId: 'test',
-        messages: [],
-        context: {},
-      });
+      const result = await execute(built.send_flow, { flow: PAYMENT });
       expect(result).toEqual({
         sent: true,
         silent: expect.stringContaining('link of the contact’s offering from the CATALOG'),

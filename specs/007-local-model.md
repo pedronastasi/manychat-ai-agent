@@ -52,26 +52,24 @@ Ollama is the middle rung and substitutes for neither neighbour.
 
 Constitution C2 allows exactly one module to import a provider. Ollama does not
 get an exception, and does not need one: it serves an OpenAI-compatible API, so
-it is an `openai` provider instance with a different `baseURL`, registered as a
-fourth key in `registry.ts`. `createOpenAI` is already exported alongside the
-default `openai` instance, so this adds no dependency.
+it is OpenAI's client with a different `baseURL`, built in `registry.ts`: a
+`ChatOpenAI` for chat, and the `openai` client for transcription (specs/050,
+specs/053), so this adds no dependency.
 
 ```ts
-import { openai, createOpenAI } from '@ai-sdk/openai';
-
-const ollama = createOpenAI({ baseURL: env.OLLAMA_BASE_URL, apiKey: 'ollama' });
-const registry = createProviderRegistry({ anthropic, openai, google, ollama });
+new ChatOpenAI({ model, apiKey: 'ollama', configuration: { baseURL: OLLAMA_BASE_URL } });
 ```
 
-`apiKey` is required by the SDK and ignored by Ollama; any non-empty string does.
+`apiKey` is required by the client and ignored by Ollama; any non-empty string
+does.
 `UnknownProviderError` hardcodes the provider list in its message and must gain
 `ollama` with the same change, or a typo will be reported against a list that no
 longer matches the registry.
 
 `AGENT_MODEL=ollama:llama3.1:8b` therefore works unchanged. The registry splits
-on the **first** separator only — `ProviderRegistry.splitId` uses
-`indexOf(separator)` (verified in `ai@7.0.100`) — so a model tag containing its
-own colon survives. This is the one thing about the spec most likely to be
+on the **first** separator only (`resolveChatModel` uses `indexOf(':')`; the AI
+SDK's `ProviderRegistry.splitId` did the same before specs/053), so a model tag
+containing its own colon survives. This is the one thing about the spec most likely to be
 assumed broken; it is not.
 
 ## It will lose the race, and that is information
