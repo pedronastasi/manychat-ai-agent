@@ -180,7 +180,7 @@ importers:
         version: 9.2.1
       '@langchain/anthropic':
         specifier: ^1.6.0
-        version: 1.6.2(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))
+        version: 1.6.4(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))
       '@langchain/core':
         specifier: ^1.3.0
         version: 1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7))
@@ -192,10 +192,10 @@ importers:
         version: 1.7.3(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))(zod@4.6.7)
       '@langchain/openai':
         specifier: ^1.7.0
-        version: 1.8.2(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))
+        version: 1.8.4(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(postgres@4.1.0)
+        version: 0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(postgres@4.1.1)
       fastify:
         specifier: ^5.12.4
         version: 5.12.8
@@ -216,7 +216,7 @@ importers:
         version: 10.4.0
       postgres:
         specifier: ^4.0.0
-        version: 4.1.0
+        version: 4.1.1
       zod:
         specifier: ^4.6.5
         version: 4.6.7
@@ -1151,11 +1151,11 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@langchain/anthropic@1.6.2':
-    resolution: {integrity: sha512-mVqCEvXcmD6rhfqrmmYmUDh9Z+Xis3AZ2+Bwdt0LPMHQSyOnlx6z4ces8gBcvJfk0fKSZnbmcdSQZMGRAmT7gA==}
+  '@langchain/anthropic@1.6.4':
+    resolution: {integrity: sha512-VXY21pOalXqkByE5WwcD+uYysQye4IHrymNnv7G/IAOdglX11S9Uyp4lome/KCqRRKUBKWoO0qf+3u5f1e2KaA==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@langchain/core': ^1.3.5
+      '@langchain/core': ^1.4.0
 
   '@langchain/core@1.4.0':
     resolution: {integrity: sha512-4FLE0OoPu4hFFcGX4ep3o/BWTXVcE0hQroxB9z3PzWKqZV9+WAqlqmH30We6YUFMMc/1Vzkfa/q+PTioaAkoDw==}
@@ -1192,11 +1192,11 @@ packages:
       '@langchain/core': ^1.3.4
       zod: ^3.25.32 || ^4.2.0
 
-  '@langchain/openai@1.8.2':
-    resolution: {integrity: sha512-pA0ns3ikApRpCbvrShDqmIkPisbbZ3Ygr1HSsmJdrl+gqkVBeLKxS+P0c+DIpzXKoGVg0nuvQCb/ZXLM5Ti+iw==}
+  '@langchain/openai@1.8.4':
+    resolution: {integrity: sha512-SMbIgGuZrjntuzOr1K6SR+6www3niEGvQ2mLDWHuEHNjYqxGBwelmfb/Mqd9GeFhb5BXFhnpbvHDpy6O2jtQKg==}
     engines: {node: '>=22'}
     peerDependencies:
-      '@langchain/core': ^1.3.5
+      '@langchain/core': ^1.4.0
 
   '@langchain/protocol@0.0.21':
     resolution: {integrity: sha512-HJS8Cd5GJ437MIrCnbrPHx0FJcluyOk5HdZzD081ap4SBzfWpAj/6AtI7fqpNSMo6VZEoEdaN9fIts8R0XR1AQ==}
@@ -2819,8 +2819,8 @@ packages:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
 
-  postgres@4.1.0:
-    resolution: {integrity: sha512-s+0WH67YAyLdBQUb6XczbziBhY+C9uiQsg9S8R5RHdZhk6sdyK6202E+T2tXpiInSEEjDLRSJ3OpYBe3PN6MsQ==}
+  postgres@4.1.1:
+    resolution: {integrity: sha512-1kJDojqNZC+iTHHXh6eif0J98LUtyLAePe/qkW1GK35eh2JixlsAiIKq3FGI+xqI+SUGTNodzf7TScVeIIyUug==}
     engines: {node: '>=18'}
 
   preact@10.29.8:
@@ -3876,7 +3876,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@langchain/anthropic@1.6.2(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))':
+  '@langchain/anthropic@1.6.4(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))':
     dependencies:
       '@anthropic-ai/sdk': 1.7.0(zod@4.6.7)
       '@langchain/core': 1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7))
@@ -3927,7 +3927,7 @@ snapshots:
       - react
       - react-dom
 
-  '@langchain/openai@1.8.2(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))':
+  '@langchain/openai@1.8.4(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7)))':
     dependencies:
       '@langchain/core': 1.4.0(@opentelemetry/api@1.10.0)(openai@7.55.0(zod@4.6.7))
       js-tiktoken: 1.0.21
@@ -4851,11 +4851,11 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.15
 
-  drizzle-orm@0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(postgres@4.1.0):
+  drizzle-orm@0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(postgres@4.1.1):
     optionalDependencies:
       '@electric-sql/pglite': 0.5.16
       '@opentelemetry/api': 1.10.0
-      postgres: 4.1.0
+      postgres: 4.1.1
 
   elkjs@0.12.1: {}
 
@@ -5530,7 +5530,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.2
 
-  postgres@4.1.0: {}
+  postgres@4.1.1: {}
 
   preact@10.29.8: {}
 
