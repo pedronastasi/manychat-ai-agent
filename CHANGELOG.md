@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.36.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.0...v0.36.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update minor dependencies ([517323b](https://github.com/pedronastasi/manychat-ai-agent/commit/517323ba4bb43a683157ee4cdbce01408ba0d7d2))
+* **deps:** update minor dependencies ([0b63fda](https://github.com/pedronastasi/manychat-ai-agent/commit/0b63fdad09ba3f11cd74f66d011474a63b6c0900))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([630245f](https://github.com/pedronastasi/manychat-ai-agent/commit/630245f462c2be33753588ad599313d386379f65))
+* **deps:** lock file maintenance ([6a2fd30](https://github.com/pedronastasi/manychat-ai-agent/commit/6a2fd304bae0021761dc4249e558f503c56df3e1))
+* **deps:** update patch dependencies ([efde86c](https://github.com/pedronastasi/manychat-ai-agent/commit/efde86c474bbca298e407d84a7bc62d6c1f58f4a))
+* **deps:** update patch dependencies ([02234ab](https://github.com/pedronastasi/manychat-ai-agent/commit/02234abf7569ab8908e30cc5036249f0b2cb5127))
+
 ## [0.36.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.35.0...v0.36.0) (2026-11-10)
 
 
