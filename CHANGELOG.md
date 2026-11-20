@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.36.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.0...v0.36.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **deps:** update minor dependencies ([f38bbb2](https://github.com/pedronastasi/manychat-ai-agent/commit/f38bbb2ebafa008727affddf660fbc6b99ac886d))
+* **deps:** update minor dependencies ([820832b](https://github.com/pedronastasi/manychat-ai-agent/commit/820832bd9d685b5eea58bbf772028e7770630364))
+* **deps:** update minor dependencies ([517323b](https://github.com/pedronastasi/manychat-ai-agent/commit/517323ba4bb43a683157ee4cdbce01408ba0d7d2))
+* **deps:** update minor dependencies ([0b63fda](https://github.com/pedronastasi/manychat-ai-agent/commit/0b63fdad09ba3f11cd74f66d011474a63b6c0900))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([630245f](https://github.com/pedronastasi/manychat-ai-agent/commit/630245f462c2be33753588ad599313d386379f65))
+* **deps:** lock file maintenance ([6a2fd30](https://github.com/pedronastasi/manychat-ai-agent/commit/6a2fd304bae0021761dc4249e558f503c56df3e1))
+* **deps:** update patch dependencies ([92faecb](https://github.com/pedronastasi/manychat-ai-agent/commit/92faecbe1c977135406e9bd2ad66ae7d71bec4d7))
+* **deps:** update patch dependencies ([ce3b307](https://github.com/pedronastasi/manychat-ai-agent/commit/ce3b307f38ff6b9c729b25d2176911fdd93992b1))
+* **deps:** update patch dependencies ([efde86c](https://github.com/pedronastasi/manychat-ai-agent/commit/efde86c474bbca298e407d84a7bc62d6c1f58f4a))
+* **deps:** update patch dependencies ([02234ab](https://github.com/pedronastasi/manychat-ai-agent/commit/02234abf7569ab8908e30cc5036249f0b2cb5127))
+* **deps:** update pnpm to v12.21.0 ([f32b93c](https://github.com/pedronastasi/manychat-ai-agent/commit/f32b93c283616f30f366bb587b279e1d8ba137f3))
+* **deps:** update pnpm to v12.21.0 ([80daaeb](https://github.com/pedronastasi/manychat-ai-agent/commit/80daaebc5f07941f328d1c8f1553eee88d9b9fda))
+
 ## [0.36.0](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.35.0...v0.36.0) (2026-11-10)
 
 
