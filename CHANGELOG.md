@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.36.2](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.1...v0.36.2) (2026-11-20)
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([387c444](https://github.com/pedronastasi/manychat-ai-agent/commit/387c4449b4ca7d8268286fc9a671dababc5a04d6))
+* **deps:** lock file maintenance ([592a333](https://github.com/pedronastasi/manychat-ai-agent/commit/592a3339e7d1f0d632ba2a4d2ee04fe4e7f5da8d))
+* **deps:** update postgres docker tag to v19 ([3e4ab23](https://github.com/pedronastasi/manychat-ai-agent/commit/3e4ab232109e93cf74a8bfe84c781b7fb851baea))
+
 ## [0.36.1](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.0...v0.36.1) (2026-11-20)
 
 
