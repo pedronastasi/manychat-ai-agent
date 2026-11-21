@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.36.3](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.2...v0.36.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **docker:** install corepack on node 26, which no longer bundles it ([6220ca2](https://github.com/pedronastasi/manychat-ai-agent/commit/6220ca27ba0da9defb7a8e65f83d70b8e2c2064c))
+* **docker:** install corepack on node 26, which no longer bundles it ([94fe991](https://github.com/pedronastasi/manychat-ai-agent/commit/94fe991d036621b358c3df3c2ffa3ac3aa52137d))
+
 ## [0.36.2](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.1...v0.36.2) (2026-11-20)
 
 
