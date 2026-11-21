@@ -66,6 +66,8 @@ test fails the suite.
 | [051 — Grounded Claims](051-grounded-claims.md)                                                                            | implemented | 2026-10-23  | #266 | 2     | C1, C3, C6, C8, C9                 | [0011]                                                                                 |
 | [052 — Traces Carry Shape, Not Text](052-traces-carry-shape-not-text.md)                                                   | implemented | 2026-10-30  | #285 | 5     | C1, C5, C6, C7                     | [0014], [0028], [0029]                                                                 |
 | [053 — One Model Library](053-one-model-library.md)                                                                        | implemented | 2026-11-09  | —    | 9     | C2, C3, C7, C8                     | [0026], [0030]                                                                         |
+| [054 — An Unrecognised Argument Stops the Command](054-an-unrecognised-argument-stops-the-command.md)                      | specified   | —           | —    | —     | C1, C6, C8                         | —                                                                                      |
+| [055 — A Run Can Name the Cases It Wants](055-a-run-can-name-the-cases-it-wants.md)                                        | specified   | —           | —    | —     | C1, C6, C8                         | —                                                                                      |
 
 [0001]: ../docs/adr/0001-hybrid-race-reply-path.md
 [0004]: ../docs/adr/0004-postgres-outbox-over-redis.md
