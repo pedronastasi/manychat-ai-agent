@@ -116,9 +116,20 @@ separate badge would need either a third-party service receiving every
 coverage report or a self-published endpoint, and it would add nothing a
 reader can act on.
 
-**Who it is for, in one sentence.** Anyone putting an LLM behind a platform
-that enforces a hard webhook timeout. ManyChat is the adapter that ships, not
-the audience: the race and the outbox are what a stranger can reuse.
+**Who it is for, in one sentence.** Anyone whose ManyChat bot answers
+questions but never closes a sale. The visitor most likely to adopt the agent
+has already tried ManyChat's built-in AI and been let down by it, so the first
+screen names that, and "The problem this solves" opens with what the built-in
+AI lacks before it reaches the race.
+
+> **Amended 2026-11-25.** This sentence read "anyone putting an LLM behind a
+> platform that enforces a hard webhook timeout; ManyChat is the adapter that
+> ships, not the audience." That reader exists, and the race and the outbox are
+> still what they can reuse, but they are rarer than the ManyChat operator and
+> do not need to be addressed on the first screen to find the race below it.
+> Each claim the README makes about this agent cites the spec that implements
+> it; what it says of the built-in AI is stated as the maintainers' experience,
+> not as fact.
 
 **The demo is recorded, not described.** "No API key and no database" is the
 strongest claim the README makes, and a claim is weaker than a recording of it.

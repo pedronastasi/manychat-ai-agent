@@ -44,17 +44,17 @@ So the rule is:
 
 Below the first screen, the README has these sections and no others:
 
-| Section                 | What it holds                                                                       |
-| ----------------------- | ----------------------------------------------------------------------------------- |
-| The problem this solves | The 10-second limit, the race diagram and why the losing call is not cancelled      |
-| What it can do          | One bullet per capability, each naming the spec that defines it                     |
-| Stack                   | One row per layer: the library and the file that uses it                            |
-| Architecture: one turn  | The turn graph as a diagram, and where a turn hands off to a person                 |
-| Channels                | How a channel is reached, and one row per channel of the limits the code holds      |
-| Configuration           | The settings a deployment cannot start without, and the tracing switch              |
-| Documentation           | A table from what a reader wants to do to the one page that tells them              |
-| Development             | The commands a contributor runs, without explanation; the explanation is in a guide |
-| Status, License         | As before                                                                           |
+| Section                 | What it holds                                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The problem this solves | What ManyChat's built-in AI lacks, one table row each with the spec that answers it; the 10-second limit, the race diagram and why the losing call is not cancelled |
+| What it can do          | One bullet per capability, each naming the spec that defines it                                                                                                     |
+| Stack                   | One row per layer: the library and the file that uses it                                                                                                            |
+| Architecture: one turn  | The turn graph as a diagram, and where a turn hands off to a person                                                                                                 |
+| Channels                | How a channel is reached, and one row per channel of the limits the code holds                                                                                      |
+| Configuration           | The settings a deployment cannot start without, and the tracing switch                                                                                              |
+| Documentation           | A table from what a reader wants to do to the one page that tells them                                                                                              |
+| Development             | The commands a contributor runs, without explanation; the explanation is in a guide                                                                                 |
+| Status, License         | As before                                                                                                                                                           |
 
 A capability bullet says what the agent does, not how to turn it on. When a new
 capability needs explaining, it gets a bullet here and its explanation goes

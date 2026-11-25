@@ -6,19 +6,12 @@
 [![Release](https://img.shields.io/github/v/release/pedronastasi/manychat-ai-agent)](https://github.com/pedronastasi/manychat-ai-agent/releases)
 [![Node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpedronastasi%2Fmanychat-ai-agent%2Fmain%2Fpackage.json&query=%24.engines.node&label=node)](package.json)
 
-A production-shaped, provider-agnostic AI agent that answers customer questions
-on WhatsApp, Instagram and Facebook Messenger through
-[ManyChat](https://manychat.com), escalating to a human rather than guessing.
-Each turn is a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) graph
-over LangChain.js models, served by Fastify, and traceable to your own
-[LangSmith](https://smith.langchain.com): its shape, never its text.
+**The AI agent ManyChat's built-in AI should have been.** It answers your
+customers on WhatsApp, Instagram and Messenger from your own catalog, never
+from a guess, and hands the conversation to a person when it can't.
 
-Switching the model is one environment variable. Switching the chat platform is
-one adapter.
-
-It is for anyone putting an LLM behind a platform that enforces a hard webhook
-timeout: ManyChat is the adapter that ships, and the race and the outbox below
-are what carries over to any other.
+It is for anyone whose ManyChat bot answers questions but never closes a sale.
+Open source, on your model and your server, so you control what it does.
 
 ```bash
 git clone https://github.com/pedronastasi/manychat-ai-agent.git
@@ -26,31 +19,41 @@ cd manychat-ai-agent
 pnpm install && pnpm bootstrap && pnpm dev
 ```
 
-That runs with **no API key and no database to install** — an offline mock model
-and an embedded [PGlite](https://pglite.dev/) Postgres. In another terminal,
-`pnpm simulate` answers one question and hands one off:
+That runs with **no API key and no database to install** (an offline mock model,
+embedded [PGlite](https://pglite.dev/)). `pnpm simulate` then answers one
+question and hands one off:
 
 ![pnpm simulate answering a price question from the catalog and escalating a request for a person](docs/assets/demo.svg)
 
-That clone is for trying the agent and working on it. To run one for your own
-business, generate a project of your own instead, which depends on the published
-package rather than a copy of this repository:
+For your own business, generate a project on the published package instead
+([Starting a new agent](docs/guides/getting-started.md)):
 
 ```bash
 npm create manychat-ai-agent@latest my-agent
 ```
 
-[Starting a new agent](docs/guides/getting-started.md) walks through it,
-from the offline first run to a deployment.
-
----
-
 ## The problem this solves
 
-ManyChat can call an external endpoint, but **it terminates the request after 10
-seconds**. An LLM call plus database work sometimes fits in that budget and
-sometimes does not, so the obvious synchronous design drops replies under exactly
-the conditions where a customer is already waiting.
+ManyChat's built-in AI is a prompt and nothing else: no catalog, no tool calls,
+no retrieval. Here is what that meant for us, and what this agent does instead:
+
+| Built-in AI                                      | This agent                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Answers incorrectly                              | Says only what your catalog holds, and hands anything else to a person ([001](specs/001-agent-behavior.md), [051](specs/051-grounded-claims.md))                                                                                             |
+| Can't be given enough context                    | Answers from a structured catalog, and calls read tools for the contact's record and your own systems ([003](specs/003-config-schema.md), [024](specs/024-contact-read-and-notes.md), [039](specs/039-plugin-reads-return-declared-data.md)) |
+| Can only talk, never act                         | Calls tools mid-conversation: sends flows, sets tags and fields, writes notes, schedules follow-ups ([012](specs/012-agent-tools.md), [024](specs/024-contact-read-and-notes.md))                                                            |
+| Answers questions but isn't built to sell        | Learns intent, builds rapport, then takes the lead to your payment link ([023](specs/023-sales-funnel.md), [032](specs/032-relationship-before-the-sale.md), [034](specs/034-intent-before-the-sale.md))                                     |
+| Has no sales workflow you can define             | Follows the funnel stages, flows and offerings you configure ([023](specs/023-sales-funnel.md), [028](specs/028-multi-course-funnels.md), [029](specs/029-flows-before-the-reply.md))                                                        |
+| Loops without moving the sale forward            | Tracks each lead's stage, never repeats a reply word for word, and follows up when a lead goes quiet ([013](specs/013-no-verbatim-repetition.md), [025](specs/025-in-window-nudge.md))                                                       |
+| Gives WhatsApp and Messenger less than Instagram | Runs the same agent on all three from one deployment ([048](specs/048-one-deployment-every-meta-channel.md))                                                                                                                                 |
+| Can't be monitored                               | Traces every turn to your LangSmith and fires a conversion event each time a lead advances ([052](specs/052-traces-carry-shape-not-text.md), [027](specs/027-funnel-conversion-events.md), [031](specs/031-learning-from-outcomes.md))       |
+| Can't be extended                                | Takes your own tools and channels as plugins ([036](specs/036-plugins-extend-through-the-ports.md), [038](specs/038-plugin-channels.md))                                                                                                     |
+| Isn't yours                                      | Is open source, on the model you pick, on your server ([registry](src/agent/registry.ts))                                                                                                                                                    |
+
+And it does all of that inside ManyChat's limit: **an external request is
+terminated after 10 seconds**. An LLM call plus database work sometimes fits in
+that budget and sometimes does not, so the obvious synchronous design drops
+replies under exactly the conditions where a customer is already waiting.
 
 This project takes the position that neither "always answer inline" nor "always
 queue" is right, and races them.
@@ -92,14 +95,11 @@ record — is in [How it works](docs/guides/how-it-works.md).
 - **Keep each contact's history theirs.** A token held in the contact's own
   ManyChat field, not the shared secret, unlocks their conversation
   ([spec 019](specs/019-contact-tokens.md)).
-- **Answer WhatsApp, Instagram and Messenger from one deployment.** Each request
-  names its channel, and the reply, a deferred delivery and a follow-up go back
-  on that channel alone. A contact ManyChat has merged across channels keeps one
-  conversation ([spec 048](specs/048-one-deployment-every-meta-channel.md)).
+- **Answer WhatsApp, Instagram and Messenger from one deployment**, keeping one
+  conversation for a contact merged across them ([spec 048](specs/048-one-deployment-every-meta-channel.md)).
 - **Read voice notes, images and videos** sent on any of the three
   ([spec 020](specs/020-inbound-media.md)).
-- **Act in ManyChat and sell.** Optionally send flows, set tags and fields, read
-  the contact, schedule a follow-up, and take a lead to the payment link
+- **Act in ManyChat and sell**, each tool switched on by the tenant
   ([spec 012](specs/012-agent-tools.md), [spec 023](specs/023-sales-funnel.md)).
 - **Learn from outcomes**, offline and only after a person approves
   ([spec 031](specs/031-learning-from-outcomes.md)).
