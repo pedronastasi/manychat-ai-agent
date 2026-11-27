@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.36.4](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.3...v0.36.4) (2026-11-27)
+
+
+### Specs and Docs
+
+* bring spec 026 up to 0.36.0 and scope the first Python release ([9823093](https://github.com/pedronastasi/manychat-ai-agent/commit/9823093b65991132c6dd8bc4116661b92c9ab346))
+* leave 051 out of the first Python release, with 016 that grades it ([0059e13](https://github.com/pedronastasi/manychat-ai-agent/commit/0059e13a6ce7cab8ded22077855da55f561f3e4d))
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([c4637ea](https://github.com/pedronastasi/manychat-ai-agent/commit/c4637ea15885983f5dbd67b1f894c2ee8b492297))
+* **deps:** lock file maintenance ([61e1cf7](https://github.com/pedronastasi/manychat-ai-agent/commit/61e1cf79f7b04ca15d548f28d49cc59df9fd6191))
+
 ## [0.36.3](https://github.com/pedronastasi/manychat-ai-agent/compare/v0.36.2...v0.36.3) (2026-11-21)
 
 
