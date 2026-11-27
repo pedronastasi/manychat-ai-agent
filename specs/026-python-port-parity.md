@@ -198,7 +198,7 @@ revisit trigger counts from the first release. The specs it claims:
 
 | Area                 | Specs                                                       |
 | -------------------- | ----------------------------------------------------------- |
-| The reply            | `001`, `013`, `051`                                         |
+| The reply            | `001`, `013`                                                |
 | Channels and wire    | `002`, `017`, `022`, `048`, `049`                           |
 | Tenant config        | `003`                                                       |
 | The loop and tools   | `012`, `024`, `029`, `030`, `050`, `053`                    |
@@ -210,7 +210,7 @@ revisit trigger counts from the first release. The specs it claims:
 
 It does not claim the sales layer (`023`, `027`, `028`, `032`, `034`, `042`,
 `045`), nudges (`025`), learning (`031`), model-graded and conversation evals
-(`016`, `043`), prompt section overrides (`044`), plugins (`036`, `038`, `039`,
+(`016`, `043`, `051`), prompt section overrides (`044`), plugins (`036`, `038`, `039`,
 `041`), or the tenant package, CLI and scaffolder (`033`, `035`). Each later
 release names the specs it adds, and adds their rows to the tables above.
 
