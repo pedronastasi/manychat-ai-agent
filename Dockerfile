@@ -3,7 +3,8 @@
 # ---- build ------------------------------------------------------------------
 FROM node:26-alpine AS build
 WORKDIR /app
-RUN corepack enable
+# Node 25+ no longer bundles corepack; install it so `packageManager` pins pnpm.
+RUN npm install -g corepack@latest && corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
