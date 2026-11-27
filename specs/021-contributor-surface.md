@@ -174,13 +174,13 @@ for nothing a report does not need, and it is not a tenant's (C1).
 Some of what a stranger meets is not in git. It is specified here because a
 settings change nobody wrote down gets undone silently.
 
-| Setting        | Value                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Topics         | `whatsapp`, `manychat`, `ai-agent`, `llm`, `chatbot`, `vercel-ai-sdk`, `fastify`, `typescript`, `outbox-pattern`, `customer-support` |
-| Social preview | An image of the race diagram from the README, drawn with fixture values only; its source is committed under `docs/assets/`           |
-| Discussions    | On, with a Q&A category                                                                                                              |
-| Wiki           | Off                                                                                                                                  |
-| Homepage       | The GitHub Pages URL of `014-docs-site.md`, set once that site deploys; empty until then                                             |
+| Setting        | Value                                                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Topics         | `whatsapp`, `manychat`, `ai-agent`, `llm`, `chatbot`, `langchain`, `fastify`, `typescript`, `outbox-pattern`, `customer-support` |
+| Social preview | An image of the race diagram from the README, drawn with fixture values only; its source is committed under `docs/assets/`       |
+| Discussions    | On, with a Q&A category                                                                                                          |
+| Wiki           | Off                                                                                                                              |
+| Homepage       | The GitHub Pages URL of `014-docs-site.md`, set once that site deploys; empty until then                                         |
 
 **The Wiki is off because it is a second copy of the docs outside review.**
 `014` rejects a `docs/` tree of rewritten pages because the copy drifts from the
